@@ -1,13 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  ingestarLote,
-  registrarCarga,
-  obtenerResumen,
-} from "@/lib/ventas.functions";
+  ingestarLoteCliente,
+  registrarCargaCliente,
+  obtenerResumenCliente,
+} from "@/lib/ventas-api";
 import {
   parseArchivoVentas,
   COLUMNAS_ESPERADAS,
@@ -34,9 +33,6 @@ export const Route = createFileRoute("/_authenticated/panel")({
 function Panel() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const resumenFn = useServerFn(obtenerResumen);
-  const ingestFn = useServerFn(ingestarLote);
-  const registrarFn = useServerFn(registrarCarga);
 
   const [archivo, setArchivo] = useState<File | null>(null);
   const [progreso, setProgreso] = useState(0);
@@ -45,7 +41,7 @@ function Panel() {
 
   const { data: resumen } = useQuery({
     queryKey: ["resumen"],
-    queryFn: () => resumenFn({}),
+    queryFn: () => obtenerResumenCliente(),
   });
 
   const carga = useMutation({
@@ -66,12 +62,12 @@ function Panel() {
       for (let i = 0; i < total; i += TAMANO_LOTE) {
         const lote = filas.slice(i, i + TAMANO_LOTE);
         setEstado(`Cargando filas ${i + 1} – ${Math.min(i + TAMANO_LOTE, total)} de ${total}`);
-        const r = await ingestFn({ data: { archivo: file.name, filas: lote } });
+        const r = await ingestarLoteCliente(lote);
         recibidas += r.recibidas;
         nuevas += r.nuevas;
         setProgreso(Math.round(((i + lote.length) / total) * 100));
       }
-      await registrarFn({ data: { archivo: file.name, recibidas, nuevas } });
+      await registrarCargaCliente(file.name, recibidas, nuevas);
       return { recibidas, nuevas };
     },
     onSuccess: (r) => {
