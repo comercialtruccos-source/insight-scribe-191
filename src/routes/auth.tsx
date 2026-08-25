@@ -35,43 +35,94 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (session && (event === "SIGNED_IN" || event === "INITIAL_SESSION")) {
+          navigate({ to: "/panel" });
+        }
+      }
+    );
+
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) navigate({ to: "/panel" });
     });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, [navigate]);
+
+  const traducirError = (msg: string) => {
+    const m = msg.toLowerCase();
+    if (m.includes("invalid login credentials")) {
+      return "Credenciales incorrectas. Verifica tu correo y contraseña.";
+    }
+    if (m.includes("email not confirmed")) {
+      return "Tu correo electrónico no ha sido confirmado. Revisa tu bandeja de entrada o confirma el usuario en Supabase.";
+    }
+    if (m.includes("user already registered")) {
+      return "Este correo ya está registrado. Por favor selecciona 'Ingresar'.";
+    }
+    if (m.includes("password should be at least")) {
+      return "La contraseña debe tener al menos 6 caracteres.";
+    }
+    return msg;
+  };
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
     setCargando(true);
+    setErrorMsg(null);
+    setInfoMsg(null);
     try {
       if (modo === "login") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
         if (error) throw error;
-        navigate({ to: "/panel" });
+        if (data.session) {
+          toast.success("¡Bienvenido!");
+          navigate({ to: "/panel" });
+        }
       } else {
-        const { error } = await supabase.auth.signUp({
-          email,
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
           password,
           options: { emailRedirectTo: `${window.location.origin}/panel` },
         });
         if (error) throw error;
-        toast.success("Cuenta creada. Revisa tu correo si se solicita confirmación.");
-        navigate({ to: "/panel" });
+        if (data.session) {
+          toast.success("Cuenta creada exitosamente");
+          navigate({ to: "/panel" });
+        } else {
+          setInfoMsg(
+            "Cuenta registrada. Si Supabase requiere confirmación, revisa tu correo electrónico para activar la cuenta."
+          );
+          toast.info("Revisa tu correo para confirmar tu cuenta.");
+        }
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No fue posible continuar");
+      const errorText = err instanceof Error ? err.message : "No fue posible continuar";
+      const mensajeTraducido = traducirError(errorText);
+      setErrorMsg(mensajeTraducido);
+      toast.error(mensajeTraducido);
     } finally {
       setCargando(false);
     }
   };
 
   const conGoogle = async () => {
+    setErrorMsg(null);
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: window.location.origin,
     });
     if (result.error) {
+      setErrorMsg("No fue posible iniciar sesión con Google");
       toast.error("No fue posible iniciar sesión con Google");
       return;
     }
@@ -102,6 +153,19 @@ function AuthPage() {
               <span className="h-px flex-1 bg-border" />o con correo
               <span className="h-px flex-1 bg-border" />
             </div>
+
+            {errorMsg && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                {errorMsg}
+              </div>
+            )}
+
+            {infoMsg && (
+              <div className="rounded-md border border-primary/50 bg-primary/10 p-3 text-sm text-primary">
+                {infoMsg}
+              </div>
+            )}
+
             <form onSubmit={enviar} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Correo corporativo</Label>
@@ -132,7 +196,11 @@ function AuthPage() {
             <button
               type="button"
               className="w-full text-center text-sm text-muted-foreground underline-offset-4 hover:underline"
-              onClick={() => setModo(modo === "login" ? "registro" : "login")}
+              onClick={() => {
+                setErrorMsg(null);
+                setInfoMsg(null);
+                setModo(modo === "login" ? "registro" : "login");
+              }}
             >
               {modo === "login"
                 ? "¿No tienes cuenta? Crear una"
