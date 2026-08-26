@@ -236,6 +236,7 @@ export type MetadataArchivo = {
   columnasFaltantes: string[];
   columnasIgnoradas: string[];
   esCSV: boolean;
+  tamanoBytes: number;
 };
 
 /** Analiza los encabezados del archivo en milisegundos sin cargar filas en memoria */
@@ -247,7 +248,7 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
       Papa.parse(file, {
         preview: 2,
         header: true,
-        skipEmptyLines: true,
+        skipEmptyLines: "greedy",
         complete: (results) => {
           const headers = results.meta.fields || [];
           const detectados = new Set<string>();
@@ -269,6 +270,7 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
             columnasFaltantes: faltantes,
             columnasIgnoradas: ignoradas,
             esCSV: true,
+            tamanoBytes: file.size,
           });
         },
         error: (err) => reject(err),
@@ -276,45 +278,13 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
     });
   }
 
-  // Para XLSX, leemos sólo los metadatos de las primeras filas
-  const buffer = await file.slice(0, 1024 * 512).arrayBuffer();
-  try {
-    const wb = XLSX.read(buffer, { type: "array", sheetRows: 2, dense: true, raw: true });
-    const hoja = wb.Sheets[wb.SheetNames[0]!];
-    if (!hoja) throw new Error("El archivo no contiene hojas de datos.");
-    const crudo = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, { header: 1 });
-    const headers = (crudo[0] as string[]) || [];
-
-    const detectados = new Set<string>();
-    const ignoradas: string[] = [];
-
-    for (const h of headers) {
-      if (!h) continue;
-      const campo = MAPA[norm(String(h))];
-      if (campo) detectados.add(campo);
-      else ignoradas.push(String(h));
-    }
-
-    const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
-      const campo = MAPA[norm(c)];
-      return campo ? !detectados.has(campo) : false;
-    });
-
-    return {
-      columnasDetectadas: [...detectados],
-      columnasFaltantes: faltantes,
-      columnasIgnoradas: ignoradas,
-      esCSV: false,
-    };
-  } catch {
-    // Si la lectura parcial de XLSX falla, devolvemos formato estándar
-    return {
-      columnasDetectadas: [],
-      columnasFaltantes: [],
-      columnasIgnoradas: [],
-      esCSV: false,
-    };
-  }
+  return {
+    columnasDetectadas: [],
+    columnasFaltantes: [],
+    columnasIgnoradas: [],
+    esCSV: false,
+    tamanoBytes: file.size,
+  };
 }
 
 export type OpcionesProcesamiento = {
@@ -360,7 +330,7 @@ export async function procesarArchivoPorStreaming({
       Papa.parse(file, {
         header: true,
         skipEmptyLines: "greedy",
-        chunkSize: 1024 * 512, // Lectura en trozos de 512KB
+        chunkSize: 1024 * 512, // Lectura en bloques de 512KB del disco
         chunk: async (results, parser) => {
           parser.pause();
           try {
@@ -419,7 +389,7 @@ export async function procesarArchivoPorStreaming({
               filasLeidas: recibidas,
               filasNuevas: nuevas,
               porcentaje: 100,
-              mensaje: "Carga completada",
+              mensaje: "Carga completada con éxito",
             });
 
             resolve({
@@ -439,15 +409,21 @@ export async function procesarArchivoPorStreaming({
   }
 
   // Si es Excel (.xlsx, .xls)
+  // Advertir si el archivo es mayor a 15MB para prevenir OOM crash de V8
+  if (file.size > 15 * 1024 * 1024) {
+    throw new Error(
+      "El archivo Excel supera los 15 MB y excedería la memoria del navegador. Por favor guárdalo/expórtalo en formato .CSV (delimitado por comas) para procesarlo en streaming sin límite."
+    );
+  }
+
   onProgreso?.({
     filasLeidas: 0,
     filasNuevas: 0,
     porcentaje: 5,
-    mensaje: "Leyendo estructura de Excel...",
+    mensaje: "Leyendo archivo Excel...",
   });
 
   const buffer = await file.arrayBuffer();
-  // dense: true y raw: true para reducir drásticamente el uso de memoria en SheetJS
   const wb = XLSX.read(buffer, {
     type: "array",
     dense: true,
