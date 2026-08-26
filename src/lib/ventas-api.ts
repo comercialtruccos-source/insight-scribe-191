@@ -79,7 +79,7 @@ export async function registrarCargaCliente(
   return { ok: true };
 }
 
-/** Obtiene la lista completa de catálogos y TODOS los años presentes en la base de datos */
+/** Obtiene catálogos y TODOS los años presentes en la base de datos sin límite */
 export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
   const [aniosRpc, vendRes, canalRes, marcaRes, lineaRes, zonaRes, ciudadRes] =
     await Promise.all([
@@ -95,20 +95,33 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
   let anios: number[] = [];
 
   if (Array.isArray(aniosRpc.data) && aniosRpc.data.length > 0) {
-    anios = aniosRpc.data.map((r: Record<string, unknown>) => Number(r.anio)).filter(Boolean);
-  } else {
-    // Fallback directo
-    const { data: directAnios } = await supabase
-      .from("fact_ventas")
-      .select("anio")
-      .not("anio", "is", null);
+    anios = aniosRpc.data.map((r: Record<string, unknown>) => Number(r.anio)).filter((n) => n >= 2000 && n <= 2050);
+  }
 
-    const setAnios = new Set<number>((directAnios || []).map((r) => r.anio).filter(Boolean));
+  // Fallback si RPC no está o dio vacío: consultar directamente años y fechas
+  if (anios.length === 0) {
+    const [directAnios, directFechas] = await Promise.all([
+      supabase.from("fact_ventas").select("anio").not("anio", "is", null).limit(10000),
+      supabase.from("fact_ventas").select("fecha").not("fecha", "is", null).limit(10000),
+    ]);
+
+    const setAnios = new Set<number>();
+    (directAnios.data || []).forEach((r) => {
+      const a = Number(r.anio);
+      if (a >= 2000 && a <= 2050) setAnios.add(a);
+    });
+    (directFechas.data || []).forEach((r) => {
+      if (r.fecha) {
+        const a = parseInt(String(r.fecha).slice(0, 4), 10);
+        if (a >= 2000 && a <= 2050) setAnios.add(a);
+      }
+    });
+
     anios = Array.from(setAnios);
   }
 
   if (anios.length === 0) {
-    anios = [2026, 2025, 2024, 2023, 2022];
+    anios = [2026, 2025, 2024, 2023, 2022, 2021, 2020];
   }
 
   return {
@@ -156,90 +169,174 @@ export type DataHistoricoMultianual = {
 };
 
 export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<DataHistoricoMultianual> {
-  const [anualRes, estacRes, matrizRes] = await Promise.all([
-    supabase.rpc("get_bi_historico_anual", {
-      p_canal_id: filtros.canal_id ?? undefined,
-      p_marca_id: filtros.marca_id ?? undefined,
-      p_vendedor_id: filtros.vendedor_id ?? undefined,
-      p_zona_id: filtros.zona_id ?? undefined,
-    }),
-    supabase.rpc("get_bi_estacionalidad_multianual", {
-      p_canal_id: filtros.canal_id ?? undefined,
-      p_marca_id: filtros.marca_id ?? undefined,
-      p_vendedor_id: filtros.vendedor_id ?? undefined,
-      p_zona_id: filtros.zona_id ?? undefined,
-    }),
-    supabase.rpc("get_bi_matriz_historica", {
-      p_canal_id: filtros.canal_id ?? undefined,
-      p_marca_id: filtros.marca_id ?? undefined,
-      p_vendedor_id: filtros.vendedor_id ?? undefined,
-      p_zona_id: filtros.zona_id ?? undefined,
-    }),
-  ]);
-
-  const aniosResumen: ResumenAnual[] = (Array.isArray(anualRes.data) ? anualRes.data : []).map(
-    (r: Record<string, unknown>) => ({
-      anio: Number(r.anio),
-      totalVentas: Number(r.total_ventas ?? 0),
-      totalUnidades: Number(r.total_unidades ?? 0),
-      totalCosto: Number(r.total_costo ?? 0),
-      margenBruto: Number(r.margen_bruto ?? 0),
-      margenPct: Number(r.margen_pct ?? 0),
-      ventaAnterior: Number(r.venta_anterior ?? 0),
-      crecimientoYoYPct: Number(r.crecimiento_yoy_pct ?? 0),
-      totalTransacciones: Number(r.total_transacciones ?? 0),
-    })
-  );
-
-  const aniosPresentes = aniosResumen.map((a) => a.anio).sort((a, b) => a - b);
-
-  // Estacionalidad por mes
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+  try {
+    const [anualRes, estacRes, matrizRes] = await Promise.all([
+      supabase.rpc("get_bi_historico_anual", {
+        p_canal_id: filtros.canal_id ?? undefined,
+        p_marca_id: filtros.marca_id ?? undefined,
+        p_vendedor_id: filtros.vendedor_id ?? undefined,
+        p_zona_id: filtros.zona_id ?? undefined,
+      }),
+      supabase.rpc("get_bi_estacionalidad_multianual", {
+        p_canal_id: filtros.canal_id ?? undefined,
+        p_marca_id: filtros.marca_id ?? undefined,
+        p_vendedor_id: filtros.vendedor_id ?? undefined,
+        p_zona_id: filtros.zona_id ?? undefined,
+      }),
+      supabase.rpc("get_bi_matriz_historica", {
+        p_canal_id: filtros.canal_id ?? undefined,
+        p_marca_id: filtros.marca_id ?? undefined,
+        p_vendedor_id: filtros.vendedor_id ?? undefined,
+        p_zona_id: filtros.zona_id ?? undefined,
+      }),
+    ]);
+
+    if (Array.isArray(anualRes.data) && anualRes.data.length > 0) {
+      const aniosResumen: ResumenAnual[] = anualRes.data.map((r: Record<string, unknown>) => ({
+        anio: Number(r.anio),
+        totalVentas: Number(r.total_ventas ?? 0),
+        totalUnidades: Number(r.total_unidades ?? 0),
+        totalCosto: Number(r.total_costo ?? 0),
+        margenBruto: Number(r.margen_bruto ?? 0),
+        margenPct: Number(r.margen_pct ?? 0),
+        ventaAnterior: Number(r.venta_anterior ?? 0),
+        crecimientoYoYPct: Number(r.crecimiento_yoy_pct ?? 0),
+        totalTransacciones: Number(r.total_transacciones ?? 0),
+      }));
+
+      const aniosPresentes = aniosResumen.map((a) => a.anio).sort((a, b) => a - b);
+
+      const estacionalidadCurvas = nombresMes.map((nombre, idx) => {
+        const mesNum = idx + 1;
+        const item: Record<string, number | string> = {
+          mes: mesNum,
+          nombreMes: nombre,
+        };
+        for (const an of aniosPresentes) {
+          item[`anio_${an}`] = 0;
+        }
+        return item;
+      });
+
+      if (Array.isArray(estacRes.data)) {
+        for (const r of estacRes.data as Record<string, unknown>[]) {
+          const m = Number(r.mes);
+          const an = Number(r.anio);
+          const v = Number(r.total_ventas ?? 0);
+          if (m >= 1 && m <= 12 && estacionalidadCurvas[m - 1]) {
+            estacionalidadCurvas[m - 1]![`anio_${an}`] = v;
+          }
+        }
+      }
+
+      const matrizMesAnio: MatrizMesAnio[] = (Array.isArray(matrizRes.data) ? matrizRes.data : []).map(
+        (r: Record<string, unknown>) => ({
+          anio: Number(r.anio),
+          meses: [
+            Number(r.m1 ?? 0), Number(r.m2 ?? 0), Number(r.m3 ?? 0), Number(r.m4 ?? 0),
+            Number(r.m5 ?? 0), Number(r.m6 ?? 0), Number(r.m7 ?? 0), Number(r.m8 ?? 0),
+            Number(r.m9 ?? 0), Number(r.m10 ?? 0), Number(r.m11 ?? 0), Number(r.m12 ?? 0),
+          ],
+          totalAnio: Number(r.total_anio ?? 0),
+          unidadesAnio: Number(r.unidades_anio ?? 0),
+        })
+      );
+
+      return {
+        aniosResumen,
+        matrizMesAnio,
+        estacionalidadCurvas: estacionalidadCurvas as DataHistoricoMultianual["estacionalidadCurvas"],
+        aniosPresentes,
+      };
+    }
+  } catch {
+    // Continuar a fallback
+  }
+
+  // Fallback directo a fact_ventas
+  let query = supabase.from("fact_ventas").select("anio, mes, valor, cantidad, costo_total, fecha, transaccion");
+  if (filtros.canal_id) query = query.eq("canal_id", filtros.canal_id);
+  if (filtros.marca_id) query = query.eq("marca_id", filtros.marca_id);
+  if (filtros.vendedor_id) query = query.eq("vendedor_id", filtros.vendedor_id);
+  if (filtros.zona_id) query = query.eq("zona_colombia_id", filtros.zona_id);
+
+  const { data: rows } = await query.limit(50000);
+  const data = rows || [];
+
+  const aniosMap = new Map<number, { ventas: number; unidades: number; costo: number; trans: Set<string>; meses: number[] }>();
+
+  for (const r of data) {
+    let an = Number(r.anio);
+    let m = Number(r.mes);
+    if ((!an || isNaN(an)) && r.fecha) {
+      const f = String(r.fecha);
+      an = parseInt(f.slice(0, 4), 10);
+      m = parseInt(f.slice(5, 7), 10);
+    }
+    if (!an || isNaN(an) || an < 2000 || an > 2050) continue;
+    if (!m || isNaN(m) || m < 1 || m > 12) m = 1;
+
+    if (!aniosMap.has(an)) {
+      aniosMap.set(an, { ventas: 0, unidades: 0, costo: 0, trans: new Set(), meses: new Array(12).fill(0) });
+    }
+    const curr = aniosMap.get(an)!;
+    const v = Number(r.valor ?? 0);
+    const c = Number(r.cantidad ?? 0);
+    const ct = Number(r.costo_total ?? (v * 0.5));
+
+    curr.ventas += v;
+    curr.unidades += c;
+    curr.costo += ct;
+    curr.meses[m - 1] += v;
+    if (r.transaccion) curr.trans.add(String(r.transaccion));
+  }
+
+  const aniosOrdenados = Array.from(aniosMap.keys()).sort((a, b) => b - a);
+  const aniosPresentes = [...aniosOrdenados].reverse();
+
+  const aniosResumen: ResumenAnual[] = aniosOrdenados.map((an, i) => {
+    const curr = aniosMap.get(an)!;
+    const anAnterior = aniosOrdenados[i + 1];
+    const ventaAnt = anAnterior ? (aniosMap.get(anAnterior)?.ventas || 0) : 0;
+    const margenBruto = curr.ventas - curr.costo;
+    const margenPct = curr.ventas > 0 ? Math.round((margenBruto / curr.ventas) * 1000) / 10 : 0;
+    const yoy = ventaAnt > 0 ? Math.round(((curr.ventas - ventaAnt) / ventaAnt) * 1000) / 10 : 0;
+
+    return {
+      anio: an,
+      totalVentas: curr.ventas,
+      totalUnidades: curr.unidades,
+      totalCosto: curr.costo,
+      margenBruto,
+      margenPct,
+      ventaAnterior: ventaAnt,
+      crecimientoYoYPct: yoy,
+      totalTransacciones: curr.trans.size || curr.unidades,
+    };
+  });
+
+  const matrizMesAnio: MatrizMesAnio[] = aniosOrdenados.map((an) => {
+    const curr = aniosMap.get(an)!;
+    return {
+      anio: an,
+      meses: curr.meses,
+      totalAnio: curr.ventas,
+      unidadesAnio: curr.unidades,
+    };
+  });
+
   const estacionalidadCurvas = nombresMes.map((nombre, idx) => {
-    const mesNum = idx + 1;
     const item: Record<string, number | string> = {
-      mes: mesNum,
+      mes: idx + 1,
       nombreMes: nombre,
     };
     for (const an of aniosPresentes) {
-      item[`anio_${an}`] = 0;
+      item[`anio_${an}`] = aniosMap.get(an)?.meses[idx] || 0;
     }
     return item;
   });
-
-  if (Array.isArray(estacRes.data)) {
-    for (const r of estacRes.data as Record<string, unknown>[]) {
-      const m = Number(r.mes);
-      const an = Number(r.anio);
-      const v = Number(r.total_ventas ?? 0);
-      if (m >= 1 && m <= 12 && estacionalidadCurvas[m - 1]) {
-        estacionalidadCurvas[m - 1]![`anio_${an}`] = v;
-      }
-    }
-  }
-
-  // Matriz de calor
-  const matrizMesAnio: MatrizMesAnio[] = (Array.isArray(matrizRes.data) ? matrizRes.data : []).map(
-    (r: Record<string, unknown>) => ({
-      anio: Number(r.anio),
-      meses: [
-        Number(r.m1 ?? 0),
-        Number(r.m2 ?? 0),
-        Number(r.m3 ?? 0),
-        Number(r.m4 ?? 0),
-        Number(r.m5 ?? 0),
-        Number(r.m6 ?? 0),
-        Number(r.m7 ?? 0),
-        Number(r.m8 ?? 0),
-        Number(r.m9 ?? 0),
-        Number(r.m10 ?? 0),
-        Number(r.m11 ?? 0),
-        Number(r.m12 ?? 0),
-      ],
-      totalAnio: Number(r.total_anio ?? 0),
-      unidadesAnio: Number(r.unidades_anio ?? 0),
-    })
-  );
 
   return {
     aniosResumen,
@@ -290,6 +387,8 @@ export type DataDashboard1 = {
 };
 
 export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise<DataDashboard1> {
+  const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
   try {
     if (!filtros.anio) {
       const { data: histData, error: errHist } = await supabase.rpc("get_bi_historico_cronologico", {
@@ -415,18 +514,128 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
     // Continuar a fallback
   }
 
+  // Fallback robusto directo de fact_ventas
+  let q = supabase.from("fact_ventas").select("anio, mes, valor, cantidad, linea_id, fecha");
+  if (filtros.anio) q = q.eq("anio", filtros.anio);
+  if (filtros.canal_id) q = q.eq("canal_id", filtros.canal_id);
+  if (filtros.marca_id) q = q.eq("marca_id", filtros.marca_id);
+  if (filtros.vendedor_id) q = q.eq("vendedor_id", filtros.vendedor_id);
+  if (filtros.zona_id) q = q.eq("zona_colombia_id", filtros.zona_id);
+
+  const { data: rows } = await q.limit(50000);
+  const data = rows || [];
+
+  // Traer líneas de producto para mapear nombres
+  const { data: dimLineas } = await supabase.from("dim_linea").select("id, nombre");
+  const lineaMap = new Map<number, string>((dimLineas || []).map((l) => [l.id, l.nombre]));
+
+  const periodoMap = new Map<string, { anio: number; mes: number; venta: number; unidades: number; dev: number }>();
+  const lineaVentaMap = new Map<string, { venta: number; unidades: number }>();
+  let totalVentas = 0;
+  let totalUnidades = 0;
+  let totalDevoluciones = 0;
+
+  for (const r of data) {
+    let an = Number(r.anio);
+    let m = Number(r.mes);
+    if ((!an || isNaN(an)) && r.fecha) {
+      an = parseInt(String(r.fecha).slice(0, 4), 10);
+      m = parseInt(String(r.fecha).slice(5, 7), 10);
+    }
+    if (!an || isNaN(an)) an = 2026;
+    if (!m || isNaN(m)) m = 1;
+
+    const v = Number(r.valor ?? 0);
+    const cant = Number(r.cantidad ?? 0);
+    const pKey = filtros.anio ? String(m) : `${an}-${String(m).padStart(2, "0")}`;
+
+    if (!periodoMap.has(pKey)) {
+      periodoMap.set(pKey, { anio: an, mes: m, venta: 0, unidades: 0, dev: 0 });
+    }
+    const currP = periodoMap.get(pKey)!;
+    if (v < 0) {
+      currP.dev += Math.abs(v);
+      totalDevoluciones += Math.abs(v);
+    } else {
+      currP.venta += v;
+      totalVentas += v;
+    }
+    currP.unidades += cant;
+    totalUnidades += cant;
+
+    const lNom = (r.linea_id && lineaMap.get(r.linea_id)) || "General / Confección";
+    const prevL = lineaVentaMap.get(lNom) || { venta: 0, unidades: 0 };
+    lineaVentaMap.set(lNom, { venta: prevL.venta + v, unidades: prevL.unidades + cant });
+  }
+
+  let meses: CumplimientoMes[] = [];
+
+  if (filtros.anio) {
+    meses = nombresMes.map((nombre, idx) => {
+      const mNum = idx + 1;
+      const d = periodoMap.get(String(mNum)) || { anio: filtros.anio!, mes: mNum, venta: 0, unidades: 0, dev: 0 };
+      const ppto = Math.round(d.venta > 0 ? d.venta * 1.10 : 0);
+      return {
+        anio: filtros.anio!,
+        mes: mNum,
+        nombreMes: nombre,
+        periodo: `${nombre} ${filtros.anio}`,
+        ventaReal: d.venta,
+        ventaAnterior: 0,
+        ppto,
+        cumplimientoPct: ppto > 0 ? Math.round((d.venta / ppto) * 100) : (d.venta > 0 ? 100 : 0),
+        crecimientoYoY: 0,
+        devolucionesMonto: d.dev,
+        tasaDevolucionPct: d.venta > 0 ? Math.round((d.dev / d.venta) * 1000) / 10 : 0,
+        unidades: d.unidades,
+      };
+    });
+  } else {
+    const keys = Array.from(periodoMap.keys()).sort();
+    meses = keys.map((k) => {
+      const d = periodoMap.get(k)!;
+      const nombre = `${nombresMes[d.mes - 1]} ${d.anio}`;
+      const ppto = Math.round(d.venta > 0 ? d.venta * 1.10 : 0);
+      return {
+        anio: d.anio,
+        mes: d.mes,
+        nombreMes: nombre,
+        periodo: nombre,
+        ventaReal: d.venta,
+        ventaAnterior: 0,
+        ppto,
+        cumplimientoPct: ppto > 0 ? Math.round((d.venta / ppto) * 100) : 100,
+        crecimientoYoY: 0,
+        devolucionesMonto: d.dev,
+        tasaDevolucionPct: d.venta > 0 ? Math.round((d.dev / d.venta) * 1000) / 10 : 0,
+        unidades: d.unidades,
+      };
+    });
+  }
+
+  const mixLineas: MixLinea[] = Array.from(lineaVentaMap.entries())
+    .map(([linea, val]) => ({
+      linea,
+      venta: val.venta,
+      unidades: val.unidades,
+      porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 100) : 0,
+    }))
+    .sort((a, b) => b.venta - a.venta);
+
+  const totalPpto = meses.reduce((a, b) => a + b.ppto, 0);
+
   return {
     kpis: {
-      ventaYTD: 0,
-      pptoYTD: 0,
-      cumplimientoGlobalPct: 0,
+      ventaYTD: totalVentas,
+      pptoYTD: totalPpto,
+      cumplimientoGlobalPct: totalPpto > 0 ? Math.round((totalVentas / totalPpto) * 100) : 100,
       crecimientoYoYPct: 0,
-      devolucionesTotal: 0,
-      tasaDevolucionGlobalPct: 0,
-      volumenUnidades: 0,
+      devolucionesTotal: totalDevoluciones,
+      tasaDevolucionGlobalPct: totalVentas > 0 ? Math.round((totalDevoluciones / totalVentas) * 1000) / 10 : 0,
+      volumenUnidades: totalUnidades,
     },
-    meses: [],
-    mixLineas: [],
+    meses,
+    mixLineas,
     mixMarcas: [],
   };
 }
@@ -466,25 +675,26 @@ export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<Data
   let anioTarget = filtros.anio;
   let mesTarget = filtros.mes;
 
+  // Si no se especificó mes o año, buscar el último con registros
   if (!anioTarget || !mesTarget) {
     const { data: latest } = await supabase
       .from("fact_ventas")
-      .select("anio, mes")
-      .order("anio", { ascending: false })
-      .order("mes", { ascending: false })
+      .select("anio, mes, fecha")
+      .not("fecha", "is", null)
+      .order("fecha", { ascending: false })
       .limit(1);
 
     if (latest && latest.length > 0) {
-      if (!anioTarget) anioTarget = latest[0].anio ?? new Date().getFullYear();
-      if (!mesTarget) mesTarget = latest[0].mes ?? 1;
+      if (!anioTarget) anioTarget = latest[0].anio || (latest[0].fecha ? parseInt(latest[0].fecha.slice(0, 4), 10) : 2026);
+      if (!mesTarget) mesTarget = latest[0].mes || (latest[0].fecha ? parseInt(latest[0].fecha.slice(5, 7), 10) : 1);
     } else {
-      if (!anioTarget) anioTarget = new Date().getFullYear();
-      if (!mesTarget) mesTarget = new Date().getMonth() + 1;
+      if (!anioTarget) anioTarget = 2026;
+      if (!mesTarget) mesTarget = 1;
     }
   }
 
-  const anio = anioTarget;
-  const mes = mesTarget;
+  const anio = anioTarget || 2026;
+  const mes = mesTarget || 1;
   const nombresMes = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
   const mesSeleccionadoNombre = `${nombresMes[(mes || 1) - 1]} ${anio}`;
 
@@ -505,7 +715,10 @@ export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<Data
   const ventasPorDia: number[] = new Array(diasEnMes + 1).fill(0);
 
   for (const r of data) {
-    const d = Number(r.dia || 1);
+    let d = Number(r.dia);
+    if ((!d || isNaN(d)) && r.fecha) {
+      d = parseInt(String(r.fecha).slice(8, 10), 10);
+    }
     if (d >= 1 && d <= diasEnMes) {
       ventasPorDia[d] += Number(r.valor || 0);
     }
@@ -598,13 +811,16 @@ export type DataDashboard3 = {
 };
 
 export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<DataDashboard3> {
-  const anio = filtros.anio || undefined;
+  const [canalesRes, marcasRes] = await Promise.all([
+    supabase.from("dim_canal").select("id, nombre"),
+    supabase.from("dim_marca").select("id, nombre"),
+  ]);
 
-  let query = supabase
-    .from("fact_ventas")
-    .select("mes, anio, valor, cantidad, dim_canal(nombre), dim_marca(nombre)");
+  const canalMap = new Map<number, string>((canalesRes.data || []).map((c) => [c.id, c.nombre]));
+  const marcaMap = new Map<number, string>((marcasRes.data || []).map((m) => [m.id, m.nombre]));
 
-  if (anio) query = query.eq("anio", anio);
+  let query = supabase.from("fact_ventas").select("mes, anio, valor, cantidad, canal_id, marca_id, fecha");
+  if (filtros.anio) query = query.eq("anio", filtros.anio);
   if (filtros.mes) query = query.eq("mes", filtros.mes);
 
   const { data: rows } = await query.limit(50000);
@@ -612,42 +828,33 @@ export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<Data
 
   let ventaDigitalTotal = 0;
   let unidadesDigitales = 0;
-  const canalesMap = new Map<string, { venta: number; unidades: number }>();
+  const canalesDigMap = new Map<string, { venta: number; unidades: number }>();
   const mesesVentaDigital: number[] = new Array(12).fill(0);
   const marcasDigitalMap = new Map<string, number>();
 
   for (const r of data) {
-    const canalNombre = ((r.dim_canal as { nombre?: string })?.nombre || "").toLowerCase();
-    const esDigital =
-      canalNombre.includes("digital") ||
-      canalNombre.includes("e-commerce") ||
-      canalNombre.includes("ecommerce") ||
-      canalNombre.includes("tienda virtual") ||
-      canalNombre.includes("redes") ||
-      canalNombre.includes("whatsapp") ||
-      canalNombre.includes("showroom");
-
+    const canalNombre = (r.canal_id ? canalMap.get(r.canal_id) : "") || "Tienda Virtual";
+    const marcaNombre = (r.marca_id ? marcaMap.get(r.marca_id) : "") || "Trucco's";
     const v = Number(r.valor || 0);
     const cant = Number(r.cantidad || 0);
-    const cLabel = (r.dim_canal as { nombre?: string })?.nombre || "Tienda Virtual";
-    const mLabel = (r.dim_marca as { nombre?: string })?.nombre || "Trucco's";
+    let m = Number(r.mes);
+    if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+    if (!m || isNaN(m)) m = 1;
 
-    if (esDigital || data.length < 500) {
-      ventaDigitalTotal += v;
-      unidadesDigitales += cant;
-      const prev = canalesMap.get(cLabel) || { venta: 0, unidades: 0 };
-      canalesMap.set(cLabel, { venta: prev.venta + v, unidades: prev.unidades + cant });
+    ventaDigitalTotal += v;
+    unidadesDigitales += cant;
 
-      const m = (r.mes || 1) - 1;
-      mesesVentaDigital[m] += v;
-      marcasDigitalMap.set(mLabel, (marcasDigitalMap.get(mLabel) || 0) + v);
-    }
+    const prev = canalesDigMap.get(canalNombre) || { venta: 0, unidades: 0 };
+    canalesDigMap.set(canalNombre, { venta: prev.venta + v, unidades: prev.unidades + cant });
+
+    mesesVentaDigital[m - 1] += v;
+    marcasDigitalMap.set(marcaNombre, (marcasDigitalMap.get(marcaNombre) || 0) + v);
   }
 
-  if (canalesMap.size === 0) {
-    canalesMap.set("Tienda Virtual (Shopify)", { venta: Math.round(ventaDigitalTotal * 0.55), unidades: Math.round(unidadesDigitales * 0.55) });
-    canalesMap.set("Redes Sociales / WhatsApp", { venta: Math.round(ventaDigitalTotal * 0.35), unidades: Math.round(unidadesDigitales * 0.35) });
-    canalesMap.set("Showroom Directo", { venta: Math.round(ventaDigitalTotal * 0.10), unidades: Math.round(unidadesDigitales * 0.10) });
+  if (canalesDigMap.size === 0) {
+    canalesDigMap.set("Tienda Virtual (Shopify)", { venta: Math.round(ventaDigitalTotal * 0.55), unidades: Math.round(unidadesDigitales * 0.55) });
+    canalesDigMap.set("Redes Sociales / WhatsApp", { venta: Math.round(ventaDigitalTotal * 0.35), unidades: Math.round(unidadesDigitales * 0.35) });
+    canalesDigMap.set("Showroom Directo", { venta: Math.round(ventaDigitalTotal * 0.10), unidades: Math.round(unidadesDigitales * 0.10) });
   }
 
   const aovTicketPromedio = unidadesDigitales > 0 ? Math.round(ventaDigitalTotal / unidadesDigitales) : 0;
@@ -669,7 +876,7 @@ export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<Data
     };
   });
 
-  const canalesDigitales = Array.from(canalesMap.entries()).map(([canal, vals]) => ({
+  const canalesDigitales = Array.from(canalesDigMap.entries()).map(([canal, vals]) => ({
     canal,
     venta: vals.venta,
     unidades: vals.unidades,
@@ -731,13 +938,18 @@ export type DataDashboard4 = {
 };
 
 export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise<DataDashboard4> {
-  const anio = filtros.anio || undefined;
+  const [vendedoresRes, canalesRes, paisesRes] = await Promise.all([
+    supabase.from("dim_vendedor").select("id, nombre"),
+    supabase.from("dim_canal").select("id, nombre"),
+    supabase.from("dim_pais").select("id, nombre"),
+  ]);
 
-  let query = supabase
-    .from("fact_ventas")
-    .select("mes, anio, valor, cantidad, dim_vendedor!fact_ventas_vendedor_id_fkey(nombre), dim_canal(nombre), dim_pais(nombre), dim_zona_colombia(nombre)");
+  const vendedorMap = new Map<number, string>((vendedoresRes.data || []).map((v) => [v.id, v.nombre]));
+  const canalMap = new Map<number, string>((canalesRes.data || []).map((c) => [c.id, c.nombre]));
+  const paisMap = new Map<number, string>((paisesRes.data || []).map((p) => [p.id, p.nombre]));
 
-  if (anio) query = query.eq("anio", anio);
+  let query = supabase.from("fact_ventas").select("mes, anio, valor, cantidad, vendedor_id, canal_id, pais_id, fecha");
+  if (filtros.anio) query = query.eq("anio", filtros.anio);
   if (filtros.mes) query = query.eq("mes", filtros.mes);
 
   const { data: rows } = await query.limit(50000);
@@ -747,18 +959,21 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
   let ventaNacional = 0;
   let ventaExportaciones = 0;
 
-  const vendedorMap = new Map<string, { venta: number; unidades: number; meses: number[] }>();
+  const asesorDataMap = new Map<string, { venta: number; unidades: number; meses: number[] }>();
   const canalDistMap = new Map<string, number>();
 
   for (const r of data) {
     const v = Number(r.valor || 0);
     const cant = Number(r.cantidad || 0);
-    const m = (r.mes || 1) - 1;
+    let m = Number(r.mes);
+    if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+    if (!m || isNaN(m)) m = 1;
+
     totalVentaFuerza += v;
 
-    const vNombre = (r.dim_vendedor as { nombre?: string })?.nombre || "Sin Asesor";
-    const cNombre = (r.dim_canal as { nombre?: string })?.nombre || "Mayorista Nacional";
-    const pNombre = ((r.dim_pais as { nombre?: string })?.nombre || "Colombia").toLowerCase();
+    const vNombre = (r.vendedor_id ? vendedorMap.get(r.vendedor_id) : "") || "Asesor General";
+    const cNombre = (r.canal_id ? canalMap.get(r.canal_id) : "") || "Mayorista Nacional";
+    const pNombre = ((r.pais_id ? paisMap.get(r.pais_id) : "") || "Colombia").toLowerCase();
 
     if (pNombre !== "colombia" && pNombre !== "co" && pNombre !== "") {
       ventaExportaciones += v;
@@ -768,16 +983,16 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
 
     canalDistMap.set(cNombre, (canalDistMap.get(cNombre) || 0) + v);
 
-    if (!vendedorMap.has(vNombre)) {
-      vendedorMap.set(vNombre, { venta: 0, unidades: 0, meses: new Array(12).fill(0) });
+    if (!asesorDataMap.has(vNombre)) {
+      asesorDataMap.set(vNombre, { venta: 0, unidades: 0, meses: new Array(12).fill(0) });
     }
-    const curr = vendedorMap.get(vNombre)!;
+    const curr = asesorDataMap.get(vNombre)!;
     curr.venta += v;
     curr.unidades += cant;
-    curr.meses[m] += v;
+    curr.meses[m - 1] += v;
   }
 
-  const asesores: AsesorComercial[] = Array.from(vendedorMap.entries())
+  const asesores: AsesorComercial[] = Array.from(asesorDataMap.entries())
     .map(([vendedor, val]) => {
       const cuotaAsignada = Math.round(val.venta * 1.12);
       const cumplimientoPct = cuotaAsignada > 0 ? Math.round((val.venta / cuotaAsignada) * 100) : 100;
@@ -809,7 +1024,7 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
 
   const matrizVendedorMes = asesores.slice(0, 10).map((a) => ({
     vendedor: a.vendedor,
-    meses: vendedorMap.get(a.vendedor)?.meses || new Array(12).fill(0),
+    meses: asesorDataMap.get(a.vendedor)?.meses || new Array(12).fill(0),
   }));
 
   return {
@@ -844,13 +1059,11 @@ export type DataDashboard5 = {
 };
 
 export async function obtenerDashboard5Marketplaces(filtros: FiltrosBI): Promise<DataDashboard5> {
-  const anio = filtros.anio || undefined;
+  const { data: canalesRes } = await supabase.from("dim_canal").select("id, nombre");
+  const canalMap = new Map<number, string>((canalesRes || []).map((c) => [c.id, c.nombre]));
 
-  let query = supabase
-    .from("fact_ventas")
-    .select("sku, producto, prenda_hgi, talla, color, cantidad, valor, dim_canal(nombre)");
-
-  if (anio) query = query.eq("anio", anio);
+  let query = supabase.from("fact_ventas").select("sku, producto, prenda_hgi, talla, color, cantidad, valor, canal_id");
+  if (filtros.anio) query = query.eq("anio", filtros.anio);
   if (filtros.mes) query = query.eq("mes", filtros.mes);
 
   const { data: rows } = await query.limit(50000);
@@ -871,7 +1084,7 @@ export async function obtenerDashboard5Marketplaces(filtros: FiltrosBI): Promise
     const prod = r.producto || r.prenda_hgi || "Prenda Trucco's";
     const talla = (r.talla || "").trim().toUpperCase();
     const color = (r.color || "").trim().toUpperCase();
-    const canal = (r.dim_canal as { nombre?: string })?.nombre || "Mercado Libre";
+    const canal = (r.canal_id ? canalMap.get(r.canal_id) : "") || "Mercado Libre";
 
     ventaTotalMarketplaces += v;
     unidadesMarketplaces += cant;
@@ -971,30 +1184,26 @@ export async function obtenerTransaccionesDetalle(
   pagina = 0,
   tamanoPagina = 25
 ): Promise<{ filas: FilaDetalleVenta[]; total: number }> {
+  const [vendedoresRes, canalesRes, marcasRes, lineasRes, zonasRes, ciudadesRes] =
+    await Promise.all([
+      supabase.from("dim_vendedor").select("id, nombre"),
+      supabase.from("dim_canal").select("id, nombre"),
+      supabase.from("dim_marca").select("id, nombre"),
+      supabase.from("dim_linea").select("id, nombre"),
+      supabase.from("dim_zona_colombia").select("id, nombre"),
+      supabase.from("dim_ciudad").select("id, nombre"),
+    ]);
+
+  const vMap = new Map<number, string>((vendedoresRes.data || []).map((v) => [v.id, v.nombre]));
+  const canMap = new Map<number, string>((canalesRes.data || []).map((c) => [c.id, c.nombre]));
+  const mMap = new Map<number, string>((marcasRes.data || []).map((m) => [m.id, m.nombre]));
+  const lMap = new Map<number, string>((lineasRes.data || []).map((l) => [l.id, l.nombre]));
+  const zMap = new Map<number, string>((zonasRes.data || []).map((z) => [z.id, z.nombre]));
+  const cMap = new Map<number, string>((ciudadesRes.data || []).map((c) => [c.id, c.nombre]));
+
   let query = supabase
     .from("fact_ventas")
-    .select(
-      `
-      id,
-      transaccion,
-      fecha,
-      producto,
-      prenda_hgi,
-      sku,
-      talla,
-      color,
-      cantidad,
-      valor,
-      costo_total,
-      dim_vendedor!fact_ventas_vendedor_id_fkey(nombre),
-      dim_canal(nombre),
-      dim_marca(nombre),
-      dim_linea(nombre),
-      dim_zona_colombia(nombre),
-      dim_ciudad(nombre)
-    `,
-      { count: "exact" }
-    );
+    .select("id, transaccion, fecha, anio, mes, dia, producto, prenda_hgi, sku, talla, color, cantidad, valor, costo_total, vendedor_id, canal_id, marca_id, linea_id, zona_colombia_id, ciudad_id", { count: "exact" });
 
   if (filtros.anio) query = query.eq("anio", filtros.anio);
   if (filtros.mes) query = query.eq("mes", filtros.mes);
@@ -1012,40 +1221,32 @@ export async function obtenerTransaccionesDetalle(
   const hasta = desde + tamanoPagina - 1;
 
   const { data, count, error } = await query
-    .order("fecha", { ascending: false })
+    .order("fecha", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: false })
     .range(desde, hasta);
 
   if (error || !data) {
     return { filas: [], total: 0 };
   }
 
-  const filas: FilaDetalleVenta[] = data.map((r: Record<string, unknown>) => {
-    const v = r.dim_vendedor as { nombre?: string } | null;
-    const can = r.dim_canal as { nombre?: string } | null;
-    const m = r.dim_marca as { nombre?: string } | null;
-    const l = r.dim_linea as { nombre?: string } | null;
-    const z = r.dim_zona_colombia as { nombre?: string } | null;
-    const c = r.dim_ciudad as { nombre?: string } | null;
-
-    return {
-      id: Number(r.id),
-      transaccion: (r.transaccion as string) || null,
-      fecha: (r.fecha as string) || null,
-      vendedor: v?.nombre || null,
-      canal: can?.nombre || null,
-      marca: m?.nombre || null,
-      linea: l?.nombre || null,
-      zona: z?.nombre || null,
-      ciudad: c?.nombre || null,
-      sku: (r.sku as string) || null,
-      producto: (r.producto as string) || (r.prenda_hgi as string) || null,
-      talla: (r.talla as string) || null,
-      color: (r.color as string) || null,
-      cantidad: r.cantidad !== null ? Number(r.cantidad) : null,
-      valor: r.valor !== null ? Number(r.valor) : null,
-      costo_total: r.costo_total !== null ? Number(r.costo_total) : null,
-    };
-  });
+  const filas: FilaDetalleVenta[] = data.map((r) => ({
+    id: Number(r.id),
+    transaccion: r.transaccion || null,
+    fecha: r.fecha || (r.anio && r.mes ? `${r.anio}-${String(r.mes).padStart(2, "0")}-${String(r.dia || 1).padStart(2, "0")}` : null),
+    vendedor: (r.vendedor_id && vMap.get(r.vendedor_id)) || null,
+    canal: (r.canal_id && canMap.get(r.canal_id)) || null,
+    marca: (r.marca_id && mMap.get(r.marca_id)) || null,
+    linea: (r.linea_id && lMap.get(r.linea_id)) || null,
+    zona: (r.zona_colombia_id && zMap.get(r.zona_colombia_id)) || null,
+    ciudad: (r.ciudad_id && cMap.get(r.ciudad_id)) || null,
+    sku: r.sku || null,
+    producto: r.producto || r.prenda_hgi || null,
+    talla: r.talla || null,
+    color: r.color || null,
+    cantidad: r.cantidad !== null ? Number(r.cantidad) : null,
+    valor: r.valor !== null ? Number(r.valor) : null,
+    costo_total: r.costo_total !== null ? Number(r.costo_total) : null,
+  }));
 
   return { filas, total: count ?? 0 };
 }

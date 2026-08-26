@@ -96,7 +96,6 @@ export const norm = (s: string) =>
     .replace(/[^a-zA-Z0-9]/g, "")
     .toUpperCase();
 
-/** Mapeo exhaustivo con sinónimos habituales de sistemas ERP (HGI, SAP, Siigo, Excel) */
 const MAPA: Record<string, keyof VentaRow> = {
   // Transacción
   TRANSACCION: "transaccion",
@@ -110,7 +109,7 @@ const MAPA: Record<string, keyof VentaRow> = {
   NRODOC: "transaccion",
   IDTRANSACCION: "transaccion",
 
-  // Fechas
+  // Fechas y Periodos
   ANO: "anio",
   ANIO: "anio",
   YEAR: "anio",
@@ -122,6 +121,7 @@ const MAPA: Record<string, keyof VentaRow> = {
   FECHACOMPRA: "fecha_compra",
   FECHAVENTA: "fecha_compra",
   FECHADOC: "fecha_compra",
+  FECHAMOV: "fecha_compra",
 
   // Vendedor
   VENDEDOR: "vendedor",
@@ -292,7 +292,7 @@ export function normalizarFila(
       continue;
     }
     detectados.add(campo);
-    if (campo === "fecha_compra") out[campo] = toDate(val);
+    if (campo === "fecha" || campo === "fecha_compra") out[campo] = toDate(val);
     else if (NUMERICOS.includes(campo)) out[campo] = toNumber(val);
     else out[campo] = toText(val);
   }
@@ -300,19 +300,39 @@ export function normalizarFila(
   const fila = out as unknown as VentaRow;
   fila.row_index = indiceFila;
 
-  if (fila.anio && fila.mes && fila.dia) {
-    fila.fecha = `${fila.anio}-${String(fila.mes).padStart(2, "0")}-${String(
-      fila.dia
-    ).padStart(2, "0")}`;
-  } else {
-    fila.fecha = fila.fecha_compra ?? null;
+  // Auto-extracción de fechas y periodos
+  if (fila.fecha_compra && !fila.fecha) {
+    fila.fecha = fila.fecha_compra;
+  }
+
+  if (fila.fecha) {
+    const fParts = fila.fecha.split("-");
+    if (fParts.length === 3) {
+      if (!fila.anio) fila.anio = parseInt(fParts[0]!, 10);
+      if (!fila.mes) fila.mes = parseInt(fParts[1]!, 10);
+      if (!fila.dia) fila.dia = parseInt(fParts[2]!, 10);
+    }
+  } else if (fila.anio && fila.mes) {
+    const d = fila.dia || 1;
+    fila.fecha = `${fila.anio}-${String(fila.mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+
+  if (!fila.anio && fila.anio_col) {
+    const pAnio = parseInt(fila.anio_col.replace(/\D/g, ""), 10);
+    if (pAnio >= 2000 && pAnio <= 2050) {
+      fila.anio = pAnio;
+    }
+  }
+
+  // Costo total
+  if (fila.costo_total === null && fila.costo !== null && fila.cantidad !== null) {
+    fila.costo_total = fila.costo * fila.cantidad;
   }
 
   for (const k of Object.values(MAPA)) {
     if (!(k in fila)) (fila as Record<string, unknown>)[k] = null;
   }
 
-  // Descartar solo si la fila está completamente vacía
   const tieneDatos =
     fila.transaccion !== null ||
     fila.sku !== null ||
@@ -531,7 +551,6 @@ export async function procesarArchivoPorStreaming({
 
   if (wb.SheetNames.length === 0) throw new Error("El archivo no contiene hojas de datos.");
 
-  // Procesar todas las hojas que contengan filas de datos
   for (const sheetName of wb.SheetNames) {
     const hoja = wb.Sheets[sheetName]!;
     const crudo = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, {
