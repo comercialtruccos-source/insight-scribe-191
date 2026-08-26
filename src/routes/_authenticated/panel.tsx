@@ -8,7 +8,8 @@ import {
   obtenerResumenCliente,
 } from "@/lib/ventas-api";
 import {
-  parseArchivoVentas,
+  procesarArchivoPorStreaming,
+  inspeccionarEncabezados,
   COLUMNAS_ESPERADAS,
   COLUMNAS_DIMENSION,
 } from "@/lib/parse-ventas";
@@ -18,7 +19,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
-const TAMANO_LOTE = 750;
+const TAMANO_LOTE = 1000;
 
 export const Route = createFileRoute("/_authenticated/panel")({
   component: Panel,
@@ -38,42 +39,64 @@ function Panel() {
   const [progreso, setProgreso] = useState(0);
   const [estado, setEstado] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string[]>([]);
+  const [esCSV, setEsCSV] = useState(false);
 
   const { data: resumen } = useQuery({
     queryKey: ["resumen"],
     queryFn: () => obtenerResumenCliente(),
   });
 
+  const alSeleccionarArchivo = async (file: File | null) => {
+    setArchivo(file);
+    setAviso([]);
+    setProgreso(0);
+    setEstado(null);
+
+    if (!file) return;
+
+    const esCsvFile = file.name.toLowerCase().endsWith(".csv");
+    setEsCSV(esCsvFile);
+
+    try {
+      const meta = await inspeccionarEncabezados(file);
+      const avisos: string[] = [];
+      if (meta.columnasFaltantes.length > 0) {
+        avisos.push(`Columnas no detectadas: ${meta.columnasFaltantes.join(", ")}`);
+      }
+      if (meta.columnasIgnoradas.length > 0) {
+        avisos.push(`Columnas adicionales ignoradas: ${meta.columnasIgnoradas.join(", ")}`);
+      }
+      setAviso(avisos);
+    } catch {
+      // Continuar si la inspección previa no es concluyente
+    }
+  };
+
   const carga = useMutation({
     mutationFn: async (file: File) => {
       setProgreso(0);
-      setEstado("Leyendo archivo...");
-      const { filas, columnasFaltantes, columnasIgnoradas } = await parseArchivoVentas(file);
-      const avisos: string[] = [];
-      if (columnasFaltantes.length)
-        avisos.push(`Columnas no encontradas: ${columnasFaltantes.join(", ")}`);
-      if (columnasIgnoradas.length)
-        avisos.push(`Columnas ignoradas: ${columnasIgnoradas.join(", ")}`);
-      setAviso(avisos);
+      setEstado("Iniciando procesamiento por streaming...");
 
-      let recibidas = 0;
-      let nuevas = 0;
-      const total = filas.length;
-      for (let i = 0; i < total; i += TAMANO_LOTE) {
-        const lote = filas.slice(i, i + TAMANO_LOTE);
-        setEstado(`Cargando filas ${i + 1} – ${Math.min(i + TAMANO_LOTE, total)} de ${total}`);
-        const r = await ingestarLoteCliente(lote);
-        recibidas += r.recibidas;
-        nuevas += r.nuevas;
-        setProgreso(Math.round(((i + lote.length) / total) * 100));
-      }
-      await registrarCargaCliente(file.name, recibidas, nuevas);
-      return { recibidas, nuevas };
+      const res = await procesarArchivoPorStreaming({
+        file,
+        tamanoLote: TAMANO_LOTE,
+        onProgreso: (p) => {
+          setProgreso(p.porcentaje);
+          setEstado(p.mensaje);
+        },
+        onLote: async (lote) => {
+          return await ingestarLoteCliente(lote);
+        },
+      });
+
+      await registrarCargaCliente(file.name, res.recibidas, res.nuevas);
+      return res;
     },
     onSuccess: (r) => {
       setEstado(null);
+      setProgreso(100);
       toast.success(
-        `Carga completada: ${r.nuevas.toLocaleString("es-CO")} filas nuevas, ${(
+        `Carga completada: ${r.nuevas.toLocaleString("es-CO")} filas nuevas agregadas, ${(
           r.recibidas - r.nuevas
         ).toLocaleString("es-CO")} ya existentes.`,
       );
@@ -124,19 +147,29 @@ function Panel() {
               <span className="font-medium text-foreground">
                 {archivo ? archivo.name : "Selecciona o arrastra tu archivo"}
               </span>
-              <span className="text-xs text-muted-foreground">.xlsx, .xls o .csv</span>
+              <span className="text-xs text-muted-foreground">.csv (recomendado para streaming sin límite de tamaño), .xlsx o .xls</span>
               <input
                 type="file"
                 accept=".xlsx,.xls,.csv"
                 className="hidden"
-                onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+                disabled={carga.isPending}
+                onChange={(e) => alSeleccionarArchivo(e.target.files?.[0] ?? null)}
               />
             </label>
 
+            {archivo && !esCSV && (
+              <div className="rounded-lg border border-border/80 bg-muted/20 p-3 text-xs text-muted-foreground">
+                💡 <strong className="text-foreground">Consejo de rendimiento:</strong> Si tu histórico tiene más de 50.000 filas, guardarlo en formato <strong className="text-foreground">.CSV</strong> permite procesamiento en streaming instantáneo consumiendo menos de 20 MB de memoria.
+              </div>
+            )}
+
             {carga.isPending && (
               <div className="space-y-2">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{estado}</span>
+                  <span className="font-semibold text-foreground">{progreso}%</span>
+                </div>
                 <Progress value={progreso} />
-                <p className="text-xs text-muted-foreground">{estado}</p>
               </div>
             )}
 
@@ -152,7 +185,7 @@ function Panel() {
               disabled={!archivo || carga.isPending}
               onClick={() => archivo && carga.mutate(archivo)}
             >
-              {carga.isPending ? "Procesando..." : "Procesar archivo"}
+              {carga.isPending ? "Procesando en streaming..." : "Procesar archivo"}
             </Button>
           </CardContent>
         </Card>

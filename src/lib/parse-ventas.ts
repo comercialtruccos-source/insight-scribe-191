@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import Papa from "papaparse";
 
 export type VentaRow = {
   transaccion: string | null;
@@ -89,7 +90,7 @@ export const COLUMNAS_DIMENSION = [
   "TerceroAux",
 ];
 
-const norm = (s: string) =>
+export const norm = (s: string) =>
   s
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -190,57 +191,315 @@ function toDate(v: unknown): string | null {
   return null;
 }
 
-export type ResultadoParseo = {
-  filas: VentaRow[];
+export function normalizarFila(
+  r: Record<string, unknown>,
+  headerMap: Map<string, keyof VentaRow>,
+  detectados: Set<string>,
+  ignoradasSet: Set<string>
+): VentaRow | null {
+  const out: Record<string, unknown> = {};
+
+  for (const [h, val] of Object.entries(r)) {
+    const campo = headerMap.get(h);
+    if (!campo) {
+      ignoradasSet.add(h);
+      continue;
+    }
+    detectados.add(campo);
+    if (campo === "fecha_compra") out[campo] = toDate(val);
+    else if (NUMERICOS.includes(campo)) out[campo] = toNumber(val);
+    else out[campo] = toText(val);
+  }
+
+  const fila = out as unknown as VentaRow;
+  if (fila.anio && fila.mes && fila.dia) {
+    fila.fecha = `${fila.anio}-${String(fila.mes).padStart(2, "0")}-${String(
+      fila.dia
+    ).padStart(2, "0")}`;
+  } else {
+    fila.fecha = fila.fecha_compra ?? null;
+  }
+
+  for (const k of Object.values(MAPA)) {
+    if (!(k in fila)) (fila as Record<string, unknown>)[k] = null;
+  }
+
+  if (!fila.transaccion && !fila.sku && fila.valor === null) {
+    return null;
+  }
+
+  return fila;
+}
+
+export type MetadataArchivo = {
+  columnasDetectadas: string[];
+  columnasFaltantes: string[];
+  columnasIgnoradas: string[];
+  esCSV: boolean;
+};
+
+/** Analiza los encabezados del archivo en milisegundos sin cargar filas en memoria */
+export async function inspeccionarEncabezados(file: File): Promise<MetadataArchivo> {
+  const esCSV = file.name.toLowerCase().endsWith(".csv");
+
+  if (esCSV) {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        preview: 2,
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const headers = results.meta.fields || [];
+          const detectados = new Set<string>();
+          const ignoradas: string[] = [];
+
+          for (const h of headers) {
+            const campo = MAPA[norm(h)];
+            if (campo) detectados.add(campo);
+            else ignoradas.push(h);
+          }
+
+          const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
+            const campo = MAPA[norm(c)];
+            return campo ? !detectados.has(campo) : false;
+          });
+
+          resolve({
+            columnasDetectadas: [...detectados],
+            columnasFaltantes: faltantes,
+            columnasIgnoradas: ignoradas,
+            esCSV: true,
+          });
+        },
+        error: (err) => reject(err),
+      });
+    });
+  }
+
+  // Para XLSX, leemos sólo los metadatos de las primeras filas
+  const buffer = await file.slice(0, 1024 * 512).arrayBuffer();
+  try {
+    const wb = XLSX.read(buffer, { type: "array", sheetRows: 2, dense: true, raw: true });
+    const hoja = wb.Sheets[wb.SheetNames[0]!];
+    if (!hoja) throw new Error("El archivo no contiene hojas de datos.");
+    const crudo = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, { header: 1 });
+    const headers = (crudo[0] as string[]) || [];
+
+    const detectados = new Set<string>();
+    const ignoradas: string[] = [];
+
+    for (const h of headers) {
+      if (!h) continue;
+      const campo = MAPA[norm(String(h))];
+      if (campo) detectados.add(campo);
+      else ignoradas.push(String(h));
+    }
+
+    const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
+      const campo = MAPA[norm(c)];
+      return campo ? !detectados.has(campo) : false;
+    });
+
+    return {
+      columnasDetectadas: [...detectados],
+      columnasFaltantes: faltantes,
+      columnasIgnoradas: ignoradas,
+      esCSV: false,
+    };
+  } catch {
+    // Si la lectura parcial de XLSX falla, devolvemos formato estándar
+    return {
+      columnasDetectadas: [],
+      columnasFaltantes: [],
+      columnasIgnoradas: [],
+      esCSV: false,
+    };
+  }
+}
+
+export type OpcionesProcesamiento = {
+  file: File;
+  tamanoLote?: number;
+  onProgreso?: (progreso: {
+    filasLeidas: number;
+    filasNuevas: number;
+    porcentaje: number;
+    mensaje: string;
+  }) => void;
+  onLote: (lote: VentaRow[]) => Promise<{ recibidas: number; nuevas: number }>;
+};
+
+export type ResumenIngesta = {
+  recibidas: number;
+  nuevas: number;
   columnasDetectadas: string[];
   columnasFaltantes: string[];
   columnasIgnoradas: string[];
 };
 
-export async function parseArchivoVentas(file: File): Promise<ResultadoParseo> {
+/** Procesa el archivo en lotes por streaming liberando memoria RAM de inmediato */
+export async function procesarArchivoPorStreaming({
+  file,
+  tamanoLote = 1000,
+  onProgreso,
+  onLote,
+}: OpcionesProcesamiento): Promise<ResumenIngesta> {
+  const esCSV = file.name.toLowerCase().endsWith(".csv");
+  const detectados = new Set<string>();
+  const ignoradasSet = new Set<string>();
+
+  let recibidas = 0;
+  let nuevas = 0;
+
+  if (esCSV) {
+    let loteBuffer: VentaRow[] = [];
+    let headerMap = new Map<string, keyof VentaRow>();
+    const fileSize = file.size;
+
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: "greedy",
+        chunkSize: 1024 * 512, // Lectura en trozos de 512KB
+        chunk: async (results, parser) => {
+          parser.pause();
+          try {
+            if (headerMap.size === 0 && results.meta.fields) {
+              for (const f of results.meta.fields) {
+                const campo = MAPA[norm(f)];
+                if (campo) headerMap.set(f, campo);
+              }
+            }
+
+            for (const r of results.data as Record<string, unknown>[]) {
+              const fila = normalizarFila(r, headerMap, detectados, ignoradasSet);
+              if (fila) loteBuffer.push(fila);
+
+              if (loteBuffer.length >= tamanoLote) {
+                const subLote = loteBuffer;
+                loteBuffer = [];
+                const res = await onLote(subLote);
+                recibidas += res.recibidas;
+                nuevas += res.nuevas;
+
+                const bytesLeidos = parser.streamer
+                  ? (parser.streamer as unknown as { _cursor?: number })._cursor || 0
+                  : 0;
+                const porcentaje = fileSize > 0 ? Math.min(99, Math.round((bytesLeidos / fileSize) * 100)) : 50;
+
+                onProgreso?.({
+                  filasLeidas: recibidas,
+                  filasNuevas: nuevas,
+                  porcentaje,
+                  mensaje: `Procesando: ${recibidas.toLocaleString("es-CO")} filas (${nuevas.toLocaleString("es-CO")} nuevas)...`,
+                });
+              }
+            }
+            parser.resume();
+          } catch (err) {
+            parser.abort();
+            reject(err);
+          }
+        },
+        complete: async () => {
+          try {
+            if (loteBuffer.length > 0) {
+              const res = await onLote(loteBuffer);
+              recibidas += res.recibidas;
+              nuevas += res.nuevas;
+              loteBuffer = [];
+            }
+
+            const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
+              const campo = MAPA[norm(c)];
+              return campo ? !detectados.has(campo) : false;
+            });
+
+            onProgreso?.({
+              filasLeidas: recibidas,
+              filasNuevas: nuevas,
+              porcentaje: 100,
+              mensaje: "Carga completada",
+            });
+
+            resolve({
+              recibidas,
+              nuevas,
+              columnasDetectadas: [...detectados],
+              columnasFaltantes: faltantes,
+              columnasIgnoradas: [...ignoradasSet],
+            });
+          } catch (err) {
+            reject(err);
+          }
+        },
+        error: (err) => reject(err),
+      });
+    });
+  }
+
+  // Si es Excel (.xlsx, .xls)
+  onProgreso?.({
+    filasLeidas: 0,
+    filasNuevas: 0,
+    porcentaje: 5,
+    mensaje: "Leyendo estructura de Excel...",
+  });
+
   const buffer = await file.arrayBuffer();
-  const wb = XLSX.read(buffer, { type: "array", cellDates: true, raw: false });
-  const hoja = wb.Sheets[wb.SheetNames[0]!];
-  if (!hoja) throw new Error("El archivo no contiene hojas de datos.");
+  // dense: true y raw: true para reducir drásticamente el uso de memoria en SheetJS
+  const wb = XLSX.read(buffer, {
+    type: "array",
+    dense: true,
+    raw: true,
+    cellDates: false,
+    cellFormula: false,
+    cellHTML: false,
+    cellText: false,
+  });
+
+  const sheetName = wb.SheetNames[0];
+  if (!sheetName) throw new Error("El archivo no contiene hojas de datos.");
+  const hoja = wb.Sheets[sheetName]!;
 
   const crudo = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, {
     defval: null,
     raw: true,
   });
+
   if (crudo.length === 0) throw new Error("El archivo no contiene filas de datos.");
 
   const headers = Object.keys(crudo[0]!);
-  const detectados = new Set<string>();
-  const ignoradas: string[] = [];
+  const headerMap = new Map<string, keyof VentaRow>();
+  for (const h of headers) {
+    const campo = MAPA[norm(h)];
+    if (campo) headerMap.set(h, campo);
+  }
 
-  const filas: VentaRow[] = crudo.map((r) => {
-    const out: Record<string, unknown> = {};
-    for (const h of headers) {
-      const campo = MAPA[norm(h)];
-      if (!campo) {
-        if (!ignoradas.includes(h)) ignoradas.push(h);
-        continue;
-      }
-      detectados.add(campo);
-      const valor = r[h];
-      if (campo === "fecha_compra") out[campo] = toDate(valor);
-      else if (NUMERICOS.includes(campo)) out[campo] = toNumber(valor);
-      else out[campo] = toText(valor);
+  const total = crudo.length;
+  for (let i = 0; i < total; i += tamanoLote) {
+    const loteFilas: VentaRow[] = [];
+    const chunk = crudo.slice(i, i + tamanoLote);
+
+    for (const r of chunk) {
+      const fila = normalizarFila(r, headerMap, detectados, ignoradasSet);
+      if (fila) loteFilas.push(fila);
     }
-    const fila = out as unknown as VentaRow;
-    // Dimensión de tiempo derivada de Año / Mes / DIA
-    if (fila.anio && fila.mes && fila.dia) {
-      fila.fecha = `${fila.anio}-${String(fila.mes).padStart(2, "0")}-${String(
-        fila.dia,
-      ).padStart(2, "0")}`;
-    } else {
-      fila.fecha = fila.fecha_compra ?? null;
+
+    if (loteFilas.length > 0) {
+      const res = await onLote(loteFilas);
+      recibidas += res.recibidas;
+      nuevas += res.nuevas;
     }
-    for (const k of Object.keys(MAPA).map((k) => MAPA[k]!)) {
-      if (!(k in fila)) (fila as Record<string, unknown>)[k] = null;
-    }
-    return fila;
-  });
+
+    const porcentaje = Math.min(100, Math.round(((i + chunk.length) / total) * 100));
+    onProgreso?.({
+      filasLeidas: recibidas,
+      filasNuevas: nuevas,
+      porcentaje,
+      mensaje: `Cargando ${Math.min(i + tamanoLote, total).toLocaleString("es-CO")} de ${total.toLocaleString("es-CO")} filas...`,
+    });
+  }
 
   const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
     const campo = MAPA[norm(c)];
@@ -248,9 +507,10 @@ export async function parseArchivoVentas(file: File): Promise<ResultadoParseo> {
   });
 
   return {
-    filas: filas.filter((f) => f.transaccion || f.sku || f.valor !== null),
+    recibidas,
+    nuevas,
     columnasDetectadas: [...detectados],
     columnasFaltantes: faltantes,
-    columnasIgnoradas: ignoradas,
+    columnasIgnoradas: [...ignoradasSet],
   };
 }
