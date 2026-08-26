@@ -36,8 +36,6 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
   BarChart,
   Bar,
   LineChart,
@@ -62,10 +60,7 @@ import {
   Download,
   FilterX,
   UploadCloud,
-  LayoutDashboard,
-  BarChart3,
   Tag,
-  MapPin,
   FileSpreadsheet,
   Search,
   Calendar,
@@ -76,7 +71,6 @@ import {
   Award,
   ArrowUpRight,
   ArrowDownRight,
-  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -132,8 +126,8 @@ function Panel() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Filtros globales
-  const [anio, setAnio] = useState<string>("2026");
+  // Filtros globales (por defecto 'todos' para ver el 100% de la historia cargada)
+  const [anio, setAnio] = useState<string>("todos");
   const [mes, setMes] = useState<string>("todos");
   const [canalId, setCanalId] = useState<string>("todos");
   const [marcaId, setMarcaId] = useState<string>("todos");
@@ -182,7 +176,7 @@ function Panel() {
     queryFn: () => obtenerCatalogosFiltros(),
   });
 
-  // Dashboard 1: Cumplimiento
+  // Dashboard 1: Cumplimiento y Evolución Cronológica
   const { data: d1, isLoading: cD1 } = useQuery({
     queryKey: ["bi-d1-cumplimiento", filtros],
     queryFn: () => obtenerDashboard1Cumplimiento(filtros),
@@ -365,14 +359,14 @@ function Panel() {
 
             {/* Año */}
             <Select value={anio} onValueChange={setAnio}>
-              <SelectTrigger className="h-8 w-[110px] text-xs bg-background">
+              <SelectTrigger className="h-8 w-[125px] text-xs bg-background">
                 <SelectValue placeholder="Año" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos los Años</SelectItem>
-                {(catalogos?.anios || [2026, 2025, 2024, 2023, 2022]).map((a) => (
+                {(catalogos?.anios || []).map((a) => (
                   <SelectItem key={a} value={String(a)}>
-                    {a}
+                    Año {a}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -380,7 +374,7 @@ function Panel() {
 
             {/* Mes */}
             <Select value={mes} onValueChange={setMes}>
-              <SelectTrigger className="h-8 w-[110px] text-xs bg-background">
+              <SelectTrigger className="h-8 w-[115px] text-xs bg-background">
                 <SelectValue placeholder="Mes" />
               </SelectTrigger>
               <SelectContent>
@@ -506,27 +500,26 @@ function Panel() {
           {/* DASHBOARD 1: CUMPLIMIENTO Y CRECIMIENTO DE VENTAS (NIVEL DIRECTIVO) */}
           {/* ========================================================================= */}
           <TabsContent value="d1" className="space-y-6">
-            {/* Header del Dashboard */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
               <div>
                 <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
                   Dashboard 1: Cumplimiento y Crecimiento de Ventas
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Monitoreo de cumplimiento financiero vs presupuesto (PPTO), crecimiento interanual (YoY) y tasa de devoluciones.
+                  Evolución cronológica completa de ventas vs presupuesto (PPTO), crecimiento interanual (YoY) y tasa de devoluciones.
                 </p>
               </div>
               <Badge variant="outline" className={`font-semibold ${colorSemaforo(d1?.kpis.cumplimientoGlobalPct ?? 0)}`}>
-                Cumplimiento Global: {d1?.kpis.cumplimientoGlobalPct ?? 0}%
+                {anio === "todos" ? "Histórico Completo" : `Año ${anio}`} • Cumplimiento: {d1?.kpis.cumplimientoGlobalPct ?? 0}%
               </Badge>
             </div>
 
             {/* Tarjetas KPI */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <CardKpi
-                titulo="Venta Neta Real (YTD)"
+                titulo="Venta Neta Total"
                 valor={formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}
-                subtexto={`Meta PPTO: ${formatoCOP(d1?.kpis.pptoYTD ?? 0)}`}
+                subtexto={`Presupuesto: ${formatoCOP(d1?.kpis.pptoYTD ?? 0)}`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD1}
               />
@@ -539,10 +532,10 @@ function Panel() {
                 badgeSemaforo={d1?.kpis.cumplimientoGlobalPct}
               />
               <CardKpi
-                titulo="Crecimiento Interanual (YoY)"
-                valor={`${d1?.kpis.crecimientoYoYPct && d1.kpis.crecimientoYoYPct > 0 ? "+" : ""}${d1?.kpis.crecimientoYoYPct ?? 0}%`}
-                subtexto={`Vs mismo periodo año anterior`}
-                icono={<TrendingUp className="h-5 w-5 text-indigo-500" />}
+                titulo="Volumen de Venta"
+                valor={`${(d1?.kpis.volumenUnidades ?? 0).toLocaleString("es-CO")} unds`}
+                subtexto="Prendas y artículos comercializados"
+                icono={<Package className="h-5 w-5 text-indigo-500" />}
                 cargando={cD1}
               />
               <CardKpi
@@ -554,15 +547,21 @@ function Panel() {
               />
             </div>
 
-            {/* Gráfico Mixto: Venta Real vs Presupuesto con Línea de Cumplimiento */}
+            {/* Gráfico Mixto: Evolución de Todos los Meses Disponibles */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-base font-semibold">Venta Real vs. Presupuesto Mensual (PPTO)</CardTitle>
-                    <CardDescription>Comparativa mensual de ingresos vs meta presupuestada</CardDescription>
+                    <CardTitle className="text-base font-semibold">
+                      {anio === "todos" ? "Evolución Cronológica Completa de Ventas (Todos los Periodos)" : `Venta Real vs. Presupuesto Mensual (${anio})`}
+                    </CardTitle>
+                    <CardDescription>
+                      {d1?.meses.length ?? 0} periodos registrados en el documento
+                    </CardDescription>
                   </div>
-                  <Badge variant="outline">Mensual</Badge>
+                  <Badge variant="outline">
+                    {anio === "todos" ? "Todo el Histórico" : `Año ${anio}`}
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent className="pt-2">
@@ -573,7 +572,7 @@ function Panel() {
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart data={d1.meses} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="nombreMes" tick={{ fontSize: 12 }} />
+                        <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
                         <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
                         <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
                         <Tooltip
@@ -586,7 +585,7 @@ function Panel() {
                           formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
                         />
                         <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                        <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]} opacity={0.5} />
+                        <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]} opacity={0.4} />
                         <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
                       </ComposedChart>
                     </ResponsiveContainer>
@@ -595,12 +594,12 @@ function Panel() {
               </CardContent>
             </Card>
 
-            {/* Dos Gráficos: Mix de Líneas y Mix de Marcas */}
+            {/* Dos Gráficos: Mix de Líneas y Tabla de Meses */}
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base font-semibold">Mix por Línea de Producto</CardTitle>
-                  <CardDescription>Aporte de Trucco's Jeans, Teens, Casual, Plus, Rappaz al total</CardDescription>
+                  <CardDescription>Aporte de cada línea al total de facturación</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
@@ -624,23 +623,23 @@ function Panel() {
               {/* Tabla Resumen Mes a Mes */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Detalle de Cumplimiento Mes a Mes</CardTitle>
-                  <CardDescription>Semaforización y crecimiento YoY por periodo</CardDescription>
+                  <CardTitle className="text-base font-semibold">Detalle Cronológico Mes a Mes</CardTitle>
+                  <CardDescription>Facturación y cumplimiento por periodo</CardDescription>
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
+                <CardContent className="overflow-x-auto max-h-[300px]">
                   <table className="w-full text-xs text-left">
-                    <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
+                    <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0">
                       <tr>
-                        <th className="py-2 px-2.5">Mes</th>
+                        <th className="py-2 px-2.5">Periodo</th>
                         <th className="py-2 px-2.5 text-right">Venta Real</th>
                         <th className="py-2 px-2.5 text-right">PPTO</th>
                         <th className="py-2 px-2.5 text-right">% Cumpl.</th>
-                        <th className="py-2 px-2.5 text-right">% YoY</th>
+                        <th className="py-2 px-2.5 text-right">Unidades</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/40">
-                      {(d1?.meses || []).map((m) => (
-                        <tr key={m.mes} className="hover:bg-muted/30">
+                      {(d1?.meses || []).map((m, idx) => (
+                        <tr key={m.periodo || idx} className="hover:bg-muted/30">
                           <td className="py-2 px-2.5 font-medium">{m.nombreMes}</td>
                           <td className="py-2 px-2.5 text-right font-semibold">{formatoCOP(m.ventaReal)}</td>
                           <td className="py-2 px-2.5 text-right text-muted-foreground">{formatoCOP(m.ppto)}</td>
@@ -649,11 +648,7 @@ function Panel() {
                               {m.cumplimientoPct}%
                             </span>
                           </td>
-                          <td className="py-2 px-2.5 text-right font-medium">
-                            <span className={m.crecimientoYoY >= 0 ? "text-emerald-600" : "text-rose-600"}>
-                              {m.crecimientoYoY > 0 ? "+" : ""}{m.crecimientoYoY}%
-                            </span>
-                          </td>
+                          <td className="py-2 px-2.5 text-right text-muted-foreground">{m.unidades.toLocaleString("es-CO")}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -673,7 +668,7 @@ function Panel() {
                   Dashboard 2: Control de Facturación y Run Rate Diario
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Seguimiento diario de facturación, cuota por días hábiles, nuevo ticket diario exigido y brecha acumulada ($ Gap).
+                  Periodo: <strong className="text-foreground">{d2?.kpis.mesSeleccionadoNombre}</strong> • Seguimiento diario, cuota por días hábiles, nuevo ticket diario exigido y brecha ($ Gap).
                 </p>
               </div>
               <Badge variant="outline" className="bg-muted/40 font-mono text-xs">
@@ -716,8 +711,8 @@ function Panel() {
             {/* Gráfico de Avance Acumulado: PPTO Acumulado vs Real Acumulado */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base font-semibold">Curva de Avance Acumulado Diario vs. Meta</CardTitle>
-                <CardDescription>Evolución acumulativa día por día en el mes seleccionado</CardDescription>
+                <CardTitle className="text-base font-semibold">Curva de Avance Acumulado Diario vs. Meta ({d2?.kpis.mesSeleccionadoNombre})</CardTitle>
+                <CardDescription>Evolución acumulativa día por día en el mes</CardDescription>
               </CardHeader>
               <CardContent className="pt-2">
                 <div className="h-[320px] w-full">
@@ -846,7 +841,7 @@ function Panel() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base font-semibold">Inversión en Pauta vs. Ventas Digitales</CardTitle>
-                  <CardDescription>Elasticidad mensual y retorno de la inversión publicitaria</CardDescription>
+                  <CardDescription>Elasticidad y retorno de la inversión publicitaria</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">

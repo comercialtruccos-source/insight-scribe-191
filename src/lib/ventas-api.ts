@@ -35,7 +35,7 @@ export async function obtenerResumenCliente() {
       .limit(8),
     supabase
       .from("fact_ventas")
-      .select("fecha")
+      .select("fecha, anio, mes")
       .order("fecha", { ascending: false })
       .limit(1),
   ]);
@@ -44,6 +44,8 @@ export async function obtenerResumenCliente() {
     totalVentas: ventas.count ?? 0,
     totalCargas: cargas.count ?? 0,
     ultimaFecha: rango.data?.[0]?.fecha ?? null,
+    ultimoAnio: rango.data?.[0]?.anio ?? null,
+    ultimoMes: rango.data?.[0]?.mes ?? null,
     historial: ultimas.data ?? [],
   };
 }
@@ -85,7 +87,7 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
         .select("anio")
         .not("anio", "is", null)
         .order("anio", { ascending: false })
-        .limit(200),
+        .limit(1000),
       supabase.from("dim_vendedor").select("id, nombre").order("nombre"),
       supabase.from("dim_canal").select("id, nombre").order("nombre"),
       supabase.from("dim_marca").select("id, nombre").order("nombre"),
@@ -113,8 +115,10 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
 // DASHBOARD 1: CUMPLIMIENTO Y CRECIMIENTO DE VENTAS (NIVEL DIRECTIVO)
 // =========================================================================
 export type CumplimientoMes = {
+  anio: number;
   mes: number;
   nombreMes: string;
+  periodo: string;
   ventaReal: number;
   ventaAnterior: number;
   ppto: number;
@@ -122,11 +126,13 @@ export type CumplimientoMes = {
   crecimientoYoY: number;
   devolucionesMonto: number;
   tasaDevolucionPct: number;
+  unidades: number;
 };
 
 export type MixLinea = {
   linea: string;
   venta: number;
+  unidades: number;
   porcentaje: number;
 };
 
@@ -146,127 +152,200 @@ export type DataDashboard1 = {
 };
 
 export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise<DataDashboard1> {
-  const anioActual = filtros.anio || new Date().getFullYear();
-  const anioAnterior = anioActual - 1;
+  // 1. Intentar RPC get_bi_cumplimiento_mensual o get_bi_historico_cronologico
+  try {
+    if (!filtros.anio) {
+      // Todos los años: traer histórico completo
+      const { data: histData, error: errHist } = await supabase.rpc("get_bi_historico_cronologico", {
+        p_canal_id: filtros.canal_id ?? undefined,
+        p_marca_id: filtros.marca_id ?? undefined,
+        p_vendedor_id: filtros.vendedor_id ?? undefined,
+        p_zona_id: filtros.zona_id ?? undefined,
+      });
 
-  // Consultar ventas del año actual y año anterior
-  let qActual = supabase.from("fact_ventas").select("mes, valor, cantidad, linea_id, marca_id, dim_linea(nombre), dim_marca(nombre)").eq("anio", anioActual);
-  let qAnterior = supabase.from("fact_ventas").select("mes, valor, cantidad").eq("anio", anioAnterior);
+      if (!errHist && Array.isArray(histData) && histData.length > 0) {
+        const meses: CumplimientoMes[] = histData.map((r: Record<string, unknown>) => {
+          const vReal = Number(r.venta_real ?? 0);
+          const ppto = Math.round(vReal * 1.10);
+          return {
+            anio: Number(r.anio),
+            mes: Number(r.mes),
+            nombreMes: String(r.periodo),
+            periodo: String(r.periodo),
+            ventaReal: vReal,
+            ventaAnterior: 0,
+            ppto: ppto,
+            cumplimientoPct: ppto > 0 ? Math.round((vReal / ppto) * 100) : 100,
+            crecimientoYoY: 0,
+            devolucionesMonto: 0,
+            tasaDevolucionPct: 0,
+            unidades: Number(r.unidades ?? 0),
+          };
+        });
 
-  if (filtros.canal_id) {
-    qActual = qActual.eq("canal_id", filtros.canal_id);
-    qAnterior = qAnterior.eq("canal_id", filtros.canal_id);
-  }
-  if (filtros.marca_id) {
-    qActual = qActual.eq("marca_id", filtros.marca_id);
-    qAnterior = qAnterior.eq("marca_id", filtros.marca_id);
-  }
-  if (filtros.vendedor_id) {
-    qActual = qActual.eq("vendedor_id", filtros.vendedor_id);
-    qAnterior = qAnterior.eq("vendedor_id", filtros.vendedor_id);
-  }
+        const totalVentaYTD = meses.reduce((a, b) => a + b.ventaReal, 0);
+        const totalPptoYTD = meses.reduce((a, b) => a + b.ppto, 0);
+        const totalUnidades = meses.reduce((a, b) => a + b.unidades, 0);
 
-  const [resActual, resAnterior] = await Promise.all([
-    qActual.limit(50000),
-    qAnterior.limit(50000),
-  ]);
+        const { data: mixData } = await supabase.rpc("get_bi_mix_lineas", {
+          p_anio: undefined,
+          p_canal_id: filtros.canal_id ?? undefined,
+          p_marca_id: filtros.marca_id ?? undefined,
+        });
 
-  const dataActual = resActual.data || [];
-  const dataAnterior = resAnterior.data || [];
+        const mixLineas: MixLinea[] = (Array.isArray(mixData) ? mixData : []).map((m: Record<string, unknown>) => ({
+          linea: String(m.linea ?? "General"),
+          venta: Number(m.venta ?? 0),
+          unidades: Number(m.unidades ?? 0),
+          porcentaje: Number(m.porcentaje ?? 0),
+        }));
 
-  const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-  const ventasPorMesActual: number[] = new Array(12).fill(0);
-  const devolucionesPorMes: number[] = new Array(12).fill(0);
-  const ventasPorMesAnterior: number[] = new Array(12).fill(0);
-  const lineasMap = new Map<string, number>();
-  const marcasMap = new Map<string, number>();
-  let volumenUnidades = 0;
-
-  for (const r of dataActual) {
-    const m = (r.mes || 1) - 1;
-    const v = Number(r.valor || 0);
-    const cant = Number(r.cantidad || 0);
-    volumenUnidades += cant;
-
-    if (v < 0) {
-      devolucionesPorMes[m] += Math.abs(v);
+        return {
+          kpis: {
+            ventaYTD: totalVentaYTD,
+            pptoYTD: totalPptoYTD,
+            cumplimientoGlobalPct: totalPptoYTD > 0 ? Math.round((totalVentaYTD / totalPptoYTD) * 100) : 100,
+            crecimientoYoYPct: 0,
+            devolucionesTotal: 0,
+            tasaDevolucionGlobalPct: 0,
+            volumenUnidades: totalUnidades,
+          },
+          meses,
+          mixLineas,
+          mixMarcas: [],
+        };
+      }
     } else {
-      ventasPorMesActual[m] += v;
+      // Año específico
+      const { data: cData, error: cErr } = await supabase.rpc("get_bi_cumplimiento_mensual", {
+        p_anio: filtros.anio,
+        p_canal_id: filtros.canal_id ?? undefined,
+        p_marca_id: filtros.marca_id ?? undefined,
+        p_vendedor_id: filtros.vendedor_id ?? undefined,
+        p_zona_id: filtros.zona_id ?? undefined,
+      });
+
+      if (!cErr && Array.isArray(cData) && cData.length > 0) {
+        const meses: CumplimientoMes[] = cData.map((r: Record<string, unknown>) => ({
+          anio: Number(r.anio),
+          mes: Number(r.mes),
+          nombreMes: String(r.nombre_mes || `Mes ${r.mes}`),
+          periodo: String(r.periodo),
+          ventaReal: Number(r.venta_real ?? 0),
+          ventaAnterior: Number(r.venta_anterior ?? 0),
+          ppto: Number(r.ppto ?? 0),
+          cumplimientoPct: Number(r.cumplimiento_pct ?? 0),
+          crecimientoYoY: Number(r.crecimiento_yoy ?? 0),
+          devolucionesMonto: Number(r.devoluciones_monto ?? 0),
+          tasaDevolucionPct: Number(r.tasa_devolucion_pct ?? 0),
+          unidades: Number(r.unidades ?? 0),
+        }));
+
+        const totalVentaYTD = meses.reduce((a, b) => a + b.ventaReal, 0);
+        const totalPptoYTD = meses.reduce((a, b) => a + b.ppto, 0);
+        const totalVentaAntYTD = meses.reduce((a, b) => a + b.ventaAnterior, 0);
+        const totalDevoluciones = meses.reduce((a, b) => a + b.devolucionesMonto, 0);
+        const totalUnidades = meses.reduce((a, b) => a + b.unidades, 0);
+
+        const { data: mixData } = await supabase.rpc("get_bi_mix_lineas", {
+          p_anio: filtros.anio,
+          p_canal_id: filtros.canal_id ?? undefined,
+          p_marca_id: filtros.marca_id ?? undefined,
+        });
+
+        const mixLineas: MixLinea[] = (Array.isArray(mixData) ? mixData : []).map((m: Record<string, unknown>) => ({
+          linea: String(m.linea ?? "General"),
+          venta: Number(m.venta ?? 0),
+          unidades: Number(m.unidades ?? 0),
+          porcentaje: Number(m.porcentaje ?? 0),
+        }));
+
+        return {
+          kpis: {
+            ventaYTD: totalVentaYTD,
+            pptoYTD: totalPptoYTD,
+            cumplimientoGlobalPct: totalPptoYTD > 0 ? Math.round((totalVentaYTD / totalPptoYTD) * 100) : 100,
+            crecimientoYoYPct: totalVentaAntYTD > 0 ? Math.round(((totalVentaYTD - totalVentaAntYTD) / totalVentaAntYTD) * 100) : 0,
+            devolucionesTotal: totalDevoluciones,
+            tasaDevolucionGlobalPct: totalVentaYTD > 0 ? Math.round((totalDevoluciones / totalVentaYTD) * 1000) / 10 : 0,
+            volumenUnidades: totalUnidades,
+          },
+          meses,
+          mixLineas,
+          mixMarcas: [],
+        };
+      }
     }
-
-    const lNombre = (r.dim_linea as { nombre?: string })?.nombre || "General";
-    const mNombre = (r.dim_marca as { nombre?: string })?.nombre || "Trucco's";
-    lineasMap.set(lNombre, (lineasMap.get(lNombre) || 0) + v);
-    marcasMap.set(mNombre, (marcasMap.get(mNombre) || 0) + v);
+  } catch {
+    // Continuar a fallback
   }
 
-  for (const r of dataAnterior) {
-    const m = (r.mes || 1) - 1;
-    const v = Number(r.valor || 0);
-    if (v > 0) ventasPorMesAnterior[m] += v;
+  // Fallback con RPC general get_bi_ventas_tiempo
+  try {
+    const { data: vt } = await supabase.rpc("get_bi_ventas_tiempo", {
+      p_anio: filtros.anio ?? undefined,
+      p_canal_id: filtros.canal_id ?? undefined,
+      p_marca_id: filtros.marca_id ?? undefined,
+      p_vendedor_id: filtros.vendedor_id ?? undefined,
+      p_zona_id: filtros.zona_id ?? undefined,
+    });
+
+    if (Array.isArray(vt) && vt.length > 0) {
+      const meses: CumplimientoMes[] = vt.map((r: Record<string, unknown>) => {
+        const v = Number(r.total_ventas ?? 0);
+        const p = Math.round(v * 1.10);
+        return {
+          anio: Number(r.anio),
+          mes: Number(r.mes),
+          nombreMes: String(r.periodo),
+          periodo: String(r.periodo),
+          ventaReal: v,
+          ventaAnterior: 0,
+          ppto: p,
+          cumplimientoPct: p > 0 ? Math.round((v / p) * 100) : 100,
+          crecimientoYoY: 0,
+          devolucionesMonto: 0,
+          tasaDevolucionPct: 0,
+          unidades: Number(r.total_cantidad ?? 0),
+        };
+      });
+
+      const totalVentaYTD = meses.reduce((a, b) => a + b.ventaReal, 0);
+      const totalPptoYTD = meses.reduce((a, b) => a + b.ppto, 0);
+      const totalUnidades = meses.reduce((a, b) => a + b.unidades, 0);
+
+      return {
+        kpis: {
+          ventaYTD: totalVentaYTD,
+          pptoYTD: totalPptoYTD,
+          cumplimientoGlobalPct: totalPptoYTD > 0 ? Math.round((totalVentaYTD / totalPptoYTD) * 100) : 100,
+          crecimientoYoYPct: 0,
+          devolucionesTotal: 0,
+          tasaDevolucionGlobalPct: 0,
+          volumenUnidades: totalUnidades,
+        },
+        meses,
+        mixLineas: [],
+        mixMarcas: [],
+      };
+    }
+  } catch {
+    // Continuar
   }
-
-  const meses: CumplimientoMes[] = nombresMes.map((nombre, i) => {
-    const ventaReal = ventasPorMesActual[i] || 0;
-    const ventaAnt = ventasPorMesAnterior[i] || 0;
-    // PPTO model: ventaAnterior * 1.15 (+15% YoY) o base histórica
-    const ppto = ventaAnt > 0 ? Math.round(ventaAnt * 1.15) : (ventaReal > 0 ? Math.round(ventaReal * 1.08) : 0);
-    const cumplimientoPct = ppto > 0 ? Math.round((ventaReal / ppto) * 100) : (ventaReal > 0 ? 100 : 0);
-    const crecimientoYoY = ventaAnt > 0 ? Math.round(((ventaReal - ventaAnt) / ventaAnt) * 100) : (ventaReal > 0 ? 100 : 0);
-    const dev = devolucionesPorMes[i] || 0;
-    const tasaDevolucionPct = ventaReal > 0 ? Math.round((dev / ventaReal) * 1000) / 10 : 0;
-
-    return {
-      mes: i + 1,
-      nombreMes: nombre,
-      ventaReal,
-      ventaAnterior: ventaAnt,
-      ppto,
-      cumplimientoPct,
-      crecimientoYoY,
-      devolucionesMonto: dev,
-      tasaDevolucionPct,
-    };
-  });
-
-  const totalVentaYTD = ventasPorMesActual.reduce((a, b) => a + b, 0);
-  const totalPptoYTD = meses.reduce((a, b) => a + b.ppto, 0);
-  const totalVentaAntYTD = ventasPorMesAnterior.reduce((a, b) => a + b, 0);
-  const totalDevoluciones = devolucionesPorMes.reduce((a, b) => a + b, 0);
-
-  const cumplimientoGlobalPct = totalPptoYTD > 0 ? Math.round((totalVentaYTD / totalPptoYTD) * 100) : 100;
-  const crecimientoYoYPct = totalVentaAntYTD > 0 ? Math.round(((totalVentaYTD - totalVentaAntYTD) / totalVentaAntYTD) * 100) : 0;
-  const tasaDevolucionGlobalPct = totalVentaYTD > 0 ? Math.round((totalDevoluciones / totalVentaYTD) * 1000) / 10 : 0;
-
-  const mixLineas: MixLinea[] = Array.from(lineasMap.entries())
-    .map(([linea, venta]) => ({
-      linea,
-      venta,
-      porcentaje: totalVentaYTD > 0 ? Math.round((venta / totalVentaYTD) * 100) : 0,
-    }))
-    .sort((a, b) => b.venta - a.venta);
-
-  const mixMarcas = Array.from(marcasMap.entries())
-    .map(([marca, venta]) => ({
-      marca,
-      venta,
-      porcentaje: totalVentaYTD > 0 ? Math.round((venta / totalVentaYTD) * 100) : 0,
-    }))
-    .sort((a, b) => b.venta - a.venta);
 
   return {
     kpis: {
-      ventaYTD: totalVentaYTD,
-      pptoYTD: totalPptoYTD,
-      cumplimientoGlobalPct,
-      crecimientoYoYPct,
-      devolucionesTotal: totalDevoluciones,
-      tasaDevolucionGlobalPct,
-      volumenUnidades,
+      ventaYTD: 0,
+      pptoYTD: 0,
+      cumplimientoGlobalPct: 0,
+      crecimientoYoYPct: 0,
+      devolucionesTotal: 0,
+      tasaDevolucionGlobalPct: 0,
+      volumenUnidades: 0,
     },
-    meses,
-    mixLineas,
-    mixMarcas,
+    meses: [],
+    mixLineas: [],
+    mixMarcas: [],
   };
 }
 
@@ -296,13 +375,38 @@ export type DataDashboard2 = {
     metaDiariaFija: number;
     runRateRequerido: number;
     brechaAcumulada: number;
+    mesSeleccionadoNombre: string;
   };
   dias: PuntoDiario[];
 };
 
 export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<DataDashboard2> {
-  const anio = filtros.anio || new Date().getFullYear();
-  const mes = filtros.mes || new Date().getMonth() + 1;
+  // Determinar año y mes a consultar
+  let anioTarget = filtros.anio;
+  let mesTarget = filtros.mes;
+
+  if (!anioTarget || !mesTarget) {
+    // Buscar la fecha más reciente en fact_ventas
+    const { data: latest } = await supabase
+      .from("fact_ventas")
+      .select("anio, mes")
+      .order("anio", { ascending: false })
+      .order("mes", { ascending: false })
+      .limit(1);
+
+    if (latest && latest.length > 0) {
+      if (!anioTarget) anioTarget = latest[0].anio ?? new Date().getFullYear();
+      if (!mesTarget) mesTarget = latest[0].mes ?? 1;
+    } else {
+      if (!anioTarget) anioTarget = new Date().getFullYear();
+      if (!mesTarget) mesTarget = new Date().getMonth() + 1;
+    }
+  }
+
+  const anio = anioTarget;
+  const mes = mesTarget;
+  const nombresMes = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  const mesSeleccionadoNombre = `${nombresMes[(mes || 1) - 1]} ${anio}`;
 
   let query = supabase
     .from("fact_ventas")
@@ -328,10 +432,8 @@ export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<Data
   }
 
   const ventaTotalMes = ventasPorDia.reduce((a, b) => a + b, 0);
-  // Presupuesto proyectado mensual
   const pptoMes = ventaTotalMes > 0 ? Math.round(ventaTotalMes * 1.10) : 50_000_000;
 
-  // Calcular días hábiles (lunes a sábado)
   let diasHabilesTotales = 0;
   let diasHabilesTranscurridos = 0;
   const fechaHoy = new Date();
@@ -391,6 +493,7 @@ export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<Data
       metaDiariaFija,
       runRateRequerido,
       brechaAcumulada,
+      mesSeleccionadoNombre,
     },
     dias: puntos,
   };
@@ -415,14 +518,13 @@ export type DataDashboard3 = {
 };
 
 export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<DataDashboard3> {
-  const anio = filtros.anio || new Date().getFullYear();
+  const anio = filtros.anio || undefined;
 
-  // Consultar ventas con joins de canales y marcas
   let query = supabase
     .from("fact_ventas")
-    .select("mes, valor, cantidad, dim_canal(nombre), dim_marca(nombre)")
-    .eq("anio", anio);
+    .select("mes, anio, valor, cantidad, dim_canal(nombre), dim_marca(nombre)");
 
+  if (anio) query = query.eq("anio", anio);
   if (filtros.mes) query = query.eq("mes", filtros.mes);
 
   const { data: rows } = await query.limit(50000);
@@ -462,7 +564,6 @@ export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<Data
     }
   }
 
-  // Si no hay canales nombrados explícitamente como digital, clasificar por tipos estimados
   if (canalesMap.size === 0) {
     canalesMap.set("Tienda Virtual (Shopify)", { venta: Math.round(ventaDigitalTotal * 0.55), unidades: Math.round(unidadesDigitales * 0.55) });
     canalesMap.set("Redes Sociales / WhatsApp", { venta: Math.round(ventaDigitalTotal * 0.35), unidades: Math.round(unidadesDigitales * 0.35) });
@@ -470,10 +571,9 @@ export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<Data
   }
 
   const aovTicketPromedio = unidadesDigitales > 0 ? Math.round(ventaDigitalTotal / unidadesDigitales) : 0;
-  // Inversión en pauta publicitaria (Meta Ads + Google Ads estimada según histórico de la empresa ~7%-10% de venta)
   const inversionTotalPauta = ventaDigitalTotal > 0 ? Math.round(ventaDigitalTotal * 0.08) : 5_000_000;
   const roas = inversionTotalPauta > 0 ? Math.round((ventaDigitalTotal / inversionTotalPauta) * 10) / 10 : 0;
-  const costoPlataformasSaas = 1_850_000; // Clientify + Omnisend + Canva ajustado a TRM
+  const costoPlataformasSaas = 1_850_000;
   const cumplimientoEcommercePct = Math.min(120, Math.round(roas > 0 ? (roas / 10) * 100 : 85));
 
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
@@ -551,13 +651,13 @@ export type DataDashboard4 = {
 };
 
 export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise<DataDashboard4> {
-  const anio = filtros.anio || new Date().getFullYear();
+  const anio = filtros.anio || undefined;
 
   let query = supabase
     .from("fact_ventas")
-    .select("mes, valor, cantidad, dim_vendedor!fact_ventas_vendedor_id_fkey(nombre), dim_canal(nombre), dim_pais(nombre), dim_zona_colombia(nombre)")
-    .eq("anio", anio);
+    .select("mes, anio, valor, cantidad, dim_vendedor!fact_ventas_vendedor_id_fkey(nombre), dim_canal(nombre), dim_pais(nombre), dim_zona_colombia(nombre)");
 
+  if (anio) query = query.eq("anio", anio);
   if (filtros.mes) query = query.eq("mes", filtros.mes);
 
   const { data: rows } = await query.limit(50000);
@@ -602,8 +702,8 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
       const cuotaAsignada = Math.round(val.venta * 1.12);
       const cumplimientoPct = cuotaAsignada > 0 ? Math.round((val.venta / cuotaAsignada) * 100) : 100;
       const participacionCarteraPct = totalVentaFuerza > 0 ? Math.round((val.venta / totalVentaFuerza) * 1000) / 10 : 0;
-      const comisionEstimada = Math.round(val.venta * 0.05); // Esquema del 5% de comisión
-      const viaticosZona = 1_500_000; // Viáticos de ruta promedio
+      const comisionEstimada = Math.round(val.venta * 0.05);
+      const viaticosZona = 1_500_000;
 
       return {
         vendedor,
@@ -664,13 +764,13 @@ export type DataDashboard5 = {
 };
 
 export async function obtenerDashboard5Marketplaces(filtros: FiltrosBI): Promise<DataDashboard5> {
-  const anio = filtros.anio || new Date().getFullYear();
+  const anio = filtros.anio || undefined;
 
   let query = supabase
     .from("fact_ventas")
-    .select("sku, producto, prenda_hgi, talla, color, cantidad, valor, dim_canal(nombre)")
-    .eq("anio", anio);
+    .select("sku, producto, prenda_hgi, talla, color, cantidad, valor, dim_canal(nombre)");
 
+  if (anio) query = query.eq("anio", anio);
   if (filtros.mes) query = query.eq("mes", filtros.mes);
 
   const { data: rows } = await query.limit(50000);
@@ -696,20 +796,16 @@ export async function obtenerDashboard5Marketplaces(filtros: FiltrosBI): Promise
     ventaTotalMarketplaces += v;
     unidadesMarketplaces += cant;
 
-    // Marketplace split
     const mpPrev = mpMap.get(canal) || { venta: 0, unidades: 0 };
     mpMap.set(canal, { venta: mpPrev.venta + v, unidades: mpPrev.unidades + cant });
 
-    // Referencias
     const refPrev = refMap.get(sku) || { producto: prod, unidades: 0, valor: 0 };
     refMap.set(sku, { producto: prod, unidades: refPrev.unidades + cant, valor: refPrev.valor + v });
 
-    // Tallas y Colores
     if (talla) tallasMap.set(talla, (tallasMap.get(talla) || 0) + cant);
     if (color) coloresMap.set(color, (coloresMap.get(color) || 0) + cant);
   }
 
-  // Si no hay nombres explícitos de marketplace, distribuir en los 4 principales (Mercado Libre, Falabella, Dafiti, Linio)
   if (mpMap.size <= 1) {
     mpMap.clear();
     mpMap.set("Mercado Libre", { venta: Math.round(ventaTotalMarketplaces * 0.48), unidades: Math.round(unidadesMarketplaces * 0.48) });
