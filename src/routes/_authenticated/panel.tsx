@@ -7,10 +7,11 @@ import {
   registrarCargaCliente,
   obtenerResumenCliente,
   obtenerCatalogosFiltros,
-  obtenerKpisBI,
-  obtenerVentasTiempo,
-  obtenerRankingDimension,
-  obtenerTopProductos,
+  obtenerDashboard1Cumplimiento,
+  obtenerDashboard2RunRate,
+  obtenerDashboard3Digital,
+  obtenerDashboard4FuerzaVentas,
+  obtenerDashboard5Marketplaces,
   obtenerTransaccionesDetalle,
   type FiltrosBI,
 } from "@/lib/ventas-api";
@@ -39,6 +40,8 @@ import {
   Area,
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -47,6 +50,7 @@ import {
   Pie,
   Cell,
   Legend,
+  ComposedChart,
 } from "recharts";
 import {
   TrendingUp,
@@ -64,11 +68,20 @@ import {
   MapPin,
   FileSpreadsheet,
   Search,
+  Calendar,
+  Compass,
+  ShoppingBag,
+  Layers,
+  Globe,
+  Award,
+  ArrowUpRight,
+  ArrowDownRight,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
 const TAMANO_LOTE = 1000;
-const COLORES = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#f97316", "#64748b"];
+const COLORES = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#f97316", "#64748b"];
 
 const MESES = [
   { num: 1, nombre: "Enero" },
@@ -85,7 +98,7 @@ const MESES = [
   { num: 12, nombre: "Diciembre" },
 ];
 
-function formatoMoneda(val: number) {
+function formatoCOP(val: number) {
   if (val >= 1_000_000_000) {
     return `$${(val / 1_000_000_000).toFixed(2)}B`;
   }
@@ -95,8 +108,14 @@ function formatoMoneda(val: number) {
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(val);
 }
 
-function formatoMonedaCompleto(val: number) {
+function formatoCOPFull(val: number) {
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(val);
+}
+
+function colorSemaforo(pct: number) {
+  if (pct >= 100) return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
+  if (pct >= 90) return "bg-amber-500/15 text-amber-600 border-amber-500/30";
+  return "bg-rose-500/15 text-rose-600 border-rose-500/30";
 }
 
 export const Route = createFileRoute("/_authenticated/panel")({
@@ -113,26 +132,25 @@ function Panel() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Estados de filtros
-  const [anio, setAnio] = useState<string>("todos");
+  // Filtros globales
+  const [anio, setAnio] = useState<string>("2026");
   const [mes, setMes] = useState<string>("todos");
   const [canalId, setCanalId] = useState<string>("todos");
   const [marcaId, setMarcaId] = useState<string>("todos");
   const [vendedorId, setVendedorId] = useState<string>("todos");
   const [zonaId, setZonaId] = useState<string>("todos");
 
-  // Estado del explorador de transacciones
+  // Explorador detalle
   const [busquedaDetalle, setBusquedaDetalle] = useState("");
   const [paginaDetalle, setPaginaDetalle] = useState(0);
 
-  // Estados de carga de archivos
+  // Carga archivos
   const [archivo, setArchivo] = useState<File | null>(null);
   const [progreso, setProgreso] = useState(0);
   const [estado, setEstado] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string[]>([]);
   const [esCSV, setEsCSV] = useState(false);
 
-  // Construir objeto de filtros
   const filtros: FiltrosBI = useMemo(() => ({
     anio: anio !== "todos" ? Number(anio) : null,
     mes: mes !== "todos" ? Number(mes) : null,
@@ -153,7 +171,7 @@ function Panel() {
     setZonaId("todos");
   };
 
-  // Queries
+  // Queries de datos
   const { data: resumen } = useQuery({
     queryKey: ["resumen"],
     queryFn: () => obtenerResumenCliente(),
@@ -164,62 +182,43 @@ function Panel() {
     queryFn: () => obtenerCatalogosFiltros(),
   });
 
-  const { data: kpis, isLoading: cargandoKpis } = useQuery({
-    queryKey: ["bi-kpis", filtros],
-    queryFn: () => obtenerKpisBI(filtros),
+  // Dashboard 1: Cumplimiento
+  const { data: d1, isLoading: cD1 } = useQuery({
+    queryKey: ["bi-d1-cumplimiento", filtros],
+    queryFn: () => obtenerDashboard1Cumplimiento(filtros),
   });
 
-  const { data: ventasTiempo, isLoading: cargandoTiempo } = useQuery({
-    queryKey: ["bi-ventas-tiempo", filtros],
-    queryFn: () => obtenerVentasTiempo(filtros),
+  // Dashboard 2: Run Rate Diario
+  const { data: d2, isLoading: cD2 } = useQuery({
+    queryKey: ["bi-d2-runrate", filtros],
+    queryFn: () => obtenerDashboard2RunRate(filtros),
   });
 
-  const { data: rankingVendedores } = useQuery({
-    queryKey: ["bi-ranking-vendedores", filtros],
-    queryFn: () => obtenerRankingDimension("vendedor", filtros, 10),
+  // Dashboard 3: Digital & Marketing
+  const { data: d3, isLoading: cD3 } = useQuery({
+    queryKey: ["bi-d3-digital", filtros],
+    queryFn: () => obtenerDashboard3Digital(filtros),
   });
 
-  const { data: rankingCanales } = useQuery({
-    queryKey: ["bi-ranking-canales", filtros],
-    queryFn: () => obtenerRankingDimension("canal", filtros, 10),
+  // Dashboard 4: Fuerza Comercial
+  const { data: d4, isLoading: cD4 } = useQuery({
+    queryKey: ["bi-d4-fuerza", filtros],
+    queryFn: () => obtenerDashboard4FuerzaVentas(filtros),
   });
 
-  const { data: rankingMarcas } = useQuery({
-    queryKey: ["bi-ranking-marcas", filtros],
-    queryFn: () => obtenerRankingDimension("marca", filtros, 10),
+  // Dashboard 5: Marketplaces & Producto
+  const { data: d5, isLoading: cD5 } = useQuery({
+    queryKey: ["bi-d5-marketplaces", filtros],
+    queryFn: () => obtenerDashboard5Marketplaces(filtros),
   });
 
-  const { data: rankingLineas } = useQuery({
-    queryKey: ["bi-ranking-lineas", filtros],
-    queryFn: () => obtenerRankingDimension("linea", filtros, 10),
-  });
-
-  const { data: rankingZonas } = useQuery({
-    queryKey: ["bi-ranking-zonas", filtros],
-    queryFn: () => obtenerRankingDimension("zona", filtros, 10),
-  });
-
-  const { data: rankingCiudades } = useQuery({
-    queryKey: ["bi-ranking-ciudades", filtros],
-    queryFn: () => obtenerRankingDimension("ciudad", filtros, 10),
-  });
-
-  const { data: rankingColecciones } = useQuery({
-    queryKey: ["bi-ranking-colecciones", filtros],
-    queryFn: () => obtenerRankingDimension("coleccion", filtros, 10),
-  });
-
-  const { data: topProductos } = useQuery({
-    queryKey: ["bi-top-productos", filtros],
-    queryFn: () => obtenerTopProductos(filtros, 10),
-  });
-
-  const { data: transaccionesDetalle, isLoading: cargandoDetalle } = useQuery({
+  // Explorador de transacciones
+  const { data: transaccionesDetalle, isLoading: cDetalle } = useQuery({
     queryKey: ["bi-transacciones-detalle", filtros, busquedaDetalle, paginaDetalle],
     queryFn: () => obtenerTransaccionesDetalle(filtros, busquedaDetalle, paginaDetalle, 25),
   });
 
-  // Manejador de selección de archivo
+  // Carga de archivo
   const alSeleccionarArchivo = async (file: File | null) => {
     setArchivo(file);
     setAviso([]);
@@ -246,7 +245,6 @@ function Panel() {
     }
   };
 
-  // Mutación de Carga por Streaming
   const carga = useMutation({
     mutationFn: async (file: File) => {
       setProgreso(0);
@@ -276,13 +274,13 @@ function Panel() {
         ).toLocaleString("es-CO")} ya existentes.`
       );
       queryClient.invalidateQueries({ queryKey: ["resumen"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-kpis"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-ventas-tiempo"] });
+      queryClient.invalidateQueries({ queryKey: ["bi-d1-cumplimiento"] });
+      queryClient.invalidateQueries({ queryKey: ["bi-d2-runrate"] });
+      queryClient.invalidateQueries({ queryKey: ["bi-d3-digital"] });
+      queryClient.invalidateQueries({ queryKey: ["bi-d4-fuerza"] });
+      queryClient.invalidateQueries({ queryKey: ["bi-d5-marketplaces"] });
       queryClient.invalidateQueries({ queryKey: ["catalogos-filtros"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-ranking-vendedores"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-ranking-canales"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-ranking-marcas"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-top-productos"] });
+      queryClient.invalidateQueries({ queryKey: ["bi-transacciones-detalle"] });
     },
     onError: (e) => {
       setEstado(null);
@@ -322,11 +320,11 @@ function Panel() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `ventas_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `ventas_reporte_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Archivo CSV descargado");
+    toast.success("Reporte CSV descargado con éxito");
   };
 
   const salir = async () => {
@@ -340,17 +338,17 @@ function Panel() {
       <header className="sticky top-0 z-30 border-b border-border/80 bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground font-bold text-lg">
+            <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground font-bold text-lg shadow-sm">
               N
             </div>
             <div>
               <p className="font-display text-lg font-bold tracking-tight text-foreground">Nexa BI</p>
-              <p className="text-xs text-muted-foreground">Plataforma de Business Intelligence & Ventas</p>
+              <p className="text-xs text-muted-foreground">Plataforma Consolidada de Inteligencia Comercial</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="hidden sm:inline-flex bg-muted/40">
-              {(resumen?.totalVentas ?? 0).toLocaleString("es-CO")} registros históricos
+            <Badge variant="outline" className="hidden sm:inline-flex bg-muted/40 font-mono text-xs">
+              {(resumen?.totalVentas ?? 0).toLocaleString("es-CO")} registros en base de datos
             </Badge>
             <Button variant="ghost" size="sm" onClick={salir}>
               Cerrar sesión
@@ -358,8 +356,8 @@ function Panel() {
           </div>
         </div>
 
-        {/* Barra de Filtros Globales Interactivos */}
-        <div className="border-t border-border/60 bg-muted/20 px-4 py-2 sm:px-6">
+        {/* Barra de Filtros Globales (Slicers) */}
+        <div className="border-t border-border/60 bg-muted/30 px-4 py-2 sm:px-6">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1">
               Filtros:
@@ -372,7 +370,7 @@ function Panel() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos los Años</SelectItem>
-                {(catalogos?.anios || []).map((a) => (
+                {(catalogos?.anios || [2026, 2025, 2024, 2023, 2022]).map((a) => (
                   <SelectItem key={a} value={String(a)}>
                     {a}
                   </SelectItem>
@@ -463,282 +461,497 @@ function Panel() {
                 onClick={limpiarFiltros}
               >
                 <FilterX className="mr-1 h-3.5 w-3.5" />
-                Limpiar
+                Restablecer
               </Button>
             )}
           </div>
         </div>
       </header>
 
-      {/* Contenido Principal con Pestañas */}
+      {/* Contenido Principal con las 5 Vistas de Negocio + Detalle y Carga */}
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
-        <Tabs defaultValue="resumen" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto p-1 bg-muted/60">
-            <TabsTrigger value="resumen" className="flex items-center gap-1.5 py-2 text-xs">
-              <LayoutDashboard className="h-3.5 w-3.5" />
-              Resumen
+        <Tabs defaultValue="d1" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 md:grid-cols-7 h-auto p-1 bg-muted/60">
+            <TabsTrigger value="d1" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+              <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
+              1. Cumplimiento
             </TabsTrigger>
-            <TabsTrigger value="vendedores" className="flex items-center gap-1.5 py-2 text-xs">
-              <Users className="h-3.5 w-3.5" />
-              Vendedores
+            <TabsTrigger value="d2" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+              <Calendar className="h-3.5 w-3.5 text-emerald-500" />
+              2. Run Rate Diario
             </TabsTrigger>
-            <TabsTrigger value="productos" className="flex items-center gap-1.5 py-2 text-xs">
-              <Tag className="h-3.5 w-3.5" />
-              Productos
+            <TabsTrigger value="d3" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+              <Globe className="h-3.5 w-3.5 text-indigo-500" />
+              3. Digital & ROAS
             </TabsTrigger>
-            <TabsTrigger value="geografia" className="flex items-center gap-1.5 py-2 text-xs">
-              <MapPin className="h-3.5 w-3.5" />
-              Geografía
+            <TabsTrigger value="d4" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+              <Award className="h-3.5 w-3.5 text-amber-500" />
+              4. Fuerza Ventas
             </TabsTrigger>
-            <TabsTrigger value="explorador" className="flex items-center gap-1.5 py-2 text-xs">
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              Detalle
+            <TabsTrigger value="d5" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+              <ShoppingBag className="h-3.5 w-3.5 text-pink-500" />
+              5. Marketplaces
             </TabsTrigger>
-            <TabsTrigger value="carga" className="flex items-center gap-1.5 py-2 text-xs">
-              <UploadCloud className="h-3.5 w-3.5" />
-              Cargar Datos
+            <TabsTrigger value="explorador" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+              <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500" />
+              Explorador
+            </TabsTrigger>
+            <TabsTrigger value="carga" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+              <UploadCloud className="h-3.5 w-3.5 text-slate-500" />
+              Cargar
             </TabsTrigger>
           </TabsList>
 
           {/* ========================================================================= */}
-          {/* TAB 1: RESUMEN EJECUTIVO */}
+          {/* DASHBOARD 1: CUMPLIMIENTO Y CRECIMIENTO DE VENTAS (NIVEL DIRECTIVO) */}
           {/* ========================================================================= */}
-          <TabsContent value="resumen" className="space-y-6">
-            {/* Tarjetas de KPIs Primarios */}
+          <TabsContent value="d1" className="space-y-6">
+            {/* Header del Dashboard */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
+                  Dashboard 1: Cumplimiento y Crecimiento de Ventas
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Monitoreo de cumplimiento financiero vs presupuesto (PPTO), crecimiento interanual (YoY) y tasa de devoluciones.
+                </p>
+              </div>
+              <Badge variant="outline" className={`font-semibold ${colorSemaforo(d1?.kpis.cumplimientoGlobalPct ?? 0)}`}>
+                Cumplimiento Global: {d1?.kpis.cumplimientoGlobalPct ?? 0}%
+              </Badge>
+            </div>
+
+            {/* Tarjetas KPI */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <CardKpi
-                titulo="Ventas Totales"
-                valor={formatoMonedaCompleto(kpis?.totalVentas ?? 0)}
-                subtexto="Ingresos brutos acumulados"
+                titulo="Venta Neta Real (YTD)"
+                valor={formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}
+                subtexto={`Meta PPTO: ${formatoCOP(d1?.kpis.pptoYTD ?? 0)}`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
-                cargando={cargandoKpis}
+                cargando={cD1}
               />
               <CardKpi
-                titulo="Unidades Vendidas"
-                valor={(kpis?.totalCantidad ?? 0).toLocaleString("es-CO")}
-                subtexto="Prendas / Artículos comercializados"
-                icono={<Package className="h-5 w-5 text-blue-500" />}
-                cargando={cargandoKpis}
+                titulo="Cumplimiento de Presupuesto"
+                valor={`${d1?.kpis.cumplimientoGlobalPct ?? 0}%`}
+                subtexto="Semaforización (≥100% Verde, 90-99% Amarillo, <90% Rojo)"
+                icono={<Percent className="h-5 w-5 text-blue-500" />}
+                cargando={cD1}
+                badgeSemaforo={d1?.kpis.cumplimientoGlobalPct}
               />
               <CardKpi
-                titulo="Margen Bruto"
-                valor={formatoMonedaCompleto(kpis?.margenBruto ?? 0)}
-                subtexto={`${kpis?.margenPct ?? 0}% de rentabilidad bruta`}
-                icono={<Percent className="h-5 w-5 text-indigo-500" />}
-                cargando={cargandoKpis}
+                titulo="Crecimiento Interanual (YoY)"
+                valor={`${d1?.kpis.crecimientoYoYPct && d1.kpis.crecimientoYoYPct > 0 ? "+" : ""}${d1?.kpis.crecimientoYoYPct ?? 0}%`}
+                subtexto={`Vs mismo periodo año anterior`}
+                icono={<TrendingUp className="h-5 w-5 text-indigo-500" />}
+                cargando={cD1}
               />
               <CardKpi
-                titulo="Ticket Promedio"
-                valor={formatoMonedaCompleto(kpis?.ticketPromedio ?? 0)}
-                subtexto={`Promedio por transacción (${(kpis?.totalTransacciones ?? 0).toLocaleString("es-CO")} transacciones)`}
-                icono={<Receipt className="h-5 w-5 text-amber-500" />}
-                cargando={cargandoKpis}
+                titulo="Tasa de Devolución"
+                valor={`${d1?.kpis.tasaDevolucionGlobalPct ?? 0}%`}
+                subtexto={`Devoluciones: ${formatoCOP(d1?.kpis.devolucionesTotal ?? 0)}`}
+                icono={<ArrowDownRight className="h-5 w-5 text-rose-500" />}
+                cargando={cD1}
               />
             </div>
 
-            {/* Gráfico Principal: Evolución Temporal de Ventas vs Margen */}
+            {/* Gráfico Mixto: Venta Real vs Presupuesto con Línea de Cumplimiento */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-base font-semibold">Evolución de Ventas y Margen Bruto</CardTitle>
-                    <CardDescription>Comportamiento mensual de ingresos y rentabilidad</CardDescription>
+                    <CardTitle className="text-base font-semibold">Venta Real vs. Presupuesto Mensual (PPTO)</CardTitle>
+                    <CardDescription>Comparativa mensual de ingresos vs meta presupuestada</CardDescription>
                   </div>
-                  <Badge variant="outline">Tendencia</Badge>
+                  <Badge variant="outline">Mensual</Badge>
                 </div>
               </CardHeader>
               <CardContent className="pt-2">
-                {cargandoTiempo ? (
-                  <div className="h-[300px] grid place-items-center text-sm text-muted-foreground">Cargando gráfico...</div>
-                ) : !ventasTiempo || ventasTiempo.length === 0 ? (
-                  <div className="h-[300px] grid place-items-center text-sm text-muted-foreground">No hay datos para el periodo seleccionado</div>
+                {!d1?.meses || d1.meses.length === 0 ? (
+                  <div className="h-[320px] grid place-items-center text-sm text-muted-foreground">Sin datos para el periodo seleccionado</div>
                 ) : (
-                  <div className="h-[320px] w-full">
+                  <div className="h-[340px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={ventasTiempo} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                          </linearGradient>
-                          <linearGradient id="colorMargen" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
+                      <ComposedChart data={d1.meses} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="periodo" tick={{ fontSize: 12 }} />
-                        <YAxis tickFormatter={(val) => formatoMoneda(val)} tick={{ fontSize: 12 }} width={75} />
+                        <XAxis dataKey="nombreMes" tick={{ fontSize: 12 }} />
+                        <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
+                        <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
                         <Tooltip
-                          formatter={(value: number, name: string) => [
-                            formatoMonedaCompleto(value),
-                            name === "totalVentas" ? "Ventas Totales" : "Margen Bruto",
-                          ]}
-                          labelFormatter={(label) => `Periodo: ${label}`}
+                          formatter={(value: number, name: string) => {
+                            if (name === "cumplimientoPct") return [`${value}%`, "% Cumplimiento"];
+                            return [formatoCOPFull(value), name === "ventaReal" ? "Venta Real" : "Presupuesto (PPTO)"];
+                          }}
                         />
                         <Legend
-                          formatter={(value) => (value === "totalVentas" ? "Ventas Totales" : "Margen Bruto")}
+                          formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
                         />
-                        <Area type="monotone" dataKey="totalVentas" stroke="#3b82f6" fillOpacity={1} fill="url(#colorVentas)" strokeWidth={2} />
-                        <Area type="monotone" dataKey="margenBruto" stroke="#10b981" fillOpacity={1} fill="url(#colorMargen)" strokeWidth={2} />
-                      </AreaChart>
+                        <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                        <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]} opacity={0.5} />
+                        <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
+                      </ComposedChart>
                     </ResponsiveContainer>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Dos Gráficos Secundarios: Canales y Marcas */}
+            {/* Dos Gráficos: Mix de Líneas y Mix de Marcas */}
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Participación por Canal de Venta</CardTitle>
-                  <CardDescription>Distribución de ingresos por canal comercial</CardDescription>
+                  <CardTitle className="text-base font-semibold">Mix por Línea de Producto</CardTitle>
+                  <CardDescription>Aporte de Trucco's Jeans, Teens, Casual, Plus, Rappaz al total</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {!rankingCanales || rankingCanales.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-10">Sin datos de canales</p>
-                  ) : (
-                    <div className="h-[260px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={rankingCanales}
-                            dataKey="totalVentas"
-                            nameKey="nombre"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={85}
-                            innerRadius={50}
-                            paddingAngle={3}
-                          >
-                            {rankingCanales.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORES[index % COLORES.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip formatter={(value: number) => formatoMonedaCompleto(value)} />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
+                  <div className="h-[280px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={d1?.mixLineas || []} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} />
+                        <YAxis type="category" dataKey="linea" width={100} tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(v: number) => [formatoCOPFull(v), "Ventas"]} />
+                        <Bar dataKey="venta" fill="#8b5cf6" radius={[0, 4, 4, 0]}>
+                          {(d1?.mixLineas || []).map((_, i) => (
+                            <Cell key={`mix-linea-${i}`} fill={COLORES[i % COLORES.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </CardContent>
               </Card>
 
+              {/* Tabla Resumen Mes a Mes */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Top Marcas por Ventas</CardTitle>
-                  <CardDescription>Marcas con mayor facturación en el periodo</CardDescription>
+                  <CardTitle className="text-base font-semibold">Detalle de Cumplimiento Mes a Mes</CardTitle>
+                  <CardDescription>Semaforización y crecimiento YoY por periodo</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  {!rankingMarcas || rankingMarcas.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-10">Sin datos de marcas</p>
-                  ) : (
-                    <div className="h-[260px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={rankingMarcas.slice(0, 6)} layout="vertical" margin={{ left: 20 }}>
-                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                          <XAxis type="number" tickFormatter={(val) => formatoMoneda(val)} />
-                          <YAxis type="category" dataKey="nombre" width={90} tick={{ fontSize: 12 }} />
-                          <Tooltip formatter={(value: number) => [formatoMonedaCompleto(value), "Ventas"]} />
-                          <Bar dataKey="totalVentas" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
+                <CardContent className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
+                      <tr>
+                        <th className="py-2 px-2.5">Mes</th>
+                        <th className="py-2 px-2.5 text-right">Venta Real</th>
+                        <th className="py-2 px-2.5 text-right">PPTO</th>
+                        <th className="py-2 px-2.5 text-right">% Cumpl.</th>
+                        <th className="py-2 px-2.5 text-right">% YoY</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {(d1?.meses || []).map((m) => (
+                        <tr key={m.mes} className="hover:bg-muted/30">
+                          <td className="py-2 px-2.5 font-medium">{m.nombreMes}</td>
+                          <td className="py-2 px-2.5 text-right font-semibold">{formatoCOP(m.ventaReal)}</td>
+                          <td className="py-2 px-2.5 text-right text-muted-foreground">{formatoCOP(m.ppto)}</td>
+                          <td className="py-2 px-2.5 text-right">
+                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${colorSemaforo(m.cumplimientoPct)}`}>
+                              {m.cumplimientoPct}%
+                            </span>
+                          </td>
+                          <td className="py-2 px-2.5 text-right font-medium">
+                            <span className={m.crecimientoYoY >= 0 ? "text-emerald-600" : "text-rose-600"}>
+                              {m.crecimientoYoY > 0 ? "+" : ""}{m.crecimientoYoY}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
           {/* ========================================================================= */}
-          {/* TAB 2: VENDEDORES Y CANALES */}
+          {/* DASHBOARD 2: CONTROL DE FACTURACIÓN Y RUN RATE DIARIO (OPERATIVO) */}
           {/* ========================================================================= */}
-          <TabsContent value="vendedores" className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-3">
-              {/* Ranking Gráfico de Vendedores */}
-              <Card className="lg:col-span-2">
+          <TabsContent value="d2" className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
+                  Dashboard 2: Control de Facturación y Run Rate Diario
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Seguimiento diario de facturación, cuota por días hábiles, nuevo ticket diario exigido y brecha acumulada ($ Gap).
+                </p>
+              </div>
+              <Badge variant="outline" className="bg-muted/40 font-mono text-xs">
+                {d2?.kpis.diasHabilesTranscurridos ?? 0} de {d2?.kpis.diasHabilesTotales ?? 0} días hábiles
+              </Badge>
+            </div>
+
+            {/* Tarjetas KPI de Run Rate */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <CardKpi
+                titulo="Facturación Acumulada Mes"
+                valor={formatoCOPFull(d2?.kpis.ventaAcumuladaMes ?? 0)}
+                subtexto={`Meta Mes: ${formatoCOP(d2?.kpis.pptoMes ?? 0)} (${d2?.kpis.cumplimientoMesPct ?? 0}%)`}
+                icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
+                cargando={cD2}
+              />
+              <CardKpi
+                titulo="Meta Diaria (PPTO Diario)"
+                valor={formatoCOPFull(d2?.kpis.metaDiariaFija ?? 0)}
+                subtexto={`Calculado sobre ${d2?.kpis.diasHabilesTotales ?? 0} días hábiles`}
+                icono={<Calendar className="h-5 w-5 text-blue-500" />}
+                cargando={cD2}
+              />
+              <CardKpi
+                titulo="Run Rate / Cuota Diaria Requerida"
+                valor={formatoCOPFull(d2?.kpis.runRateRequerido ?? 0)}
+                subtexto={`Para los ${d2?.kpis.diasHabilesRestantes ?? 0} días hábiles restantes`}
+                icono={<Compass className="h-5 w-5 text-amber-500" />}
+                cargando={cD2}
+              />
+              <CardKpi
+                titulo="Brecha Acumulada ($ Gap)"
+                valor={formatoCOPFull(d2?.kpis.brechaAcumulada ?? 0)}
+                subtexto={d2?.kpis.brechaAcumulada && d2.kpis.brechaAcumulada >= 0 ? "Superávit frente a meta a la fecha" : "Déficit acumulado a la fecha"}
+                icono={<ArrowUpRight className={`h-5 w-5 ${d2?.kpis.brechaAcumulada && d2.kpis.brechaAcumulada >= 0 ? "text-emerald-500" : "text-rose-500"}`} />}
+                cargando={cD2}
+              />
+            </div>
+
+            {/* Gráfico de Avance Acumulado: PPTO Acumulado vs Real Acumulado */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-semibold">Curva de Avance Acumulado Diario vs. Meta</CardTitle>
+                <CardDescription>Evolución acumulativa día por día en el mes seleccionado</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <div className="h-[320px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={d2?.dias || []} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                      <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
+                      <Tooltip formatter={(v: number) => [formatoCOPFull(v)]} />
+                      <Legend formatter={(v) => (v === "ventaAcumulada" ? "Facturación Real Acumulada" : "Meta Presupuesto Acumulada")} />
+                      <Line type="monotone" dataKey="ventaAcumulada" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="pptoAcumulado" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Gráfico de Facturación Diaria vs Meta Diaria Fija */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-semibold">Facturación Diaria Real vs. Meta por Día</CardTitle>
+                <CardDescription>Desempeño diario frente a la cuota base diaria</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <div className="h-[280px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={d2?.dias || []} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                      <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
+                      <Tooltip formatter={(v: number) => [formatoCOPFull(v)]} />
+                      <Legend formatter={(v) => (v === "ventaReal" ? "Venta Diaria Real" : "Meta Diaria")} />
+                      <Bar dataKey="ventaReal" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      <Line type="monotone" dataKey="metaDiaria" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ========================================================================= */}
+          {/* DASHBOARD 3: E-COMMERCE, SOCIAL SELLING Y MARKETING DIGITAL */}
+          {/* ========================================================================= */}
+          <TabsContent value="d3" className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
+                  Dashboard 3: E-Commerce, Social Selling y Marketing Digital
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Desglose de canales digitales (Tienda Virtual, Redes Sociales, Showroom), ROAS publicitario y costos SaaS.
+                </p>
+              </div>
+              <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-500/30 font-semibold">
+                ROAS Digital: {d3?.kpis.roas ?? 0}x
+              </Badge>
+            </div>
+
+            {/* Tarjetas KPI Digital */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <CardKpi
+                titulo="Venta Canal Digital Total"
+                valor={formatoCOPFull(d3?.kpis.ventaDigitalTotal ?? 0)}
+                subtexto={`${(d3?.kpis.unidadesDigitales ?? 0).toLocaleString("es-CO")} unidades vendidas`}
+                icono={<ShoppingBag className="h-5 w-5 text-indigo-500" />}
+                cargando={cD3}
+              />
+              <CardKpi
+                titulo="Ticket Promedio por Unidad (AOV)"
+                valor={formatoCOPFull(d3?.kpis.aovTicketPromedio ?? 0)}
+                subtexto="Valor promedio facturado por prenda"
+                icono={<Receipt className="h-5 w-5 text-emerald-500" />}
+                cargando={cD3}
+              />
+              <CardKpi
+                titulo="Inversión en Pauta (Meta + Google)"
+                valor={formatoCOPFull(d3?.kpis.inversionTotalPauta ?? 0)}
+                subtexto={`ROAS de Retorno: ${d3?.kpis.roas ?? 0}x sobre pauta`}
+                icono={<DollarSign className="h-5 w-5 text-blue-500" />}
+                cargando={cD3}
+              />
+              <CardKpi
+                titulo="Gasto Plataformas SaaS"
+                valor={formatoCOPFull(d3?.kpis.costoPlataformasSaas ?? 0)}
+                subtexto="Clientify + Omnisend + Canva (ajustado TRM)"
+                icono={<Layers className="h-5 w-5 text-slate-500" />}
+                cargando={cD3}
+              />
+            </div>
+
+            {/* Gráficos: Participación por canal digital y Gasto Pauta vs Ingresos */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Top Vendedores por Facturación</CardTitle>
-                  <CardDescription>Ingresos y unidades generadas por cada asesor comercial</CardDescription>
+                  <CardTitle className="text-base font-semibold">Participación por Canal Digital</CardTitle>
+                  <CardDescription>Tienda Virtual (Shopify) vs Redes Sociales vs Showroom</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {!rankingVendedores || rankingVendedores.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-10">Sin datos de vendedores</p>
-                  ) : (
-                    <div className="h-[340px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={rankingVendedores} layout="vertical" margin={{ left: 30 }}>
-                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                          <XAxis type="number" tickFormatter={(val) => formatoMoneda(val)} />
-                          <YAxis type="category" dataKey="nombre" width={110} tick={{ fontSize: 11 }} />
-                          <Tooltip
-                            formatter={(value: number, name: string) => [
-                              name === "totalVentas" ? formatoMonedaCompleto(value) : value.toLocaleString("es-CO"),
-                              name === "totalVentas" ? "Ventas" : "Unidades",
-                            ]}
-                          />
-                          <Legend formatter={(v) => (v === "totalVentas" ? "Ventas ($)" : "Unidades (Cant.)")} />
-                          <Bar dataKey="totalVentas" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
+                  <div className="h-[280px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={d3?.canalesDigitales || []}
+                          dataKey="venta"
+                          nameKey="canal"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={90}
+                          innerRadius={50}
+                          paddingAngle={3}
+                        >
+                          {(d3?.canalesDigitales || []).map((_, i) => (
+                            <Cell key={`cell-d3-${i}`} fill={COLORES[i % COLORES.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => formatoCOPFull(v)} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                 </CardContent>
               </Card>
 
-              {/* Resumen Canales */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Desempeño por Canal</CardTitle>
-                  <CardDescription>Facturación y margen por canal</CardDescription>
+                  <CardTitle className="text-base font-semibold">Inversión en Pauta vs. Ventas Digitales</CardTitle>
+                  <CardDescription>Elasticidad mensual y retorno de la inversión publicitaria</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {(rankingCanales || []).map((c, i) => (
-                    <div key={c.id || i} className="space-y-1">
-                      <div className="flex justify-between text-xs font-medium">
-                        <span>{c.nombre}</span>
-                        <span className="text-foreground">{formatoMonedaCompleto(c.totalVentas)}</span>
-                      </div>
-                      <div className="flex justify-between text-[11px] text-muted-foreground">
-                        <span>{c.totalCantidad.toLocaleString("es-CO")} unidades</span>
-                        <span className="text-emerald-600 font-semibold">{c.margenPct}% margen</span>
-                      </div>
-                      <Progress value={Math.min(100, (c.totalVentas / (rankingCanales?.[0]?.totalVentas || 1)) * 100)} className="h-1.5" />
-                    </div>
-                  ))}
+                <CardContent>
+                  <div className="h-[280px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={d3?.pautaVsIngresos || []} margin={{ left: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                        <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} width={75} />
+                        <Tooltip formatter={(v: number, name: string) => [formatoCOPFull(v), name === "ventaDigital" ? "Ventas Digitales" : "Gasto Pauta"]} />
+                        <Legend formatter={(v) => (v === "ventaDigital" ? "Ventas Digitales" : "Inversión en Pauta")} />
+                        <Bar dataKey="ventaDigital" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="gastoPauta" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
 
-            {/* Tabla Detallada de Vendedores */}
+          {/* ========================================================================= */}
+          {/* DASHBOARD 4: FUERZA DE VENTAS Y CANALES B2B / MAYORISTAS */}
+          {/* ========================================================================= */}
+          <TabsContent value="d4" className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
+                  Dashboard 4: Fuerza de Ventas y Canales B2B / Mayoristas
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Rendimiento individual por asesor comercial, cumplimiento de cuota, comisiones (5%), viáticos y comercio exterior.
+                </p>
+              </div>
+              <Badge variant="outline" className="bg-muted/40 font-mono text-xs">
+                {d4?.kpis.totalAsesores ?? 0} asesores comerciales activos
+              </Badge>
+            </div>
+
+            {/* Tarjetas KPI Fuerza de Ventas */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <CardKpi
+                titulo="Facturación Fuerza Comercial"
+                valor={formatoCOPFull(d4?.kpis.totalVentaFuerza ?? 0)}
+                subtexto={`Nacional: ${formatoCOP(d4?.kpis.ventaNacional ?? 0)}`}
+                icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
+                cargando={cD4}
+              />
+              <CardKpi
+                titulo="Comisiones Estimadas (5%)"
+                valor={formatoCOPFull(d4?.kpis.comisionesTotales ?? 0)}
+                subtexto="Esquema comercial variable de ventas"
+                icono={<Percent className="h-5 w-5 text-amber-500" />}
+                cargando={cD4}
+              />
+              <CardKpi
+                titulo="Comercio Exterior (Exportaciones)"
+                valor={formatoCOPFull(d4?.kpis.ventaExportaciones ?? 0)}
+                subtexto={`${d4?.kpis.pctExportaciones ?? 0}% del volumen total de ventas`}
+                icono={<Globe className="h-5 w-5 text-blue-500" />}
+                cargando={cD4}
+              />
+              <CardKpi
+                titulo="Asesores Comerciales"
+                valor={`${d4?.kpis.totalAsesores ?? 0}`}
+                subtexto="Ejecutivos de cuenta y ruta nacional"
+                icono={<Users className="h-5 w-5 text-indigo-500" />}
+                cargando={cD4}
+              />
+            </div>
+
+            {/* Tabla Matriz de Asesores con Cuota y Comisiones */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base font-semibold">Tabla Comparativa de Asesores Comerciales</CardTitle>
+                <CardTitle className="text-base font-semibold">Ranking de Asesores Comerciales y Cumplimiento de Cuota</CardTitle>
+                <CardDescription>Facturación, % participación de cartera, cuota individual y comisión calculada</CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-border/80 text-xs uppercase text-muted-foreground">
+                <table className="w-full text-xs text-left">
+                  <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
                     <tr>
-                      <th className="py-2.5 px-3">Vendedor</th>
-                      <th className="py-2.5 px-3 text-right">Ventas Totales</th>
+                      <th className="py-2.5 px-3">Asesor Comercial</th>
+                      <th className="py-2.5 px-3 text-right">Facturación ($)</th>
                       <th className="py-2.5 px-3 text-right">Unidades</th>
-                      <th className="py-2.5 px-3 text-right">Margen Bruto</th>
-                      <th className="py-2.5 px-3 text-right">% Rentabilidad</th>
-                      <th className="py-2.5 px-3 text-right">Transacciones</th>
+                      <th className="py-2.5 px-3 text-right">Cuota Asignada</th>
+                      <th className="py-2.5 px-3 text-right">% Cumpl.</th>
+                      <th className="py-2.5 px-3 text-right">% Cartera</th>
+                      <th className="py-2.5 px-3 text-right">Comisión (5%)</th>
+                      <th className="py-2.5 px-3 text-right">Viáticos Est.</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
-                    {(rankingVendedores || []).map((v) => (
-                      <tr key={v.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-2.5 px-3 font-medium text-foreground">{v.nombre}</td>
-                        <td className="py-2.5 px-3 text-right font-semibold">{formatoMonedaCompleto(v.totalVentas)}</td>
-                        <td className="py-2.5 px-3 text-right text-muted-foreground">{v.totalCantidad.toLocaleString("es-CO")}</td>
-                        <td className="py-2.5 px-3 text-right text-emerald-600 font-medium">{formatoMonedaCompleto(v.margenBruto)}</td>
+                    {(d4?.asesores || []).map((a) => (
+                      <tr key={a.vendedor} className="hover:bg-muted/30">
+                        <td className="py-2.5 px-3 font-medium text-foreground">{a.vendedor}</td>
+                        <td className="py-2.5 px-3 text-right font-semibold">{formatoCOPFull(a.ventaTotal)}</td>
+                        <td className="py-2.5 px-3 text-right text-muted-foreground">{a.unidades.toLocaleString("es-CO")}</td>
+                        <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(a.cuotaAsignada)}</td>
                         <td className="py-2.5 px-3 text-right">
-                          <Badge variant={v.margenPct >= 40 ? "default" : "secondary"}>{v.margenPct}%</Badge>
+                          <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${colorSemaforo(a.cumplimientoPct)}`}>
+                            {a.cumplimientoPct}%
+                          </span>
                         </td>
-                        <td className="py-2.5 px-3 text-right text-muted-foreground">{v.transacciones.toLocaleString("es-CO")}</td>
+                        <td className="py-2.5 px-3 text-right font-medium">{a.participacionCarteraPct}%</td>
+                        <td className="py-2.5 px-3 text-right font-semibold text-emerald-600">{formatoCOP(a.comisionEstimada)}</td>
+                        <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(a.viaticosZona)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -748,46 +961,103 @@ function Panel() {
           </TabsContent>
 
           {/* ========================================================================= */}
-          {/* TAB 3: PRODUCTOS, LÍNEAS Y COLECCIONES */}
+          {/* DASHBOARD 5: MARKETPLACES Y ANÁLISIS DE PRODUCTO (COMERGAIN / RETAIL) */}
           {/* ========================================================================= */}
-          <TabsContent value="productos" className="space-y-6">
+          <TabsContent value="d5" className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
+                  Dashboard 5: Marketplaces y Análisis de Producto (Comergain / Retail)
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Desempeño en Mercado Libre, Falabella, Dafiti, Linio, rotación por SKU, curva de tallas y colores líderes.
+                </p>
+              </div>
+              <Badge variant="outline" className="bg-muted/40 font-mono text-xs">
+                {d5?.kpis.totalReferenciasActivas ?? 0} SKUs activos
+              </Badge>
+            </div>
+
+            {/* Tarjetas KPI Marketplaces */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <CardKpi
+                titulo="Venta Total Marketplaces"
+                valor={formatoCOPFull(d5?.kpis.ventaTotalMarketplaces ?? 0)}
+                subtexto={`${(d5?.kpis.unidadesMarketplaces ?? 0).toLocaleString("es-CO")} unidades vendidas`}
+                icono={<ShoppingBag className="h-5 w-5 text-pink-500" />}
+                cargando={cD5}
+              />
+              <CardKpi
+                titulo="Precio Promedio por SKU"
+                valor={formatoCOPFull(d5?.kpis.precioPromedioSKU ?? 0)}
+                subtexto="Valor promedio por unidad en marketplaces"
+                icono={<Tag className="h-5 w-5 text-emerald-500" />}
+                cargando={cD5}
+              />
+              <CardKpi
+                titulo="Referencias Activas"
+                valor={`${(d5?.kpis.totalReferenciasActivas ?? 0).toLocaleString("es-CO")}`}
+                subtexto="Catálogo en rotación digital"
+                icono={<Package className="h-5 w-5 text-blue-500" />}
+                cargando={cD5}
+              />
+              <CardKpi
+                titulo="Marketplaces Integrados"
+                valor="4 Canales"
+                subtexto="Mercado Libre, Falabella, Dafiti, Linio"
+                icono={<Layers className="h-5 w-5 text-indigo-500" />}
+                cargando={cD5}
+              />
+            </div>
+
+            {/* Gráficos: Donut de Marketplaces y Curva de Tallas */}
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* Ventas por Línea */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Ventas por Línea de Producto</CardTitle>
-                  <CardDescription>Rendimiento comercial por categoría de producto</CardDescription>
+                  <CardTitle className="text-base font-semibold">Participación por Marketplace</CardTitle>
+                  <CardDescription>Cuota de facturación de Mercado Libre, Falabella, Dafiti y Linio</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={rankingLineas || []} margin={{ left: 10 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="nombre" tick={{ fontSize: 11 }} />
-                        <YAxis tickFormatter={(v) => formatoMoneda(v)} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(v: number) => [formatoMonedaCompleto(v), "Ventas"]} />
-                        <Bar dataKey="totalVentas" fill="#06b6d4" radius={[4, 4, 0, 0]} />
-                      </BarChart>
+                      <PieChart>
+                        <Pie
+                          data={d5?.marketplaces || []}
+                          dataKey="venta"
+                          nameKey="nombre"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={90}
+                          innerRadius={50}
+                          paddingAngle={3}
+                        >
+                          {(d5?.marketplaces || []).map((_, i) => (
+                            <Cell key={`cell-mp-${i}`} fill={COLORES[i % COLORES.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => formatoCOPFull(v)} />
+                        <Legend />
+                      </PieChart>
                     </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Ventas por Colección */}
+              {/* Curva de Tallas */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Ventas por Colección</CardTitle>
-                  <CardDescription>Desempeño por temporada / colección</CardDescription>
+                  <CardTitle className="text-base font-semibold">Curva de Demanda por Tallas</CardTitle>
+                  <CardDescription>Tallas con mayor volumen de reposición y demanda</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={rankingColecciones || []} margin={{ left: 10 }}>
+                      <BarChart data={d5?.curvaTallas || []} margin={{ left: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="nombre" tick={{ fontSize: 11 }} />
-                        <YAxis tickFormatter={(v) => formatoMoneda(v)} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(v: number) => [formatoMonedaCompleto(v), "Ventas"]} />
-                        <Bar dataKey="totalVentas" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                        <XAxis dataKey="talla" tick={{ fontSize: 12 }} />
+                        <YAxis tickFormatter={(v) => v.toLocaleString("es-CO")} tick={{ fontSize: 11 }} width={55} />
+                        <Tooltip formatter={(v: number) => [`${v.toLocaleString("es-CO")} unds`, "Unidades"]} />
+                        <Bar dataKey="unidades" fill="#ec4899" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -795,39 +1065,31 @@ function Panel() {
               </Card>
             </div>
 
-            {/* Top 10 SKUs / Prendas Estrella */}
+            {/* Top 10 Referencias Más Vendidas */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base font-semibold">Top 10 Productos / SKUs Más Vendidos</CardTitle>
-                <CardDescription>Prendas líderes en facturación, volumen y margen</CardDescription>
+                <CardTitle className="text-base font-semibold">Top 10 Referencias / SKUs Líderes</CardTitle>
+                <CardDescription>Productos de mayor rotación y recaudación</CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="border-b border-border/80 text-xs uppercase text-muted-foreground">
+                <table className="w-full text-xs text-left">
+                  <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
                     <tr>
                       <th className="py-2.5 px-3">SKU</th>
-                      <th className="py-2.5 px-3">Producto / Prenda</th>
-                      <th className="py-2.5 px-3">Talla</th>
-                      <th className="py-2.5 px-3">Color</th>
-                      <th className="py-2.5 px-3 text-right">Unidades</th>
-                      <th className="py-2.5 px-3 text-right">Ventas Totales</th>
-                      <th className="py-2.5 px-3 text-right">Margen Bruto</th>
-                      <th className="py-2.5 px-3 text-right">% Rent.</th>
+                      <th className="py-2.5 px-3">Producto / Referencia</th>
+                      <th className="py-2.5 px-3 text-right">Unidades Vendidas</th>
+                      <th className="py-2.5 px-3 text-right">Facturación Total</th>
+                      <th className="py-2.5 px-3 text-right">Precio Promedio Unitario</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
-                    {(topProductos || []).map((p, i) => (
-                      <tr key={p.sku || i} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-2.5 px-3 font-mono text-xs font-semibold text-primary">{p.sku}</td>
-                        <td className="py-2.5 px-3 font-medium text-foreground">{p.producto}</td>
-                        <td className="py-2.5 px-3 text-muted-foreground">{p.talla || "—"}</td>
-                        <td className="py-2.5 px-3 text-muted-foreground">{p.color || "—"}</td>
-                        <td className="py-2.5 px-3 text-right font-medium">{p.totalCantidad.toLocaleString("es-CO")}</td>
-                        <td className="py-2.5 px-3 text-right font-semibold">{formatoMonedaCompleto(p.totalVentas)}</td>
-                        <td className="py-2.5 px-3 text-right text-emerald-600 font-medium">{formatoMonedaCompleto(p.margenBruto)}</td>
-                        <td className="py-2.5 px-3 text-right">
-                          <Badge variant="outline">{p.margenPct}%</Badge>
-                        </td>
+                    {(d5?.topReferencias || []).map((ref) => (
+                      <tr key={ref.sku} className="hover:bg-muted/30">
+                        <td className="py-2.5 px-3 font-mono font-semibold text-primary">{ref.sku}</td>
+                        <td className="py-2.5 px-3 font-medium text-foreground">{ref.producto}</td>
+                        <td className="py-2.5 px-3 text-right font-medium">{ref.unidades.toLocaleString("es-CO")}</td>
+                        <td className="py-2.5 px-3 text-right font-semibold">{formatoCOPFull(ref.valor)}</td>
+                        <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(ref.precioPromedio)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -837,65 +1099,16 @@ function Panel() {
           </TabsContent>
 
           {/* ========================================================================= */}
-          {/* TAB 4: ANÁLISIS GEOGRÁFICO */}
-          {/* ========================================================================= */}
-          <TabsContent value="geografia" className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-2">
-              {/* Ventas por Zona */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold">Ventas por Zona Colombia</CardTitle>
-                  <CardDescription>Distribución regional de ingresos</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[300px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={rankingZonas || []} layout="vertical" margin={{ left: 30 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis type="number" tickFormatter={(v) => formatoMoneda(v)} />
-                        <YAxis type="category" dataKey="nombre" width={110} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(v: number) => [formatoMonedaCompleto(v), "Ventas"]} />
-                        <Bar dataKey="totalVentas" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Ventas por Ciudad */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold">Top Ciudades</CardTitle>
-                  <CardDescription>Ciudades con mayor facturación</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[300px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={rankingCiudades || []} layout="vertical" margin={{ left: 30 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis type="number" tickFormatter={(v) => formatoMoneda(v)} />
-                        <YAxis type="category" dataKey="nombre" width={110} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(v: number) => [formatoMonedaCompleto(v), "Ventas"]} />
-                        <Bar dataKey="totalVentas" fill="#10b981" radius={[0, 4, 4, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* ========================================================================= */}
-          {/* TAB 5: EXPLORADOR DE TRANSACCIONES */}
+          {/* TAB 6: EXPLORADOR DE TRANSACCIONES */}
           {/* ========================================================================= */}
           <TabsContent value="explorador" className="space-y-4">
             <Card>
               <CardHeader>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <CardTitle className="text-base font-semibold">Explorador de Ventas y Transacciones</CardTitle>
+                    <CardTitle className="text-base font-semibold">Explorador de Transacciones y Ventas</CardTitle>
                     <CardDescription>
-                      {(transaccionesDetalle?.total ?? 0).toLocaleString("es-CO")} registros encontrados
+                      {(transaccionesDetalle?.total ?? 0).toLocaleString("es-CO")} transacciones encontradas
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
@@ -919,10 +1132,10 @@ function Panel() {
                 </div>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                {cargandoDetalle ? (
-                  <div className="py-12 text-center text-sm text-muted-foreground">Consultando registros...</div>
+                {cDetalle ? (
+                  <div className="py-12 text-center text-sm text-muted-foreground">Consultando base de datos...</div>
                 ) : !transaccionesDetalle?.filas || transaccionesDetalle.filas.length === 0 ? (
-                  <div className="py-12 text-center text-sm text-muted-foreground">No se encontraron transacciones con los filtros actuales.</div>
+                  <div className="py-12 text-center text-sm text-muted-foreground">No se encontraron registros con los filtros seleccionados.</div>
                 ) : (
                   <table className="w-full text-left text-xs">
                     <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
@@ -952,15 +1165,14 @@ function Panel() {
                           <td className="py-2 px-3 font-medium text-foreground max-w-[200px] truncate">{f.producto || "—"}</td>
                           <td className="py-2 px-3 text-muted-foreground">{f.talla || ""}{f.color ? ` / ${f.color}` : ""}</td>
                           <td className="py-2 px-3 text-right font-medium">{f.cantidad ?? 0}</td>
-                          <td className="py-2 px-3 text-right font-semibold">{formatoMonedaCompleto(f.valor ?? 0)}</td>
-                          <td className="py-2 px-3 text-right text-muted-foreground">{formatoMonedaCompleto(f.costo_total ?? 0)}</td>
+                          <td className="py-2 px-3 text-right font-semibold">{formatoCOPFull(f.valor ?? 0)}</td>
+                          <td className="py-2 px-3 text-right text-muted-foreground">{formatoCOPFull(f.costo_total ?? 0)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 )}
 
-                {/* Paginador */}
                 <div className="flex items-center justify-between border-t border-border/60 pt-4 mt-2">
                   <p className="text-xs text-muted-foreground">
                     Página {paginaDetalle + 1} de {Math.max(1, Math.ceil((transaccionesDetalle?.total ?? 0) / 25))}
@@ -991,7 +1203,7 @@ function Panel() {
           </TabsContent>
 
           {/* ========================================================================= */}
-          {/* TAB 6: CARGA DE DATOS E HISTORIAL */}
+          {/* TAB 7: CARGA DE ARCHIVOS E HISTORIAL */}
           {/* ========================================================================= */}
           <TabsContent value="carga" className="space-y-6">
             <Card>
@@ -1110,12 +1322,14 @@ function CardKpi({
   subtexto,
   icono,
   cargando,
+  badgeSemaforo,
 }: {
   titulo: string;
   valor: string;
   subtexto?: string;
   icono?: React.ReactNode;
   cargando?: boolean;
+  badgeSemaforo?: number;
 }) {
   return (
     <Card className="relative overflow-hidden">
@@ -1124,9 +1338,16 @@ function CardKpi({
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{titulo}</p>
           {icono && <div className="p-1.5 rounded-md bg-muted/40">{icono}</div>}
         </div>
-        <p className="mt-2 text-2xl font-bold font-display tracking-tight text-foreground">
-          {cargando ? "—" : valor}
-        </p>
+        <div className="flex items-baseline gap-2 mt-2">
+          <p className="text-2xl font-bold font-display tracking-tight text-foreground">
+            {cargando ? "—" : valor}
+          </p>
+          {badgeSemaforo !== undefined && (
+            <span className={`px-1.5 py-0.5 text-[11px] font-bold rounded border ${colorSemaforo(badgeSemaforo)}`}>
+              {badgeSemaforo >= 100 ? "Meta Cumplida" : badgeSemaforo >= 90 ? "Alerta" : "Crítico"}
+            </span>
+          )}
+        </div>
         {subtexto && <p className="mt-1 text-xs text-muted-foreground">{subtexto}</p>}
       </CardContent>
     </Card>
