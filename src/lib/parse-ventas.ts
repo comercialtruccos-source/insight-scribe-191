@@ -35,9 +35,9 @@ export type VentaRow = {
   tr: number | null;
   costo: number | null;
   costo_total: number | null;
+  row_index?: number;
 };
 
-/** Columnas esperadas en el archivo, en orden. */
 export const COLUMNAS_ESPERADAS = [
   "Transaccion",
   "Año",
@@ -73,7 +73,6 @@ export const COLUMNAS_ESPERADAS = [
   "COSTO TOTAL",
 ];
 
-/** Columnas que alimentan tablas de dimensión (catálogos). */
 export const COLUMNAS_DIMENSION = [
   "CANAL",
   "ZONA2",
@@ -97,40 +96,128 @@ export const norm = (s: string) =>
     .replace(/[^a-zA-Z0-9]/g, "")
     .toUpperCase();
 
-/** header normalizado -> campo interno */
+/** Mapeo exhaustivo con sinónimos habituales de sistemas ERP (HGI, SAP, Siigo, Excel) */
 const MAPA: Record<string, keyof VentaRow> = {
+  // Transacción
   TRANSACCION: "transaccion",
+  TRANSAC: "transaccion",
+  FACTURA: "transaccion",
+  NUMERO: "transaccion",
+  DOC: "transaccion",
+  DOCUMENTO: "transaccion",
+  CONSECUTIVO: "transaccion",
+  NROFACTURA: "transaccion",
+  NRODOC: "transaccion",
+  IDTRANSACCION: "transaccion",
+
+  // Fechas
   ANO: "anio",
+  ANIO: "anio",
+  YEAR: "anio",
   MES: "mes",
+  MONTH: "mes",
   DIA: "dia",
+  DAY: "dia",
+  FECHA: "fecha",
+  FECHACOMPRA: "fecha_compra",
+  FECHAVENTA: "fecha_compra",
+  FECHADOC: "fecha_compra",
+
+  // Vendedor
   VENDEDOR: "vendedor",
-  TERCEROAUX: "tercero_aux",
-  TERCERO: "tercero",
-  ZONA: "zona",
-  CIUDAD: "ciudad",
-  LINEA: "linea",
-  COLECCION: "coleccion",
-  PRODUCTOC: "producto_c",
-  PRENDAHGI: "prenda_hgi",
-  PRODUCTO: "producto",
-  TALLAP: "talla",
-  COLOR: "color",
-  CANTIDAD: "cantidad",
-  VALOR: "valor",
-  CODCOLOR: "cod_color",
-  SKU: "sku",
-  ANOCOL: "anio_col",
+  ASESOR: "vendedor",
+  EJECUTIVO: "vendedor",
+  VENDEDOR1: "vendedor",
+  NOMVENDEDOR: "vendedor",
   VENDEDOR2: "vendedor2",
-  CANAL: "canal",
+  ASESOR2: "vendedor2",
+
+  // Tercero / Cliente
+  TERCEROAUX: "tercero_aux",
+  NIT: "tercero_aux",
+  CEDULA: "tercero_aux",
+  CODTERCERO: "tercero_aux",
+  CODCLIENTE: "tercero_aux",
+  IDENTIFICACION: "tercero_aux",
+  TERCERO: "tercero",
+  CLIENTE: "tercero",
+  NOMTERCERO: "tercero",
+  NOMBRECLIENTE: "tercero",
+  RAZONSOCIAL: "tercero",
+
+  // Geografía
+  ZONA: "zona",
+  REGION: "zona",
+  REGIONAL: "zona",
+  CIUDAD: "ciudad",
+  MUNICIPIO: "ciudad",
+  DESTINO: "ciudad",
   ZONA2: "zona2",
   PAIS: "pais",
   ZONACOLOMBIA: "zona_colombia",
-  FECHACOMPRA: "fecha_compra",
-  CORRERIA: "correria",
+
+  // Dimensiones comerciales
+  LINEA: "linea",
+  CATEGORIA: "linea",
+  DEPARTAMENTO: "linea",
+  COLECCION: "coleccion",
+  TEMPORADA: "coleccion",
+  CAMPANA: "coleccion",
+  CANAL: "canal",
+  CANALVENTA: "canal",
+  TIPOCANAL: "canal",
   MARCA: "marca",
+  BRAND: "marca",
+  CORRERIA: "correria",
+  ANOCOL: "anio_col",
+
+  // Producto / SKU
+  PRODUCTOC: "producto_c",
+  PRENDAHGI: "prenda_hgi",
+  PRENDA: "prenda_hgi",
+  PRODUCTO: "producto",
+  DESCRIPCION: "producto",
+  NOMPRODUCTO: "producto",
+  DETALLE: "producto",
+  SKU: "sku",
+  REFERENCIA: "sku",
+  REF: "sku",
+  CODIGO: "sku",
+  CODPRODUCTO: "sku",
+  ITEM: "sku",
+  TALLAP: "talla",
+  TALLA: "talla",
+  SIZE: "talla",
+  COLOR: "color",
+  COLOUR: "color",
+  DESCOLOR: "color",
+  CODCOLOR: "cod_color",
+
+  // Valores numéricos
+  CANTIDAD: "cantidad",
+  CANT: "cantidad",
+  UNIDADES: "cantidad",
+  UNDS: "cantidad",
+  QTY: "cantidad",
+  VALOR: "valor",
+  VALORTOTAL: "valor",
+  VRTOTAL: "valor",
+  TOTAL: "valor",
+  VENTA: "valor",
+  VRVENTA: "valor",
+  SUBTOTAL: "valor",
+  NETO: "valor",
+  VALORNETO: "valor",
+  VRNETO: "valor",
+  VALORBRUTO: "valor",
+  VRBRUTO: "valor",
   TR: "tr",
   COSTO: "costo",
+  COSTOUNITARIO: "costo",
+  VRCOSTO: "costo",
   COSTOTOTAL: "costo_total",
+  VRCOSTOTOTAL: "costo_total",
+  TOTALCOSTO: "costo_total",
 };
 
 const NUMERICOS: (keyof VentaRow)[] = [
@@ -151,7 +238,6 @@ function toNumber(v: unknown): number | null {
   if (!s) return null;
   const negativo = /^\(.*\)$/.test(s);
   s = s.replace(/[()]/g, "");
-  // Formato 1.234.567,89 -> 1234567.89
   if (/,\d{1,2}$/.test(s)) s = s.replace(/\./g, "").replace(",", ".");
   else s = s.replace(/,/g, "");
   const n = Number(s);
@@ -180,7 +266,6 @@ function toDate(v: unknown): string | null {
   if (!s) return null;
   let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (m) return `${m[1]}-${m[2]!.padStart(2, "0")}-${m[3]!.padStart(2, "0")}`;
-  // dd/mm/yyyy
   m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
   if (m) {
     const anio = m[3]!.length === 2 ? `20${m[3]}` : m[3];
@@ -195,7 +280,8 @@ export function normalizarFila(
   r: Record<string, unknown>,
   headerMap: Map<string, keyof VentaRow>,
   detectados: Set<string>,
-  ignoradasSet: Set<string>
+  ignoradasSet: Set<string>,
+  indiceFila: number
 ): VentaRow | null {
   const out: Record<string, unknown> = {};
 
@@ -212,6 +298,8 @@ export function normalizarFila(
   }
 
   const fila = out as unknown as VentaRow;
+  fila.row_index = indiceFila;
+
   if (fila.anio && fila.mes && fila.dia) {
     fila.fecha = `${fila.anio}-${String(fila.mes).padStart(2, "0")}-${String(
       fila.dia
@@ -224,7 +312,15 @@ export function normalizarFila(
     if (!(k in fila)) (fila as Record<string, unknown>)[k] = null;
   }
 
-  if (!fila.transaccion && !fila.sku && fila.valor === null) {
+  // Descartar solo si la fila está completamente vacía
+  const tieneDatos =
+    fila.transaccion !== null ||
+    fila.sku !== null ||
+    fila.producto !== null ||
+    fila.valor !== null ||
+    fila.cantidad !== null;
+
+  if (!tieneDatos) {
     return null;
   }
 
@@ -239,14 +335,13 @@ export type MetadataArchivo = {
   tamanoBytes: number;
 };
 
-/** Analiza los encabezados del archivo en milisegundos sin cargar filas en memoria */
 export async function inspeccionarEncabezados(file: File): Promise<MetadataArchivo> {
   const esCSV = file.name.toLowerCase().endsWith(".csv");
 
   if (esCSV) {
     return new Promise((resolve, reject) => {
       Papa.parse(file, {
-        preview: 2,
+        preview: 5,
         header: true,
         skipEmptyLines: "greedy",
         complete: (results) => {
@@ -307,7 +402,6 @@ export type ResumenIngesta = {
   columnasIgnoradas: string[];
 };
 
-/** Procesa el archivo en lotes por streaming liberando memoria RAM de inmediato */
 export async function procesarArchivoPorStreaming({
   file,
   tamanoLote = 1000,
@@ -320,6 +414,7 @@ export async function procesarArchivoPorStreaming({
 
   let recibidas = 0;
   let nuevas = 0;
+  let globalRowCounter = 0;
 
   if (esCSV) {
     let loteBuffer: VentaRow[] = [];
@@ -330,7 +425,7 @@ export async function procesarArchivoPorStreaming({
       Papa.parse(file, {
         header: true,
         skipEmptyLines: "greedy",
-        chunkSize: 1024 * 512, // Lectura en bloques de 512KB del disco
+        chunkSize: 1024 * 512,
         chunk: async (results, parser) => {
           parser.pause();
           try {
@@ -342,7 +437,8 @@ export async function procesarArchivoPorStreaming({
             }
 
             for (const r of results.data as Record<string, unknown>[]) {
-              const fila = normalizarFila(r, headerMap, detectados, ignoradasSet);
+              globalRowCounter++;
+              const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter);
               if (fila) loteBuffer.push(fila);
 
               if (loteBuffer.length >= tamanoLote) {
@@ -389,7 +485,7 @@ export async function procesarArchivoPorStreaming({
               filasLeidas: recibidas,
               filasNuevas: nuevas,
               porcentaje: 100,
-              mensaje: "Carga completada con éxito",
+              mensaje: `Carga completada: ${recibidas.toLocaleString("es-CO")} procesadas (${nuevas.toLocaleString("es-CO")} nuevas)`,
             });
 
             resolve({
@@ -409,10 +505,9 @@ export async function procesarArchivoPorStreaming({
   }
 
   // Si es Excel (.xlsx, .xls)
-  // Advertir si el archivo es mayor a 15MB para prevenir OOM crash de V8
-  if (file.size > 15 * 1024 * 1024) {
+  if (file.size > 25 * 1024 * 1024) {
     throw new Error(
-      "El archivo Excel supera los 15 MB y excedería la memoria del navegador. Por favor guárdalo/expórtalo en formato .CSV (delimitado por comas) para procesarlo en streaming sin límite."
+      "El archivo Excel supera los 25 MB. Por favor guárdalo/expórtalo en formato .CSV (delimitado por comas) para procesar todas las 680.000 filas en streaming sin límite de memoria."
     );
   }
 
@@ -420,7 +515,7 @@ export async function procesarArchivoPorStreaming({
     filasLeidas: 0,
     filasNuevas: 0,
     porcentaje: 5,
-    mensaje: "Leyendo archivo Excel...",
+    mensaje: "Leyendo libro Excel y sus hojas de datos...",
   });
 
   const buffer = await file.arrayBuffer();
@@ -434,47 +529,50 @@ export async function procesarArchivoPorStreaming({
     cellText: false,
   });
 
-  const sheetName = wb.SheetNames[0];
-  if (!sheetName) throw new Error("El archivo no contiene hojas de datos.");
-  const hoja = wb.Sheets[sheetName]!;
+  if (wb.SheetNames.length === 0) throw new Error("El archivo no contiene hojas de datos.");
 
-  const crudo = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, {
-    defval: null,
-    raw: true,
-  });
-
-  if (crudo.length === 0) throw new Error("El archivo no contiene filas de datos.");
-
-  const headers = Object.keys(crudo[0]!);
-  const headerMap = new Map<string, keyof VentaRow>();
-  for (const h of headers) {
-    const campo = MAPA[norm(h)];
-    if (campo) headerMap.set(h, campo);
-  }
-
-  const total = crudo.length;
-  for (let i = 0; i < total; i += tamanoLote) {
-    const loteFilas: VentaRow[] = [];
-    const chunk = crudo.slice(i, i + tamanoLote);
-
-    for (const r of chunk) {
-      const fila = normalizarFila(r, headerMap, detectados, ignoradasSet);
-      if (fila) loteFilas.push(fila);
-    }
-
-    if (loteFilas.length > 0) {
-      const res = await onLote(loteFilas);
-      recibidas += res.recibidas;
-      nuevas += res.nuevas;
-    }
-
-    const porcentaje = Math.min(100, Math.round(((i + chunk.length) / total) * 100));
-    onProgreso?.({
-      filasLeidas: recibidas,
-      filasNuevas: nuevas,
-      porcentaje,
-      mensaje: `Cargando ${Math.min(i + tamanoLote, total).toLocaleString("es-CO")} de ${total.toLocaleString("es-CO")} filas...`,
+  // Procesar todas las hojas que contengan filas de datos
+  for (const sheetName of wb.SheetNames) {
+    const hoja = wb.Sheets[sheetName]!;
+    const crudo = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, {
+      defval: null,
+      raw: true,
     });
+
+    if (crudo.length === 0) continue;
+
+    const headers = Object.keys(crudo[0]!);
+    const headerMap = new Map<string, keyof VentaRow>();
+    for (const h of headers) {
+      const campo = MAPA[norm(h)];
+      if (campo) headerMap.set(h, campo);
+    }
+
+    const total = crudo.length;
+    for (let i = 0; i < total; i += tamanoLote) {
+      const loteFilas: VentaRow[] = [];
+      const chunk = crudo.slice(i, i + tamanoLote);
+
+      for (const r of chunk) {
+        globalRowCounter++;
+        const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter);
+        if (fila) loteFilas.push(fila);
+      }
+
+      if (loteFilas.length > 0) {
+        const res = await onLote(loteFilas);
+        recibidas += res.recibidas;
+        nuevas += res.nuevas;
+      }
+
+      const porcentaje = Math.min(100, Math.round(((i + chunk.length) / total) * 100));
+      onProgreso?.({
+        filasLeidas: recibidas,
+        filasNuevas: nuevas,
+        porcentaje,
+        mensaje: `Hoja "${sheetName}": ${recibidas.toLocaleString("es-CO")} filas procesadas...`,
+      });
+    }
   }
 
   const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
