@@ -79,15 +79,11 @@ export async function registrarCargaCliente(
   return { ok: true };
 }
 
+/** Obtiene la lista completa de catálogos y TODOS los años presentes en la base de datos */
 export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
-  const [aniosRes, vendRes, canalRes, marcaRes, lineaRes, zonaRes, ciudadRes] =
+  const [aniosRpc, vendRes, canalRes, marcaRes, lineaRes, zonaRes, ciudadRes] =
     await Promise.all([
-      supabase
-        .from("fact_ventas")
-        .select("anio")
-        .not("anio", "is", null)
-        .order("anio", { ascending: false })
-        .limit(1000),
+      supabase.rpc("get_bi_anios_disponibles"),
       supabase.from("dim_vendedor").select("id, nombre").order("nombre"),
       supabase.from("dim_canal").select("id, nombre").order("nombre"),
       supabase.from("dim_marca").select("id, nombre").order("nombre"),
@@ -96,18 +92,160 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
       supabase.from("dim_ciudad").select("id, nombre").order("nombre"),
     ]);
 
-  const aniosUnicos = Array.from(
-    new Set((aniosRes.data || []).map((r) => r.anio).filter(Boolean))
-  ) as number[];
+  let anios: number[] = [];
+
+  if (Array.isArray(aniosRpc.data) && aniosRpc.data.length > 0) {
+    anios = aniosRpc.data.map((r: Record<string, unknown>) => Number(r.anio)).filter(Boolean);
+  } else {
+    // Fallback directo
+    const { data: directAnios } = await supabase
+      .from("fact_ventas")
+      .select("anio")
+      .not("anio", "is", null);
+
+    const setAnios = new Set<number>((directAnios || []).map((r) => r.anio).filter(Boolean));
+    anios = Array.from(setAnios);
+  }
+
+  if (anios.length === 0) {
+    anios = [2026, 2025, 2024, 2023, 2022];
+  }
 
   return {
-    anios: aniosUnicos.sort((a, b) => b - a),
+    anios: anios.sort((a, b) => b - a),
     vendedores: vendRes.data || [],
     canales: canalRes.data || [],
     marcas: marcaRes.data || [],
     lineas: lineaRes.data || [],
     zonas: zonaRes.data || [],
     ciudades: ciudadRes.data || [],
+  };
+}
+
+// =========================================================================
+// DIMENSIÓN DE TIEMPO / ANÁLISIS HISTÓRICO MULTIANUAL (2018 - 2026)
+// =========================================================================
+export type ResumenAnual = {
+  anio: number;
+  totalVentas: number;
+  totalUnidades: number;
+  totalCosto: number;
+  margenBruto: number;
+  margenPct: number;
+  ventaAnterior: number;
+  crecimientoYoYPct: number;
+  totalTransacciones: number;
+};
+
+export type MatrizMesAnio = {
+  anio: number;
+  meses: number[];
+  totalAnio: number;
+  unidadesAnio: number;
+};
+
+export type DataHistoricoMultianual = {
+  aniosResumen: ResumenAnual[];
+  matrizMesAnio: MatrizMesAnio[];
+  estacionalidadCurvas: {
+    mes: number;
+    nombreMes: string;
+    [anioKey: string]: number | string;
+  }[];
+  aniosPresentes: number[];
+};
+
+export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<DataHistoricoMultianual> {
+  const [anualRes, estacRes, matrizRes] = await Promise.all([
+    supabase.rpc("get_bi_historico_anual", {
+      p_canal_id: filtros.canal_id ?? undefined,
+      p_marca_id: filtros.marca_id ?? undefined,
+      p_vendedor_id: filtros.vendedor_id ?? undefined,
+      p_zona_id: filtros.zona_id ?? undefined,
+    }),
+    supabase.rpc("get_bi_estacionalidad_multianual", {
+      p_canal_id: filtros.canal_id ?? undefined,
+      p_marca_id: filtros.marca_id ?? undefined,
+      p_vendedor_id: filtros.vendedor_id ?? undefined,
+      p_zona_id: filtros.zona_id ?? undefined,
+    }),
+    supabase.rpc("get_bi_matriz_historica", {
+      p_canal_id: filtros.canal_id ?? undefined,
+      p_marca_id: filtros.marca_id ?? undefined,
+      p_vendedor_id: filtros.vendedor_id ?? undefined,
+      p_zona_id: filtros.zona_id ?? undefined,
+    }),
+  ]);
+
+  const aniosResumen: ResumenAnual[] = (Array.isArray(anualRes.data) ? anualRes.data : []).map(
+    (r: Record<string, unknown>) => ({
+      anio: Number(r.anio),
+      totalVentas: Number(r.total_ventas ?? 0),
+      totalUnidades: Number(r.total_unidades ?? 0),
+      totalCosto: Number(r.total_costo ?? 0),
+      margenBruto: Number(r.margen_bruto ?? 0),
+      margenPct: Number(r.margen_pct ?? 0),
+      ventaAnterior: Number(r.venta_anterior ?? 0),
+      crecimientoYoYPct: Number(r.crecimiento_yoy_pct ?? 0),
+      totalTransacciones: Number(r.total_transacciones ?? 0),
+    })
+  );
+
+  const aniosPresentes = aniosResumen.map((a) => a.anio).sort((a, b) => a - b);
+
+  // Estacionalidad por mes
+  const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const estacionalidadCurvas = nombresMes.map((nombre, idx) => {
+    const mesNum = idx + 1;
+    const item: Record<string, number | string> = {
+      mes: mesNum,
+      nombreMes: nombre,
+    };
+    for (const an of aniosPresentes) {
+      item[`anio_${an}`] = 0;
+    }
+    return item;
+  });
+
+  if (Array.isArray(estacRes.data)) {
+    for (const r of estacRes.data as Record<string, unknown>[]) {
+      const m = Number(r.mes);
+      const an = Number(r.anio);
+      const v = Number(r.total_ventas ?? 0);
+      if (m >= 1 && m <= 12 && estacionalidadCurvas[m - 1]) {
+        estacionalidadCurvas[m - 1]![`anio_${an}`] = v;
+      }
+    }
+  }
+
+  // Matriz de calor
+  const matrizMesAnio: MatrizMesAnio[] = (Array.isArray(matrizRes.data) ? matrizRes.data : []).map(
+    (r: Record<string, unknown>) => ({
+      anio: Number(r.anio),
+      meses: [
+        Number(r.m1 ?? 0),
+        Number(r.m2 ?? 0),
+        Number(r.m3 ?? 0),
+        Number(r.m4 ?? 0),
+        Number(r.m5 ?? 0),
+        Number(r.m6 ?? 0),
+        Number(r.m7 ?? 0),
+        Number(r.m8 ?? 0),
+        Number(r.m9 ?? 0),
+        Number(r.m10 ?? 0),
+        Number(r.m11 ?? 0),
+        Number(r.m12 ?? 0),
+      ],
+      totalAnio: Number(r.total_anio ?? 0),
+      unidadesAnio: Number(r.unidades_anio ?? 0),
+    })
+  );
+
+  return {
+    aniosResumen,
+    matrizMesAnio,
+    estacionalidadCurvas: estacionalidadCurvas as DataHistoricoMultianual["estacionalidadCurvas"],
+    aniosPresentes,
   };
 }
 
@@ -152,10 +290,8 @@ export type DataDashboard1 = {
 };
 
 export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise<DataDashboard1> {
-  // 1. Intentar RPC get_bi_cumplimiento_mensual o get_bi_historico_cronologico
   try {
     if (!filtros.anio) {
-      // Todos los años: traer histórico completo
       const { data: histData, error: errHist } = await supabase.rpc("get_bi_historico_cronologico", {
         p_canal_id: filtros.canal_id ?? undefined,
         p_marca_id: filtros.marca_id ?? undefined,
@@ -216,7 +352,6 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
         };
       }
     } else {
-      // Año específico
       const { data: cData, error: cErr } = await supabase.rpc("get_bi_cumplimiento_mensual", {
         p_anio: filtros.anio,
         p_canal_id: filtros.canal_id ?? undefined,
@@ -280,59 +415,6 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
     // Continuar a fallback
   }
 
-  // Fallback con RPC general get_bi_ventas_tiempo
-  try {
-    const { data: vt } = await supabase.rpc("get_bi_ventas_tiempo", {
-      p_anio: filtros.anio ?? undefined,
-      p_canal_id: filtros.canal_id ?? undefined,
-      p_marca_id: filtros.marca_id ?? undefined,
-      p_vendedor_id: filtros.vendedor_id ?? undefined,
-      p_zona_id: filtros.zona_id ?? undefined,
-    });
-
-    if (Array.isArray(vt) && vt.length > 0) {
-      const meses: CumplimientoMes[] = vt.map((r: Record<string, unknown>) => {
-        const v = Number(r.total_ventas ?? 0);
-        const p = Math.round(v * 1.10);
-        return {
-          anio: Number(r.anio),
-          mes: Number(r.mes),
-          nombreMes: String(r.periodo),
-          periodo: String(r.periodo),
-          ventaReal: v,
-          ventaAnterior: 0,
-          ppto: p,
-          cumplimientoPct: p > 0 ? Math.round((v / p) * 100) : 100,
-          crecimientoYoY: 0,
-          devolucionesMonto: 0,
-          tasaDevolucionPct: 0,
-          unidades: Number(r.total_cantidad ?? 0),
-        };
-      });
-
-      const totalVentaYTD = meses.reduce((a, b) => a + b.ventaReal, 0);
-      const totalPptoYTD = meses.reduce((a, b) => a + b.ppto, 0);
-      const totalUnidades = meses.reduce((a, b) => a + b.unidades, 0);
-
-      return {
-        kpis: {
-          ventaYTD: totalVentaYTD,
-          pptoYTD: totalPptoYTD,
-          cumplimientoGlobalPct: totalPptoYTD > 0 ? Math.round((totalVentaYTD / totalPptoYTD) * 100) : 100,
-          crecimientoYoYPct: 0,
-          devolucionesTotal: 0,
-          tasaDevolucionGlobalPct: 0,
-          volumenUnidades: totalUnidades,
-        },
-        meses,
-        mixLineas: [],
-        mixMarcas: [],
-      };
-    }
-  } catch {
-    // Continuar
-  }
-
   return {
     kpis: {
       ventaYTD: 0,
@@ -381,12 +463,10 @@ export type DataDashboard2 = {
 };
 
 export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<DataDashboard2> {
-  // Determinar año y mes a consultar
   let anioTarget = filtros.anio;
   let mesTarget = filtros.mes;
 
   if (!anioTarget || !mesTarget) {
-    // Buscar la fecha más reciente en fact_ventas
     const { data: latest } = await supabase
       .from("fact_ventas")
       .select("anio, mes")
@@ -442,7 +522,7 @@ export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<Data
 
   for (let d = 1; d <= diasEnMes; d++) {
     const fecha = new Date(anio, mes - 1, d);
-    const dayOfWeek = fecha.getDay(); // 0 = Domingo
+    const dayOfWeek = fecha.getDay();
     const esHabil = dayOfWeek !== 0;
     if (esHabil) {
       diasHabilesTotales++;
