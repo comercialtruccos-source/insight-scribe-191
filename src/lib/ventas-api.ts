@@ -35,16 +35,22 @@ export async function obtenerResumenCliente() {
       .limit(8),
     supabase
       .from("fact_ventas")
-      .select("fecha, anio, mes")
-      .order("fecha", { ascending: false })
+      .select("fecha, anio, anio_col, mes")
+      .order("id", { ascending: false })
       .limit(1),
   ]);
+
+  let ultimoAnio = rango.data?.[0]?.anio ?? null;
+  if (!ultimoAnio && rango.data?.[0]?.anio_col) {
+    const m = String(rango.data[0].anio_col).match(/\b(20\d{2})\b/);
+    if (m) ultimoAnio = parseInt(m[1]!, 10);
+  }
 
   return {
     totalVentas: ventas.count ?? 0,
     totalCargas: cargas.count ?? 0,
     ultimaFecha: rango.data?.[0]?.fecha ?? null,
-    ultimoAnio: rango.data?.[0]?.anio ?? null,
+    ultimoAnio,
     ultimoMes: rango.data?.[0]?.mes ?? null,
     historial: ultimas.data ?? [],
   };
@@ -102,11 +108,12 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
   const candidateYears = [2026, 2025, 2024, 2023, 2022];
   const countChecks = await Promise.all(
     candidateYears.map(async (yr) => {
-      const [cAnio, cFecha] = await Promise.all([
+      const [cAnio, cCol, cFecha] = await Promise.all([
         supabase.from("fact_ventas").select("id", { count: "exact", head: true }).eq("anio", yr),
+        supabase.from("fact_ventas").select("id", { count: "exact", head: true }).ilike("anio_col", `%${yr}%`),
         supabase.from("fact_ventas").select("id", { count: "exact", head: true }).gte("fecha", `${yr}-01-01`).lte("fecha", `${yr}-12-31`),
       ]);
-      const total = (cAnio.count ?? 0) + (cFecha.count ?? 0);
+      const total = (cAnio.count ?? 0) + (cCol.count ?? 0) + (cFecha.count ?? 0);
       return { year: yr, count: total };
     })
   );
@@ -251,8 +258,8 @@ export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<Da
     // Continuar a fallback
   }
 
-  // Fallback directo a fact_ventas
-  let query = supabase.from("fact_ventas").select("anio, mes, valor, cantidad, costo_total, fecha, transaccion");
+  // Fallback directo a fact_ventas con soporte completo para anio y anio_col
+  let query = supabase.from("fact_ventas").select("anio, anio_col, mes, valor, cantidad, costo_total, fecha, transaccion");
   if (filtros.canal_id) query = query.eq("canal_id", filtros.canal_id);
   if (filtros.marca_id) query = query.eq("marca_id", filtros.marca_id);
   if (filtros.vendedor_id) query = query.eq("vendedor_id", filtros.vendedor_id);
@@ -265,13 +272,24 @@ export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<Da
 
   for (const r of data) {
     let an = Number(r.anio);
-    let m = Number(r.mes);
-    if ((!an || isNaN(an)) && r.fecha) {
-      const f = String(r.fecha);
-      an = parseInt(f.slice(0, 4), 10);
-      m = parseInt(f.slice(5, 7), 10);
+    if (!an || isNaN(an) || an < 2000 || an > 2050) {
+      if (r.anio_col) {
+        const m = String(r.anio_col).match(/\b(20\d{2})\b/);
+        if (m) an = parseInt(m[1]!, 10);
+      }
+    }
+    if (!an || isNaN(an) || an < 2000 || an > 2050) {
+      if (r.fecha) {
+        const f = String(r.fecha);
+        an = parseInt(f.slice(0, 4), 10);
+      }
     }
     if (!an || isNaN(an) || an < 2000 || an > 2050) an = 2025;
+
+    let m = Number(r.mes);
+    if ((!m || isNaN(m) || m < 1 || m > 12) && r.fecha) {
+      m = parseInt(String(r.fecha).slice(5, 7), 10);
+    }
     if (!m || isNaN(m) || m < 1 || m > 12) m = 1;
 
     if (!aniosMap.has(an)) {
@@ -292,7 +310,6 @@ export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<Da
   // Si solo hay un año o faltan 2025/2026, asegurar que ambos aparezcan si hay datos
   if (!aniosMap.has(2025) && aniosMap.has(2026)) {
     const v26 = aniosMap.get(2026)!;
-    // Si 2026 tiene datos pero 2025 no fue registrado, estimar histórico base
     if (v26.ventas > 0) {
       aniosMap.set(2025, {
         ventas: Math.round(v26.ventas * 0.88),
@@ -526,9 +543,9 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
   }
 
   // Fallback robusto directo de fact_ventas
-  let q = supabase.from("fact_ventas").select("anio, mes, valor, cantidad, linea_id, fecha");
+  let q = supabase.from("fact_ventas").select("anio, anio_col, mes, valor, cantidad, linea_id, fecha");
   if (filtros.anio) {
-    q = q.or(`anio.eq.${filtros.anio},fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
+    q = q.or(`anio.eq.${filtros.anio},anio_col.ilike.%${filtros.anio}%,fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
   }
   if (filtros.canal_id) q = q.eq("canal_id", filtros.canal_id);
   if (filtros.marca_id) q = q.eq("marca_id", filtros.marca_id);
@@ -549,12 +566,21 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
 
   for (const r of data) {
     let an = Number(r.anio);
-    let m = Number(r.mes);
-    if ((!an || isNaN(an)) && r.fecha) {
-      an = parseInt(String(r.fecha).slice(0, 4), 10);
-      m = parseInt(String(r.fecha).slice(5, 7), 10);
+    if (!an || isNaN(an) || an < 2000 || an > 2050) {
+      if (r.anio_col) {
+        const mCol = String(r.anio_col).match(/\b(20\d{2})\b/);
+        if (mCol) an = parseInt(mCol[1]!, 10);
+      }
+    }
+    if (!an || isNaN(an) || an < 2000 || an > 2050) {
+      if (r.fecha) an = parseInt(String(r.fecha).slice(0, 4), 10);
     }
     if (!an || isNaN(an)) an = filtros.anio || 2025;
+
+    let m = Number(r.mes);
+    if ((!m || isNaN(m) || m < 1 || m > 12) && r.fecha) {
+      m = parseInt(String(r.fecha).slice(5, 7), 10);
+    }
     if (!m || isNaN(m)) m = 1;
 
     const v = Number(r.valor ?? 0);
@@ -687,17 +713,18 @@ export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<Data
   let anioTarget = filtros.anio;
   let mesTarget = filtros.mes;
 
-  // Si no se especificó mes o año, buscar el último con registros
   if (!anioTarget || !mesTarget) {
     const { data: latest } = await supabase
       .from("fact_ventas")
-      .select("anio, mes, fecha")
+      .select("anio, anio_col, mes, fecha")
       .not("fecha", "is", null)
-      .order("fecha", { ascending: false })
+      .order("id", { ascending: false })
       .limit(1);
 
     if (latest && latest.length > 0) {
-      if (!anioTarget) anioTarget = latest[0].anio || (latest[0].fecha ? parseInt(latest[0].fecha.slice(0, 4), 10) : 2025);
+      if (!anioTarget) {
+        anioTarget = latest[0].anio || (latest[0].anio_col ? parseInt(String(latest[0].anio_col).replace(/\D/g, "").slice(0, 4), 10) : null) || (latest[0].fecha ? parseInt(latest[0].fecha.slice(0, 4), 10) : 2025);
+      }
       if (!mesTarget) mesTarget = latest[0].mes || (latest[0].fecha ? parseInt(latest[0].fecha.slice(5, 7), 10) : 1);
     } else {
       if (!anioTarget) anioTarget = 2025;
@@ -712,8 +739,8 @@ export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<Data
 
   let query = supabase
     .from("fact_ventas")
-    .select("dia, fecha, valor, anio, mes")
-    .or(`anio.eq.${anio},fecha.gte.${anio}-01-01.and.fecha.lte.${anio}-12-31`);
+    .select("dia, fecha, valor, anio, anio_col, mes")
+    .or(`anio.eq.${anio},anio_col.ilike.%${anio}%,fecha.gte.${anio}-01-01.and.fecha.lte.${anio}-12-31`);
 
   if (filtros.canal_id) query = query.eq("canal_id", filtros.canal_id);
   if (filtros.marca_id) query = query.eq("marca_id", filtros.marca_id);
@@ -834,9 +861,9 @@ export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<Data
   const canalMap = new Map<number, string>((canalesRes.data || []).map((c) => [c.id, c.nombre]));
   const marcaMap = new Map<number, string>((marcasRes.data || []).map((m) => [m.id, m.nombre]));
 
-  let query = supabase.from("fact_ventas").select("mes, anio, valor, cantidad, canal_id, marca_id, fecha");
+  let query = supabase.from("fact_ventas").select("mes, anio, anio_col, valor, cantidad, canal_id, marca_id, fecha");
   if (filtros.anio) {
-    query = query.or(`anio.eq.${filtros.anio},fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
+    query = query.or(`anio.eq.${filtros.anio},anio_col.ilike.%${filtros.anio}%,fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
   }
   if (filtros.mes) query = query.eq("mes", filtros.mes);
 
@@ -965,9 +992,9 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
   const canalMap = new Map<number, string>((canalesRes.data || []).map((c) => [c.id, c.nombre]));
   const paisMap = new Map<number, string>((paisesRes.data || []).map((p) => [p.id, p.nombre]));
 
-  let query = supabase.from("fact_ventas").select("mes, anio, valor, cantidad, vendedor_id, canal_id, pais_id, fecha");
+  let query = supabase.from("fact_ventas").select("mes, anio, anio_col, valor, cantidad, vendedor_id, canal_id, pais_id, fecha");
   if (filtros.anio) {
-    query = query.or(`anio.eq.${filtros.anio},fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
+    query = query.or(`anio.eq.${filtros.anio},anio_col.ilike.%${filtros.anio}%,fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
   }
   if (filtros.mes) query = query.eq("mes", filtros.mes);
 
@@ -1081,9 +1108,9 @@ export async function obtenerDashboard5Marketplaces(filtros: FiltrosBI): Promise
   const { data: canalesRes } = await supabase.from("dim_canal").select("id, nombre");
   const canalMap = new Map<number, string>((canalesRes || []).map((c) => [c.id, c.nombre]));
 
-  let query = supabase.from("fact_ventas").select("sku, producto, prenda_hgi, talla, color, cantidad, valor, canal_id, fecha, anio");
+  let query = supabase.from("fact_ventas").select("sku, producto, prenda_hgi, talla, color, cantidad, valor, canal_id, fecha, anio, anio_col");
   if (filtros.anio) {
-    query = query.or(`anio.eq.${filtros.anio},fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
+    query = query.or(`anio.eq.${filtros.anio},anio_col.ilike.%${filtros.anio}%,fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
   }
   if (filtros.mes) query = query.eq("mes", filtros.mes);
 
@@ -1224,10 +1251,10 @@ export async function obtenerTransaccionesDetalle(
 
   let query = supabase
     .from("fact_ventas")
-    .select("id, transaccion, fecha, anio, mes, dia, producto, prenda_hgi, sku, talla, color, cantidad, valor, costo_total, vendedor_id, canal_id, marca_id, linea_id, zona_colombia_id, ciudad_id", { count: "exact" });
+    .select("id, transaccion, fecha, anio, anio_col, mes, dia, producto, prenda_hgi, sku, talla, color, cantidad, valor, costo_total, vendedor_id, canal_id, marca_id, linea_id, zona_colombia_id, ciudad_id", { count: "exact" });
 
   if (filtros.anio) {
-    query = query.or(`anio.eq.${filtros.anio},fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
+    query = query.or(`anio.eq.${filtros.anio},anio_col.ilike.%${filtros.anio}%,fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
   }
   if (filtros.mes) query = query.eq("mes", filtros.mes);
   if (filtros.canal_id) query = query.eq("canal_id", filtros.canal_id);
@@ -1252,24 +1279,31 @@ export async function obtenerTransaccionesDetalle(
     return { filas: [], total: 0 };
   }
 
-  const filas: FilaDetalleVenta[] = data.map((r) => ({
-    id: Number(r.id),
-    transaccion: r.transaccion || null,
-    fecha: r.fecha || (r.anio && r.mes ? `${r.anio}-${String(r.mes).padStart(2, "0")}-${String(r.dia || 1).padStart(2, "0")}` : null),
-    vendedor: (r.vendedor_id && vMap.get(r.vendedor_id)) || null,
-    canal: (r.canal_id && canMap.get(r.canal_id)) || null,
-    marca: (r.marca_id && mMap.get(r.marca_id)) || null,
-    linea: (r.linea_id && lMap.get(r.linea_id)) || null,
-    zona: (r.zona_colombia_id && zMap.get(r.zona_colombia_id)) || null,
-    ciudad: (r.ciudad_id && cMap.get(r.ciudad_id)) || null,
-    sku: r.sku || null,
-    producto: r.producto || r.prenda_hgi || null,
-    talla: r.talla || null,
-    color: r.color || null,
-    cantidad: r.cantidad !== null ? Number(r.cantidad) : null,
-    valor: r.valor !== null ? Number(r.valor) : null,
-    costo_total: r.costo_total !== null ? Number(r.costo_total) : null,
-  }));
+  const filas: FilaDetalleVenta[] = data.map((r) => {
+    let an = r.anio;
+    if (!an && r.anio_col) {
+      const m = String(r.anio_col).match(/\b(20\d{2})\b/);
+      if (m) an = parseInt(m[1]!, 10);
+    }
+    return {
+      id: Number(r.id),
+      transaccion: r.transaccion || null,
+      fecha: r.fecha || (an && r.mes ? `${an}-${String(r.mes).padStart(2, "0")}-${String(r.dia || 1).padStart(2, "0")}` : null),
+      vendedor: (r.vendedor_id && vMap.get(r.vendedor_id)) || null,
+      canal: (r.canal_id && canMap.get(r.canal_id)) || null,
+      marca: (r.marca_id && mMap.get(r.marca_id)) || null,
+      linea: (r.linea_id && lMap.get(r.linea_id)) || null,
+      zona: (r.zona_colombia_id && zMap.get(r.zona_colombia_id)) || null,
+      ciudad: (r.ciudad_id && cMap.get(r.ciudad_id)) || null,
+      sku: r.sku || null,
+      producto: r.producto || r.prenda_hgi || null,
+      talla: r.talla || null,
+      color: r.color || null,
+      cantidad: r.cantidad !== null ? Number(r.cantidad) : null,
+      valor: r.valor !== null ? Number(r.valor) : null,
+      costo_total: r.costo_total !== null ? Number(r.costo_total) : null,
+    };
+  });
 
   return { filas, total: count ?? 0 };
 }

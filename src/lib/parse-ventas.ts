@@ -109,10 +109,19 @@ const MAPA: Record<string, keyof VentaRow> = {
   NRODOC: "transaccion",
   IDTRANSACCION: "transaccion",
 
-  // Fechas y Periodos
+  // Fechas y Periodos (soporte total para 'ano', 'anio', 'año', 'ano_col', 'ejercicio', etc.)
   ANO: "anio",
   ANIO: "anio",
   YEAR: "anio",
+  ANODOC: "anio",
+  ANOFACTURA: "anio",
+  ANOMOV: "anio",
+  ANOVENTA: "anio",
+  ANOPERIODO: "anio",
+  ANOPPT: "anio",
+  ANOPPTO: "anio",
+  EJERCICIO: "anio",
+  VIGENCIA: "anio",
   MES: "mes",
   MONTH: "mes",
   DIA: "dia",
@@ -306,7 +315,6 @@ export function normalizarFila(
   for (const [h, val] of Object.entries(r)) {
     const campo = headerMap.get(h);
     if (!campo) {
-      // Verificar si el encabezado mismo es un año como "2025" o "2026"
       const normH = norm(h);
       if (normH === "2025" || normH === "ANO2025" || normH === "VENTA2025") {
         if (!out.anio) out.anio = 2025;
@@ -342,16 +350,26 @@ export function normalizarFila(
     }
   }
 
+  // Extraer año desde anio_col (ej. "2025", "ANO 2025", "2025-1")
   if (!fila.anio && fila.anio_col) {
-    const pAnio = parseInt(fila.anio_col.replace(/\D/g, ""), 10);
-    if (pAnio >= 2000 && pAnio <= 2050) {
-      fila.anio = pAnio;
+    const match = String(fila.anio_col).match(/\b(20\d{2})\b/);
+    if (match) {
+      fila.anio = parseInt(match[1]!, 10);
+    } else {
+      const pAnio = parseInt(fila.anio_col.replace(/\D/g, "").slice(0, 4), 10);
+      if (pAnio >= 2000 && pAnio <= 2050) {
+        fila.anio = pAnio;
+      }
     }
   }
 
   // Si aún no tiene año pero la hoja o archivo especificó defaultAnio (ej. "DIA.DIA 2025")
   if (!fila.anio && defaultAnio) {
     fila.anio = defaultAnio;
+  }
+
+  if (fila.anio && !fila.anio_col) {
+    fila.anio_col = String(fila.anio);
   }
 
   if (fila.anio && fila.mes && !fila.fecha) {
@@ -591,7 +609,6 @@ export async function procesarArchivoPorStreaming({
   if (wb.SheetNames.length === 0) throw new Error("El archivo no contiene hojas de datos.");
 
   for (const sheetName of wb.SheetNames) {
-    // Detectar año en el nombre de la hoja (ej. "DIA.DIA 2025", "PPTO 2025", "2025", "2026")
     const matchSheetYear = sheetName.match(/\b(20\d{2})\b/);
     const sheetDefaultYear = matchSheetYear ? parseInt(matchSheetYear[1]!, 10) : fileDefaultYear;
 
