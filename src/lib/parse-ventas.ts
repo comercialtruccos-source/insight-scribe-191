@@ -122,6 +122,18 @@ const MAPA: Record<string, keyof VentaRow> = {
   FECHAVENTA: "fecha_compra",
   FECHADOC: "fecha_compra",
   FECHAMOV: "fecha_compra",
+  FECHAMOVIMIENTO: "fecha_compra",
+  FECHAFACTURA: "fecha_compra",
+  FECHAEMISION: "fecha_compra",
+  FECHAREGISTRO: "fecha_compra",
+  FMOV: "fecha_compra",
+  FDOC: "fecha_compra",
+  FFAC: "fecha_compra",
+  FECMOV: "fecha_compra",
+  FECDOC: "fecha_compra",
+  FECFAC: "fecha_compra",
+  DATE: "fecha",
+  DOCDATE: "fecha_compra",
 
   // Vendedor
   VENDEDOR: "vendedor",
@@ -170,6 +182,7 @@ const MAPA: Record<string, keyof VentaRow> = {
   BRAND: "marca",
   CORRERIA: "correria",
   ANOCOL: "anio_col",
+  ANIOCOL: "anio_col",
 
   // Producto / SKU
   PRODUCTOC: "producto_c",
@@ -252,10 +265,14 @@ function toText(v: unknown): string | null {
 }
 
 function excelSerialToISO(serial: number): string | null {
-  const ms = Math.round((serial - 25569) * 86400 * 1000);
-  const d = new Date(ms);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+  if (serial < 30000 || serial > 60000) return null;
+  const utcDays = serial - 25569;
+  const dateInfo = new Date(utcDays * 86400 * 1000);
+  const year = dateInfo.getUTCFullYear();
+  const month = String(dateInfo.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(dateInfo.getUTCDate()).padStart(2, "0");
+  if (isNaN(year) || year < 1990 || year > 2100) return null;
+  return `${year}-${month}-${day}`;
 }
 
 function toDate(v: unknown): string | null {
@@ -281,14 +298,25 @@ export function normalizarFila(
   headerMap: Map<string, keyof VentaRow>,
   detectados: Set<string>,
   ignoradasSet: Set<string>,
-  indiceFila: number
+  indiceFila: number,
+  defaultAnio?: number | null
 ): VentaRow | null {
   const out: Record<string, unknown> = {};
 
   for (const [h, val] of Object.entries(r)) {
     const campo = headerMap.get(h);
     if (!campo) {
-      ignoradasSet.add(h);
+      // Verificar si el encabezado mismo es un año como "2025" o "2026"
+      const normH = norm(h);
+      if (normH === "2025" || normH === "ANO2025" || normH === "VENTA2025") {
+        if (!out.anio) out.anio = 2025;
+        if (out.valor === undefined && val !== null) out.valor = toNumber(val);
+      } else if (normH === "2026" || normH === "ANO2026" || normH === "VENTA2026") {
+        if (!out.anio) out.anio = 2026;
+        if (out.valor === undefined && val !== null) out.valor = toNumber(val);
+      } else {
+        ignoradasSet.add(h);
+      }
       continue;
     }
     detectados.add(campo);
@@ -312,9 +340,6 @@ export function normalizarFila(
       if (!fila.mes) fila.mes = parseInt(fParts[1]!, 10);
       if (!fila.dia) fila.dia = parseInt(fParts[2]!, 10);
     }
-  } else if (fila.anio && fila.mes) {
-    const d = fila.dia || 1;
-    fila.fecha = `${fila.anio}-${String(fila.mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   }
 
   if (!fila.anio && fila.anio_col) {
@@ -322,6 +347,16 @@ export function normalizarFila(
     if (pAnio >= 2000 && pAnio <= 2050) {
       fila.anio = pAnio;
     }
+  }
+
+  // Si aún no tiene año pero la hoja o archivo especificó defaultAnio (ej. "DIA.DIA 2025")
+  if (!fila.anio && defaultAnio) {
+    fila.anio = defaultAnio;
+  }
+
+  if (fila.anio && fila.mes && !fila.fecha) {
+    const d = fila.dia || 1;
+    fila.fecha = `${fila.anio}-${String(fila.mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   }
 
   // Costo total
@@ -432,6 +467,10 @@ export async function procesarArchivoPorStreaming({
   const detectados = new Set<string>();
   const ignoradasSet = new Set<string>();
 
+  // Extraer año del nombre del archivo si existe (ej. "Ventas_2025.csv")
+  const matchFileYear = file.name.match(/\b(20\d{2})\b/);
+  const fileDefaultYear = matchFileYear ? parseInt(matchFileYear[1]!, 10) : null;
+
   let recibidas = 0;
   let nuevas = 0;
   let globalRowCounter = 0;
@@ -458,7 +497,7 @@ export async function procesarArchivoPorStreaming({
 
             for (const r of results.data as Record<string, unknown>[]) {
               globalRowCounter++;
-              const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter);
+              const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, fileDefaultYear);
               if (fila) loteBuffer.push(fila);
 
               if (loteBuffer.length >= tamanoLote) {
@@ -552,6 +591,10 @@ export async function procesarArchivoPorStreaming({
   if (wb.SheetNames.length === 0) throw new Error("El archivo no contiene hojas de datos.");
 
   for (const sheetName of wb.SheetNames) {
+    // Detectar año en el nombre de la hoja (ej. "DIA.DIA 2025", "PPTO 2025", "2025", "2026")
+    const matchSheetYear = sheetName.match(/\b(20\d{2})\b/);
+    const sheetDefaultYear = matchSheetYear ? parseInt(matchSheetYear[1]!, 10) : fileDefaultYear;
+
     const hoja = wb.Sheets[sheetName]!;
     const crudo = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, {
       defval: null,
@@ -574,7 +617,7 @@ export async function procesarArchivoPorStreaming({
 
       for (const r of chunk) {
         globalRowCounter++;
-        const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter);
+        const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, sheetDefaultYear);
         if (fila) loteFilas.push(fila);
       }
 
