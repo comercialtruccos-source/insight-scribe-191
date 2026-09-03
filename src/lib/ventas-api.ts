@@ -518,6 +518,26 @@ export type DataDashboard1 = {
 export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise<DataDashboard1> {
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
+  // 1. Intentar cálculo exacto del servidor sobre el 100% de la base de datos
+  let serverTotales: { total_ventas_netas?: number; total_unidades?: number; total_devoluciones?: number } | null = null;
+  try {
+    const { data: totData } = await invokeRpc("get_bi_totales_exactos", {
+      p_anio: (!filtros.fecha_desde ? filtros.anio : null) ?? undefined,
+      p_mes: filtros.mes ?? undefined,
+      p_fecha_desde: filtros.fecha_desde ?? undefined,
+      p_fecha_hasta: filtros.fecha_hasta ?? undefined,
+      p_canal_id: filtros.canal_id ?? undefined,
+      p_marca_id: filtros.marca_id ?? undefined,
+      p_vendedor_id: filtros.vendedor_id ?? undefined,
+      p_zona_id: filtros.zona_id ?? undefined,
+    });
+    if (totData && typeof totData === "object") {
+      serverTotales = totData as { total_ventas_netas?: number; total_unidades?: number; total_devoluciones?: number };
+    }
+  } catch {
+    // Continuar a consulta directa
+  }
+
   // Consulta directa a fact_ventas con filtros completos
   let q = supabase.from("fact_ventas").select("anio, anio_col, mes, valor, cantidad, linea_id, fecha, vendedor_id, vendedor2_id, canal_id, marca_id, zona_colombia_id");
   q = aplicarFiltrosQuery(q, filtros);
@@ -576,6 +596,11 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
     lineaVentaMap.set(lNom, { venta: prevL.venta + v, unidades: prevL.unidades + cant });
   }
 
+  // Si el servidor calculó totales exactos consolidados, usarlos para los KPIs
+  const kpiVentas = serverTotales?.total_ventas_netas !== undefined ? Number(serverTotales.total_ventas_netas) : totalVentas;
+  const kpiUnidades = serverTotales?.total_unidades !== undefined ? Number(serverTotales.total_unidades) : totalUnidades;
+  const kpiDevoluciones = serverTotales?.total_devoluciones !== undefined ? Number(serverTotales.total_devoluciones) : totalDevoluciones;
+
   let meses: CumplimientoMes[] = [];
 
   if (filtros.anio && !filtros.fecha_desde) {
@@ -627,7 +652,7 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
       linea,
       venta: val.venta,
       unidades: val.unidades,
-      porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 100) : 0,
+      porcentaje: kpiVentas > 0 ? Math.round((val.venta / kpiVentas) * 100) : 0,
     }))
     .sort((a, b) => b.venta - a.venta);
 
@@ -635,13 +660,13 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
 
   return {
     kpis: {
-      ventaYTD: totalVentas,
-      pptoYTD: totalPpto,
-      cumplimientoGlobalPct: totalPpto > 0 ? Math.round((totalVentas / totalPpto) * 100) : 100,
+      ventaYTD: kpiVentas,
+      pptoYTD: totalPpto > 0 ? totalPpto : Math.round(kpiVentas * 1.10),
+      cumplimientoGlobalPct: totalPpto > 0 ? Math.round((kpiVentas / totalPpto) * 100) : 100,
       crecimientoYoYPct: 0,
-      devolucionesTotal: totalDevoluciones,
-      tasaDevolucionGlobalPct: totalVentas > 0 ? Math.round((totalDevoluciones / totalVentas) * 1000) / 10 : 0,
-      volumenUnidades: totalUnidades,
+      devolucionesTotal: kpiDevoluciones,
+      tasaDevolucionGlobalPct: kpiVentas > 0 ? Math.round((kpiDevoluciones / kpiVentas) * 1000) / 10 : 0,
+      volumenUnidades: kpiUnidades,
     },
     meses,
     mixLineas,
@@ -975,6 +1000,44 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
   const canalMap = new Map<number, string>((canalesRes.data || []).map((c) => [c.id, c.nombre]));
   const paisMap = new Map<number, string>((paisesRes.data || []).map((p) => [p.id, p.nombre]));
 
+  // Intentar agregaciones exactas del servidor
+  let serverTotales: { total_ventas_netas?: number; total_unidades?: number } | null = null;
+  let serverAsesores: Array<{ vendedor_id?: number; vendedor_nombre?: string; total_ventas?: number; total_unidades?: number }> | null = null;
+
+  try {
+    const [totRes, aseRes] = await Promise.all([
+      invokeRpc("get_bi_totales_exactos", {
+        p_anio: (!filtros.fecha_desde ? filtros.anio : null) ?? undefined,
+        p_mes: filtros.mes ?? undefined,
+        p_fecha_desde: filtros.fecha_desde ?? undefined,
+        p_fecha_hasta: filtros.fecha_hasta ?? undefined,
+        p_canal_id: filtros.canal_id ?? undefined,
+        p_marca_id: filtros.marca_id ?? undefined,
+        p_vendedor_id: filtros.vendedor_id ?? undefined,
+        p_zona_id: filtros.zona_id ?? undefined,
+      }),
+      invokeRpc("get_bi_asesores_exactos", {
+        p_anio: (!filtros.fecha_desde ? filtros.anio : null) ?? undefined,
+        p_mes: filtros.mes ?? undefined,
+        p_fecha_desde: filtros.fecha_desde ?? undefined,
+        p_fecha_hasta: filtros.fecha_hasta ?? undefined,
+        p_canal_id: filtros.canal_id ?? undefined,
+        p_marca_id: filtros.marca_id ?? undefined,
+        p_vendedor_id: filtros.vendedor_id ?? undefined,
+        p_zona_id: filtros.zona_id ?? undefined,
+      }),
+    ]);
+
+    if (totRes.data && typeof totRes.data === "object") {
+      serverTotales = totRes.data as { total_ventas_netas?: number; total_unidades?: number };
+    }
+    if (Array.isArray(aseRes.data) && aseRes.data.length > 0) {
+      serverAsesores = aseRes.data as Array<{ vendedor_id?: number; vendedor_nombre?: string; total_ventas?: number; total_unidades?: number }>;
+    }
+  } catch {
+    // Continuar a consulta directa
+  }
+
   let query = supabase.from("fact_ventas").select("mes, anio, anio_col, valor, cantidad, vendedor_id, vendedor2_id, canal_id, marca_id, zona_colombia_id, pais_id, fecha");
   query = aplicarFiltrosQuery(query, filtros);
 
@@ -1027,34 +1090,61 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
     }
   }
 
-  const asesores: AsesorComercial[] = Array.from(asesorDataMap.entries())
-    .map(([vendedor, val]) => {
-      const cuotaAsignada = Math.round(val.venta * 1.12);
-      const cumplimientoPct = cuotaAsignada > 0 ? Math.round((val.venta / cuotaAsignada) * 100) : 100;
-      const participacionCarteraPct = totalVentaFuerza > 0 ? Math.round((val.venta / totalVentaFuerza) * 1000) / 10 : 0;
-      const comisionEstimada = Math.round(val.venta * 0.05);
+  const kpiTotalVenta = serverTotales?.total_ventas_netas !== undefined ? Number(serverTotales.total_ventas_netas) : totalVentaFuerza;
+
+  let asesores: AsesorComercial[] = [];
+
+  if (serverAsesores && serverAsesores.length > 0) {
+    asesores = serverAsesores.map((sa) => {
+      const vTotal = Number(sa.total_ventas || 0);
+      const uTotal = Number(sa.total_unidades || 0);
+      const cuotaAsignada = Math.round(vTotal * 1.12);
+      const cumplimientoPct = cuotaAsignada > 0 ? Math.round((vTotal / cuotaAsignada) * 100) : 100;
+      const participacionCarteraPct = kpiTotalVenta > 0 ? Math.round((vTotal / kpiTotalVenta) * 1000) / 10 : 0;
+      const comisionEstimada = Math.round(vTotal * 0.05);
       const viaticosZona = 1_500_000;
 
       return {
-        vendedor,
-        ventaTotal: val.venta,
-        unidades: val.unidades,
+        vendedor: sa.vendedor_nombre || "Asesor General",
+        ventaTotal: vTotal,
+        unidades: uTotal,
         cuotaAsignada,
         cumplimientoPct,
         participacionCarteraPct,
         comisionEstimada,
         viaticosZona,
       };
-    })
-    .sort((a, b) => b.ventaTotal - a.ventaTotal);
+    }).sort((a, b) => b.ventaTotal - a.ventaTotal);
+  } else {
+    asesores = Array.from(asesorDataMap.entries())
+      .map(([vendedor, val]) => {
+        const cuotaAsignada = Math.round(val.venta * 1.12);
+        const cumplimientoPct = cuotaAsignada > 0 ? Math.round((val.venta / cuotaAsignada) * 100) : 100;
+        const participacionCarteraPct = kpiTotalVenta > 0 ? Math.round((val.venta / kpiTotalVenta) * 1000) / 10 : 0;
+        const comisionEstimada = Math.round(val.venta * 0.05);
+        const viaticosZona = 1_500_000;
+
+        return {
+          vendedor,
+          ventaTotal: val.venta,
+          unidades: val.unidades,
+          cuotaAsignada,
+          cumplimientoPct,
+          participacionCarteraPct,
+          comisionEstimada,
+          viaticosZona,
+        };
+      })
+      .sort((a, b) => b.ventaTotal - a.ventaTotal);
+  }
 
   const comisionesTotales = asesores.reduce((a, b) => a + b.comisionEstimada, 0);
-  const pctExportaciones = totalVentaFuerza > 0 ? Math.round((ventaExportaciones / totalVentaFuerza) * 100) : 0;
+  const pctExportaciones = kpiTotalVenta > 0 ? Math.round((ventaExportaciones / kpiTotalVenta) * 100) : 0;
 
   const distribucionCanales = Array.from(canalDistMap.entries()).map(([canal, venta]) => ({
     canal,
     venta,
-    porcentaje: totalVentaFuerza > 0 ? Math.round((venta / totalVentaFuerza) * 100) : 0,
+    porcentaje: kpiTotalVenta > 0 ? Math.round((venta / kpiTotalVenta) * 100) : 0,
   }));
 
   const matrizVendedorMes = asesores.slice(0, 10).map((a) => ({
