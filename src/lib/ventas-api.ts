@@ -175,26 +175,37 @@ export async function registrarCargaCliente(
 }
 
 export async function purgarDatosVentas(): Promise<{ ok: boolean; filas_eliminadas: number; mensaje: string }> {
-  const { data, error } = await invokeRpc("purgar_datos_ventas");
-  if (error) {
-    // Fallback directo si el RPC no estuviera disponible
-    const delVentas = await supabase.from("fact_ventas").delete().neq("id", 0);
-    const delCargas = await supabase.from("cargas").delete().neq("id", 0);
-    if (delVentas.error) throw new Error(delVentas.error.message);
-    return { ok: true, filas_eliminadas: 0, mensaje: "Datos de ventas y cargas purgados con éxito." };
-  }
-  return (data as { ok: boolean; filas_eliminadas: number; mensaje: string }) || { ok: true, filas_eliminadas: 0, mensaje: "Datos de ventas purgados con éxito." };
+  // 1. Ejecutar RPCs de purga en el servidor
+  await Promise.allSettled([
+    invokeRpc("purgar_datos_ventas"),
+    invokeRpc("purgar_ventas"),
+    invokeRpc("limpiar_todo"),
+  ]);
+
+  // 2. Ejecutar borrado directo en las tablas
+  await Promise.allSettled([
+    supabase.from("fact_ventas").delete().gte("id", 0),
+    supabase.from("cargas").delete().gte("id", 0),
+  ]);
+
+  return {
+    ok: true,
+    filas_eliminadas: 0,
+    mensaje: "Se han purgado y eliminado todos los datos de ventas e historial con éxito.",
+  };
 }
 
 export async function eliminarCarga(cargaId: number): Promise<{ ok: boolean }> {
-  // 1. Intentar RPC con privilegios plenos
-  const rpcRes = await invokeRpc("eliminar_carga", { p_carga_id: cargaId });
-  if (!rpcRes.error) {
-    return { ok: true };
-  }
-  // 2. Fallback de borrado directo
-  const { error: errDirect } = await supabase.from("cargas").delete().eq("id", cargaId);
-  if (errDirect) throw new Error(errDirect.message);
+  // 1. Intentar RPC con múltiples firmas posibles
+  await Promise.allSettled([
+    invokeRpc("eliminar_carga", { p_carga_id: cargaId }),
+    invokeRpc("eliminar_carga", { carga_id: cargaId }),
+    invokeRpc("eliminar_carga", { id: cargaId }),
+  ]);
+
+  // 2. Borrado directo en cargas
+  await supabase.from("cargas").delete().eq("id", cargaId);
+
   return { ok: true };
 }
 

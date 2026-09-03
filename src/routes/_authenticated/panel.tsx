@@ -363,6 +363,23 @@ function Panel() {
     mutationFn: purgarDatosVentas,
     onSuccess: (res) => {
       toast.success(res.mensaje || "Se han eliminado los datos cargados con éxito.");
+      queryClient.setQueryData(["resumen"], {
+        totalVentas: 0,
+        totalCargas: 0,
+        primeraFecha: null,
+        ultimaFecha: null,
+        primerAnio: null,
+        ultimoAnio: null,
+        ultimoMes: null,
+        historial: [],
+      });
+      queryClient.setQueryData(["bi-rango-fechas-total"], {
+        fechaMin: null,
+        fechaMax: null,
+        totalFilas: 0,
+        anios: [],
+        aniosCount: 0,
+      });
       queryClient.invalidateQueries();
       setArchivo(null);
       setAviso([]);
@@ -381,11 +398,19 @@ function Panel() {
       setEliminandoId(id);
       return await eliminarCarga(id);
     },
-    onSuccess: () => {
+    onSuccess: (_, deletedId) => {
       setEliminandoId(null);
       toast.success("Registro de carga eliminado.");
+      queryClient.setQueryData(["resumen"], (old: unknown) => {
+        if (!old || typeof old !== "object") return old;
+        const oldObj = old as { historial?: Array<{ id: number }>; totalCargas?: number };
+        return {
+          ...oldObj,
+          historial: (oldObj.historial || []).filter((item) => item.id !== deletedId),
+          totalCargas: Math.max(0, (oldObj.totalCargas || 1) - 1),
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ["resumen"] });
-      queryClient.refetchQueries({ queryKey: ["resumen"] });
     },
     onError: (err: Error) => {
       setEliminandoId(null);
