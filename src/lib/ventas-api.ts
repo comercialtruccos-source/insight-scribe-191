@@ -175,17 +175,28 @@ export async function registrarCargaCliente(
 }
 
 export async function purgarDatosVentas(): Promise<{ ok: boolean; filas_eliminadas: number; mensaje: string }> {
-  // 1. Ejecutar RPCs de purga en el servidor
+  // 1. Invocar ingest_ventas con acción especial purge
+  try {
+    await supabase.rpc("ingest_ventas", {
+      payload: [{ __action__: "purge" }] as never,
+    });
+  } catch {
+    // Continuar con siguientes métodos
+  }
+
+  // 2. Invocar RPCs dedicados de purga
   await Promise.allSettled([
     invokeRpc("purgar_datos_ventas"),
     invokeRpc("purgar_ventas"),
     invokeRpc("limpiar_todo"),
   ]);
 
-  // 2. Ejecutar borrado directo en las tablas
+  // 3. Ejecutar borrado directo en tablas de base de datos
   await Promise.allSettled([
     supabase.from("fact_ventas").delete().gte("id", 0),
+    supabase.from("fact_ventas").delete().neq("id", 0),
     supabase.from("cargas").delete().gte("id", 0),
+    supabase.from("cargas").delete().neq("id", 0),
   ]);
 
   return {
@@ -196,14 +207,23 @@ export async function purgarDatosVentas(): Promise<{ ok: boolean; filas_eliminad
 }
 
 export async function eliminarCarga(cargaId: number): Promise<{ ok: boolean }> {
-  // 1. Intentar RPC con múltiples firmas posibles
+  // 1. Invocar ingest_ventas con payload delete_carga
+  try {
+    await supabase.rpc("ingest_ventas", {
+      payload: [{ __action__: "delete_carga", carga_id: cargaId }] as never,
+    });
+  } catch {
+    // Continuar con siguientes métodos
+  }
+
+  // 2. Invocar RPC dedicada
   await Promise.allSettled([
     invokeRpc("eliminar_carga", { p_carga_id: cargaId }),
     invokeRpc("eliminar_carga", { carga_id: cargaId }),
     invokeRpc("eliminar_carga", { id: cargaId }),
   ]);
 
-  // 2. Borrado directo en cargas
+  // 3. Borrado directo en cargas
   await supabase.from("cargas").delete().eq("id", cargaId);
 
   return { ok: true };
