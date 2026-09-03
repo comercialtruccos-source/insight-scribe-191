@@ -374,13 +374,21 @@ function Panel() {
     },
   });
 
+  const [eliminandoId, setEliminandoId] = useState<number | null>(null);
+
   const eliminarCargaMutation = useMutation({
-    mutationFn: eliminarCarga,
+    mutationFn: async (id: number) => {
+      setEliminandoId(id);
+      return await eliminarCarga(id);
+    },
     onSuccess: () => {
+      setEliminandoId(null);
       toast.success("Registro de carga eliminado.");
       queryClient.invalidateQueries({ queryKey: ["resumen"] });
+      queryClient.refetchQueries({ queryKey: ["resumen"] });
     },
     onError: (err: Error) => {
+      setEliminandoId(null);
       toast.error(`Error al eliminar carga: ${err.message}`);
     },
   });
@@ -1711,10 +1719,14 @@ function Panel() {
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10"
                           title="Eliminar registro de carga"
-                          disabled={eliminarCargaMutation.isPending}
+                          disabled={eliminandoId === h.id || eliminarCargaMutation.isPending}
                           onClick={() => eliminarCargaMutation.mutate(h.id)}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          {eliminandoId === h.id ? (
+                            <div className="h-3.5 w-3.5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
                         </Button>
                       </div>
                     </div>

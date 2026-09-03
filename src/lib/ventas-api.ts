@@ -187,11 +187,14 @@ export async function purgarDatosVentas(): Promise<{ ok: boolean; filas_eliminad
 }
 
 export async function eliminarCarga(cargaId: number): Promise<{ ok: boolean }> {
-  const { error } = await invokeRpc("eliminar_carga", { p_carga_id: cargaId });
-  if (error) {
-    const { error: errDirect } = await supabase.from("cargas").delete().eq("id", cargaId);
-    if (errDirect) throw new Error(errDirect.message);
+  // 1. Intentar RPC con privilegios plenos
+  const rpcRes = await invokeRpc("eliminar_carga", { p_carga_id: cargaId });
+  if (!rpcRes.error) {
+    return { ok: true };
   }
+  // 2. Fallback de borrado directo
+  const { error: errDirect } = await supabase.from("cargas").delete().eq("id", cargaId);
+  if (errDirect) throw new Error(errDirect.message);
   return { ok: true };
 }
 
