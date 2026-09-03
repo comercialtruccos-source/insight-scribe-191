@@ -39,6 +39,41 @@ const invokeRpc = async (fn: string, args?: Record<string, unknown>) => {
   return await (supabase.rpc as unknown as (name: string, params?: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>)(fn, args);
 };
 
+/**
+ * Aplica de forma unificada todos los filtros (Fechas, Año, Mes, Canal, Marca, Vendedor 1/2, Zona) a cualquier query de fact_ventas.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or: any }>(query: T, filtros: FiltrosBI): T {
+  let q = query;
+
+  if (filtros.fecha_desde) {
+    q = q.gte("fecha", filtros.fecha_desde);
+  }
+  if (filtros.fecha_hasta) {
+    q = q.lte("fecha", filtros.fecha_hasta);
+  }
+  if (filtros.anio && !filtros.fecha_desde) {
+    q = q.or(`anio.eq.${filtros.anio},anio_col.ilike.%${filtros.anio}%,fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
+  }
+  if (filtros.mes) {
+    q = q.eq("mes", filtros.mes);
+  }
+  if (filtros.canal_id) {
+    q = q.eq("canal_id", filtros.canal_id);
+  }
+  if (filtros.marca_id) {
+    q = q.eq("marca_id", filtros.marca_id);
+  }
+  if (filtros.vendedor_id) {
+    q = q.or(`vendedor_id.eq.${filtros.vendedor_id},vendedor2_id.eq.${filtros.vendedor_id}`);
+  }
+  if (filtros.zona_id) {
+    q = q.or(`zona_id.eq.${filtros.zona_id},zona_colombia_id.eq.${filtros.zona_id}`);
+  }
+
+  return q;
+}
+
 export async function obtenerResumenCliente() {
   const [ventas, cargas, ultimas, rangoMin, rangoMax] = await Promise.all([
     supabase.from("fact_ventas").select("id", { count: "exact", head: true }),
@@ -230,99 +265,90 @@ export type DataHistoricoMultianual = {
 export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<DataHistoricoMultianual> {
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-  try {
-    const [anualRes, estacRes, matrizRes] = await Promise.all([
-      invokeRpc("get_bi_historico_anual", {
-        p_canal_id: filtros.canal_id ?? undefined,
-        p_marca_id: filtros.marca_id ?? undefined,
-        p_vendedor_id: filtros.vendedor_id ?? undefined,
-        p_zona_id: filtros.zona_id ?? undefined,
-      }),
-      invokeRpc("get_bi_estacionalidad_multianual", {
-        p_canal_id: filtros.canal_id ?? undefined,
-        p_marca_id: filtros.marca_id ?? undefined,
-        p_vendedor_id: filtros.vendedor_id ?? undefined,
-        p_zona_id: filtros.zona_id ?? undefined,
-      }),
-      invokeRpc("get_bi_matriz_historica", {
-        p_canal_id: filtros.canal_id ?? undefined,
-        p_marca_id: filtros.marca_id ?? undefined,
-        p_vendedor_id: filtros.vendedor_id ?? undefined,
-        p_zona_id: filtros.zona_id ?? undefined,
-      }),
-    ]);
+  // Si no hay filtros específicos de fecha ni vendedor/canal/marca/zona, intentar RPCs rápidos
+  const hayFiltrosEspecificos =
+    Boolean(filtros.fecha_desde) ||
+    Boolean(filtros.fecha_hasta) ||
+    Boolean(filtros.vendedor_id) ||
+    Boolean(filtros.canal_id) ||
+    Boolean(filtros.marca_id) ||
+    Boolean(filtros.zona_id);
 
-    if (Array.isArray(anualRes.data) && anualRes.data.length > 0) {
-      const aniosResumen: ResumenAnual[] = (anualRes.data as Record<string, unknown>[]).map((r) => ({
-        anio: Number(r["anio"] ?? 0),
-        totalVentas: Number(r["total_ventas"] ?? 0),
-        totalUnidades: Number(r["total_unidades"] ?? 0),
-        totalCosto: Number(r["total_costo"] ?? 0),
-        margenBruto: Number(r["margen_bruto"] ?? 0),
-        margenPct: Number(r["margen_pct"] ?? 0),
-        ventaAnterior: Number(r["venta_anterior"] ?? 0),
-        crecimientoYoYPct: Number(r["crecimiento_yoy_pct"] ?? 0),
-        totalTransacciones: Number(r["total_transacciones"] ?? 0),
-      }));
+  if (!hayFiltrosEspecificos) {
+    try {
+      const [anualRes, estacRes, matrizRes] = await Promise.all([
+        invokeRpc("get_bi_historico_anual"),
+        invokeRpc("get_bi_estacionalidad_multianual"),
+        invokeRpc("get_bi_matriz_historica"),
+      ]);
 
-      const aniosPresentes = aniosResumen.map((a) => a.anio).sort((a, b) => a - b);
+      if (Array.isArray(anualRes.data) && anualRes.data.length > 0) {
+        const aniosResumen: ResumenAnual[] = (anualRes.data as Record<string, unknown>[]).map((r) => ({
+          anio: Number(r["anio"] ?? 0),
+          totalVentas: Number(r["total_ventas"] ?? 0),
+          totalUnidades: Number(r["total_unidades"] ?? 0),
+          totalCosto: Number(r["total_costo"] ?? 0),
+          margenBruto: Number(r["margen_bruto"] ?? 0),
+          margenPct: Number(r["margen_pct"] ?? 0),
+          ventaAnterior: Number(r["venta_anterior"] ?? 0),
+          crecimientoYoYPct: Number(r["crecimiento_yoy_pct"] ?? 0),
+          totalTransacciones: Number(r["total_transacciones"] ?? 0),
+        }));
 
-      const estacionalidadCurvas = nombresMes.map((nombre, idx) => {
-        const mesNum = idx + 1;
-        const item: Record<string, number | string> = {
-          mes: mesNum,
-          nombreMes: nombre,
-        };
-        for (const an of aniosPresentes) {
-          item[`anio_${an}`] = 0;
-        }
-        return item;
-      });
+        const aniosPresentes = aniosResumen.map((a) => a.anio).sort((a, b) => a - b);
 
-      if (Array.isArray(estacRes.data)) {
-        for (const r of estacRes.data as Record<string, unknown>[]) {
-          const m = Number(r["mes"] ?? 0);
-          const an = Number(r["anio"] ?? 0);
-          const v = Number(r["total_ventas"] ?? 0);
-          const target = estacionalidadCurvas[m - 1];
-          if (m >= 1 && m <= 12 && target) {
-            target[`anio_${an}`] = v;
+        const estacionalidadCurvas = nombresMes.map((nombre, idx) => {
+          const mesNum = idx + 1;
+          const item: Record<string, number | string> = {
+            mes: mesNum,
+            nombreMes: nombre,
+          };
+          for (const an of aniosPresentes) {
+            item[`anio_${an}`] = 0;
+          }
+          return item;
+        });
+
+        if (Array.isArray(estacRes.data)) {
+          for (const r of estacRes.data as Record<string, unknown>[]) {
+            const m = Number(r["mes"] ?? 0);
+            const an = Number(r["anio"] ?? 0);
+            const v = Number(r["total_ventas"] ?? 0);
+            const target = estacionalidadCurvas[m - 1];
+            if (m >= 1 && m <= 12 && target) {
+              target[`anio_${an}`] = v;
+            }
           }
         }
+
+        const matrizMesAnio: MatrizMesAnio[] = (Array.isArray(matrizRes.data) ? matrizRes.data : []).map(
+          (r: Record<string, unknown>) => ({
+            anio: Number(r["anio"] ?? 0),
+            meses: [
+              Number(r["m1"] ?? 0), Number(r["m2"] ?? 0), Number(r["m3"] ?? 0), Number(r["m4"] ?? 0),
+              Number(r["m5"] ?? 0), Number(r["m6"] ?? 0), Number(r["m7"] ?? 0), Number(r["m8"] ?? 0),
+              Number(r["m9"] ?? 0), Number(r["m10"] ?? 0), Number(r["m11"] ?? 0), Number(r["m12"] ?? 0),
+            ],
+            totalAnio: Number(r["total_anio"] ?? 0),
+            unidadesAnio: Number(r["unidades_anio"] ?? 0),
+          })
+        );
+
+        return {
+          aniosResumen,
+          matrizMesAnio,
+          estacionalidadCurvas: estacionalidadCurvas as DataHistoricoMultianual["estacionalidadCurvas"],
+          aniosPresentes,
+        };
       }
-
-      const matrizMesAnio: MatrizMesAnio[] = (Array.isArray(matrizRes.data) ? matrizRes.data : []).map(
-        (r: Record<string, unknown>) => ({
-          anio: Number(r["anio"] ?? 0),
-          meses: [
-            Number(r["m1"] ?? 0), Number(r["m2"] ?? 0), Number(r["m3"] ?? 0), Number(r["m4"] ?? 0),
-            Number(r["m5"] ?? 0), Number(r["m6"] ?? 0), Number(r["m7"] ?? 0), Number(r["m8"] ?? 0),
-            Number(r["m9"] ?? 0), Number(r["m10"] ?? 0), Number(r["m11"] ?? 0), Number(r["m12"] ?? 0),
-          ],
-          totalAnio: Number(r["total_anio"] ?? 0),
-          unidadesAnio: Number(r["unidades_anio"] ?? 0),
-        })
-      );
-
-      return {
-        aniosResumen,
-        matrizMesAnio,
-        estacionalidadCurvas: estacionalidadCurvas as DataHistoricoMultianual["estacionalidadCurvas"],
-        aniosPresentes,
-      };
+    } catch {
+      // Continuar a consulta directa
     }
-  } catch {
-    // Continuar a fallback
   }
 
-  // Fallback directo a fact_ventas
-  let query = supabase.from("fact_ventas").select("anio, anio_col, mes, valor, cantidad, costo_total, fecha, transaccion");
-  if (filtros.canal_id) query = query.eq("canal_id", filtros.canal_id);
-  if (filtros.marca_id) query = query.eq("marca_id", filtros.marca_id);
-  if (filtros.vendedor_id) query = query.eq("vendedor_id", filtros.vendedor_id);
-  if (filtros.zona_id) query = query.eq("zona_colombia_id", filtros.zona_id);
-  if (filtros.fecha_desde) query = query.gte("fecha", filtros.fecha_desde);
-  if (filtros.fecha_hasta) query = query.lte("fecha", filtros.fecha_hasta);
+  // Consulta directa con aplicación exhaustiva de filtros
+  let query = supabase.from("fact_ventas").select("anio, anio_col, mes, valor, cantidad, costo_total, fecha, transaccion, vendedor_id, vendedor2_id, canal_id, marca_id, zona_colombia_id");
+  query = aplicarFiltrosQuery(query, filtros);
 
   const { data: rows } = await query.limit(50000);
   const data = rows || [];
@@ -464,142 +490,9 @@ export type DataDashboard1 = {
 export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise<DataDashboard1> {
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-  try {
-    if (!filtros.anio && !filtros.fecha_desde && !filtros.fecha_hasta) {
-      const { data: histData, error: errHist } = await invokeRpc("get_bi_historico_cronologico", {
-        p_canal_id: filtros.canal_id ?? undefined,
-        p_marca_id: filtros.marca_id ?? undefined,
-        p_vendedor_id: filtros.vendedor_id ?? undefined,
-        p_zona_id: filtros.zona_id ?? undefined,
-      });
-
-      if (!errHist && Array.isArray(histData) && histData.length > 0) {
-        const meses: CumplimientoMes[] = (histData as Record<string, unknown>[]).map((r) => {
-          const vReal = Number(r["venta_real"] ?? 0);
-          const ppto = Math.round(vReal * 1.10);
-          return {
-            anio: Number(r["anio"] ?? 0),
-            mes: Number(r["mes"] ?? 0),
-            nombreMes: String(r["periodo"] ?? ""),
-            periodo: String(r["periodo"] ?? ""),
-            ventaReal: vReal,
-            ventaAnterior: 0,
-            ppto: ppto,
-            cumplimientoPct: ppto > 0 ? Math.round((vReal / ppto) * 100) : 100,
-            crecimientoYoY: 0,
-            devolucionesMonto: 0,
-            tasaDevolucionPct: 0,
-            unidades: Number(r["unidades"] ?? 0),
-          };
-        });
-
-        const totalVentaYTD = meses.reduce((a, b) => a + b.ventaReal, 0);
-        const totalPptoYTD = meses.reduce((a, b) => a + b.ppto, 0);
-        const totalUnidades = meses.reduce((a, b) => a + b.unidades, 0);
-
-        const { data: mixData } = await invokeRpc("get_bi_mix_lineas", {
-          p_anio: undefined,
-          p_canal_id: filtros.canal_id ?? undefined,
-          p_marca_id: filtros.marca_id ?? undefined,
-        });
-
-        const mixLineas: MixLinea[] = (Array.isArray(mixData) ? (mixData as Record<string, unknown>[]) : []).map((m) => ({
-          linea: String(m["linea"] ?? "General"),
-          venta: Number(m["venta"] ?? 0),
-          unidades: Number(m["unidades"] ?? 0),
-          porcentaje: Number(m["porcentaje"] ?? 0),
-        }));
-
-        return {
-          kpis: {
-            ventaYTD: totalVentaYTD,
-            pptoYTD: totalPptoYTD,
-            cumplimientoGlobalPct: totalPptoYTD > 0 ? Math.round((totalVentaYTD / totalPptoYTD) * 100) : 100,
-            crecimientoYoYPct: 0,
-            devolucionesTotal: 0,
-            tasaDevolucionGlobalPct: 0,
-            volumenUnidades: totalUnidades,
-          },
-          meses,
-          mixLineas,
-          mixMarcas: [],
-        };
-      }
-    } else if (filtros.anio && !filtros.fecha_desde && !filtros.fecha_hasta) {
-      const { data: cData, error: cErr } = await invokeRpc("get_bi_cumplimiento_mensual", {
-        p_anio: filtros.anio,
-        p_canal_id: filtros.canal_id ?? undefined,
-        p_marca_id: filtros.marca_id ?? undefined,
-        p_vendedor_id: filtros.vendedor_id ?? undefined,
-        p_zona_id: filtros.zona_id ?? undefined,
-      });
-
-      if (!cErr && Array.isArray(cData) && cData.length > 0) {
-        const meses: CumplimientoMes[] = (cData as Record<string, unknown>[]).map((r) => ({
-          anio: Number(r["anio"] ?? 0),
-          mes: Number(r["mes"] ?? 0),
-          nombreMes: String(r["nombre_mes"] || `Mes ${r["mes"]}`),
-          periodo: String(r["periodo"] ?? ""),
-          ventaReal: Number(r["venta_real"] ?? 0),
-          ventaAnterior: Number(r["venta_anterior"] ?? 0),
-          ppto: Number(r["ppto"] ?? 0),
-          cumplimientoPct: Number(r["cumplimiento_pct"] ?? 0),
-          crecimientoYoY: Number(r["crecimiento_yoy"] ?? 0),
-          devolucionesMonto: Number(r["devoluciones_monto"] ?? 0),
-          tasaDevolucionPct: Number(r["tasa_devolucion_pct"] ?? 0),
-          unidades: Number(r["unidades"] ?? 0),
-        }));
-
-        const totalVentaYTD = meses.reduce((a, b) => a + b.ventaReal, 0);
-        const totalPptoYTD = meses.reduce((a, b) => a + b.ppto, 0);
-        const totalVentaAntYTD = meses.reduce((a, b) => a + b.ventaAnterior, 0);
-        const totalDevoluciones = meses.reduce((a, b) => a + b.devolucionesMonto, 0);
-        const totalUnidades = meses.reduce((a, b) => a + b.unidades, 0);
-
-        const { data: mixData } = await invokeRpc("get_bi_mix_lineas", {
-          p_anio: filtros.anio,
-          p_canal_id: filtros.canal_id ?? undefined,
-          p_marca_id: filtros.marca_id ?? undefined,
-        });
-
-        const mixLineas: MixLinea[] = (Array.isArray(mixData) ? (mixData as Record<string, unknown>[]) : []).map((m) => ({
-          linea: String(m["linea"] ?? "General"),
-          venta: Number(m["venta"] ?? 0),
-          unidades: Number(m["unidades"] ?? 0),
-          porcentaje: Number(m["porcentaje"] ?? 0),
-        }));
-
-        return {
-          kpis: {
-            ventaYTD: totalVentaYTD,
-            pptoYTD: totalPptoYTD,
-            cumplimientoGlobalPct: totalPptoYTD > 0 ? Math.round((totalVentaYTD / totalPptoYTD) * 100) : 100,
-            crecimientoYoYPct: totalVentaAntYTD > 0 ? Math.round(((totalVentaYTD - totalVentaAntYTD) / totalVentaAntYTD) * 100) : 0,
-            devolucionesTotal: totalDevoluciones,
-            tasaDevolucionGlobalPct: totalVentaYTD > 0 ? Math.round((totalDevoluciones / totalVentaYTD) * 1000) / 10 : 0,
-            volumenUnidades: totalUnidades,
-          },
-          meses,
-          mixLineas,
-          mixMarcas: [],
-        };
-      }
-    }
-  } catch {
-    // Continuar a fallback
-  }
-
-  // Fallback robusto directo de fact_ventas
-  let q = supabase.from("fact_ventas").select("anio, anio_col, mes, valor, cantidad, linea_id, fecha");
-  if (filtros.fecha_desde) q = q.gte("fecha", filtros.fecha_desde);
-  if (filtros.fecha_hasta) q = q.lte("fecha", filtros.fecha_hasta);
-  if (filtros.anio && !filtros.fecha_desde) {
-    q = q.or(`anio.eq.${filtros.anio},anio_col.ilike.%${filtros.anio}%,fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
-  }
-  if (filtros.canal_id) q = q.eq("canal_id", filtros.canal_id);
-  if (filtros.marca_id) q = q.eq("marca_id", filtros.marca_id);
-  if (filtros.vendedor_id) q = q.eq("vendedor_id", filtros.vendedor_id);
-  if (filtros.zona_id) q = q.eq("zona_colombia_id", filtros.zona_id);
+  // Consulta directa a fact_ventas con filtros completos
+  let q = supabase.from("fact_ventas").select("anio, anio_col, mes, valor, cantidad, linea_id, fecha, vendedor_id, vendedor2_id, canal_id, marca_id, zona_colombia_id");
+  q = aplicarFiltrosQuery(q, filtros);
 
   const { data: rows } = await q.limit(50000);
   const data = rows || [];
@@ -764,12 +657,19 @@ export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<Data
   let mesTarget = filtros.mes;
 
   if (!anioTarget || !mesTarget) {
-    const { data: latest } = await supabase
+    let latestQuery = supabase
       .from("fact_ventas")
       .select("anio, anio_col, mes, fecha")
-      .not("fecha", "is", null)
-      .order("fecha", { ascending: false })
-      .limit(1);
+      .not("fecha", "is", null);
+
+    if (filtros.fecha_desde) latestQuery = latestQuery.gte("fecha", filtros.fecha_desde);
+    if (filtros.fecha_hasta) latestQuery = latestQuery.lte("fecha", filtros.fecha_hasta);
+    if (filtros.canal_id) latestQuery = latestQuery.eq("canal_id", filtros.canal_id);
+    if (filtros.marca_id) latestQuery = latestQuery.eq("marca_id", filtros.marca_id);
+    if (filtros.vendedor_id) latestQuery = latestQuery.or(`vendedor_id.eq.${filtros.vendedor_id},vendedor2_id.eq.${filtros.vendedor_id}`);
+    if (filtros.zona_id) latestQuery = latestQuery.or(`zona_id.eq.${filtros.zona_id},zona_colombia_id.eq.${filtros.zona_id}`);
+
+    const { data: latest } = await latestQuery.order("fecha", { ascending: false }).limit(1);
 
     const firstRow = latest?.[0];
     if (firstRow) {
@@ -792,12 +692,15 @@ export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<Data
 
   let query = supabase
     .from("fact_ventas")
-    .select("dia, fecha, valor, anio, anio_col, mes")
+    .select("dia, fecha, valor, anio, anio_col, mes, vendedor_id, vendedor2_id, canal_id, marca_id, zona_colombia_id")
     .or(`anio.eq.${anio},anio_col.ilike.%${anio}%,fecha.gte.${anio}-01-01.and.fecha.lte.${anio}-12-31`);
 
   if (filtros.canal_id) query = query.eq("canal_id", filtros.canal_id);
   if (filtros.marca_id) query = query.eq("marca_id", filtros.marca_id);
-  if (filtros.vendedor_id) query = query.eq("vendedor_id", filtros.vendedor_id);
+  if (filtros.vendedor_id) query = query.or(`vendedor_id.eq.${filtros.vendedor_id},vendedor2_id.eq.${filtros.vendedor_id}`);
+  if (filtros.zona_id) query = query.or(`zona_id.eq.${filtros.zona_id},zona_colombia_id.eq.${filtros.zona_id}`);
+  if (filtros.fecha_desde) query = query.gte("fecha", filtros.fecha_desde);
+  if (filtros.fecha_hasta) query = query.lte("fecha", filtros.fecha_hasta);
 
   const { data: rows } = await query.limit(50000);
   const data = rows || [];
@@ -914,13 +817,8 @@ export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<Data
   const canalMap = new Map<number, string>((canalesRes.data || []).map((c) => [c.id, c.nombre]));
   const marcaMap = new Map<number, string>((marcasRes.data || []).map((m) => [m.id, m.nombre]));
 
-  let query = supabase.from("fact_ventas").select("mes, anio, anio_col, valor, cantidad, canal_id, marca_id, fecha");
-  if (filtros.fecha_desde) query = query.gte("fecha", filtros.fecha_desde);
-  if (filtros.fecha_hasta) query = query.lte("fecha", filtros.fecha_hasta);
-  if (filtros.anio && !filtros.fecha_desde) {
-    query = query.or(`anio.eq.${filtros.anio},anio_col.ilike.%${filtros.anio}%,fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
-  }
-  if (filtros.mes) query = query.eq("mes", filtros.mes);
+  let query = supabase.from("fact_ventas").select("mes, anio, anio_col, valor, cantidad, canal_id, marca_id, vendedor_id, vendedor2_id, zona_colombia_id, fecha");
+  query = aplicarFiltrosQuery(query, filtros);
 
   const { data: rows } = await query.limit(50000);
   const data = rows || [];
@@ -1049,13 +947,8 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
   const canalMap = new Map<number, string>((canalesRes.data || []).map((c) => [c.id, c.nombre]));
   const paisMap = new Map<number, string>((paisesRes.data || []).map((p) => [p.id, p.nombre]));
 
-  let query = supabase.from("fact_ventas").select("mes, anio, anio_col, valor, cantidad, vendedor_id, canal_id, pais_id, fecha");
-  if (filtros.fecha_desde) query = query.gte("fecha", filtros.fecha_desde);
-  if (filtros.fecha_hasta) query = query.lte("fecha", filtros.fecha_hasta);
-  if (filtros.anio && !filtros.fecha_desde) {
-    query = query.or(`anio.eq.${filtros.anio},anio_col.ilike.%${filtros.anio}%,fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
-  }
-  if (filtros.mes) query = query.eq("mes", filtros.mes);
+  let query = supabase.from("fact_ventas").select("mes, anio, anio_col, valor, cantidad, vendedor_id, vendedor2_id, canal_id, marca_id, zona_colombia_id, pais_id, fecha");
+  query = aplicarFiltrosQuery(query, filtros);
 
   const { data: rows } = await query.limit(50000);
   const data = rows || [];
@@ -1076,7 +969,14 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
 
     totalVentaFuerza += v;
 
-    const vNombre = (r.vendedor_id ? vendedorMap.get(r.vendedor_id) : "") || "Asesor General";
+    let vNombre = (r.vendedor_id ? vendedorMap.get(r.vendedor_id) : "") || (r.vendedor2_id ? vendedorMap.get(r.vendedor2_id) : "") || "Asesor General";
+    
+    // Si el usuario filtró por un vendedor específico, asegurar que el nombre coincida con el catálogo
+    if (filtros.vendedor_id) {
+      const nombreFiltrado = vendedorMap.get(filtros.vendedor_id);
+      if (nombreFiltrado) vNombre = nombreFiltrado;
+    }
+
     const cNombre = (r.canal_id ? canalMap.get(r.canal_id) : "") || "Mayorista Nacional";
     const pNombre = ((r.pais_id ? paisMap.get(r.pais_id) : "") || "Colombia").toLowerCase();
 
@@ -1169,13 +1069,8 @@ export async function obtenerDashboard5Marketplaces(filtros: FiltrosBI): Promise
   const { data: canalesRes } = await supabase.from("dim_canal").select("id, nombre");
   const canalMap = new Map<number, string>((canalesRes || []).map((c) => [c.id, c.nombre]));
 
-  let query = supabase.from("fact_ventas").select("sku, producto, prenda_hgi, talla, color, cantidad, valor, canal_id, fecha, anio, anio_col");
-  if (filtros.fecha_desde) query = query.gte("fecha", filtros.fecha_desde);
-  if (filtros.fecha_hasta) query = query.lte("fecha", filtros.fecha_hasta);
-  if (filtros.anio && !filtros.fecha_desde) {
-    query = query.or(`anio.eq.${filtros.anio},anio_col.ilike.%${filtros.anio}%,fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
-  }
-  if (filtros.mes) query = query.eq("mes", filtros.mes);
+  let query = supabase.from("fact_ventas").select("sku, producto, prenda_hgi, talla, color, cantidad, valor, canal_id, marca_id, vendedor_id, vendedor2_id, zona_colombia_id, fecha, anio, anio_col");
+  query = aplicarFiltrosQuery(query, filtros);
 
   const { data: rows } = await query.limit(50000);
   const data = rows || [];
@@ -1314,18 +1209,9 @@ export async function obtenerTransaccionesDetalle(
 
   let query = supabase
     .from("fact_ventas")
-    .select("id, transaccion, fecha, anio, anio_col, mes, dia, producto, prenda_hgi, sku, talla, color, cantidad, valor, costo_total, vendedor_id, canal_id, marca_id, linea_id, zona_colombia_id, ciudad_id", { count: "exact" });
+    .select("id, transaccion, fecha, anio, anio_col, mes, dia, producto, prenda_hgi, sku, talla, color, cantidad, valor, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_colombia_id, ciudad_id", { count: "exact" });
 
-  if (filtros.fecha_desde) query = query.gte("fecha", filtros.fecha_desde);
-  if (filtros.fecha_hasta) query = query.lte("fecha", filtros.fecha_hasta);
-  if (filtros.anio && !filtros.fecha_desde) {
-    query = query.or(`anio.eq.${filtros.anio},anio_col.ilike.%${filtros.anio}%,fecha.gte.${filtros.anio}-01-01.and.fecha.lte.${filtros.anio}-12-31`);
-  }
-  if (filtros.mes) query = query.eq("mes", filtros.mes);
-  if (filtros.canal_id) query = query.eq("canal_id", filtros.canal_id);
-  if (filtros.marca_id) query = query.eq("marca_id", filtros.marca_id);
-  if (filtros.vendedor_id) query = query.eq("vendedor_id", filtros.vendedor_id);
-  if (filtros.zona_id) query = query.eq("zona_colombia_id", filtros.zona_id);
+  query = aplicarFiltrosQuery(query, filtros);
 
   if (busqueda && busqueda.trim().length > 0) {
     const b = busqueda.trim();
@@ -1350,11 +1236,13 @@ export async function obtenerTransaccionesDetalle(
       const m = String(r.anio_col).match(/\b(20\d{2})\b/);
       if (m && m[1]) an = parseInt(m[1], 10);
     }
+    const vendNombre = (r.vendedor_id && vMap.get(r.vendedor_id)) || (r.vendedor2_id && vMap.get(r.vendedor2_id)) || null;
+
     return {
       id: Number(r.id),
       transaccion: r.transaccion || null,
       fecha: r.fecha || (an && r.mes ? `${an}-${String(r.mes).padStart(2, "0")}-${String(r.dia || 1).padStart(2, "0")}` : null),
-      vendedor: (r.vendedor_id && vMap.get(r.vendedor_id)) || null,
+      vendedor: vendNombre,
       canal: (r.canal_id && canMap.get(r.canal_id)) || null,
       marca: (r.marca_id && mMap.get(r.marca_id)) || null,
       linea: (r.linea_id && lMap.get(r.linea_id)) || null,
