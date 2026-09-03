@@ -96,6 +96,72 @@ export const norm = (s: string) =>
     .replace(/[^a-zA-Z0-9]/g, "")
     .toUpperCase();
 
+const MESES_MAP: Record<string, number> = {
+  ENERO: 1,
+  ENE: 1,
+  JAN: 1,
+  JANUARY: 1,
+  "01": 1,
+  "1": 1,
+  FEBRERO: 2,
+  FEB: 2,
+  FEBRUARY: 2,
+  "02": 2,
+  "2": 2,
+  MARZO: 3,
+  MAR: 3,
+  MARCH: 3,
+  "03": 3,
+  "3": 3,
+  ABRIL: 4,
+  ABR: 4,
+  APR: 4,
+  APRIL: 4,
+  "04": 4,
+  "4": 4,
+  MAYO: 5,
+  MAY: 5,
+  "05": 5,
+  "5": 5,
+  JUNIO: 6,
+  JUN: 6,
+  JUNE: 6,
+  "06": 6,
+  "6": 6,
+  JULIO: 7,
+  JUL: 7,
+  JULY: 7,
+  "07": 7,
+  "7": 7,
+  AGOSTO: 8,
+  AGO: 8,
+  AUG: 8,
+  AUGUST: 8,
+  "08": 8,
+  "8": 8,
+  SEPTIEMBRE: 9,
+  SETIEMBRE: 9,
+  SEP: 9,
+  SET: 9,
+  SEPT: 9,
+  SEPTEMBER: 9,
+  "09": 9,
+  "9": 9,
+  OCTUBRE: 10,
+  OCT: 10,
+  OCTOBER: 10,
+  "10": 10,
+  NOVIEMBRE: 11,
+  NOV: 11,
+  NOVEMBER: 11,
+  "11": 11,
+  DICIEMBRE: 12,
+  DIC: 12,
+  DEC: 12,
+  DECEMBER: 12,
+  "12": 12,
+};
+
 const MAPA: Record<string, keyof VentaRow> = {
   // Transacción
   TRANSACCION: "transaccion",
@@ -108,8 +174,10 @@ const MAPA: Record<string, keyof VentaRow> = {
   NROFACTURA: "transaccion",
   NRODOC: "transaccion",
   IDTRANSACCION: "transaccion",
+  NROTRANSACCION: "transaccion",
+  NUMTRANSACCION: "transaccion",
 
-  // Fechas y Periodos (soporte total para 'ano', 'anio', 'año', 'ano_col', 'ejercicio', etc.)
+  // Fechas y Periodos
   ANO: "anio",
   ANIO: "anio",
   YEAR: "anio",
@@ -117,6 +185,7 @@ const MAPA: Record<string, keyof VentaRow> = {
   ANOFACTURA: "anio",
   ANOMOV: "anio",
   ANOVENTA: "anio",
+  ANODELAVENTA: "anio",
   ANOPERIODO: "anio",
   ANOPPT: "anio",
   ANOPPTO: "anio",
@@ -124,9 +193,21 @@ const MAPA: Record<string, keyof VentaRow> = {
   VIGENCIA: "anio",
   MES: "mes",
   MONTH: "mes",
+  MESDOC: "mes",
+  MESMOV: "mes",
+  MESVENTA: "mes",
+  MESDELAVENTA: "mes",
   DIA: "dia",
   DAY: "dia",
+  DIADOC: "dia",
+  DIAMOV: "dia",
+  DIAVENTA: "dia",
   FECHA: "fecha",
+  FECHADOCUMENTO: "fecha",
+  FECHATRANSACCION: "fecha",
+  FECHACONTABLE: "fecha",
+  FECHAPEDIDO: "fecha",
+  FECHACREACION: "fecha",
   FECHACOMPRA: "fecha_compra",
   FECHAVENTA: "fecha_compra",
   FECHADOC: "fecha_compra",
@@ -143,6 +224,10 @@ const MAPA: Record<string, keyof VentaRow> = {
   FECFAC: "fecha_compra",
   DATE: "fecha",
   DOCDATE: "fecha_compra",
+  POSTINGDATE: "fecha",
+  TRANSDATE: "fecha",
+  PERIODO: "anio_col",
+  PERIOD: "anio_col",
 
   // Vendedor
   VENDEDOR: "vendedor",
@@ -267,6 +352,35 @@ function toNumber(v: unknown): number | null {
   return negativo ? -n : n;
 }
 
+function parseMonth(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number") {
+    return Number.isInteger(v) && v >= 1 && v <= 12 ? v : null;
+  }
+  const s = String(v).trim();
+  const normalized = norm(s);
+  if (normalized in MESES_MAP) {
+    return MESES_MAP[normalized] ?? null;
+  }
+  const n = parseInt(s.replace(/\D/g, ""), 10);
+  if (!isNaN(n) && n >= 1 && n <= 12) return n;
+  return null;
+}
+
+function parseYear(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number") {
+    if (v >= 2000 && v <= 2050) return v;
+    if (v >= 0 && v <= 50) return 2000 + v;
+  }
+  const s = String(v).trim();
+  const m = s.match(/\b(20\d{2})\b/);
+  if (m && m[1]) return parseInt(m[1], 10);
+  const n = parseInt(s.replace(/\D/g, "").slice(0, 4), 10);
+  if (!isNaN(n) && n >= 2000 && n <= 2050) return n;
+  return null;
+}
+
 function toText(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
@@ -274,8 +388,9 @@ function toText(v: unknown): string | null {
 }
 
 function excelSerialToISO(serial: number): string | null {
-  if (serial < 30000 || serial > 60000) return null;
-  const utcDays = serial - 25569;
+  if (serial < 25000 || serial > 75000) return null;
+  // Floor serial to ignore time of day shifts
+  const utcDays = Math.floor(serial - 25569);
   const dateInfo = new Date(utcDays * 86400 * 1000);
   const year = dateInfo.getUTCFullYear();
   const month = String(dateInfo.getUTCMonth() + 1).padStart(2, "0");
@@ -284,21 +399,67 @@ function excelSerialToISO(serial: number): string | null {
   return `${year}-${month}-${day}`;
 }
 
-function toDate(v: unknown): string | null {
+export function toDate(v: unknown): string | null {
   if (v === null || v === undefined || v === "") return null;
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return null;
+    const year = v.getFullYear();
+    const month = String(v.getMonth() + 1).padStart(2, "0");
+    const day = String(v.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
   if (typeof v === "number") return excelSerialToISO(v);
   const s = String(v).trim();
   if (!s) return null;
-  let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (m) return `${m[1]}-${m[2]!.padStart(2, "0")}-${m[3]!.padStart(2, "0")}`;
-  m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
-  if (m) {
-    const anio = m[3]!.length === 2 ? `20${m[3]}` : m[3];
-    return `${anio}-${m[2]!.padStart(2, "0")}-${m[1]!.padStart(2, "0")}`;
+
+  // Formato YYYY-MM-DD o YYYY/MM/DD o YYYY.MM.DD
+  let m = s.match(/^(\d{4})[-/. ](\d{1,2})[-/. ](\d{1,2})/);
+  if (m && m[1] && m[2] && m[3]) {
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10);
+    const d = parseInt(m[3], 10);
+    if (y >= 1990 && y <= 2100 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
   }
+
+  // Formato DD-MM-YYYY o DD/MM/YYYY o DD.MM.YYYY
+  m = s.match(/^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{2,4})/);
+  if (m && m[1] && m[2] && m[3]) {
+    const d = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10);
+    let y = parseInt(m[3], 10);
+    if (y < 100) y = 2000 + y;
+    if (y >= 1990 && y <= 2100 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+
+  // Formato DD-MMM-YYYY (ej. 15-ENE-2024, 01-FEB-2025)
+  const mText = s.match(/^(\d{1,2})[-/. ]([A-Za-z]{3,10})[-/. ](\d{2,4})/);
+  if (mText && mText[1] && mText[2] && mText[3]) {
+    const d = parseInt(mText[1], 10);
+    const mo = parseMonth(mText[2]);
+    let y = parseInt(mText[3], 10);
+    if (y < 100) y = 2000 + y;
+    if (mo && y >= 1990 && y <= 2100 && d >= 1 && d <= 31) {
+      return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+
+  // Compacto YYYYMMDD
+  if (/^\d{8}$/.test(s)) {
+    const y = parseInt(s.slice(0, 4), 10);
+    const mo = parseInt(s.slice(4, 6), 10);
+    const d = parseInt(s.slice(6, 8), 10);
+    if (y >= 1990 && y <= 2100 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+
+  // Si es un número serial en texto (ej. "45230")
   const n = Number(s);
-  if (Number.isFinite(n)) return excelSerialToISO(n);
+  if (Number.isFinite(n) && n > 25000 && n < 75000) return excelSerialToISO(n);
   return null;
 }
 
@@ -316,21 +477,29 @@ export function normalizarFila(
     const campo = headerMap.get(h);
     if (!campo) {
       const normH = norm(h);
-      if (normH === "2025" || normH === "ANO2025" || normH === "VENTA2025") {
-        if (!out.anio) out.anio = 2025;
-        if (out.valor === undefined && val !== null) out.valor = toNumber(val);
-      } else if (normH === "2026" || normH === "ANO2026" || normH === "VENTA2026") {
-        if (!out.anio) out.anio = 2026;
-        if (out.valor === undefined && val !== null) out.valor = toNumber(val);
+      // Detección dinámica de cualquier año (ej. 2018..2030, ANO2024, VENTA2023)
+      const matchYearCol = normH.match(/\b(20\d{2})\b/);
+      if (matchYearCol && matchYearCol[1]) {
+        const detectedY = parseInt(matchYearCol[1], 10);
+        if (!out["anio"]) out["anio"] = detectedY;
+        if (out["valor"] === undefined && val !== null) out["valor"] = toNumber(val);
       } else {
         ignoradasSet.add(h);
       }
       continue;
     }
     detectados.add(campo);
-    if (campo === "fecha" || campo === "fecha_compra") out[campo] = toDate(val);
-    else if (NUMERICOS.includes(campo)) out[campo] = toNumber(val);
-    else out[campo] = toText(val);
+    if (campo === "fecha" || campo === "fecha_compra") {
+      out[campo] = toDate(val);
+    } else if (campo === "mes") {
+      out[campo] = parseMonth(val);
+    } else if (campo === "anio") {
+      out[campo] = parseYear(val);
+    } else if (NUMERICOS.includes(campo)) {
+      out[campo] = toNumber(val);
+    } else {
+      out[campo] = toText(val);
+    }
   }
 
   const fila = out as unknown as VentaRow;
@@ -343,27 +512,27 @@ export function normalizarFila(
 
   if (fila.fecha) {
     const fParts = fila.fecha.split("-");
-    if (fParts.length === 3) {
-      if (!fila.anio) fila.anio = parseInt(fParts[0]!, 10);
-      if (!fila.mes) fila.mes = parseInt(fParts[1]!, 10);
-      if (!fila.dia) fila.dia = parseInt(fParts[2]!, 10);
+    if (fParts.length === 3 && fParts[0] && fParts[1] && fParts[2]) {
+      if (!fila.anio) fila.anio = parseInt(fParts[0], 10);
+      if (!fila.mes) fila.mes = parseInt(fParts[1], 10);
+      if (!fila.dia) fila.dia = parseInt(fParts[2], 10);
     }
   }
 
-  // Extraer año desde anio_col (ej. "2025", "ANO 2025", "2025-1")
+  // Extraer año desde anio_col (ej. "2024", "ANO 2024", "2024-01", "2024-1")
   if (!fila.anio && fila.anio_col) {
-    const match = String(fila.anio_col).match(/\b(20\d{2})\b/);
-    if (match) {
-      fila.anio = parseInt(match[1]!, 10);
-    } else {
-      const pAnio = parseInt(fila.anio_col.replace(/\D/g, "").slice(0, 4), 10);
-      if (pAnio >= 2000 && pAnio <= 2050) {
-        fila.anio = pAnio;
+    const parsedY = parseYear(fila.anio_col);
+    if (parsedY) fila.anio = parsedY;
+    if (!fila.mes) {
+      const matchMonth = String(fila.anio_col).match(/[-/](\d{1,2})\b/);
+      if (matchMonth && matchMonth[1]) {
+        const mVal = parseInt(matchMonth[1], 10);
+        if (mVal >= 1 && mVal <= 12) fila.mes = mVal;
       }
     }
   }
 
-  // Si aún no tiene año pero la hoja o archivo especificó defaultAnio (ej. "DIA.DIA 2025")
+  // Si aún no tiene año pero la hoja o archivo especificó defaultAnio (ej. "2024.xlsx")
   if (!fila.anio && defaultAnio) {
     fila.anio = defaultAnio;
   }
@@ -372,9 +541,23 @@ export function normalizarFila(
     fila.anio_col = String(fila.anio);
   }
 
-  if (fila.anio && fila.mes && !fila.fecha) {
-    const d = fila.dia || 1;
-    fila.fecha = `${fila.anio}-${String(fila.mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  // Reconstruir fecha si falta pero anio está disponible
+  if (fila.anio && !fila.fecha) {
+    const m = fila.mes && fila.mes >= 1 && fila.mes <= 12 ? fila.mes : 1;
+    const d = fila.dia && fila.dia >= 1 && fila.dia <= 31 ? fila.dia : 1;
+    fila.fecha = `${fila.anio}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    if (!fila.mes) fila.mes = m;
+    if (!fila.dia) fila.dia = d;
+  }
+
+  // Si tiene fecha pero no tiene día o mes
+  if (fila.fecha && (!fila.mes || !fila.dia || !fila.anio)) {
+    const fParts = fila.fecha.split("-");
+    if (fParts.length === 3 && fParts[0] && fParts[1] && fParts[2]) {
+      if (!fila.anio) fila.anio = parseInt(fParts[0], 10);
+      if (!fila.mes) fila.mes = parseInt(fParts[1], 10);
+      if (!fila.dia) fila.dia = parseInt(fParts[2], 10);
+    }
   }
 
   // Costo total
@@ -525,9 +708,8 @@ export async function procesarArchivoPorStreaming({
                 recibidas += res.recibidas;
                 nuevas += res.nuevas;
 
-                const bytesLeidos = parser.streamer
-                  ? (parser.streamer as unknown as { _cursor?: number })._cursor || 0
-                  : 0;
+                const parserAny = parser as unknown as { streamer?: { _cursor?: number } };
+                const bytesLeidos = parserAny.streamer?._cursor || 0;
                 const porcentaje = fileSize > 0 ? Math.min(99, Math.round((bytesLeidos / fileSize) * 100)) : 50;
 
                 onProgreso?.({
@@ -600,7 +782,7 @@ export async function procesarArchivoPorStreaming({
     type: "array",
     dense: true,
     raw: true,
-    cellDates: false,
+    cellDates: true,
     cellFormula: false,
     cellHTML: false,
     cellText: false,

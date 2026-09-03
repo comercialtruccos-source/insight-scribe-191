@@ -6,6 +6,7 @@ import {
   ingestarLoteCliente,
   registrarCargaCliente,
   obtenerResumenCliente,
+  obtenerRangoFechasTotal,
   obtenerCatalogosFiltros,
   obtenerHistoricoMultianual,
   obtenerDashboard1Cumplimiento,
@@ -73,6 +74,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   History,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -128,6 +130,11 @@ function Panel() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // Modo de rango temporal
+  const [tipoRango, setTipoRango] = useState<string>("todo");
+  const [fechaDesde, setFechaDesde] = useState<string>("");
+  const [fechaHasta, setFechaHasta] = useState<string>("");
+
   // Filtros globales
   const [anio, setAnio] = useState<string>("todos");
   const [mes, setMes] = useState<string>("todos");
@@ -147,18 +154,59 @@ function Panel() {
   const [aviso, setAviso] = useState<string[]>([]);
   const [esCSV, setEsCSV] = useState(false);
 
-  const filtros: FiltrosBI = useMemo(() => ({
-    anio: anio !== "todos" ? Number(anio) : null,
-    mes: mes !== "todos" ? Number(mes) : null,
-    canal_id: canalId !== "todos" ? Number(canalId) : null,
-    marca_id: marcaId !== "todos" ? Number(marcaId) : null,
-    vendedor_id: vendedorId !== "todos" ? Number(vendedorId) : null,
-    zona_id: zonaId !== "todos" ? Number(zonaId) : null,
-  }), [anio, mes, canalId, marcaId, vendedorId, zonaId]);
+  const filtros: FiltrosBI = useMemo(() => {
+    let fDesde: string | null = null;
+    let fHasta: string | null = null;
+    let anioVal: number | null = null;
+    let mesVal: number | null = null;
 
-  const hayFiltrosActivos = anio !== "todos" || mes !== "todos" || canalId !== "todos" || marcaId !== "todos" || vendedorId !== "todos" || zonaId !== "todos";
+    if (tipoRango === "personalizado") {
+      fDesde = fechaDesde.trim() || null;
+      fHasta = fechaHasta.trim() || null;
+    } else if (tipoRango === "anio") {
+      anioVal = anio !== "todos" ? Number(anio) : null;
+      mesVal = mes !== "todos" ? Number(mes) : null;
+    } else if (tipoRango === "ultimos12") {
+      const hoy = new Date();
+      const hace12 = new Date();
+      hace12.setFullYear(hoy.getFullYear() - 1);
+      fDesde = hace12.toISOString().slice(0, 10);
+      fHasta = hoy.toISOString().slice(0, 10);
+    } else if (tipoRango === "ultimos6") {
+      const hoy = new Date();
+      const hace6 = new Date();
+      hace6.setMonth(hoy.getMonth() - 6);
+      fDesde = hace6.toISOString().slice(0, 10);
+      fHasta = hoy.toISOString().slice(0, 10);
+    }
+
+    return {
+      anio: anioVal,
+      mes: mesVal,
+      fecha_desde: fDesde,
+      fecha_hasta: fHasta,
+      canal_id: canalId !== "todos" ? Number(canalId) : null,
+      marca_id: marcaId !== "todos" ? Number(marcaId) : null,
+      vendedor_id: vendedorId !== "todos" ? Number(vendedorId) : null,
+      zona_id: zonaId !== "todos" ? Number(zonaId) : null,
+    };
+  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId]);
+
+  const hayFiltrosActivos =
+    tipoRango !== "todo" ||
+    anio !== "todos" ||
+    mes !== "todos" ||
+    canalId !== "todos" ||
+    marcaId !== "todos" ||
+    vendedorId !== "todos" ||
+    zonaId !== "todos" ||
+    Boolean(fechaDesde) ||
+    Boolean(fechaHasta);
 
   const limpiarFiltros = () => {
+    setTipoRango("todo");
+    setFechaDesde("");
+    setFechaHasta("");
     setAnio("todos");
     setMes("todos");
     setCanalId("todos");
@@ -171,6 +219,11 @@ function Panel() {
   const { data: resumen } = useQuery({
     queryKey: ["resumen"],
     queryFn: () => obtenerResumenCliente(),
+  });
+
+  const { data: rangoTotal } = useQuery({
+    queryKey: ["bi-rango-fechas-total"],
+    queryFn: () => obtenerRangoFechasTotal(),
   });
 
   const { data: catalogos } = useQuery({
@@ -349,9 +402,15 @@ function Panel() {
               <p className="text-xs text-muted-foreground">Plataforma Consolidada de Inteligencia Comercial</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {rangoTotal?.fechaMin && rangoTotal?.fechaMax && (
+              <Badge variant="outline" className="hidden md:inline-flex bg-primary/10 border-primary/20 text-primary font-mono text-xs">
+                <Calendar className="mr-1.5 h-3 w-3" />
+                Rango Documento: {rangoTotal.fechaMin} al {rangoTotal.fechaMax}
+              </Badge>
+            )}
             <Badge variant="outline" className="hidden sm:inline-flex bg-muted/40 font-mono text-xs">
-              {(resumen?.totalVentas ?? 0).toLocaleString("es-CO")} registros en base de datos
+              {(resumen?.totalVentas ?? 0).toLocaleString("es-CO")} registros
             </Badge>
             <Button variant="ghost" size="sm" onClick={salir}>
               Cerrar sesión
@@ -362,39 +421,99 @@ function Panel() {
         {/* Barra de Filtros Globales (Slicers) */}
         <div className="border-t border-border/60 bg-muted/30 px-4 py-2 sm:px-6">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1">
-              Filtros:
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1 flex items-center gap-1">
+              <Clock className="h-3 w-3 text-primary" />
+              Periodo:
             </span>
 
-            {/* Selector de Año con todos los años históricos */}
-            <Select value={anio} onValueChange={setAnio}>
-              <SelectTrigger className="h-8 w-[125px] text-xs bg-background">
-                <SelectValue placeholder="Año" />
+            {/* Selector de Modo de Rango Temporal */}
+            <Select
+              value={tipoRango}
+              onValueChange={(v) => {
+                setTipoRango(v);
+                if (v === "todo") {
+                  setAnio("todos");
+                  setMes("todos");
+                  setFechaDesde("");
+                  setFechaHasta("");
+                }
+              }}
+            >
+              <SelectTrigger className="h-8 w-[190px] text-xs font-medium bg-background border-primary/40 text-foreground">
+                <SelectValue placeholder="Rango Temporal" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos los Años</SelectItem>
-                {(catalogos?.anios || []).map((a) => (
-                  <SelectItem key={a} value={String(a)}>
-                    Año {a}
-                  </SelectItem>
-                ))}
+                <SelectItem value="todo">🌐 Todo el Histórico Completo</SelectItem>
+                <SelectItem value="anio">🗓️ Por Año y Mes</SelectItem>
+                <SelectItem value="personalizado">📅 Rango de Fechas (Desde/Hasta)</SelectItem>
+                <SelectItem value="ultimos12">⏱️ Últimos 12 Meses</SelectItem>
+                <SelectItem value="ultimos6">⏱️ Últimos 6 Meses</SelectItem>
               </SelectContent>
             </Select>
 
+            {/* Campos de Fecha Personalizada */}
+            {tipoRango === "personalizado" && (
+              <div className="flex items-center gap-1.5 bg-background border border-primary/40 rounded-md px-2 py-0.5">
+                <span className="text-[11px] text-muted-foreground font-medium">Desde:</span>
+                <Input
+                  type="date"
+                  value={fechaDesde}
+                  onChange={(e) => setFechaDesde(e.target.value)}
+                  className="h-6 text-xs border-0 p-0 w-28 bg-transparent focus-visible:ring-0"
+                />
+                <span className="text-[11px] text-muted-foreground font-medium ml-1">Hasta:</span>
+                <Input
+                  type="date"
+                  value={fechaHasta}
+                  onChange={(e) => setFechaHasta(e.target.value)}
+                  className="h-6 text-xs border-0 p-0 w-28 bg-transparent focus-visible:ring-0"
+                />
+              </div>
+            )}
+
+            {/* Selector de Año con todos los años históricos */}
+            {(tipoRango === "anio" || tipoRango === "todo") && (
+              <Select
+                value={anio}
+                onValueChange={(val) => {
+                  setAnio(val);
+                  if (val !== "todos" && tipoRango !== "anio") {
+                    setTipoRango("anio");
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 w-[125px] text-xs bg-background">
+                  <SelectValue placeholder="Año" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los Años</SelectItem>
+                  {(catalogos?.anios || []).map((a) => (
+                    <SelectItem key={a} value={String(a)}>
+                      Año {a}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             {/* Mes */}
-            <Select value={mes} onValueChange={setMes}>
-              <SelectTrigger className="h-8 w-[115px] text-xs bg-background">
-                <SelectValue placeholder="Mes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos los Meses</SelectItem>
-                {MESES.map((m) => (
-                  <SelectItem key={m.num} value={String(m.num)}>
-                    {m.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {(tipoRango === "anio" || anio !== "todos") && (
+              <Select value={mes} onValueChange={setMes}>
+                <SelectTrigger className="h-8 w-[115px] text-xs bg-background">
+                  <SelectValue placeholder="Mes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los Meses</SelectItem>
+                  {MESES.map((m) => (
+                    <SelectItem key={m.num} value={String(m.num)}>
+                      {m.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            <div className="h-4 w-px bg-border/80 mx-1 hidden sm:block" />
 
             {/* Canal */}
             <Select value={canalId} onValueChange={setCanalId}>
@@ -460,11 +579,11 @@ function Panel() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground border-rose-500/30 hover:bg-rose-500/10"
                 onClick={limpiarFiltros}
               >
-                <FilterX className="mr-1 h-3.5 w-3.5" />
-                Restablecer
+                <FilterX className="mr-1 h-3.5 w-3.5 text-rose-500" />
+                Restablecer Todo
               </Button>
             )}
           </div>
@@ -1523,10 +1642,10 @@ function CardKpi({
 }: {
   titulo: string;
   valor: string;
-  subtexto?: string;
-  icono?: React.ReactNode;
-  cargando?: boolean;
-  badgeSemaforo?: number;
+  subtexto?: string | undefined;
+  icono?: React.ReactNode | undefined;
+  cargando?: boolean | undefined;
+  badgeSemaforo?: number | undefined;
 }) {
   return (
     <Card className="relative overflow-hidden">
