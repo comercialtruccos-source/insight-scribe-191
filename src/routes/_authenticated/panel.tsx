@@ -15,6 +15,8 @@ import {
   obtenerDashboard4FuerzaVentas,
   obtenerDashboard5Marketplaces,
   obtenerTransaccionesDetalle,
+  purgarDatosVentas,
+  eliminarCarga,
   type FiltrosBI,
 } from "@/lib/ventas-api";
 import {
@@ -36,6 +38,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   ResponsiveContainer,
   BarChart,
@@ -75,6 +88,8 @@ import {
   ArrowDownRight,
   History,
   Clock,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -341,6 +356,32 @@ function Panel() {
     onError: (e) => {
       setEstado(null);
       toast.error(e instanceof Error ? e.message : "Error al cargar el archivo");
+    },
+  });
+
+  const purgarMutation = useMutation({
+    mutationFn: purgarDatosVentas,
+    onSuccess: (res) => {
+      toast.success(res.mensaje || "Se han eliminado los datos cargados con éxito.");
+      queryClient.invalidateQueries();
+      setArchivo(null);
+      setAviso([]);
+      setProgreso(0);
+      setEstado(null);
+    },
+    onError: (err: Error) => {
+      toast.error(`Error al purgar datos: ${err.message}`);
+    },
+  });
+
+  const eliminarCargaMutation = useMutation({
+    mutationFn: eliminarCarga,
+    onSuccess: () => {
+      toast.success("Registro de carga eliminado.");
+      queryClient.invalidateQueries({ queryKey: ["resumen"] });
+    },
+    onError: (err: Error) => {
+      toast.error(`Error al eliminar carga: ${err.message}`);
     },
   });
 
@@ -1522,6 +1563,66 @@ function Panel() {
           {/* TAB 7: CARGA DE ARCHIVOS E HISTORIAL */}
           {/* ========================================================================= */}
           <TabsContent value="carga" className="space-y-6">
+            {/* ZONA DE CONTROL Y LIMPIEZA DE DATOS */}
+            <Card className="border-rose-500/30 bg-rose-500/5">
+              <CardHeader className="pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-lg bg-rose-500/10 text-rose-500 mt-0.5">
+                      <AlertTriangle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="font-display text-base text-foreground">
+                        Zona de Limpieza y Reinicio de Datos
+                      </CardTitle>
+                      <CardDescription className="text-xs mt-0.5">
+                        Si cargaste un archivo con inconsistencias o deseas reiniciar los datos para importar un archivo nuevo y limpio desde cero.
+                      </CardDescription>
+                    </div>
+                  </div>
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={purgarMutation.isPending || (resumen?.totalVentas ?? 0) === 0}
+                        className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm shrink-0"
+                      >
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                        {purgarMutation.isPending ? "Purgando datos..." : "Eliminar y Purgar Todo"}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-rose-600">
+                          <AlertTriangle className="h-5 w-5" />
+                          ¿Eliminar y purgar todos los datos de ventas?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="space-y-2 text-sm text-muted-foreground">
+                          <p>
+                            Esta acción <strong className="text-foreground font-semibold">eliminará definitivamente todos los registros de ventas ({resumen?.totalVentas?.toLocaleString("es-CO") || 0} filas)</strong> y el historial de cargas actual.
+                          </p>
+                          <p>
+                            Usa esta función si tu archivo anterior tenía datos erróneos o duplicados y deseas dejar la base de datos totalmente limpia antes de subir el nuevo archivo corregido.
+                          </p>
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => purgarMutation.mutate()}
+                          className="bg-rose-600 hover:bg-rose-700 text-white"
+                        >
+                          Sí, eliminar y purgar datos
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </CardHeader>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="font-display">Cargar histórico de ventas</CardTitle>
@@ -1598,11 +1699,23 @@ function Panel() {
                           {new Date(h.created_at).toLocaleString("es-CO")}
                         </p>
                       </div>
-                      <div className="text-right text-xs">
-                        <p className="text-primary font-semibold">+{h.filas_nuevas.toLocaleString("es-CO")} nuevas</p>
-                        <p className="text-muted-foreground">
-                          {h.filas_recibidas.toLocaleString("es-CO")} leídas
-                        </p>
+                      <div className="flex items-center gap-3 text-right text-xs">
+                        <div>
+                          <p className="text-primary font-semibold">+{h.filas_nuevas.toLocaleString("es-CO")} nuevas</p>
+                          <p className="text-muted-foreground">
+                            {h.filas_recibidas.toLocaleString("es-CO")} leídas
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10"
+                          title="Eliminar registro de carga"
+                          disabled={eliminarCargaMutation.isPending}
+                          onClick={() => eliminarCargaMutation.mutate(h.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </div>
                   ))}

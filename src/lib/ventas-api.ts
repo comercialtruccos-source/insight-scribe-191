@@ -174,6 +174,27 @@ export async function registrarCargaCliente(
   return { ok: true };
 }
 
+export async function purgarDatosVentas(): Promise<{ ok: boolean; filas_eliminadas: number; mensaje: string }> {
+  const { data, error } = await invokeRpc("purgar_datos_ventas");
+  if (error) {
+    // Fallback directo si el RPC no estuviera disponible
+    const delVentas = await supabase.from("fact_ventas").delete().neq("id", 0);
+    const delCargas = await supabase.from("cargas").delete().neq("id", 0);
+    if (delVentas.error) throw new Error(delVentas.error.message);
+    return { ok: true, filas_eliminadas: 0, mensaje: "Datos de ventas y cargas purgados con éxito." };
+  }
+  return (data as { ok: boolean; filas_eliminadas: number; mensaje: string }) || { ok: true, filas_eliminadas: 0, mensaje: "Datos de ventas purgados con éxito." };
+}
+
+export async function eliminarCarga(cargaId: number): Promise<{ ok: boolean }> {
+  const { error } = await invokeRpc("eliminar_carga", { p_carga_id: cargaId });
+  if (error) {
+    const { error: errDirect } = await supabase.from("cargas").delete().eq("id", cargaId);
+    if (errDirect) throw new Error(errDirect.message);
+  }
+  return { ok: true };
+}
+
 const sanitizeCatalogo = (data: unknown[] | null | undefined): CatalogoItem[] => {
   if (!Array.isArray(data)) return [];
   const map = new Map<number, string>();
