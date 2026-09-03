@@ -520,7 +520,7 @@ function Panel() {
               <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
                 <SelectValue placeholder="Canal" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-72 overflow-y-auto">
                 <SelectItem value="todos">Todos los Canales</SelectItem>
                 {(catalogos?.canales || []).map((c) => (
                   <SelectItem key={c.id} value={String(c.id)}>
@@ -535,7 +535,7 @@ function Panel() {
               <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
                 <SelectValue placeholder="Marca" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-72 overflow-y-auto">
                 <SelectItem value="todos">Todas las Marcas</SelectItem>
                 {(catalogos?.marcas || []).map((m) => (
                   <SelectItem key={m.id} value={String(m.id)}>
@@ -550,7 +550,7 @@ function Panel() {
               <SelectTrigger className="h-8 w-[140px] text-xs bg-background">
                 <SelectValue placeholder="Vendedor" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-72 overflow-y-auto">
                 <SelectItem value="todos">Todos los Vendedores</SelectItem>
                 {(catalogos?.vendedores || []).map((v) => (
                   <SelectItem key={v.id} value={String(v.id)}>
@@ -565,7 +565,7 @@ function Panel() {
               <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
                 <SelectValue placeholder="Zona" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-72 overflow-y-auto">
                 <SelectItem value="todos">Todas las Zonas</SelectItem>
                 {(catalogos?.zonas || []).map((z) => (
                   <SelectItem key={z.id} value={String(z.id)}>

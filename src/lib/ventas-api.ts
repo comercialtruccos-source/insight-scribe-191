@@ -174,17 +174,35 @@ export async function registrarCargaCliente(
   return { ok: true };
 }
 
+const sanitizeCatalogo = (data: unknown[] | null | undefined): CatalogoItem[] => {
+  if (!Array.isArray(data)) return [];
+  const map = new Map<number, string>();
+  for (const item of data) {
+    if (typeof item === "object" && item !== null && "id" in item && "nombre" in item) {
+      const record = item as Record<string, unknown>;
+      const id = Number(record["id"]);
+      const nombre = String(record["nombre"] || "").trim();
+      if (id > 0 && nombre.length > 0 && !map.has(id)) {
+        map.set(id, nombre);
+      }
+    }
+  }
+  return Array.from(map.entries())
+    .map(([id, nombre]) => ({ id, nombre }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+};
+
 /** Obtiene catálogos y TODOS los años presentes dinámicamente en el documento */
 export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
   const [aniosRpc, vendRes, canalRes, marcaRes, lineaRes, zonaRes, ciudadRes] =
     await Promise.all([
       invokeRpc("get_bi_anios_disponibles"),
-      supabase.from("dim_vendedor").select("id, nombre").order("nombre"),
-      supabase.from("dim_canal").select("id, nombre").order("nombre"),
-      supabase.from("dim_marca").select("id, nombre").order("nombre"),
-      supabase.from("dim_linea").select("id, nombre").order("nombre"),
-      supabase.from("dim_zona_colombia").select("id, nombre").order("nombre"),
-      supabase.from("dim_ciudad").select("id, nombre").order("nombre"),
+      supabase.from("dim_vendedor").select("id, nombre").not("nombre", "is", null).order("nombre").limit(2000),
+      supabase.from("dim_canal").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
+      supabase.from("dim_marca").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
+      supabase.from("dim_linea").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
+      supabase.from("dim_zona_colombia").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
+      supabase.from("dim_ciudad").select("id, nombre").not("nombre", "is", null).order("nombre").limit(1000),
     ]);
 
   let anios: number[] = [];
@@ -218,14 +236,24 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
     anios = [2026, 2025, 2024, 2023, 2022];
   }
 
+  let vendedores = sanitizeCatalogo(vendRes.data);
+  if (vendedores.length === 0) {
+    const rpcVend = await invokeRpc("get_bi_catalogo_vendedores");
+    vendedores = sanitizeCatalogo(rpcVend.data as unknown[]);
+  }
+  if (vendedores.length === 0) {
+    const rankVend = await invokeRpc("get_bi_ranking_dimension", { p_dimension: "vendedor", p_limite: 100 });
+    vendedores = sanitizeCatalogo(rankVend.data as unknown[]);
+  }
+
   return {
     anios: anios.sort((a, b) => b - a),
-    vendedores: vendRes.data || [],
-    canales: canalRes.data || [],
-    marcas: marcaRes.data || [],
-    lineas: lineaRes.data || [],
-    zonas: zonaRes.data || [],
-    ciudades: ciudadRes.data || [],
+    vendedores,
+    canales: sanitizeCatalogo(canalRes.data),
+    marcas: sanitizeCatalogo(marcaRes.data),
+    lineas: sanitizeCatalogo(lineaRes.data),
+    zonas: sanitizeCatalogo(zonaRes.data),
+    ciudades: sanitizeCatalogo(ciudadRes.data),
   };
 }
 
