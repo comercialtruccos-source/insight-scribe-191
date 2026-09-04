@@ -35,8 +35,31 @@ export type VentaRow = {
   tr: number | null;
   costo: number | null;
   costo_total: number | null;
+  ocurrencia?: number;
   row_index?: number;
 };
+
+const CAMPOS_HASH = [
+  "transaccion","anio","mes","dia","fecha","vendedor","vendedor2","tercero_aux",
+  "zona","ciudad","linea","coleccion","canal","zona2","pais","zona_colombia",
+  "correria","marca","producto_c","prenda_hgi","producto","talla","color",
+  "cod_color","sku","anio_col","cantidad","valor","fecha_compra","tr","costo","costo_total",
+] as const;
+
+/**
+ * Asigna un número de ocurrencia a filas idénticas dentro del mismo archivo,
+ * para que las repeticiones legítimas no se descarten como duplicados.
+ */
+export function asignarOcurrencia(fila: VentaRow, contador: Map<string, number>): VentaRow {
+  const clave = CAMPOS_HASH.map((c) => {
+    const v = (fila as Record<string, unknown>)[c];
+    return v === null || v === undefined ? "" : String(v);
+  }).join("|");
+  const n = (contador.get(clave) ?? 0) + 1;
+  contador.set(clave, n);
+  fila.ocurrencia = n;
+  return fila;
+}
 
 export const COLUMNAS_ESPERADAS = [
   "Transaccion",
@@ -675,6 +698,7 @@ export async function procesarArchivoPorStreaming({
   let recibidas = 0;
   let nuevas = 0;
   let globalRowCounter = 0;
+  const contadorOcurrencias = new Map<string, number>();
 
   if (esCSV) {
     let loteBuffer: VentaRow[] = [];
@@ -699,7 +723,7 @@ export async function procesarArchivoPorStreaming({
             for (const r of results.data as Record<string, unknown>[]) {
               globalRowCounter++;
               const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, fileDefaultYear);
-              if (fila) loteBuffer.push(fila);
+              if (fila) loteBuffer.push(asignarOcurrencia(fila, contadorOcurrencias));
 
               if (loteBuffer.length >= tamanoLote) {
                 const subLote = loteBuffer;
@@ -817,7 +841,7 @@ export async function procesarArchivoPorStreaming({
       for (const r of chunk) {
         globalRowCounter++;
         const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, sheetDefaultYear);
-        if (fila) loteFilas.push(fila);
+        if (fila) loteFilas.push(asignarOcurrencia(fila, contadorOcurrencias));
       }
 
       if (loteFilas.length > 0) {
