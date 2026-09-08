@@ -163,7 +163,7 @@ const MESES_MAP: Record<string, number> = {
 };
 
 const MAPA: Record<string, keyof VentaRow> = {
-  // Transacción
+  // Transacción / Factura / Documento
   TRANSACCION: "transaccion",
   TRANSAC: "transaccion",
   FACTURA: "transaccion",
@@ -176,6 +176,24 @@ const MAPA: Record<string, keyof VentaRow> = {
   IDTRANSACCION: "transaccion",
   NROTRANSACCION: "transaccion",
   NUMTRANSACCION: "transaccion",
+  NRO: "transaccion",
+  NUM: "transaccion",
+  ID: "transaccion",
+  IDVENTA: "transaccion",
+  COMPROBANTE: "transaccion",
+  NROCOMPROBANTE: "transaccion",
+  NUMERODOC: "transaccion",
+  PREFIJONUMERO: "transaccion",
+  MOVIMIENTO: "transaccion",
+  NROMOVIMIENTO: "transaccion",
+  NUMERODOCUMENTO: "transaccion",
+  NUMERODEFACTURA: "transaccion",
+  NRODEFACTURA: "transaccion",
+  DOCUMENTONUMERO: "transaccion",
+  ORDEN: "transaccion",
+  NROORDEN: "transaccion",
+  PEDIDO: "transaccion",
+  NROPEDIDO: "transaccion",
 
   // Fechas y Periodos
   ANO: "anio",
@@ -191,17 +209,44 @@ const MAPA: Record<string, keyof VentaRow> = {
   ANOPPTO: "anio",
   EJERCICIO: "anio",
   VIGENCIA: "anio",
+  ANODOCUMENTO: "anio",
+  ANIODOCUMENTO: "anio",
+  ANIOFACTURA: "anio",
+  ANIOMOV: "anio",
+  ANIOVENTA: "anio",
+  ANIODELAVENTA: "anio",
+  ANIOPERIODO: "anio",
+  ANIOPPTO: "anio",
+  ANIOVIGENCIA: "anio",
+  ANOVIGENCIA: "anio",
+  PERIODOANO: "anio",
+  PERIODOANIO: "anio",
+
   MES: "mes",
   MONTH: "mes",
   MESDOC: "mes",
   MESMOV: "mes",
   MESVENTA: "mes",
   MESDELAVENTA: "mes",
+  MESDOCUMENTO: "mes",
+  MESFACTURA: "mes",
+  MESNOMBRE: "mes",
+  NOMBREMES: "mes",
+  MESTEXTO: "mes",
+  MESNUMERO: "mes",
+  NUMEROMES: "mes",
+  MESDELANO: "mes",
+  MESDELANIO: "mes",
+
   DIA: "dia",
   DAY: "dia",
   DIADOC: "dia",
   DIAMOV: "dia",
   DIAVENTA: "dia",
+  DIADOCUMENTO: "dia",
+  DIAFACTURA: "dia",
+  DIADELMES: "dia",
+
   FECHA: "fecha",
   FECHADOCUMENTO: "fecha",
   FECHATRANSACCION: "fecha",
@@ -226,6 +271,13 @@ const MAPA: Record<string, keyof VentaRow> = {
   DOCDATE: "fecha_compra",
   POSTINGDATE: "fecha",
   TRANSDATE: "fecha",
+  FECHADEVENTA: "fecha_compra",
+  FECHADEFACTURA: "fecha_compra",
+  FECHADEDOCUMENTO: "fecha_compra",
+  FECHADEREGISTRO: "fecha_compra",
+  FECHADELMOVIMIENTO: "fecha_compra",
+  FECHAMOVTO: "fecha_compra",
+  FECMOVTO: "fecha_compra",
   PERIODO: "anio_col",
   PERIOD: "anio_col",
 
@@ -235,8 +287,27 @@ const MAPA: Record<string, keyof VentaRow> = {
   EJECUTIVO: "vendedor",
   VENDEDOR1: "vendedor",
   NOMVENDEDOR: "vendedor",
+  NOMBREVENDEDOR: "vendedor",
+  ASESORCOMERCIAL: "vendedor",
+  VENDEDORCOMERCIAL: "vendedor",
+  AGENTE: "vendedor",
+  COMERCIAL: "vendedor",
+  CODVENDEDOR: "vendedor",
+  CODASESOR: "vendedor",
+  NOMBREASESOR: "vendedor",
+  NOMASESOR: "vendedor",
+  ASESORDEVENTA: "vendedor",
+  VENDEDORDEVENTA: "vendedor",
+  EJECUTIVODEVENTAS: "vendedor",
+  ASESOR1: "vendedor",
+
   VENDEDOR2: "vendedor2",
   ASESOR2: "vendedor2",
+  SEGUNDOASESOR: "vendedor2",
+  SEGUNDOVENDEDOR: "vendedor2",
+  NOMVENDEDOR2: "vendedor2",
+  NOMBREVENDEDOR2: "vendedor2",
+  NOMBREASESOR2: "vendedor2",
 
   // Tercero / Cliente
   TERCEROAUX: "tercero_aux",
@@ -245,223 +316,143 @@ const MAPA: Record<string, keyof VentaRow> = {
   CODTERCERO: "tercero_aux",
   CODCLIENTE: "tercero_aux",
   IDENTIFICACION: "tercero_aux",
+  IDENTIFICACIONCLIENTE: "tercero_aux",
+  NITCLIENTE: "tercero_aux",
+  DOCUMENTOCLIENTE: "tercero_aux",
+  NITCEDA: "tercero_aux",
+  CODIGOCLIENTE: "tercero_aux",
+  CODIGOTERCERO: "tercero_aux",
+  CEDULACLIENTE: "tercero_aux",
   TERCERO: "tercero",
   CLIENTE: "tercero",
   NOMTERCERO: "tercero",
   NOMBRECLIENTE: "tercero",
   RAZONSOCIAL: "tercero",
+  NOMBRETERCERO: "tercero",
+  CLIENTENOMBRE: "tercero",
+  RAZON: "tercero",
 
   // Geografía
   ZONA: "zona",
   REGION: "zona",
   REGIONAL: "zona",
+  ZONAVENTA: "zona",
+  ZONACOMERCIAL: "zona",
+  DEPARTAMENTO: "zona",
+  DPTO: "zona",
+  TERRITORIO: "zona",
   CIUDAD: "ciudad",
   MUNICIPIO: "ciudad",
   DESTINO: "ciudad",
+  CIUDADDESTINO: "ciudad",
+  CIUDADVENTA: "ciudad",
+  POBLACION: "ciudad",
   ZONA2: "zona2",
+  REGIONAL2: "zona2",
+  SUBREGION: "zona2",
+  SUBZONA: "zona2",
   PAIS: "pais",
+  COUNTRY: "pais",
+  PAISDESTINO: "pais",
   ZONACOLOMBIA: "zona_colombia",
+  ZONANAL: "zona_colombia",
+  ZONANACIONAL: "zona_colombia",
+  REGIONCOLOMBIA: "zona_colombia",
+  TERRITORIOCOLOMBIA: "zona_colombia",
 
   // Dimensiones comerciales
   LINEA: "linea",
   CATEGORIA: "linea",
-  DEPARTAMENTO: "linea",
+  DEPARTAMENTOPROD: "linea",
+  LINEAPRODUCTO: "linea",
+  LINEAPRENDA: "linea",
+  GRUPO: "linea",
+  SUBGRUPO: "linea",
+  LINEADENEGOCIO: "linea",
+  LINEAVENTA: "linea",
   COLECCION: "coleccion",
   TEMPORADA: "coleccion",
   CAMPANA: "coleccion",
+  COLECCIONPRENDA: "coleccion",
+  NOMCOLECCION: "coleccion",
   CANAL: "canal",
   CANALVENTA: "canal",
   TIPOCANAL: "canal",
+  CANALDEVENTA: "canal",
+  TIPODECANAL: "canal",
+  CANALDISTRIBUCION: "canal",
+  MEDIOVENTA: "canal",
+  CANALCOMERCIAL: "canal",
   MARCA: "marca",
   BRAND: "marca",
+  MARCAPRODUCTO: "marca",
+  NOMMARCA: "marca",
   CORRERIA: "correria",
+  CORRERIAVENTA: "correria",
+  CORRERIADESCRIPCION: "correria",
+  NOMCORRERIA: "correria",
   ANOCOL: "anio_col",
   ANIOCOL: "anio_col",
+  ANOCOLECCION: "anio_col",
+  ANIOCOLECCION: "anio_col",
+  COLECCIONANO: "anio_col",
+  COLECCIONANIO: "anio_col",
 
-  // Producto / SKU
+  // Producto / SKU / Prenda
   PRODUCTOC: "producto_c",
+  CODPRODUCTO: "producto_c",
+  CODITEM: "producto_c",
+  CODPRENDA: "producto_c",
+  CODIGOPRODUCTO: "producto_c",
+  CODIGOITEM: "producto_c",
+  CODIGOPRENDA: "producto_c",
+  CODARTICULO: "producto_c",
+  CODIGOARTICULO: "producto_c",
   PRENDAHGI: "prenda_hgi",
   PRENDA: "prenda_hgi",
+  TIPOPRENDA: "prenda_hgi",
+  NOMPRENDA: "prenda_hgi",
+  DESCRIPCIONPRENDA: "prenda_hgi",
+  TIPODEPRENDA: "prenda_hgi",
   PRODUCTO: "producto",
   DESCRIPCION: "producto",
   NOMPRODUCTO: "producto",
   DETALLE: "producto",
+  DESCRIPCIONPRODUCTO: "producto",
+  NOMBREPRODUCTO: "producto",
+  ARTICULO: "producto",
+  DESCRIPCIONARTICULO: "producto",
+  DESCRIPCIONDELPRODUCTO: "producto",
   SKU: "sku",
   REFERENCIA: "sku",
   REF: "sku",
   CODIGO: "sku",
-  CODPRODUCTO: "sku",
   ITEM: "sku",
+  REFPRODUCTO: "sku",
+  REFERENCIAPRODUCTO: "sku",
+  REFPRENDA: "sku",
+  PLU: "sku",
+  BARCODE: "sku",
+  CODIGOBARRAS: "sku",
+  REFERENCIADELPRODUCTO: "sku",
   TALLAP: "talla",
   TALLA: "talla",
   SIZE: "talla",
+  TAMANO: "talla",
+  TALLAPRENDA: "talla",
+  TALLADEPRENDA: "talla",
   COLOR: "color",
   COLOUR: "color",
   DESCOLOR: "color",
+  DESCRIPCIONCOLOR: "color",
+  NOMCOLOR: "color",
+  COLORPRENDA: "color",
+  NOMBRECOLOR: "color",
+  DESCRIPCIONDELCOLOR: "color",
   CODCOLOR: "cod_color",
-
-  // Valores numéricos
-  CANTIDAD: "cantidad",
-  CANT: "cantidad",
-  UNIDADES: "cantidad",
-  UNDS: "cantidad",
-  QTY: "cantidad",
-  VALOR: "valor",
-  VALORTOTAL: "valor",
-  VRTOTAL: "valor",
-  TOTAL: "valor",
-  VENTA: "valor",
-  VRVENTA: "valor",
-  SUBTOTAL: "valor",
-  NETO: "valor",
-  VALORNETO: "valor",
-  VRNETO: "valor",
-  VALORBRUTO: "valor",
-  VRBRUTO: "valor",
-  TR: "tr",
-  COSTO: "costo",
-  COSTOUNITARIO: "costo",
-  VRCOSTO: "costo",
-  COSTOTOTAL: "costo_total",
-  VRCOSTOTOTAL: "costo_total",
-  TOTALCOSTO: "costo_total",
+  CODIGOCOLOR: "cod_color",
+  CODIGODELCOLOR: "cod_color",
 };
-
-const NUMERICOS: (keyof VentaRow)[] = [
-  "anio",
-  "mes",
-  "dia",
-  "cantidad",
-  "valor",
-  "tr",
-  "costo",
-  "costo_total",
-];
-
-function toNumber(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  let s = String(v).trim().replace(/\s/g, "").replace(/[$]/g, "");
-  if (!s) return null;
-  const negativo = /^\(.*\)$/.test(s);
-  s = s.replace(/[()]/g, "");
-  if (/,\d{1,2}$/.test(s)) s = s.replace(/\./g, "").replace(",", ".");
-  else s = s.replace(/,/g, "");
-  const n = Number(s);
-  if (!Number.isFinite(n)) return null;
-  return negativo ? -n : n;
-}
-
-function parseMonth(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  if (typeof v === "number") {
-    return Number.isInteger(v) && v >= 1 && v <= 12 ? v : null;
-  }
-  const s = String(v).trim();
-  const normalized = norm(s);
-  if (normalized in MESES_MAP) {
-    return MESES_MAP[normalized] ?? null;
-  }
-  const n = parseInt(s.replace(/\D/g, ""), 10);
-  if (!isNaN(n) && n >= 1 && n <= 12) return n;
-  return null;
-}
-
-function parseYear(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  if (typeof v === "number") {
-    if (v >= 2000 && v <= 2050) return v;
-    if (v >= 0 && v <= 50) return 2000 + v;
-  }
-  const s = String(v).trim();
-  const m = s.match(/\b(20\d{2})\b/);
-  if (m && m[1]) return parseInt(m[1], 10);
-  const n = parseInt(s.replace(/\D/g, "").slice(0, 4), 10);
-  if (!isNaN(n) && n >= 2000 && n <= 2050) return n;
-  return null;
-}
-
-function toText(v: unknown): string | null {
-  if (v === null || v === undefined) return null;
-  const s = String(v).trim();
-  return s === "" ? null : s;
-}
-
-function excelSerialToISO(serial: number): string | null {
-  if (serial < 25000 || serial > 75000) return null;
-  // Floor serial to ignore time of day shifts
-  const utcDays = Math.floor(serial - 25569);
-  const dateInfo = new Date(utcDays * 86400 * 1000);
-  const year = dateInfo.getUTCFullYear();
-  const month = String(dateInfo.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(dateInfo.getUTCDate()).padStart(2, "0");
-  if (isNaN(year) || year < 1990 || year > 2100) return null;
-  return `${year}-${month}-${day}`;
-}
-
-export function toDate(v: unknown): string | null {
-  if (v === null || v === undefined || v === "") return null;
-  if (v instanceof Date) {
-    if (isNaN(v.getTime())) return null;
-    const year = v.getFullYear();
-    const month = String(v.getMonth() + 1).padStart(2, "0");
-    const day = String(v.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-  if (typeof v === "number") return excelSerialToISO(v);
-  const s = String(v).trim();
-  if (!s) return null;
-
-  // Formato YYYY-MM-DD o YYYY/MM/DD o YYYY.MM.DD
-  let m = s.match(/^(\d{4})[-/. ](\d{1,2})[-/. ](\d{1,2})/);
-  if (m && m[1] && m[2] && m[3]) {
-    const y = parseInt(m[1], 10);
-    const mo = parseInt(m[2], 10);
-    const d = parseInt(m[3], 10);
-    if (y >= 1990 && y <= 2100 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
-      return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
-  }
-
-  // Formato DD-MM-YYYY o DD/MM/YYYY o DD.MM.YYYY
-  m = s.match(/^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{2,4})/);
-  if (m && m[1] && m[2] && m[3]) {
-    const d = parseInt(m[1], 10);
-    const mo = parseInt(m[2], 10);
-    let y = parseInt(m[3], 10);
-    if (y < 100) y = 2000 + y;
-    if (y >= 1990 && y <= 2100 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
-      return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
-  }
-
-  // Formato DD-MMM-YYYY (ej. 15-ENE-2024, 01-FEB-2025)
-  const mText = s.match(/^(\d{1,2})[-/. ]([A-Za-z]{3,10})[-/. ](\d{2,4})/);
-  if (mText && mText[1] && mText[2] && mText[3]) {
-    const d = parseInt(mText[1], 10);
-    const mo = parseMonth(mText[2]);
-    let y = parseInt(mText[3], 10);
-    if (y < 100) y = 2000 + y;
-    if (mo && y >= 1990 && y <= 2100 && d >= 1 && d <= 31) {
-      return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
-  }
-
-  // Compacto YYYYMMDD
-  if (/^\d{8}$/.test(s)) {
-    const y = parseInt(s.slice(0, 4), 10);
-    const mo = parseInt(s.slice(4, 6), 10);
-    const d = parseInt(s.slice(6, 8), 10);
-    if (y >= 1990 && y <= 2100 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31) {
-      return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
-  }
-
-  // Si es un número serial en texto (ej. "45230")
-  const n = Number(s);
-  if (Number.isFinite(n) && n > 25000 && n < 75000) return excelSerialToISO(n);
-  return null;
-}
 
 export function normalizarFila(
   r: Record<string, unknown>,

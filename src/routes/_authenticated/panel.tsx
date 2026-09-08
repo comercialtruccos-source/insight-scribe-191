@@ -178,9 +178,6 @@ function Panel() {
     if (tipoRango === "personalizado") {
       fDesde = fechaDesde.trim() || null;
       fHasta = fechaHasta.trim() || null;
-    } else if (tipoRango === "anio") {
-      anioVal = anio !== "todos" ? Number(anio) : null;
-      mesVal = mes !== "todos" ? Number(mes) : null;
     } else if (tipoRango === "ultimos12") {
       const hoy = new Date();
       const hace12 = new Date();
@@ -193,6 +190,10 @@ function Panel() {
       hace6.setMonth(hoy.getMonth() - 6);
       fDesde = hace6.toISOString().slice(0, 10);
       fHasta = hoy.toISOString().slice(0, 10);
+    } else {
+      // Modo "anio" o "todo" con año/mes seleccionados
+      if (anio !== "todos") anioVal = Number(anio);
+      if (mes !== "todos") mesVal = Number(mes);
     }
 
     return {
