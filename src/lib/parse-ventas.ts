@@ -185,6 +185,139 @@ const MESES_MAP: Record<string, number> = {
   "12": 12,
 };
 
+export const NUMERICOS = ["cantidad", "valor", "tr", "costo", "costo_total"] as const;
+
+export function toNumber(val: unknown): number | null {
+  if (val === null || val === undefined) return null;
+  if (typeof val === "number") return isNaN(val) ? null : val;
+  const str = String(val).trim();
+  if (!str) return null;
+
+  let limpio = str.replace(/[$ ]/g, "");
+  let negativo = false;
+  if (limpio.startsWith("(") && limpio.endsWith(")")) {
+    negativo = true;
+    limpio = limpio.slice(1, -1).trim();
+  } else if (limpio.startsWith("-")) {
+    negativo = true;
+    limpio = limpio.slice(1).trim();
+  }
+
+  const ultimoPunto = limpio.lastIndexOf(".");
+  const ultimaComa = limpio.lastIndexOf(",");
+
+  if (ultimaComa > ultimoPunto && ultimaComa === limpio.length - 3) {
+    limpio = limpio.replace(/\./g, "").replace(",", ".");
+  } else if (ultimoPunto > ultimaComa && ultimoPunto === limpio.length - 3) {
+    limpio = limpio.replace(/,/g, "");
+  } else {
+    limpio = limpio.replace(/[.,]/g, "");
+  }
+
+  const num = parseFloat(limpio);
+  if (isNaN(num)) return null;
+  return negativo ? -num : num;
+}
+
+export function toText(val: unknown): string | null {
+  if (val === null || val === undefined) return null;
+  const str = String(val).trim();
+  return str === "" ? null : str;
+}
+
+export function parseMonth(val: unknown): number | null {
+  if (val === null || val === undefined) return null;
+  if (typeof val === "number") {
+    if (val >= 1 && val <= 12) return Math.round(val);
+    return null;
+  }
+  const str = String(val).trim();
+  if (!str) return null;
+  const num = parseInt(str, 10);
+  if (!isNaN(num) && num >= 1 && num <= 12) return num;
+
+  const n = norm(str);
+  if (MESES_MAP[n]) return MESES_MAP[n];
+
+  for (const [k, v] of Object.entries(MESES_MAP)) {
+    if (n.startsWith(k) || k.startsWith(n)) return v;
+  }
+  return null;
+}
+
+export function parseYear(val: unknown): number | null {
+  if (val === null || val === undefined) return null;
+  if (typeof val === "number") {
+    if (val >= 1990 && val <= 2040) return Math.round(val);
+    return null;
+  }
+  const str = String(val).trim();
+  if (!str) return null;
+  const match = str.match(/\b(20\d{2}|19\d{2})\b/);
+  if (match && match[1]) {
+    return parseInt(match[1], 10);
+  }
+  const num = parseInt(str, 10);
+  if (!isNaN(num) && num >= 1990 && num <= 2040) return num;
+  return null;
+}
+
+export function toDate(val: unknown): string | null {
+  if (val === null || val === undefined) return null;
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    return val.toISOString().slice(0, 10);
+  }
+  if (typeof val === "number" && val > 30000 && val < 60000) {
+    const epoch = new Date(Math.round((val - 25569) * 86400 * 1000));
+    if (!isNaN(epoch.getTime())) {
+      return epoch.toISOString().slice(0, 10);
+    }
+  }
+
+  const str = String(val).trim();
+  if (!str) return null;
+
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch && isoMatch[1] && isoMatch[2] && isoMatch[3]) {
+    const y = parseInt(isoMatch[1], 10);
+    const m = parseInt(isoMatch[2], 10);
+    const d = parseInt(isoMatch[3], 10);
+    if (y >= 1990 && y <= 2040 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+
+  const latMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (latMatch && latMatch[1] && latMatch[2] && latMatch[3]) {
+    const d = parseInt(latMatch[1], 10);
+    const m = parseInt(latMatch[2], 10);
+    const y = parseInt(latMatch[3], 10);
+    if (y >= 1990 && y <= 2040 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+
+  const textMatch = str.match(/^(\d{1,2})[-/ ]([A-Za-z]{3,10})[-/ ](\d{4})/);
+  if (textMatch && textMatch[1] && textMatch[2] && textMatch[3]) {
+    const d = parseInt(textMatch[1], 10);
+    const m = parseMonth(textMatch[2]);
+    const y = parseInt(textMatch[3], 10);
+    if (m && y >= 1990 && y <= 2040 && d >= 1 && d <= 31) {
+      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    if (y >= 1990 && y <= 2040) {
+      return d.toISOString().slice(0, 10);
+    }
+  }
+
+  return null;
+}
+
 const MAPA: Record<string, keyof VentaRow> = {
   // Transacción / Factura / Documento
   TRANSACCION: "transaccion",
@@ -475,6 +608,88 @@ const MAPA: Record<string, keyof VentaRow> = {
   CODCOLOR: "cod_color",
   CODIGOCOLOR: "cod_color",
   CODIGODELCOLOR: "cod_color",
+
+  // Cantidad / Unidades
+  CANTIDAD: "cantidad",
+  UNIDADES: "cantidad",
+  CANT: "cantidad",
+  QTY: "cantidad",
+  QUANTITY: "cantidad",
+  UNIDAD: "cantidad",
+  UND: "cantidad",
+  UNDS: "cantidad",
+  NUMEROUNIDADES: "cantidad",
+  CANTIDADVENDIDA: "cantidad",
+  CANTIDADTOTAL: "cantidad",
+  UNIDADESVENDIDAS: "cantidad",
+  CANTTOTAL: "cantidad",
+  CANTIDADPRENDAS: "cantidad",
+  NUMUNIDADES: "cantidad",
+  TOTALUNIDADES: "cantidad",
+
+  // Valor / Ventas / Ingresos
+  VALOR: "valor",
+  VENTA: "valor",
+  VALORTOTAL: "valor",
+  TOTAL: "valor",
+  TOTALVENTA: "valor",
+  VALORVENTA: "valor",
+  VENTATOTAL: "valor",
+  MONTO: "valor",
+  IMPORTE: "valor",
+  INGRESOS: "valor",
+  PRECIOTOTAL: "valor",
+  SUBTOTAL: "valor",
+  VRVENTA: "valor",
+  VRBRUTO: "valor",
+  VALORNETO: "valor",
+  NETO: "valor",
+  VLRVENTA: "valor",
+  VLRTOTAL: "valor",
+  VALORTOT: "valor",
+  VLRBRUTO: "valor",
+  VALORBRUTO: "valor",
+  VALORTOTALVENTA: "valor",
+  VALOR_TOTAL: "valor",
+  TOTAL_VENTA: "valor",
+  PRECIO_TOTAL: "valor",
+  VALORFACTURA: "valor",
+  TOTALFACTURA: "valor",
+  PRECIO: "valor",
+  PRECIOVENTA: "valor",
+
+  // TR / Tasa
+  TR: "tr",
+  TASAREFERENCIA: "tr",
+  TASA: "tr",
+  TASACAMBIO: "tr",
+  TRC: "tr",
+  TIPOREFERENCIA: "tr",
+
+  // Costo
+  COSTO: "costo",
+  COSTOUNITARIO: "costo",
+  COSTO_UNITARIO: "costo",
+  COSTOESTANDAR: "costo",
+  VALORCOSTO: "costo",
+  VLRCOSTO: "costo",
+  COSTOU: "costo",
+  VRCOSTO: "costo",
+  UNITCOST: "costo",
+  COST: "costo",
+  COSTO_U: "costo",
+  PRECIOCOSTO: "costo",
+
+  // Costo Total
+  COSTOTOTAL: "costo_total",
+  COSTO_TOTAL: "costo_total",
+  TOTALCOSTO: "costo_total",
+  VLRCOSTOTOTAL: "costo_total",
+  VALORCOSTOTOTAL: "costo_total",
+  VRCOSTOTOTAL: "costo_total",
+  TOTALCOST: "costo_total",
+  COSTOS_TOTALES: "costo_total",
+  COSTOTOT: "costo_total",
 };
 
 export function normalizarFila(
@@ -620,9 +835,15 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
           const ignoradas: string[] = [];
 
           for (const h of headers) {
-            const campo = MAPA[norm(h)];
-            if (campo) detectados.add(campo);
-            else ignoradas.push(h);
+            const normH = norm(h);
+            const campo = MAPA[normH];
+            if (campo) {
+              detectados.add(campo);
+            } else if (normH.match(/\b(20\d{2})\b/)) {
+              detectados.add("anio");
+            } else {
+              ignoradas.push(h);
+            }
           }
 
           const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
