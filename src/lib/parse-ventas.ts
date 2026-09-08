@@ -864,6 +864,49 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
     });
   }
 
+  // Si es Excel (.xlsx, .xls)
+  try {
+    const buffer = await file.slice(0, Math.min(file.size, 1024 * 1024)).arrayBuffer();
+    const wb = XLSX.read(buffer, { type: "array", dense: true, sheetRows: 2 });
+    if (wb.SheetNames.length > 0) {
+      const sheetName = wb.SheetNames[0]!;
+      const sheet = wb.Sheets[sheetName]!;
+      const rawRows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
+      if (rawRows.length > 0 && Array.isArray(rawRows[0])) {
+        const headers = rawRows[0].map((h) => String(h ?? "").trim()).filter(Boolean);
+        const detectados = new Set<string>();
+        const ignoradas: string[] = [];
+
+        for (const h of headers) {
+          const normH = norm(h);
+          const campo = MAPA[normH];
+          if (campo) {
+            detectados.add(campo);
+          } else if (normH.match(/\b(20\d{2})\b/)) {
+            detectados.add("anio");
+          } else {
+            ignoradas.push(h);
+          }
+        }
+
+        const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
+          const campo = MAPA[norm(c)];
+          return campo ? !detectados.has(campo) : false;
+        });
+
+        return {
+          columnasDetectadas: [...detectados],
+          columnasFaltantes: faltantes,
+          columnasIgnoradas: ignoradas,
+          esCSV: false,
+          tamanoBytes: file.size,
+        };
+      }
+    }
+  } catch {
+    // Fallback silencioso si el slice no es un zip válido
+  }
+
   return {
     columnasDetectadas: [],
     columnasFaltantes: [],

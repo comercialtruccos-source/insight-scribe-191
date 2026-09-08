@@ -304,11 +304,11 @@ function Panel() {
     try {
       const meta = await inspeccionarEncabezados(file);
       const avisos: string[] = [];
-      if (meta.columnasFaltantes.length > 0) {
-        avisos.push(`Columnas no detectadas: ${meta.columnasFaltantes.join(", ")}`);
+      if (meta.columnasDetectadas.length > 0) {
+        avisos.push(`✓ ${meta.columnasDetectadas.length} columnas reconocidas y listas para procesar.`);
       }
       if (meta.columnasIgnoradas.length > 0) {
-        avisos.push(`Columnas adicionales ignoradas: ${meta.columnasIgnoradas.join(", ")}`);
+        avisos.push(`Columnas adicionales no mapeadas: ${meta.columnasIgnoradas.join(", ")}`);
       }
       setAviso(avisos);
     } catch {
