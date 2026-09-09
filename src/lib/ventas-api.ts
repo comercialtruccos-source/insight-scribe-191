@@ -9,6 +9,7 @@ export type FiltrosBI = {
   marca_id?: number | null | undefined;
   vendedor_id?: number | null | undefined;
   zona_id?: number | null | undefined;
+  ciudad_id?: number | null | undefined;
 };
 
 export type CatalogoItem = {
@@ -78,6 +79,9 @@ export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or:
   if (filtros.zona_id) {
     q = q.or(`zona_id.eq.${filtros.zona_id},zona_colombia_id.eq.${filtros.zona_id}`);
   }
+  if (filtros.ciudad_id) {
+    q = q.eq("ciudad_id", filtros.ciudad_id);
+  }
 
   return q;
 }
@@ -116,6 +120,9 @@ export function cumpleFiltros(r: Record<string, any>, filtros: FiltrosBI): boole
     const z1 = r.zona_id ? Number(r.zona_id) : null;
     const zc = r.zona_colombia_id ? Number(r.zona_colombia_id) : null;
     if (z1 !== filtros.zona_id && zc !== filtros.zona_id) return false;
+  }
+  if (filtros.ciudad_id && "ciudad_id" in r && r.ciudad_id !== null && r.ciudad_id !== undefined) {
+    if (Number(r.ciudad_id) !== filtros.ciudad_id) return false;
   }
   return true;
 }

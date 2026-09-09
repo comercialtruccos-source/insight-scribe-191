@@ -160,6 +160,7 @@ function Panel() {
   const [marcaId, setMarcaId] = useState<string>("todos");
   const [vendedorId, setVendedorId] = useState<string>("todos");
   const [zonaId, setZonaId] = useState<string>("todos");
+  const [ciudadId, setCiudadId] = useState<string>("todos");
 
   // Explorador de ubicaciones (Zonas y Ciudades) en Dashboard 1
   const [zonaUbicacionD1, setZonaUbicacionD1] = useState<string>("todas");
@@ -239,8 +240,9 @@ function Panel() {
       marca_id: marcaId !== "todos" ? Number(marcaId) : null,
       vendedor_id: vendedorId !== "todos" ? Number(vendedorId) : null,
       zona_id: zonaId !== "todos" ? Number(zonaId) : null,
+      ciudad_id: ciudadId !== "todos" ? Number(ciudadId) : null,
     };
-  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, rangoTotal?.fechaMax]);
+  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, ciudadId, rangoTotal?.fechaMax]);
 
   const hayFiltrosActivos =
     tipoRango !== "todo" ||
@@ -250,6 +252,7 @@ function Panel() {
     marcaId !== "todos" ||
     vendedorId !== "todos" ||
     zonaId !== "todos" ||
+    ciudadId !== "todos" ||
     Boolean(fechaDesde) ||
     Boolean(fechaHasta);
 
@@ -263,6 +266,7 @@ function Panel() {
     setMarcaId("todos");
     setVendedorId("todos");
     setZonaId("todos");
+    setCiudadId("todos");
   };
 
   // Carga unificada de ventas para todos los dashboards
@@ -297,6 +301,11 @@ function Panel() {
     if (vendedorId === "todos") return null;
     return catalogos?.vendedores?.find((v) => String(v.id) === String(vendedorId))?.nombre || null;
   }, [vendedorId, catalogos]);
+
+  const ciudadSeleccionadaObj = useMemo(() => {
+    if (ciudadId === "todos") return null;
+    return catalogos?.ciudades?.find((c) => String(c.id) === String(ciudadId)) || null;
+  }, [ciudadId, catalogos]);
 
   const ciudadesFiltradasD1 = useMemo(() => {
     if (!d1) return [];
@@ -742,6 +751,21 @@ function Panel() {
               </SelectContent>
             </Select>
 
+            {/* Ciudad */}
+            <Select value={ciudadId} onValueChange={setCiudadId}>
+              <SelectTrigger className={`h-8 w-[140px] text-xs bg-background ${ciudadId !== "todos" ? "border-emerald-500 font-semibold text-emerald-700 dark:text-emerald-300" : ""}`}>
+                <SelectValue placeholder="Ciudad" />
+              </SelectTrigger>
+              <SelectContent className="max-h-72 overflow-y-auto">
+                <SelectItem value="todos">Todas las Ciudades</SelectItem>
+                {(catalogos?.ciudades || []).map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             {hayFiltrosActivos && (
               <Button
                 variant="outline"
@@ -1098,7 +1122,7 @@ function Panel() {
 
             {/* Fila 2: Aporte por Vendedor & Distribución Geográfica por Zonas */}
             {/* ========================================================================= */}
-            {/* SECCIÓN DE UBICACIONES: ZONAS Y CIUDADES DE VENTAS */}
+            {/* SECCIÓN DE UBICACIONES: ZONAS Y CIUDADES DE VENTAS (FILTRO INTERACTIVO) */}
             {/* ========================================================================= */}
             <Card className="border-border/80 shadow-sm">
               <CardHeader className="pb-3 border-b border-border/40">
@@ -1117,6 +1141,21 @@ function Panel() {
                           Nacional / Todos los Vendedores
                         </Badge>
                       )}
+                      {ciudadSeleccionadaObj && (
+                        <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-sm animate-pulse">
+                          <span>Ciudad Activa: {ciudadSeleccionadaObj.nombre}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCiudadId("todos");
+                            }}
+                            className="ml-1 hover:bg-emerald-800 rounded-full p-0.5"
+                          >
+                            ✕
+                          </button>
+                        </Badge>
+                      )}
                       <Badge variant="secondary" className="text-xs">
                         {(d1?.distribucionZonas || []).length} Zonas
                       </Badge>
@@ -1125,9 +1164,11 @@ function Panel() {
                       </Badge>
                     </div>
                     <CardDescription className="text-xs">
-                      {vendedorSeleccionadoNombre
-                        ? `Analizando las zonas territoriales y municipios/ciudades donde ${vendedorSeleccionadoNombre} ha tenido sus ventas.`
-                        : "Distribución geográfica de ventas y ciudades con mayor facturación en Colombia."}
+                      {ciudadSeleccionadaObj
+                        ? `Mostrando únicamente los datos de ${ciudadSeleccionadaObj.nombre}. Haz clic en cualquier otra ciudad o en 'Quitar filtro' para restaurar.`
+                        : vendedorSeleccionadoNombre
+                        ? `Analizando las zonas territoriales y municipios/ciudades donde ${vendedorSeleccionadoNombre} ha tenido sus ventas. Haz clic en una ciudad para filtrar todo el dashboard.`
+                        : "Distribución geográfica de ventas. Haz clic en cualquier ciudad para actualizar todos los datos del dashboard a esa ubicación."}
                     </CardDescription>
                   </div>
 
@@ -1183,6 +1224,26 @@ function Panel() {
                     </div>
                   </div>
                 </div>
+
+                {/* Banner de alerta interactivo cuando hay una ciudad seleccionada */}
+                {ciudadSeleccionadaObj && (
+                  <div className="mt-3 flex items-center justify-between p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="font-medium text-foreground">
+                        Filtro interactivo activado: Todos los KPIs, gráficos de vendedores, marcas y referencias reflejan exclusivamente las ventas en <strong>{ciudadSeleccionadaObj.nombre}</strong>.
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCiudadId("todos")}
+                      className="h-6 px-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
+                    >
+                      ✕ Quitar filtro de ciudad
+                    </Button>
+                  </div>
+                )}
               </CardHeader>
 
               <CardContent className="pt-4">
@@ -1195,7 +1256,7 @@ function Panel() {
                           1. Participación por Zonas Comerciales
                         </span>
                         <span className="text-[11px] text-muted-foreground">
-                          Clic en una zona para filtrar sus ciudades
+                          Clic para filtrar ciudades de esa zona
                         </span>
                       </div>
                       {(!d1?.distribucionZonas || d1.distribucionZonas.length === 0) ? (
@@ -1278,11 +1339,14 @@ function Panel() {
                       </div>
                     </div>
 
-                    {/* Gráfico 2: Ciudades y Municipios */}
+                    {/* Gráfico 2: Ciudades y Municipios (Interactivo con clic para filtrar todo el dashboard) */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                          2. {zonaUbicacionD1 === "todas" ? "Top Ciudades Líderes en Facturación" : `Ciudades en Zona: ${zonaUbicacionD1}`}
+                        <span className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <span>2. {zonaUbicacionD1 === "todas" ? "Top Ciudades Líderes en Facturación" : `Ciudades en Zona: ${zonaUbicacionD1}`}</span>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                            (Clic para filtrar)
+                          </span>
                         </span>
                         <Badge variant="outline" className="text-[11px]">
                           {ciudadesFiltradasD1.length} {ciudadesFiltradasD1.length === 1 ? "Ciudad" : "Ciudades"}
@@ -1300,6 +1364,21 @@ function Panel() {
                               data={ciudadesFiltradasD1.slice(0, 10)}
                               layout="vertical"
                               margin={{ left: 20, right: 20 }}
+                              onClick={(e) => {
+                                if (e && e.activePayload && e.activePayload[0]) {
+                                  const cItem = e.activePayload[0].payload;
+                                  if (cItem.id) {
+                                    setCiudadId(String(ciudadId) === String(cItem.id) ? "todos" : String(cItem.id));
+                                  } else {
+                                    const match = catalogos?.ciudades?.find(
+                                      (cat) => cat.nombre.toLowerCase().trim() === String(cItem.ciudad).toLowerCase().trim()
+                                    );
+                                    if (match) {
+                                      setCiudadId(String(ciudadId) === String(match.id) ? "todos" : String(match.id));
+                                    }
+                                  }
+                                }
+                              }}
                             >
                               <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                               <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} />
@@ -1307,49 +1386,91 @@ function Panel() {
                               <Tooltip
                                 formatter={(v: number, name: string, item: any) => [
                                   `${formatoCOPFull(v)} (${item.payload.porcentaje}% • ${item.payload.unidades.toLocaleString("es-CO")} unds)`,
-                                  `Ventas en ${item.payload.zona || ""}`,
+                                  `Ventas en ${item.payload.zona || ""} • Clic para filtrar`,
                                 ]}
                               />
-                              <Bar dataKey="venta" fill="#3b82f6" radius={[0, 4, 4, 0]}>
-                                {ciudadesFiltradasD1.slice(0, 10).map((_, i) => (
-                                  <Cell key={`bar-ciudad-${i}`} fill={COLORES[(i + 2) % COLORES.length]} />
-                                ))}
+                              <Bar dataKey="venta" fill="#3b82f6" radius={[0, 4, 4, 0]} className="cursor-pointer">
+                                {ciudadesFiltradasD1.slice(0, 10).map((cEntry, i) => {
+                                  const estaSeleccionada =
+                                    ciudadId !== "todos" &&
+                                    (String(cEntry.id) === String(ciudadId) ||
+                                      ciudadSeleccionadaObj?.nombre.toLowerCase().trim() === cEntry.ciudad.toLowerCase().trim());
+                                  return (
+                                    <Cell
+                                      key={`bar-ciudad-${i}`}
+                                      fill={estaSeleccionada ? "#10b981" : COLORES[(i + 2) % COLORES.length]}
+                                      stroke={estaSeleccionada ? "#059669" : undefined}
+                                      strokeWidth={estaSeleccionada ? 2 : 0}
+                                      opacity={ciudadId === "todos" || estaSeleccionada ? 1 : 0.4}
+                                    />
+                                  );
+                                })}
                               </Bar>
                             </BarChart>
                           </ResponsiveContainer>
                         </div>
                       )}
 
-                      {/* Resumen rápido de ciudades */}
+                      {/* Resumen rápido de ciudades con interacción de clic */}
                       <div className="space-y-1.5 max-h-[80px] overflow-y-auto pr-1">
-                        {ciudadesFiltradasD1.slice(0, 5).map((c, idx) => (
-                          <div key={`${c.ciudad}-${idx}`} className="flex items-center justify-between text-xs border-b border-border/20 pb-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-muted-foreground">#{idx + 1}</span>
-                              <span className="font-semibold text-foreground">{c.ciudad}</span>
-                              <Badge variant="secondary" className="text-[10px] py-0 px-1 font-normal">
-                                {c.zona}
-                              </Badge>
+                        {ciudadesFiltradasD1.slice(0, 5).map((c, idx) => {
+                          const estaSeleccionada =
+                            ciudadId !== "todos" &&
+                            (String(c.id) === String(ciudadId) ||
+                              ciudadSeleccionadaObj?.nombre.toLowerCase().trim() === c.ciudad.toLowerCase().trim());
+                          return (
+                            <div
+                              key={`${c.ciudad}-${idx}`}
+                              onClick={() => {
+                                if (c.id) {
+                                  setCiudadId(String(ciudadId) === String(c.id) ? "todos" : String(c.id));
+                                } else {
+                                  const match = catalogos?.ciudades?.find(
+                                    (cat) => cat.nombre.toLowerCase().trim() === String(c.ciudad).toLowerCase().trim()
+                                  );
+                                  if (match) {
+                                    setCiudadId(String(ciudadId) === String(match.id) ? "todos" : String(match.id));
+                                  }
+                                }
+                              }}
+                              className={`flex items-center justify-between text-xs p-1 rounded cursor-pointer transition-colors ${
+                                estaSeleccionada
+                                  ? "bg-emerald-500/20 border border-emerald-500/40 text-emerald-950 dark:text-emerald-100 font-bold"
+                                  : "hover:bg-muted/50 border-b border-border/20"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-muted-foreground">#{idx + 1}</span>
+                                <span className="font-semibold text-foreground">{c.ciudad}</span>
+                                <Badge variant="secondary" className="text-[10px] py-0 px-1 font-normal">
+                                  {c.zona}
+                                </Badge>
+                                {estaSeleccionada && (
+                                  <Badge className="bg-emerald-600 text-white text-[9px] py-0 px-1">
+                                    Filtro Activo
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">{c.unidades.toLocaleString("es-CO")} unds</span>
+                                <span className="font-semibold text-foreground">{formatoCOP(c.venta)}</span>
+                                <span className="text-emerald-600 font-bold text-[11px]">({c.porcentaje}%)</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground">{c.unidades.toLocaleString("es-CO")} unds</span>
-                              <span className="font-semibold text-foreground">{formatoCOP(c.venta)}</span>
-                              <span className="text-emerald-600 font-bold text-[11px]">({c.porcentaje}%)</span>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
                 ) : (
-                  /* Modo Tabla Territorial */
+                  /* Modo Tabla Territorial con Clic Interactivo */
                   <div className="overflow-x-auto max-h-[380px]">
                     <table className="w-full text-xs text-left">
                       <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0">
                         <tr>
                           <th className="py-2.5 px-3">#</th>
                           <th className="py-2.5 px-3">Zona / Departamento</th>
-                          <th className="py-2.5 px-3">Ciudad / Municipio</th>
+                          <th className="py-2.5 px-3">Ciudad / Municipio (Clic para filtrar)</th>
                           <th className="py-2.5 px-3 text-right">Unidades Vendidas</th>
                           <th className="py-2.5 px-3 text-right">Venta Neta Facturada</th>
                           <th className="py-2.5 px-3 text-right">
@@ -1365,29 +1486,61 @@ function Panel() {
                             </td>
                           </tr>
                         ) : (
-                          ciudadesFiltradasD1.map((loc, idx) => (
-                            <tr key={`${loc.ciudad}-${loc.zona}-${idx}`} className="hover:bg-muted/30 transition-colors">
-                              <td className="py-2.5 px-3 font-bold text-muted-foreground">#{idx + 1}</td>
-                              <td className="py-2.5 px-3 font-medium text-foreground">
-                                <span className="inline-flex items-center gap-1.5">
-                                  <MapPin className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                                  {loc.zona}
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3 font-semibold text-foreground">{loc.ciudad}</td>
-                              <td className="py-2.5 px-3 text-right font-medium text-muted-foreground">
-                                {loc.unidades.toLocaleString("es-CO")}
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                                {formatoCOPFull(loc.venta)}
-                              </td>
-                              <td className="py-2.5 px-3 text-right">
-                                <Badge variant="outline" className="font-semibold text-[11px] bg-primary/5">
-                                  {loc.porcentaje}%
-                                </Badge>
-                              </td>
-                            </tr>
-                          ))
+                          ciudadesFiltradasD1.map((loc, idx) => {
+                            const estaSeleccionada =
+                              ciudadId !== "todos" &&
+                              (String(loc.id) === String(ciudadId) ||
+                                ciudadSeleccionadaObj?.nombre.toLowerCase().trim() === loc.ciudad.toLowerCase().trim());
+                            return (
+                              <tr
+                                key={`${loc.ciudad}-${loc.zona}-${idx}`}
+                                onClick={() => {
+                                  if (loc.id) {
+                                    setCiudadId(String(ciudadId) === String(loc.id) ? "todos" : String(loc.id));
+                                  } else {
+                                    const match = catalogos?.ciudades?.find(
+                                      (cat) => cat.nombre.toLowerCase().trim() === String(loc.ciudad).toLowerCase().trim()
+                                    );
+                                    if (match) {
+                                      setCiudadId(String(ciudadId) === String(match.id) ? "todos" : String(match.id));
+                                    }
+                                  }
+                                }}
+                                className={`cursor-pointer transition-colors ${
+                                  estaSeleccionada
+                                    ? "bg-emerald-500/15 font-semibold text-foreground"
+                                    : "hover:bg-muted/40"
+                                }`}
+                              >
+                                <td className="py-2.5 px-3 font-bold text-muted-foreground">#{idx + 1}</td>
+                                <td className="py-2.5 px-3 font-medium text-foreground">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <MapPin className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                    {loc.zona}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 font-semibold text-foreground flex items-center gap-2">
+                                  <span>{loc.ciudad}</span>
+                                  {estaSeleccionada && (
+                                    <Badge className="bg-emerald-600 text-white text-[9px] py-0 px-1">
+                                      Filtro Activo
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-medium text-muted-foreground">
+                                  {loc.unidades.toLocaleString("es-CO")}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                  {formatoCOPFull(loc.venta)}
+                                </td>
+                                <td className="py-2.5 px-3 text-right">
+                                  <Badge variant="outline" className="font-semibold text-[11px] bg-primary/5">
+                                    {loc.porcentaje}%
+                                  </Badge>
+                                </td>
+                              </tr>
+                            );
+                          })
                         )}
                       </tbody>
                     </table>
