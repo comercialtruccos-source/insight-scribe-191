@@ -92,6 +92,7 @@ import {
   Trash2,
   AlertTriangle,
   Loader2,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -278,7 +279,16 @@ function Panel() {
     [rawVentas, filtros]
   );
   const d1 = useMemo(
-    () => calcularDashboard1Cumplimiento(rawVentas || [], filtros, catalogos?.lineas, catalogos?.marcas),
+    () =>
+      calcularDashboard1Cumplimiento(
+        rawVentas || [],
+        filtros,
+        catalogos?.lineas,
+        catalogos?.marcas,
+        catalogos?.vendedores,
+        catalogos?.zonas,
+        catalogos?.canales
+      ),
     [rawVentas, filtros, catalogos]
   );
   const d2 = useMemo(
@@ -940,10 +950,10 @@ function Panel() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
               <div>
                 <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
-                  Dashboard 1: Cumplimiento y Crecimiento de Ventas
+                  Dashboard 1: Cumplimiento, Participación y Análisis de Ventas
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Evolución cronológica de ventas vs presupuesto (PPTO), crecimiento interanual (YoY) y tasa de devoluciones.
+                  Evolución cronológica de ventas vs presupuesto (PPTO), ranking de vendedores, top referencias, distribución geográfica y mix de líneas/canales.
                 </p>
               </div>
               <Badge variant="outline" className={`font-semibold ${colorSemaforo(d1?.kpis.cumplimientoGlobalPct ?? 0)}`}>
@@ -951,40 +961,54 @@ function Panel() {
               </Badge>
             </div>
 
-            {/* Tarjetas KPI */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* 6 Tarjetas KPI Ejecutivas */}
+            <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
               <CardKpi
                 titulo="Venta Neta Total"
                 valor={formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}
-                subtexto={`Bruta: ${formatoCOP(d1?.kpis.ventaBrutaTotal ?? 0)} • Ppto: ${formatoCOP(d1?.kpis.pptoYTD ?? 0)}`}
+                subtexto={`Bruta: ${formatoCOP(d1?.kpis.ventaBrutaTotal ?? 0)}`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD1}
               />
               <CardKpi
-                titulo="Cumplimiento de Presupuesto"
+                titulo="Cumplimiento PPTO"
                 valor={`${d1?.kpis.cumplimientoGlobalPct ?? 0}%`}
-                subtexto="Semaforización (≥100% Verde, 90-99% Amarillo, <90% Rojo)"
+                subtexto={`Meta: ${formatoCOP(d1?.kpis.pptoYTD ?? 0)}`}
                 icono={<Percent className="h-5 w-5 text-blue-500" />}
                 cargando={cD1}
                 badgeSemaforo={d1?.kpis.cumplimientoGlobalPct}
               />
               <CardKpi
-                titulo="Volumen de Venta"
+                titulo="Volumen Unidades"
                 valor={`${(d1?.kpis.volumenUnidades ?? 0).toLocaleString("es-CO")} unds`}
-                subtexto="Prendas y artículos comercializados"
+                subtexto="Prendas comercializadas"
                 icono={<Package className="h-5 w-5 text-indigo-500" />}
                 cargando={cD1}
               />
               <CardKpi
-                titulo="Tasa de Devolución"
+                titulo="Tasa Devolución"
                 valor={`${d1?.kpis.tasaDevolucionGlobalPct ?? 0}%`}
-                subtexto={`Devoluciones: ${formatoCOP(d1?.kpis.devolucionesTotal ?? 0)}`}
+                subtexto={`Total: ${formatoCOP(d1?.kpis.devolucionesTotal ?? 0)}`}
                 icono={<ArrowDownRight className="h-5 w-5 text-rose-500" />}
+                cargando={cD1}
+              />
+              <CardKpi
+                titulo="Ticket Promedio"
+                valor={formatoCOP(d1?.kpis.ticketPromedio ?? 0)}
+                subtexto={`${(d1?.kpis.totalTransacciones ?? 0).toLocaleString("es-CO")} transacciones`}
+                icono={<Receipt className="h-5 w-5 text-amber-500" />}
+                cargando={cD1}
+              />
+              <CardKpi
+                titulo="Precio Prom. / Prenda"
+                valor={formatoCOP(d1?.kpis.precioPromedioPrenda ?? 0)}
+                subtexto="Por unidad vendida"
+                icono={<Tag className="h-5 w-5 text-cyan-500" />}
                 cargando={cD1}
               />
             </div>
 
-            {/* Gráfico Mixto: Evolución de Todos los Meses Disponibles */}
+            {/* Gráfico Mixto: Evolución Cronológica de Ventas vs Presupuesto */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -993,7 +1017,7 @@ function Panel() {
                       {anio === "todos" ? "Evolución Cronológica Completa de Ventas (Todos los Periodos)" : `Venta Real vs. Presupuesto Mensual (${anio})`}
                     </CardTitle>
                     <CardDescription>
-                      {d1?.meses.length ?? 0} periodos registrados en el documento
+                      {d1?.meses.length ?? 0} periodos registrados en el análisis
                     </CardDescription>
                   </div>
                   <Badge variant="outline">
@@ -1031,12 +1055,188 @@ function Panel() {
               </CardContent>
             </Card>
 
-            {/* Dos Gráficos: Mix de Líneas y Tabla de Meses */}
+            {/* Fila 2: Aporte por Vendedor & Distribución Geográfica por Zonas */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Ranking y Aporte de Vendedores */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <Users className="h-4 w-4 text-blue-500" /> Aporte por Vendedor / Asesor
+                      </CardTitle>
+                      <CardDescription>
+                        Participación % de cada vendedor en el total facturado del periodo
+                      </CardDescription>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      {(d1?.rankingVendedores || []).length} Vendedores
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
+                  {(!d1?.rankingVendedores || d1.rankingVendedores.length === 0) ? (
+                    <div className="h-[200px] grid place-items-center text-sm text-muted-foreground">Sin datos de vendedores</div>
+                  ) : (
+                    d1.rankingVendedores.map((v, i) => (
+                      <div key={v.id ?? v.vendedor ?? i} className="space-y-1.5 p-2 rounded-lg hover:bg-muted/40 transition-colors border border-border/30">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold w-5 text-muted-foreground">#{i + 1}</span>
+                            <span className="font-semibold text-foreground">{v.vendedor}</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-right">
+                            <span className="text-muted-foreground">{v.unidades.toLocaleString("es-CO")} unds</span>
+                            <span className="font-bold text-foreground">{formatoCOPFull(v.venta)}</span>
+                            <Badge variant="outline" className="font-bold bg-primary/10 text-primary border-primary/20 text-[11px] min-w-[50px] justify-center">
+                              {v.porcentaje}%
+                            </Badge>
+                          </div>
+                        </div>
+                        <Progress value={v.porcentaje} className="h-1.5 bg-muted" />
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Distribución Geográfica por Zona Comercial */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-emerald-500" /> Distribución Geográfica por Zonas
+                      </CardTitle>
+                      <CardDescription>
+                        Participación de ventas por regiones y zonas comerciales
+                      </CardDescription>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      {(d1?.distribucionZonas || []).length} Zonas
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {(!d1?.distribucionZonas || d1.distribucionZonas.length === 0) ? (
+                    <div className="h-[280px] grid place-items-center text-sm text-muted-foreground">Sin datos de zonas</div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                      <div className="h-[240px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={d1.distribucionZonas}
+                              dataKey="venta"
+                              nameKey="zona"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              innerRadius={45}
+                              paddingAngle={3}
+                            >
+                              {d1.distribucionZonas.map((_, i) => (
+                                <Cell key={`zona-cell-${i}`} fill={COLORES[i % COLORES.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(v: number) => [formatoCOPFull(v), "Venta"]} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                        {d1.distribucionZonas.map((z, idx) => (
+                          <div key={z.zona} className="flex items-center justify-between text-xs border-b border-border/30 pb-1.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className="h-2.5 w-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: COLORES[idx % COLORES.length] }}
+                              />
+                              <span className="truncate font-medium">{z.zona}</span>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="font-semibold">{formatoCOP(z.venta)}</span>
+                              <span className="text-muted-foreground ml-1.5 font-medium">({z.porcentaje}%)</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Fila 3: Top 10 Referencias / Productos Más Vendidos */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <ShoppingBag className="h-4 w-4 text-purple-500" /> Top 10 Referencias y Productos Más Vendidos
+                    </CardTitle>
+                    <CardDescription>
+                      Prendas líderes en facturación, rotación de unidades y precio promedio
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline">Top 10 SKUs</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
+                    <tr>
+                      <th className="py-2.5 px-3">#</th>
+                      <th className="py-2.5 px-3">SKU / Ref</th>
+                      <th className="py-2.5 px-3">Nombre del Producto</th>
+                      <th className="py-2.5 px-3">Línea</th>
+                      <th className="py-2.5 px-3 text-right">Unidades</th>
+                      <th className="py-2.5 px-3 text-right">Precio Prom.</th>
+                      <th className="py-2.5 px-3 text-right">Venta Neta</th>
+                      <th className="py-2.5 px-3 text-right">% Participación</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {(!d1?.topReferencias || d1.topReferencias.length === 0) ? (
+                      <tr>
+                        <td colSpan={8} className="py-6 text-center text-muted-foreground">
+                          Sin referencias registradas para el periodo seleccionado
+                        </td>
+                      </tr>
+                    ) : (
+                      d1.topReferencias.map((ref, idx) => (
+                        <tr key={ref.sku || idx} className="hover:bg-muted/30 transition-colors">
+                          <td className="py-2.5 px-3 font-bold text-muted-foreground">
+                            {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono font-medium text-foreground">{ref.sku}</td>
+                          <td className="py-2.5 px-3 font-semibold text-foreground">{ref.producto}</td>
+                          <td className="py-2.5 px-3 text-muted-foreground">{ref.linea}</td>
+                          <td className="py-2.5 px-3 text-right font-medium">{ref.unidades.toLocaleString("es-CO")}</td>
+                          <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(ref.precioPromedio)}</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                            {formatoCOPFull(ref.valor)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <Badge variant="outline" className="font-semibold text-[11px] bg-primary/5">
+                              {ref.porcentaje}%
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+
+            {/* Fila 4: Mix por Línea de Producto & Mix por Canal Comercial */}
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Mix por Línea de Producto</CardTitle>
-                  <CardDescription>Aporte de cada línea al total de facturación</CardDescription>
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-violet-500" /> Mix por Línea de Producto
+                  </CardTitle>
+                  <CardDescription>Aporte y cumplimiento de cada línea al total de facturación</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
@@ -1057,42 +1257,71 @@ function Panel() {
                 </CardContent>
               </Card>
 
-              {/* Tabla Resumen Mes a Mes */}
+              {/* Mix de Canales */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Detalle Cronológico Mes a Mes</CardTitle>
-                  <CardDescription>Facturación y cumplimiento por periodo</CardDescription>
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-blue-500" /> Mix por Canal Comercial
+                  </CardTitle>
+                  <CardDescription>Participación de ventas por canal de comercialización</CardDescription>
                 </CardHeader>
-                <CardContent className="overflow-x-auto max-h-[300px]">
-                  <table className="w-full text-xs text-left">
-                    <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0">
-                      <tr>
-                        <th className="py-2 px-2.5">Periodo</th>
-                        <th className="py-2 px-2.5 text-right">Venta Real</th>
-                        <th className="py-2 px-2.5 text-right">PPTO</th>
-                        <th className="py-2 px-2.5 text-right">% Cumpl.</th>
-                        <th className="py-2 px-2.5 text-right">Unidades</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40">
-                      {(d1?.meses || []).map((m, idx) => (
-                        <tr key={m.periodo || idx} className="hover:bg-muted/30">
-                          <td className="py-2 px-2.5 font-medium">{m.nombreMes}</td>
-                          <td className="py-2 px-2.5 text-right font-semibold">{formatoCOP(m.ventaReal)}</td>
-                          <td className="py-2 px-2.5 text-right text-muted-foreground">{formatoCOP(m.ppto)}</td>
-                          <td className="py-2 px-2.5 text-right">
-                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${colorSemaforo(m.cumplimientoPct)}`}>
-                              {m.cumplimientoPct}%
-                            </span>
-                          </td>
-                          <td className="py-2 px-2.5 text-right text-muted-foreground">{m.unidades.toLocaleString("es-CO")}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <CardContent>
+                  <div className="h-[280px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={d1?.mixCanales || []} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} />
+                        <YAxis type="category" dataKey="canal" width={100} tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(v: number) => [formatoCOPFull(v), "Ventas"]} />
+                        <Bar dataKey="venta" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                          {(d1?.mixCanales || []).map((_, i) => (
+                            <Cell key={`mix-canal-${i}`} fill={COLORES[(i + 3) % COLORES.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </CardContent>
               </Card>
             </div>
+
+            {/* Fila 5: Tabla Detalle Cronológico Mes a Mes */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-slate-500" /> Detalle Cronológico Mes a Mes
+                </CardTitle>
+                <CardDescription>Facturación, presupuesto y cumplimiento por periodo registrado</CardDescription>
+              </CardHeader>
+              <CardContent className="overflow-x-auto max-h-[340px]">
+                <table className="w-full text-xs text-left">
+                  <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0">
+                    <tr>
+                      <th className="py-2 px-2.5">Periodo</th>
+                      <th className="py-2 px-2.5 text-right">Venta Real</th>
+                      <th className="py-2 px-2.5 text-right">PPTO</th>
+                      <th className="py-2 px-2.5 text-right">% Cumpl.</th>
+                      <th className="py-2 px-2.5 text-right">Unidades</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {(d1?.meses || []).map((m, idx) => (
+                      <tr key={m.periodo || idx} className="hover:bg-muted/30">
+                        <td className="py-2 px-2.5 font-medium">{m.nombreMes}</td>
+                        <td className="py-2 px-2.5 text-right font-semibold">{formatoCOP(m.ventaReal)}</td>
+                        <td className="py-2 px-2.5 text-right text-muted-foreground">{formatoCOP(m.ppto)}</td>
+                        <td className="py-2 px-2.5 text-right">
+                          <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${colorSemaforo(m.cumplimientoPct)}`}>
+                            {m.cumplimientoPct}%
+                          </span>
+                        </td>
+                        <td className="py-2 px-2.5 text-right text-muted-foreground">{m.unidades.toLocaleString("es-CO")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* ========================================================================= */}

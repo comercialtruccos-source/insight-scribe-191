@@ -627,23 +627,33 @@ export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<Da
 // =========================================================================
 // DASHBOARD 1: CUMPLIMIENTO Y CRECIMIENTO DE VENTAS (NIVEL DIRECTIVO)
 // =========================================================================
-export type CumplimientoMes = {
-  anio: number;
-  mes: number;
-  nombreMes: string;
-  periodo: string;
-  ventaReal: number;
-  ventaAnterior: number;
-  ppto: number;
-  cumplimientoPct: number;
-  crecimientoYoY: number;
-  devolucionesMonto: number;
-  tasaDevolucionPct: number;
+export type VendedorAporte = {
+  id: number | null;
+  vendedor: string;
+  venta: number;
   unidades: number;
+  porcentaje: number;
 };
 
-export type MixLinea = {
+export type ReferenciaTop = {
+  sku: string;
+  producto: string;
   linea: string;
+  unidades: number;
+  valor: number;
+  precioPromedio: number;
+  porcentaje: number;
+};
+
+export type ZonaAporte = {
+  zona: string;
+  venta: number;
+  unidades: number;
+  porcentaje: number;
+};
+
+export type CanalAporte = {
+  canal: string;
   venta: number;
   unidades: number;
   porcentaje: number;
@@ -659,26 +669,46 @@ export type DataDashboard1 = {
     devolucionesTotal: number;
     tasaDevolucionGlobalPct: number;
     volumenUnidades: number;
+    ticketPromedio: number;
+    precioPromedioPrenda: number;
+    totalTransacciones: number;
   };
   meses: CumplimientoMes[];
   mixLineas: MixLinea[];
   mixMarcas: { marca: string; venta: number; porcentaje: number }[];
+  rankingVendedores: VendedorAporte[];
+  topReferencias: ReferenciaTop[];
+  distribucionZonas: ZonaAporte[];
+  mixCanales: CanalAporte[];
 };
 
 export function calcularDashboard1Cumplimiento(
   data: FilaFactVentas[],
   filtros: FiltrosBI,
-  lineasCatalogo?: CatalogoItem[],
-  marcasCatalogo?: CatalogoItem[]
+  catalogos?: {
+    lineas?: CatalogoItem[];
+    marcas?: CatalogoItem[];
+    vendedores?: CatalogoItem[];
+    canales?: CatalogoItem[];
+    zonas?: CatalogoItem[];
+  }
 ): DataDashboard1 {
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-  const lineaMap = new Map<number, string>((lineasCatalogo || []).map((l) => [l.id, l.nombre]));
-  const marcaMap = new Map<number, string>((marcasCatalogo || []).map((m) => [m.id, m.nombre]));
+  const lineaMap = new Map<number, string>((catalogos?.lineas || []).map((l) => [l.id, l.nombre]));
+  const marcaMap = new Map<number, string>((catalogos?.marcas || []).map((m) => [m.id, m.nombre]));
+  const vendedorMap = new Map<number, string>((catalogos?.vendedores || []).map((v) => [v.id, v.nombre]));
+  const canalMap = new Map<number, string>((catalogos?.canales || []).map((c) => [c.id, c.nombre]));
+  const zonaMap = new Map<number, string>((catalogos?.zonas || []).map((z) => [z.id, z.nombre]));
 
   const periodoMap = new Map<string, { anio: number; mes: number; venta: number; unidades: number; dev: number }>();
   const lineaVentaMap = new Map<string, { venta: number; unidades: number }>();
   const marcaVentaMap = new Map<string, number>();
+  const vendedorVentaMap = new Map<string, { id: number | null; venta: number; unidades: number }>();
+  const refVentaMap = new Map<string, { producto: string; linea: string; unidades: number; valor: number }>();
+  const zonaVentaMap = new Map<string, { venta: number; unidades: number }>();
+  const canalVentaMap = new Map<string, { venta: number; unidades: number }>();
+  const transaccionesSet = new Set<string>();
 
   let totalVentas = 0;
   let totalUnidades = 0;
@@ -706,7 +736,7 @@ export function calcularDashboard1Cumplimiento(
     }
     const currP = periodoMap.get(pKey)!;
     
-    // Venta Neta = SUM(valor) incluyendo valores negativos de devoluciones
+    // Venta Neta = SUM(valor) incluyendo notas crédito
     currP.venta += v;
     totalVentas += v;
 
@@ -717,16 +747,51 @@ export function calcularDashboard1Cumplimiento(
     currP.unidades += cant;
     totalUnidades += cant;
 
+    if (r.transaccion) {
+      transaccionesSet.add(String(r.transaccion));
+    }
+
+    // Líneas
     const lNom = (r.linea_id && lineaMap.get(r.linea_id)) || "General / Confección";
     const prevL = lineaVentaMap.get(lNom) || { venta: 0, unidades: 0 };
     lineaVentaMap.set(lNom, { venta: prevL.venta + v, unidades: prevL.unidades + cant });
 
+    // Marcas
     const mNom = (r.marca_id && marcaMap.get(r.marca_id)) || "Trucco's";
     marcaVentaMap.set(mNom, (marcaVentaMap.get(mNom) || 0) + v);
+
+    // Vendedores
+    const vId = r.vendedor_id || r.vendedor2_id || null;
+    const vNom = (vId && vendedorMap.get(vId)) || "Ventas Directas / Mostrador";
+    const prevV = vendedorVentaMap.get(vNom) || { id: vId, venta: 0, unidades: 0 };
+    vendedorVentaMap.set(vNom, { id: vId, venta: prevV.venta + v, unidades: prevV.unidades + cant });
+
+    // Referencias / SKUs
+    const sku = r.sku || r.prenda_hgi || "N/A";
+    const prodNom = r.producto || r.prenda_hgi || "Prenda Trucco's";
+    const prevRef = refVentaMap.get(sku) || { producto: prodNom, linea: lNom, unidades: 0, valor: 0 };
+    refVentaMap.set(sku, {
+      producto: prodNom,
+      linea: lNom,
+      unidades: prevRef.unidades + cant,
+      valor: prevRef.valor + v,
+    });
+
+    // Zonas / Regiones
+    const zId = r.zona_id || r.zona_colombia_id || null;
+    const zNom = (zId && zonaMap.get(zId)) || "Nacional / Sin Zona";
+    const prevZ = zonaVentaMap.get(zNom) || { venta: 0, unidades: 0 };
+    zonaVentaMap.set(zNom, { venta: prevZ.venta + v, unidades: prevZ.unidades + cant });
+
+    // Canales
+    const cId = r.canal_id || null;
+    const cNom = (cId && canalMap.get(cId)) || "Mayorista General";
+    const prevC = canalVentaMap.get(cNom) || { venta: 0, unidades: 0 };
+    canalVentaMap.set(cNom, { venta: prevC.venta + v, unidades: prevC.unidades + cant });
   }
 
+  // Meses cronológicos
   let meses: CumplimientoMes[] = [];
-
   if (filtros.anio && !filtros.fecha_desde) {
     meses = nombresMes.map((nombre, idx) => {
       const mNum = idx + 1;
@@ -778,7 +843,7 @@ export function calcularDashboard1Cumplimiento(
       linea,
       venta: val.venta,
       unidades: val.unidades,
-      porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 100) : 0,
+      porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
     }))
     .sort((a, b) => b.venta - a.venta);
 
@@ -786,12 +851,56 @@ export function calcularDashboard1Cumplimiento(
     .map(([marca, venta]) => ({
       marca,
       venta,
-      porcentaje: totalVentas > 0 ? Math.round((venta / totalVentas) * 100) : 0,
+      porcentaje: totalVentas > 0 ? Math.round((venta / totalVentas) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.venta - a.venta);
+
+  const rankingVendedores: VendedorAporte[] = Array.from(vendedorVentaMap.entries())
+    .map(([vendedor, val]) => ({
+      id: val.id,
+      vendedor,
+      venta: val.venta,
+      unidades: val.unidades,
+      porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.venta - a.venta);
+
+  const topReferencias: ReferenciaTop[] = Array.from(refVentaMap.entries())
+    .map(([sku, val]) => ({
+      sku,
+      producto: val.producto,
+      linea: val.linea,
+      unidades: val.unidades,
+      valor: val.valor,
+      precioPromedio: val.unidades > 0 ? Math.round(val.valor / val.unidades) : 0,
+      porcentaje: totalVentas > 0 ? Math.round((val.valor / totalVentas) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 15);
+
+  const distribucionZonas: ZonaAporte[] = Array.from(zonaVentaMap.entries())
+    .map(([zona, val]) => ({
+      zona,
+      venta: val.venta,
+      unidades: val.unidades,
+      porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.venta - a.venta);
+
+  const mixCanales: CanalAporte[] = Array.from(canalVentaMap.entries())
+    .map(([canal, val]) => ({
+      canal,
+      venta: val.venta,
+      unidades: val.unidades,
+      porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
     }))
     .sort((a, b) => b.venta - a.venta);
 
   const totalPpto = meses.reduce((a, b) => a + b.ppto, 0);
   const totalVentaBruta = totalVentas + totalDevoluciones;
+  const numTransacciones = transaccionesSet.size > 0 ? transaccionesSet.size : totalUnidades;
+  const ticketPromedio = numTransacciones > 0 ? Math.round(totalVentas / numTransacciones) : 0;
+  const precioPromedioPrenda = totalUnidades > 0 ? Math.round(totalVentas / totalUnidades) : 0;
 
   return {
     kpis: {
@@ -803,20 +912,26 @@ export function calcularDashboard1Cumplimiento(
       devolucionesTotal: totalDevoluciones,
       tasaDevolucionGlobalPct: totalVentaBruta > 0 ? Math.round((totalDevoluciones / totalVentaBruta) * 1000) / 10 : 0,
       volumenUnidades: totalUnidades,
+      ticketPromedio,
+      precioPromedioPrenda,
+      totalTransacciones: numTransacciones,
     },
     meses,
     mixLineas,
     mixMarcas,
+    rankingVendedores,
+    topReferencias,
+    distribucionZonas,
+    mixCanales,
   };
 }
 
 export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise<DataDashboard1> {
-  const [data, dimLineasRes, dimMarcasRes] = await Promise.all([
+  const [data, catalogos] = await Promise.all([
     obtenerVentasRaw(filtros),
-    supabase.from("dim_linea").select("id, nombre"),
-    supabase.from("dim_marca").select("id, nombre"),
+    obtenerCatalogosFiltros(),
   ]);
-  return calcularDashboard1Cumplimiento(data, filtros, dimLineasRes.data || [], dimMarcasRes.data || []);
+  return calcularDashboard1Cumplimiento(data, filtros, catalogos);
 }
 
 // =========================================================================
