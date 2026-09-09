@@ -742,13 +742,24 @@ export function normalizarFila(
   if (fila.fecha) {
     const fParts = fila.fecha.split("-");
     if (fParts.length === 3 && fParts[0] && fParts[1] && fParts[2]) {
-      if (!fila.anio) fila.anio = parseInt(fParts[0], 10);
-      if (!fila.mes) fila.mes = parseInt(fParts[1], 10);
-      if (!fila.dia) fila.dia = parseInt(fParts[2], 10);
+      const pY = parseInt(fParts[0], 10);
+      const pM = parseInt(fParts[1], 10);
+      const pD = parseInt(fParts[2], 10);
+      if (!fila.anio && pY >= 1990 && pY <= 2040) fila.anio = pY;
+      if (!fila.mes && pM >= 1 && pM <= 12) fila.mes = pM;
+      if (!fila.dia && pD >= 1 && pD <= 31) fila.dia = pD;
     }
   }
 
-  // Extraer año desde anio_col (ej. "2024", "ANO 2024", "2024-01", "2024-1")
+  // Si anio y mes están explícitos pero fecha falta
+  if (fila.anio && fila.mes && !fila.fecha) {
+    const m = Math.min(12, Math.max(1, fila.mes));
+    const d = fila.dia && fila.dia >= 1 && fila.dia <= 31 ? fila.dia : 1;
+    fila.fecha = `${fila.anio}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    if (!fila.dia) fila.dia = d;
+  }
+
+  // Extraer año desde anio_col (ej. "2026", "ANO 2026", "2026-08", "2026-8")
   if (!fila.anio && fila.anio_col) {
     const parsedY = parseYear(fila.anio_col);
     if (parsedY) fila.anio = parsedY;
@@ -761,7 +772,7 @@ export function normalizarFila(
     }
   }
 
-  // Si aún no tiene año pero la hoja o archivo especificó defaultAnio (ej. "2024.xlsx")
+  // Si aún no tiene año pero la hoja o archivo especificó defaultAnio (ej. "2026.xlsx")
   if (!fila.anio && defaultAnio) {
     fila.anio = defaultAnio;
   }
@@ -946,7 +957,7 @@ export async function procesarArchivoPorStreaming({
   const detectados = new Set<string>();
   const ignoradasSet = new Set<string>();
 
-  // Extraer año del nombre del archivo si existe (ej. "Ventas_2025.csv")
+  // Extraer año del nombre del archivo si existe (ej. "Ventas_2026.csv")
   const matchFileYear = file.name.match(/\b(20\d{2})\b/);
   const fileDefaultYear = matchFileYear ? parseInt(matchFileYear[1]!, 10) : null;
 
@@ -956,121 +967,111 @@ export async function procesarArchivoPorStreaming({
   const contadorOcurrencias = new Map<string, number>();
 
   if (esCSV) {
-    let loteBuffer: VentaRow[] = [];
-    const headerMap = new Map<string, keyof VentaRow>();
-    let headers: string[] = [];
-    const fileSize = file.size;
-    const TROZO = 4 * 1024 * 1024;
-    const decoder = new TextDecoder("utf-8");
-    let pendiente = "";
-    let offset = 0;
+    return new Promise((resolve, reject) => {
+      let loteBuffer: VentaRow[] = [];
+      const headerMap = new Map<string, keyof VentaRow>();
+      let headers: string[] = [];
+      const fileSize = file.size;
 
-    const procesarBloque = async (bloque: string, esUltimo: boolean) => {
-      if (!bloque.trim()) return;
-      const parsed = Papa.parse<string[]>(bloque, {
+      Papa.parse<string[]>(file, {
         header: false,
         skipEmptyLines: "greedy",
+        chunkSize: 1024 * 1024 * 2, // Lotes de streaming de 2MB
+        chunk: async (results, parser) => {
+          parser.pause();
+          try {
+            let filas = results.data;
+            if (headers.length === 0 && filas.length > 0) {
+              const primera = filas[0] ?? [];
+              headers = primera.map((h) => String(h ?? "").trim());
+              for (const h of headers) {
+                const normH = norm(h);
+                const campo = MAPA[normH];
+                if (campo) {
+                  headerMap.set(h, campo);
+                  detectados.add(campo);
+                } else if (normH.match(/\b(20\d{2})\b/)) {
+                  headerMap.set(h, "anio");
+                  detectados.add("anio");
+                } else {
+                  ignoradasSet.add(h);
+                }
+              }
+              filas = filas.slice(1);
+            }
+
+            for (const arr of filas) {
+              if (!Array.isArray(arr) || arr.length === 0) continue;
+              const r: Record<string, unknown> = {};
+              for (let c = 0; c < headers.length; c++) {
+                const key = headers[c];
+                if (key === undefined) continue;
+                r[key] = arr[c] ?? null;
+              }
+              globalRowCounter++;
+              const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, fileDefaultYear);
+              if (fila) loteBuffer.push(asignarOcurrencia(fila, contadorOcurrencias));
+
+              if (loteBuffer.length >= tamanoLote) {
+                const subLote = loteBuffer;
+                loteBuffer = [];
+                const res = await onLote(subLote);
+                recibidas += res.recibidas;
+                nuevas += res.nuevas;
+                const cursor = results.meta?.cursor ?? globalRowCounter * 100;
+                const porcentaje = fileSize > 0 ? Math.min(99, Math.round((cursor / fileSize) * 100)) : 50;
+                onProgreso?.({
+                  filasLeidas: recibidas,
+                  filasNuevas: nuevas,
+                  porcentaje,
+                  mensaje: `Procesando: ${recibidas.toLocaleString("es-CO")} filas (${nuevas.toLocaleString("es-CO")} nuevas)...`,
+                });
+              }
+            }
+
+            parser.resume();
+          } catch (err) {
+            parser.abort();
+            reject(err);
+          }
+        },
+        complete: async () => {
+          try {
+            if (loteBuffer.length > 0) {
+              const res = await onLote(loteBuffer);
+              recibidas += res.recibidas;
+              nuevas += res.nuevas;
+              loteBuffer = [];
+            }
+
+            const faltantesCsv = COLUMNAS_ESPERADAS.filter((c) => {
+              const campo = MAPA[norm(c)];
+              return campo ? !detectados.has(campo) : false;
+            });
+
+            onProgreso?.({
+              filasLeidas: recibidas,
+              filasNuevas: nuevas,
+              porcentaje: 100,
+              mensaje: `Carga completada: ${recibidas.toLocaleString("es-CO")} procesadas (${nuevas.toLocaleString("es-CO")} nuevas)`,
+            });
+
+            resolve({
+              recibidas,
+              nuevas,
+              columnasDetectadas: [...detectados],
+              columnasFaltantes: faltantesCsv,
+              columnasIgnoradas: [...ignoradasSet],
+            });
+          } catch (err) {
+            reject(err);
+          }
+        },
+        error: (err) => {
+          reject(err);
+        },
       });
-      let filas = parsed.data;
-      if (headers.length === 0) {
-        const primera = filas[0] ?? [];
-        headers = primera.map((h) => String(h ?? "").trim());
-        for (const h of headers) {
-          const campo = MAPA[norm(h)];
-          if (campo) headerMap.set(h, campo);
-          else ignoradasSet.add(h);
-        }
-        filas = filas.slice(1);
-      }
-
-      for (const arr of filas) {
-        if (!Array.isArray(arr)) continue;
-        const r: Record<string, unknown> = {};
-        for (let c = 0; c < headers.length; c++) {
-          const key = headers[c];
-          if (key === undefined) continue;
-          r[key] = arr[c] ?? null;
-        }
-        globalRowCounter++;
-        const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, fileDefaultYear);
-        if (fila) loteBuffer.push(asignarOcurrencia(fila, contadorOcurrencias));
-
-        if (loteBuffer.length >= tamanoLote) {
-          const subLote = loteBuffer;
-          loteBuffer = [];
-          const res = await onLote(subLote);
-          recibidas += res.recibidas;
-          nuevas += res.nuevas;
-          onProgreso?.({
-            filasLeidas: recibidas,
-            filasNuevas: nuevas,
-            porcentaje: fileSize > 0 ? Math.min(99, Math.round((offset / fileSize) * 100)) : 50,
-            mensaje: `Procesando: ${recibidas.toLocaleString("es-CO")} filas (${nuevas.toLocaleString("es-CO")} nuevas)...`,
-          });
-        }
-      }
-
-      if (esUltimo && loteBuffer.length > 0) {
-        const res = await onLote(loteBuffer);
-        recibidas += res.recibidas;
-        nuevas += res.nuevas;
-        loteBuffer = [];
-      }
-    };
-
-    while (offset < fileSize) {
-      const slice = file.slice(offset, Math.min(offset + TROZO, fileSize));
-      const buf = await slice.arrayBuffer();
-      offset += buf.byteLength;
-      const esFinal = offset >= fileSize;
-      pendiente += decoder.decode(buf, { stream: !esFinal });
-
-      // Cortar en el último salto de línea que no esté dentro de comillas
-      let corte = -1;
-      let enComillas = false;
-      for (let i = 0; i < pendiente.length; i++) {
-        const ch = pendiente[i];
-        if (ch === '"') enComillas = !enComillas;
-        else if (ch === "\n" && !enComillas) corte = i;
-      }
-
-      if (esFinal) {
-        await procesarBloque(pendiente, true);
-        pendiente = "";
-      } else if (corte >= 0) {
-        const bloque = pendiente.slice(0, corte + 1);
-        pendiente = pendiente.slice(corte + 1);
-        await procesarBloque(bloque, false);
-      }
-    }
-
-    if (pendiente.trim()) await procesarBloque(pendiente, true);
-    else if (loteBuffer.length > 0) {
-      const res = await onLote(loteBuffer);
-      recibidas += res.recibidas;
-      nuevas += res.nuevas;
-      loteBuffer = [];
-    }
-
-    const faltantesCsv = COLUMNAS_ESPERADAS.filter((c) => {
-      const campo = MAPA[norm(c)];
-      return campo ? !detectados.has(campo) : false;
     });
-
-    onProgreso?.({
-      filasLeidas: recibidas,
-      filasNuevas: nuevas,
-      porcentaje: 100,
-      mensaje: `Carga completada: ${recibidas.toLocaleString("es-CO")} procesadas (${nuevas.toLocaleString("es-CO")} nuevas)`,
-    });
-
-    return {
-      recibidas,
-      nuevas,
-      columnasDetectadas: [...detectados],
-      columnasFaltantes: faltantesCsv,
-      columnasIgnoradas: [...ignoradasSet],
-    };
   }
 
 

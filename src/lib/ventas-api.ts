@@ -172,7 +172,7 @@ export async function fetchAllFactVentas<T = Record<string, unknown>>(
 }
 
 export async function obtenerResumenCliente() {
-  const [ventas, cargas, ultimas, rangoMin, rangoMax] = await Promise.all([
+  const [ventas, cargas, ultimas, catalogos] = await Promise.all([
     supabase.from("fact_ventas").select("id", { count: "exact", head: true }),
     supabase.from("cargas").select("id", { count: "exact", head: true }),
     supabase
@@ -180,53 +180,91 @@ export async function obtenerResumenCliente() {
       .select("id, archivo, filas_recibidas, filas_nuevas, created_at")
       .order("created_at", { ascending: false })
       .limit(8),
-    supabase
-      .from("fact_ventas")
-      .select("fecha, anio, anio_col, mes")
-      .not("fecha", "is", null)
-      .order("fecha", { ascending: true })
-      .limit(1),
-    supabase
-      .from("fact_ventas")
-      .select("fecha, anio, anio_col, mes")
-      .not("fecha", "is", null)
-      .order("fecha", { ascending: false })
-      .limit(1),
+    obtenerCatalogosFiltros(),
   ]);
 
-  let primerAnio = rangoMin.data?.[0]?.anio ?? null;
-  if (!primerAnio && rangoMin.data?.[0]?.fecha) {
-    primerAnio = parseInt(rangoMin.data[0].fecha.slice(0, 4), 10);
+  const anios = catalogos.anios || [];
+  const maxAnio = anios.length > 0 ? Math.max(...anios) : null;
+  const minAnio = anios.length > 0 ? Math.min(...anios) : null;
+
+  let fechaMin: string | null = null;
+  let fechaMax: string | null = null;
+  let ultimoMes: number | null = null;
+
+  if (maxAnio) {
+    const maxRes = await supabase
+      .from("fact_ventas")
+      .select("fecha, mes")
+      .not("fecha", "is", null)
+      .gte("fecha", `${maxAnio}-01-01`)
+      .order("fecha", { ascending: false })
+      .limit(1);
+    fechaMax = maxRes.data?.[0]?.fecha ?? null;
+    ultimoMes = maxRes.data?.[0]?.mes ?? null;
   }
 
-  let ultimoAnio = rangoMax.data?.[0]?.anio ?? null;
-  if (!ultimoAnio && rangoMax.data?.[0]?.fecha) {
-    ultimoAnio = parseInt(rangoMax.data[0].fecha.slice(0, 4), 10);
+  if (minAnio) {
+    const minRes = await supabase
+      .from("fact_ventas")
+      .select("fecha")
+      .not("fecha", "is", null)
+      .lte("fecha", `${minAnio}-12-31`)
+      .order("fecha", { ascending: true })
+      .limit(1);
+    fechaMin = minRes.data?.[0]?.fecha ?? null;
   }
 
   return {
     totalVentas: ventas.count ?? 0,
     totalCargas: cargas.count ?? 0,
-    primeraFecha: rangoMin.data?.[0]?.fecha ?? null,
-    ultimaFecha: rangoMax.data?.[0]?.fecha ?? null,
-    primerAnio,
-    ultimoAnio,
-    ultimoMes: rangoMax.data?.[0]?.mes ?? null,
+    primeraFecha: fechaMin,
+    ultimaFecha: fechaMax,
+    primerAnio: minAnio,
+    ultimoAnio: maxAnio,
+    ultimoMes,
     historial: ultimas.data ?? [],
   };
 }
 
 export async function obtenerRangoFechasTotal(): Promise<RangoFechasInfo> {
-  const [minRes, maxRes, countRes, catalogos] = await Promise.all([
-    supabase.from("fact_ventas").select("fecha").not("fecha", "is", null).order("fecha", { ascending: true }).limit(1),
-    supabase.from("fact_ventas").select("fecha").not("fecha", "is", null).order("fecha", { ascending: false }).limit(1),
+  const catalogos = await obtenerCatalogosFiltros();
+  const anios = catalogos.anios || [];
+  const maxAnio = anios.length > 0 ? Math.max(...anios) : new Date().getFullYear();
+  const minAnio = anios.length > 0 ? Math.min(...anios) : maxAnio - 1;
+
+  const [minRes, maxRes, countRes] = await Promise.all([
+    supabase
+      .from("fact_ventas")
+      .select("fecha")
+      .not("fecha", "is", null)
+      .lte("fecha", `${minAnio}-12-31`)
+      .order("fecha", { ascending: true })
+      .limit(1),
+    supabase
+      .from("fact_ventas")
+      .select("fecha")
+      .not("fecha", "is", null)
+      .gte("fecha", `${maxAnio}-01-01`)
+      .order("fecha", { ascending: false })
+      .limit(1),
     supabase.from("fact_ventas").select("id", { count: "exact", head: true }),
-    obtenerCatalogosFiltros(),
   ]);
 
+  let fechaMin = minRes.data?.[0]?.fecha ?? null;
+  let fechaMax = maxRes.data?.[0]?.fecha ?? null;
+
+  if (!fechaMax) {
+    const fallbackMax = await supabase.from("fact_ventas").select("fecha").not("fecha", "is", null).order("id", { ascending: false }).limit(1);
+    fechaMax = fallbackMax.data?.[0]?.fecha ?? null;
+  }
+  if (!fechaMin) {
+    const fallbackMin = await supabase.from("fact_ventas").select("fecha").not("fecha", "is", null).order("id", { ascending: true }).limit(1);
+    fechaMin = fallbackMin.data?.[0]?.fecha ?? null;
+  }
+
   return {
-    fechaMin: minRes.data?.[0]?.fecha ?? null,
-    fechaMax: maxRes.data?.[0]?.fecha ?? null,
+    fechaMin,
+    fechaMax,
     totalFilas: countRes.count ?? 0,
     anios: catalogos.anios,
     aniosCount: catalogos.anios.length,
