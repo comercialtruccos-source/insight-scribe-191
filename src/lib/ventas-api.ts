@@ -460,6 +460,39 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
   };
 }
 
+export const COLUMNAS_ALL_FACT_VENTAS =
+  "id, anio, anio_col, mes, dia, fecha, transaccion, valor, cantidad, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, pais_id, sku, producto, prenda_hgi, talla, color";
+
+export type FilaFactVentas = {
+  id: number;
+  anio: number | null;
+  anio_col: string | null;
+  mes: number | null;
+  dia: number | null;
+  fecha: string | null;
+  transaccion: string | null;
+  valor: number | null;
+  cantidad: number | null;
+  costo_total: number | null;
+  vendedor_id: number | null;
+  vendedor2_id: number | null;
+  canal_id: number | null;
+  marca_id: number | null;
+  linea_id: number | null;
+  zona_id: number | null;
+  zona_colombia_id: number | null;
+  pais_id: number | null;
+  sku: string | null;
+  producto: string | null;
+  prenda_hgi: string | null;
+  talla: string | null;
+  color: string | null;
+};
+
+export async function obtenerVentasRaw(filtros: FiltrosBI): Promise<FilaFactVentas[]> {
+  return fetchAllFactVentas<FilaFactVentas>(COLUMNAS_ALL_FACT_VENTAS, filtros);
+}
+
 // =========================================================================
 // DIMENSIÓN DE TIEMPO / ANÁLISIS HISTÓRICO MULTIANUAL
 // =========================================================================
@@ -493,30 +526,8 @@ export type DataHistoricoMultianual = {
   aniosPresentes: number[];
 };
 
-export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<DataHistoricoMultianual> {
+export function calcularHistoricoMultianual(data: FilaFactVentas[], filtros: FiltrosBI): DataHistoricoMultianual {
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-
-  // Carga completa de datos históricos de ventas
-  const data = await fetchAllFactVentas<{
-    anio: number | null;
-    anio_col: string | null;
-    mes: number | null;
-    valor: number | null;
-    cantidad: number | null;
-    costo_total: number | null;
-    fecha: string | null;
-    transaccion: string | null;
-    vendedor_id: number | null;
-    vendedor2_id: number | null;
-    canal_id: number | null;
-    marca_id: number | null;
-    zona_id: number | null;
-    zona_colombia_id: number | null;
-  }>(
-    "anio, anio_col, mes, valor, cantidad, costo_total, fecha, transaccion, vendedor_id, vendedor2_id, canal_id, marca_id, zona_id, zona_colombia_id",
-    filtros
-  );
-
   const aniosMap = new Map<number, { ventas: number; unidades: number; costo: number; trans: Set<string>; meses: number[] }>();
 
   for (const r of data) {
@@ -530,7 +541,7 @@ export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<Da
         if (m && m[1]) an = parseInt(m[1], 10);
       }
     }
-    if (!an || isNaN(an)) an = 2025;
+    if (!an || isNaN(an)) an = filtros.anio || 2025;
 
     let m = Number(r.mes);
     if ((!m || isNaN(m) || m < 1 || m > 12) && r.fecha) {
@@ -608,6 +619,11 @@ export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<Da
   };
 }
 
+export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<DataHistoricoMultianual> {
+  const data = await obtenerVentasRaw(filtros);
+  return calcularHistoricoMultianual(data, filtros);
+}
+
 // =========================================================================
 // DASHBOARD 1: CUMPLIMIENTO Y CRECIMIENTO DE VENTAS (NIVEL DIRECTIVO)
 // =========================================================================
@@ -649,34 +665,16 @@ export type DataDashboard1 = {
   mixMarcas: { marca: string; venta: number; porcentaje: number }[];
 };
 
-export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise<DataDashboard1> {
+export function calcularDashboard1Cumplimiento(
+  data: FilaFactVentas[],
+  filtros: FiltrosBI,
+  lineasCatalogo?: CatalogoItem[],
+  marcasCatalogo?: CatalogoItem[]
+): DataDashboard1 {
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-  const [data, dimLineasRes, dimMarcasRes] = await Promise.all([
-    fetchAllFactVentas<{
-      anio: number | null;
-      anio_col: string | null;
-      mes: number | null;
-      valor: number | null;
-      cantidad: number | null;
-      linea_id: number | null;
-      marca_id: number | null;
-      fecha: string | null;
-      vendedor_id: number | null;
-      vendedor2_id: number | null;
-      canal_id: number | null;
-      zona_id: number | null;
-      zona_colombia_id: number | null;
-    }>(
-      "anio, anio_col, mes, valor, cantidad, linea_id, marca_id, fecha, vendedor_id, vendedor2_id, canal_id, zona_id, zona_colombia_id",
-      filtros
-    ),
-    supabase.from("dim_linea").select("id, nombre"),
-    supabase.from("dim_marca").select("id, nombre"),
-  ]);
-
-  const lineaMap = new Map<number, string>((dimLineasRes.data || []).map((l) => [l.id, l.nombre]));
-  const marcaMap = new Map<number, string>((dimMarcasRes.data || []).map((m) => [m.id, m.nombre]));
+  const lineaMap = new Map<number, string>((lineasCatalogo || []).map((l) => [l.id, l.nombre]));
+  const marcaMap = new Map<number, string>((marcasCatalogo || []).map((m) => [m.id, m.nombre]));
 
   const periodoMap = new Map<string, { anio: number; mes: number; venta: number; unidades: number; dev: number }>();
   const lineaVentaMap = new Map<string, { venta: number; unidades: number }>();
@@ -812,6 +810,15 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
   };
 }
 
+export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise<DataDashboard1> {
+  const [data, dimLineasRes, dimMarcasRes] = await Promise.all([
+    obtenerVentasRaw(filtros),
+    supabase.from("dim_linea").select("id, nombre"),
+    supabase.from("dim_marca").select("id, nombre"),
+  ]);
+  return calcularDashboard1Cumplimiento(data, filtros, dimLineasRes.data || [], dimMarcasRes.data || []);
+}
+
 // =========================================================================
 // DASHBOARD 2: CONTROL DE FACTURACIÓN Y RUN RATE DIARIO (OPERATIVO)
 // =========================================================================
@@ -843,17 +850,9 @@ export type DataDashboard2 = {
   dias: PuntoDiario[];
 };
 
-export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<DataDashboard2> {
+export function calcularDashboard2RunRate(data: FilaFactVentas[], filtros: FiltrosBI): DataDashboard2 {
   let anioTarget = filtros.anio;
   let mesTarget = filtros.mes;
-
-  const data = await fetchAllFactVentas<{
-    dia: number | null;
-    mes: number | null;
-    anio: number | null;
-    fecha: string | null;
-    valor: number | null;
-  }>("dia, mes, anio, fecha, valor", filtros);
 
   if (!anioTarget || !mesTarget) {
     if (data.length > 0) {
@@ -960,6 +959,11 @@ export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<Data
   };
 }
 
+export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<DataDashboard2> {
+  const data = await obtenerVentasRaw(filtros);
+  return calcularDashboard2RunRate(data, filtros);
+}
+
 // =========================================================================
 // DASHBOARD 3: E-COMMERCE, SOCIAL SELLING Y MARKETING DIGITAL
 // =========================================================================
@@ -978,23 +982,14 @@ export type DataDashboard3 = {
   comparativaMarcas: { marca: string; ventaDigital: number; gastoPauta: number; roas: number }[];
 };
 
-export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<DataDashboard3> {
-  const [data, canalesRes, marcasRes] = await Promise.all([
-    fetchAllFactVentas<{
-      mes: number | null;
-      anio: number | null;
-      valor: number | null;
-      cantidad: number | null;
-      canal_id: number | null;
-      marca_id: number | null;
-      fecha: string | null;
-    }>("mes, anio, valor, cantidad, canal_id, marca_id, fecha", filtros),
-    supabase.from("dim_canal").select("id, nombre"),
-    supabase.from("dim_marca").select("id, nombre"),
-  ]);
-
-  const canalMap = new Map<number, string>((canalesRes.data || []).map((c) => [c.id, c.nombre]));
-  const marcaMap = new Map<number, string>((marcasRes.data || []).map((m) => [m.id, m.nombre]));
+export function calcularDashboard3Digital(
+  data: FilaFactVentas[],
+  filtros: FiltrosBI,
+  canalesCatalogo?: CatalogoItem[],
+  marcasCatalogo?: CatalogoItem[]
+): DataDashboard3 {
+  const canalMap = new Map<number, string>((canalesCatalogo || []).map((c) => [c.id, c.nombre]));
+  const marcaMap = new Map<number, string>((marcasCatalogo || []).map((m) => [m.id, m.nombre]));
 
   let ventaDigitalTotal = 0;
   let unidadesDigitales = 0;
@@ -1081,6 +1076,15 @@ export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<Data
   };
 }
 
+export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<DataDashboard3> {
+  const [data, canalesRes, marcasRes] = await Promise.all([
+    obtenerVentasRaw(filtros),
+    supabase.from("dim_canal").select("id, nombre"),
+    supabase.from("dim_marca").select("id, nombre"),
+  ]);
+  return calcularDashboard3Digital(data, filtros, canalesRes.data || [], marcasRes.data || []);
+}
+
 // =========================================================================
 // DASHBOARD 4: FUERZA DE VENTAS Y CANALES B2B / MAYORISTAS
 // =========================================================================
@@ -1109,27 +1113,16 @@ export type DataDashboard4 = {
   matrizVendedorMes: { vendedor: string; meses: number[] }[];
 };
 
-export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise<DataDashboard4> {
-  const [data, vendedoresRes, canalesRes, paisesRes] = await Promise.all([
-    fetchAllFactVentas<{
-      mes: number | null;
-      anio: number | null;
-      valor: number | null;
-      cantidad: number | null;
-      vendedor_id: number | null;
-      vendedor2_id: number | null;
-      canal_id: number | null;
-      pais_id: number | null;
-      fecha: string | null;
-    }>("mes, anio, valor, cantidad, vendedor_id, vendedor2_id, canal_id, pais_id, fecha", filtros),
-    supabase.from("dim_vendedor").select("id, nombre"),
-    supabase.from("dim_canal").select("id, nombre"),
-    supabase.from("dim_pais").select("id, nombre"),
-  ]);
-
-  const vendedorMap = new Map<number, string>((vendedoresRes.data || []).map((v) => [v.id, v.nombre]));
-  const canalMap = new Map<number, string>((canalesRes.data || []).map((c) => [c.id, c.nombre]));
-  const paisMap = new Map<number, string>((paisesRes.data || []).map((p) => [p.id, p.nombre]));
+export function calcularDashboard4FuerzaVentas(
+  data: FilaFactVentas[],
+  filtros: FiltrosBI,
+  vendedoresCatalogo?: CatalogoItem[],
+  canalesCatalogo?: CatalogoItem[],
+  paisesCatalogo?: CatalogoItem[]
+): DataDashboard4 {
+  const vendedorMap = new Map<number, string>((vendedoresCatalogo || []).map((v) => [v.id, v.nombre]));
+  const canalMap = new Map<number, string>((canalesCatalogo || []).map((c) => [c.id, c.nombre]));
+  const paisMap = new Map<number, string>((paisesCatalogo || []).map((p) => [p.id, p.nombre]));
 
   let totalVentaFuerza = 0;
   let ventaNacional = 0;
@@ -1226,6 +1219,16 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
   };
 }
 
+export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise<DataDashboard4> {
+  const [data, vendedoresRes, canalesRes, paisesRes] = await Promise.all([
+    obtenerVentasRaw(filtros),
+    supabase.from("dim_vendedor").select("id, nombre"),
+    supabase.from("dim_canal").select("id, nombre"),
+    supabase.from("dim_pais").select("id, nombre"),
+  ]);
+  return calcularDashboard4FuerzaVentas(data, filtros, vendedoresRes.data || [], canalesRes.data || [], paisesRes.data || []);
+}
+
 // =========================================================================
 // DASHBOARD 5: MARKETPLACES Y ANÁLISIS DE PRODUCTO (COMERGAIN / RETAIL)
 // =========================================================================
@@ -1242,22 +1245,12 @@ export type DataDashboard5 = {
   coloresLideres: { color: string; unidades: number; porcentaje: number }[];
 };
 
-export async function obtenerDashboard5Marketplaces(filtros: FiltrosBI): Promise<DataDashboard5> {
-  const [data, canalesRes] = await Promise.all([
-    fetchAllFactVentas<{
-      sku: string | null;
-      producto: string | null;
-      prenda_hgi: string | null;
-      talla: string | null;
-      color: string | null;
-      cantidad: number | null;
-      valor: number | null;
-      canal_id: number | null;
-    }>("sku, producto, prenda_hgi, talla, color, cantidad, valor, canal_id", filtros),
-    supabase.from("dim_canal").select("id, nombre"),
-  ]);
-
-  const canalMap = new Map<number, string>((canalesRes.data || []).map((c) => [c.id, c.nombre]));
+export function calcularDashboard5Marketplaces(
+  data: FilaFactVentas[],
+  filtros: FiltrosBI,
+  canalesCatalogo?: CatalogoItem[]
+): DataDashboard5 {
+  const canalMap = new Map<number, string>((canalesCatalogo || []).map((c) => [c.id, c.nombre]));
 
   let ventaTotalMarketplaces = 0;
   let unidadesMarketplaces = 0;
@@ -1347,6 +1340,14 @@ export async function obtenerDashboard5Marketplaces(filtros: FiltrosBI): Promise
     curvaTallas,
     coloresLideres,
   };
+}
+
+export async function obtenerDashboard5Marketplaces(filtros: FiltrosBI): Promise<DataDashboard5> {
+  const [data, canalesRes] = await Promise.all([
+    obtenerVentasRaw(filtros),
+    supabase.from("dim_canal").select("id, nombre"),
+  ]);
+  return calcularDashboard5Marketplaces(data, filtros, canalesRes.data || []);
 }
 
 export type FilaDetalleVenta = {

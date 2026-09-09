@@ -8,12 +8,13 @@ import {
   obtenerResumenCliente,
   obtenerRangoFechasTotal,
   obtenerCatalogosFiltros,
-  obtenerHistoricoMultianual,
-  obtenerDashboard1Cumplimiento,
-  obtenerDashboard2RunRate,
-  obtenerDashboard3Digital,
-  obtenerDashboard4FuerzaVentas,
-  obtenerDashboard5Marketplaces,
+  obtenerVentasRaw,
+  calcularHistoricoMultianual,
+  calcularDashboard1Cumplimiento,
+  calcularDashboard2RunRate,
+  calcularDashboard3Digital,
+  calcularDashboard4FuerzaVentas,
+  calcularDashboard5Marketplaces,
   obtenerTransaccionesDetalle,
   purgarDatosVentas,
   eliminarCarga,
@@ -90,6 +91,7 @@ import {
   Clock,
   Trash2,
   AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -257,41 +259,44 @@ function Panel() {
     setZonaId("todos");
   };
 
-  // Dimensión de Tiempo / Multianual
-  const { data: dMultianual, isLoading: cMultianual } = useQuery({
-    queryKey: ["bi-multianual", filtros],
-    queryFn: () => obtenerHistoricoMultianual(filtros),
+  // Carga unificada de ventas para todos los dashboards
+  const { data: rawVentas, isLoading: cVentas, isFetching: cFetching } = useQuery({
+    queryKey: ["bi-fact-ventas", filtros],
+    queryFn: () => obtenerVentasRaw(filtros),
+    staleTime: 60 * 1000,
   });
 
-  // Dashboard 1: Cumplimiento
-  const { data: d1, isLoading: cD1 } = useQuery({
-    queryKey: ["bi-d1-cumplimiento", filtros],
-    queryFn: () => obtenerDashboard1Cumplimiento(filtros),
-  });
+  const cMultianual = cVentas;
+  const cD1 = cVentas;
+  const cD2 = cVentas;
+  const cD3 = cVentas;
+  const cD4 = cVentas;
+  const cD5 = cVentas;
 
-  // Dashboard 2: Run Rate Diario
-  const { data: d2, isLoading: cD2 } = useQuery({
-    queryKey: ["bi-d2-runrate", filtros],
-    queryFn: () => obtenerDashboard2RunRate(filtros),
-  });
-
-  // Dashboard 3: Digital & Marketing
-  const { data: d3, isLoading: cD3 } = useQuery({
-    queryKey: ["bi-d3-digital", filtros],
-    queryFn: () => obtenerDashboard3Digital(filtros),
-  });
-
-  // Dashboard 4: Fuerza Comercial
-  const { data: d4, isLoading: cD4 } = useQuery({
-    queryKey: ["bi-d4-fuerza", filtros],
-    queryFn: () => obtenerDashboard4FuerzaVentas(filtros),
-  });
-
-  // Dashboard 5: Marketplaces & Producto
-  const { data: d5, isLoading: cD5 } = useQuery({
-    queryKey: ["bi-d5-marketplaces", filtros],
-    queryFn: () => obtenerDashboard5Marketplaces(filtros),
-  });
+  const dMultianual = useMemo(
+    () => calcularHistoricoMultianual(rawVentas || [], filtros),
+    [rawVentas, filtros]
+  );
+  const d1 = useMemo(
+    () => calcularDashboard1Cumplimiento(rawVentas || [], filtros, catalogos?.lineas, catalogos?.marcas),
+    [rawVentas, filtros, catalogos]
+  );
+  const d2 = useMemo(
+    () => calcularDashboard2RunRate(rawVentas || [], filtros),
+    [rawVentas, filtros]
+  );
+  const d3 = useMemo(
+    () => calcularDashboard3Digital(rawVentas || [], filtros, catalogos?.canales, catalogos?.marcas),
+    [rawVentas, filtros, catalogos]
+  );
+  const d4 = useMemo(
+    () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, catalogos?.vendedores, catalogos?.canales),
+    [rawVentas, filtros, catalogos]
+  );
+  const d5 = useMemo(
+    () => calcularDashboard5Marketplaces(rawVentas || [], filtros, catalogos?.canales),
+    [rawVentas, filtros, catalogos]
+  );
 
   // Explorador de transacciones
   const { data: transaccionesDetalle, isLoading: cDetalle } = useQuery({
@@ -492,6 +497,12 @@ function Panel() {
               <Badge variant="outline" className="hidden md:inline-flex bg-primary/10 border-primary/20 text-primary font-mono text-xs">
                 <Calendar className="mr-1.5 h-3 w-3" />
                 Rango Documento: {rangoTotal.fechaMin} al {rangoTotal.fechaMax}
+              </Badge>
+            )}
+            {cFetching && (
+              <Badge variant="secondary" className="animate-pulse bg-primary/15 border-primary/30 text-primary font-medium text-xs">
+                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                Actualizando datos...
               </Badge>
             )}
             <Badge variant="outline" className="hidden sm:inline-flex bg-muted/40 font-mono text-xs">
