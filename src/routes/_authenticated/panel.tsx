@@ -169,6 +169,22 @@ function Panel() {
   const [aviso, setAviso] = useState<string[]>([]);
   const [esCSV, setEsCSV] = useState(false);
 
+  // Queries iniciales para metadatos y rangos
+  const { data: resumen } = useQuery({
+    queryKey: ["resumen"],
+    queryFn: () => obtenerResumenCliente(),
+  });
+
+  const { data: rangoTotal } = useQuery({
+    queryKey: ["bi-rango-fechas-total"],
+    queryFn: () => obtenerRangoFechasTotal(),
+  });
+
+  const { data: catalogos } = useQuery({
+    queryKey: ["catalogos-filtros"],
+    queryFn: () => obtenerCatalogosFiltros(),
+  });
+
   const filtros: FiltrosBI = useMemo(() => {
     let fDesde: string | null = null;
     let fHasta: string | null = null;
@@ -179,17 +195,27 @@ function Panel() {
       fDesde = fechaDesde.trim() || null;
       fHasta = fechaHasta.trim() || null;
     } else if (tipoRango === "ultimos12") {
-      const hoy = new Date();
-      const hace12 = new Date();
-      hace12.setFullYear(hoy.getFullYear() - 1);
-      fDesde = hace12.toISOString().slice(0, 10);
-      fHasta = hoy.toISOString().slice(0, 10);
+      const maxDateStr = rangoTotal?.fechaMax || new Date().toISOString().slice(0, 10);
+      const [y, m, d] = maxDateStr.split("-").map(Number);
+      const baseDate = new Date(y, (m || 1) - 1, d || 1);
+      const hace12 = new Date(baseDate);
+      hace12.setFullYear(hace12.getFullYear() - 1);
+      const y12 = hace12.getFullYear();
+      const m12 = String(hace12.getMonth() + 1).padStart(2, "0");
+      const d12 = String(hace12.getDate()).padStart(2, "0");
+      fDesde = `${y12}-${m12}-${d12}`;
+      fHasta = maxDateStr;
     } else if (tipoRango === "ultimos6") {
-      const hoy = new Date();
-      const hace6 = new Date();
-      hace6.setMonth(hoy.getMonth() - 6);
-      fDesde = hace6.toISOString().slice(0, 10);
-      fHasta = hoy.toISOString().slice(0, 10);
+      const maxDateStr = rangoTotal?.fechaMax || new Date().toISOString().slice(0, 10);
+      const [y, m, d] = maxDateStr.split("-").map(Number);
+      const baseDate = new Date(y, (m || 1) - 1, d || 1);
+      const hace6 = new Date(baseDate);
+      hace6.setMonth(hace6.getMonth() - 6);
+      const y6 = hace6.getFullYear();
+      const m6 = String(hace6.getMonth() + 1).padStart(2, "0");
+      const d6 = String(hace6.getDate()).padStart(2, "0");
+      fDesde = `${y6}-${m6}-${d6}`;
+      fHasta = maxDateStr;
     } else {
       // Modo "anio" o "todo" con año/mes seleccionados
       if (anio !== "todos") anioVal = Number(anio);
@@ -206,7 +232,7 @@ function Panel() {
       vendedor_id: vendedorId !== "todos" ? Number(vendedorId) : null,
       zona_id: zonaId !== "todos" ? Number(zonaId) : null,
     };
-  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId]);
+  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, rangoTotal?.fechaMax]);
 
   const hayFiltrosActivos =
     tipoRango !== "todo" ||
@@ -230,22 +256,6 @@ function Panel() {
     setVendedorId("todos");
     setZonaId("todos");
   };
-
-  // Queries de datos
-  const { data: resumen } = useQuery({
-    queryKey: ["resumen"],
-    queryFn: () => obtenerResumenCliente(),
-  });
-
-  const { data: rangoTotal } = useQuery({
-    queryKey: ["bi-rango-fechas-total"],
-    queryFn: () => obtenerRangoFechasTotal(),
-  });
-
-  const { data: catalogos } = useQuery({
-    queryKey: ["catalogos-filtros"],
-    queryFn: () => obtenerCatalogosFiltros(),
-  });
 
   // Dimensión de Tiempo / Multianual
   const { data: dMultianual, isLoading: cMultianual } = useQuery({
@@ -507,6 +517,26 @@ function Panel() {
               onValueChange={(v) => {
                 setTipoRango(v);
                 if (v === "todo") {
+                  setAnio("todos");
+                  setMes("todos");
+                  setFechaDesde("");
+                  setFechaHasta("");
+                } else if (v === "anio") {
+                  if (anio === "todos" && (catalogos?.anios?.length ?? 0) > 0) {
+                    setAnio(String(catalogos!.anios[0]));
+                  }
+                  setFechaDesde("");
+                  setFechaHasta("");
+                } else if (v === "personalizado") {
+                  setAnio("todos");
+                  setMes("todos");
+                  if (!fechaDesde && rangoTotal?.fechaMin) {
+                    setFechaDesde(rangoTotal.fechaMin);
+                  }
+                  if (!fechaHasta && rangoTotal?.fechaMax) {
+                    setFechaHasta(rangoTotal.fechaMax);
+                  }
+                } else {
                   setAnio("todos");
                   setMes("todos");
                   setFechaDesde("");

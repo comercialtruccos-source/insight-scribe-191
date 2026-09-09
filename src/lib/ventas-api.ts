@@ -46,18 +46,26 @@ const invokeRpc = async (fn: string, args?: Record<string, unknown>) => {
 export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or: any }>(query: T, filtros: FiltrosBI): T {
   let q = query;
 
-  if (filtros.fecha_desde) {
+  if (filtros.fecha_desde && filtros.fecha_hasta) {
+    q = q.gte("fecha", filtros.fecha_desde).lte("fecha", filtros.fecha_hasta);
+  } else if (filtros.fecha_desde) {
     q = q.gte("fecha", filtros.fecha_desde);
-  }
-  if (filtros.fecha_hasta) {
+  } else if (filtros.fecha_hasta) {
     q = q.lte("fecha", filtros.fecha_hasta);
-  }
-  if (filtros.anio && !filtros.fecha_desde) {
-    q = q.gte("fecha", `${filtros.anio}-01-01`).lte("fecha", `${filtros.anio}-12-31`);
-  }
-  if (filtros.mes) {
+  } else if (filtros.anio) {
+    if (filtros.mes) {
+      const mPad = String(filtros.mes).padStart(2, "0");
+      const diasEnMes = new Date(filtros.anio, filtros.mes, 0).getDate();
+      q = q
+        .gte("fecha", `${filtros.anio}-${mPad}-01`)
+        .lte("fecha", `${filtros.anio}-${mPad}-${String(diasEnMes).padStart(2, "0")}`);
+    } else {
+      q = q.gte("fecha", `${filtros.anio}-01-01`).lte("fecha", `${filtros.anio}-12-31`);
+    }
+  } else if (filtros.mes) {
     q = q.eq("mes", filtros.mes);
   }
+
   if (filtros.canal_id) {
     q = q.eq("canal_id", filtros.canal_id);
   }
@@ -79,32 +87,32 @@ export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or:
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function cumpleFiltros(r: Record<string, any>, filtros: FiltrosBI): boolean {
-  if (filtros.fecha_desde && r.fecha) {
+  if (filtros.fecha_desde && "fecha" in r && r.fecha) {
     if (String(r.fecha) < filtros.fecha_desde) return false;
   }
-  if (filtros.fecha_hasta && r.fecha) {
+  if (filtros.fecha_hasta && "fecha" in r && r.fecha) {
     if (String(r.fecha) > filtros.fecha_hasta) return false;
   }
-  if (filtros.anio && !filtros.fecha_desde) {
+  if (filtros.anio && !filtros.fecha_desde && ("anio" in r || "fecha" in r)) {
     const rAnio = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : null);
     if (rAnio && rAnio !== filtros.anio) return false;
   }
-  if (filtros.mes) {
+  if (filtros.mes && ("mes" in r || "fecha" in r)) {
     const rMes = Number(r.mes) || (r.fecha ? parseInt(String(r.fecha).slice(5, 7), 10) : null);
     if (rMes && rMes !== filtros.mes) return false;
   }
-  if (filtros.canal_id) {
-    if (r.canal_id && Number(r.canal_id) !== filtros.canal_id) return false;
+  if (filtros.canal_id && "canal_id" in r && r.canal_id !== null && r.canal_id !== undefined) {
+    if (Number(r.canal_id) !== filtros.canal_id) return false;
   }
-  if (filtros.marca_id) {
-    if (r.marca_id && Number(r.marca_id) !== filtros.marca_id) return false;
+  if (filtros.marca_id && "marca_id" in r && r.marca_id !== null && r.marca_id !== undefined) {
+    if (Number(r.marca_id) !== filtros.marca_id) return false;
   }
-  if (filtros.vendedor_id) {
+  if (filtros.vendedor_id && ("vendedor_id" in r || "vendedor2_id" in r)) {
     const v1 = r.vendedor_id ? Number(r.vendedor_id) : null;
     const v2 = r.vendedor2_id ? Number(r.vendedor2_id) : null;
     if (v1 !== filtros.vendedor_id && v2 !== filtros.vendedor_id) return false;
   }
-  if (filtros.zona_id) {
+  if (filtros.zona_id && ("zona_id" in r || "zona_colombia_id" in r)) {
     const z1 = r.zona_id ? Number(r.zona_id) : null;
     const zc = r.zona_colombia_id ? Number(r.zona_colombia_id) : null;
     if (z1 !== filtros.zona_id && zc !== filtros.zona_id) return false;
@@ -112,63 +120,82 @@ export function cumpleFiltros(r: Record<string, any>, filtros: FiltrosBI): boole
   return true;
 }
 
+async function fetchChunksDirect<T>(
+  columns: string,
+  filtros: FiltrosBI,
+  maxRows: number
+): Promise<T[]> {
+  const CHUNK_SIZE = 1000;
+  const CONCURRENCY = 4;
+  const allRows: T[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore && allRows.length < maxRows) {
+    const promises = [];
+    for (let c = 0; c < CONCURRENCY; c++) {
+      const currentOffset = offset + c * CHUNK_SIZE;
+      if (currentOffset >= maxRows) break;
+      let q = supabase.from("fact_ventas").select(columns);
+      q = aplicarFiltrosQuery(q, filtros);
+      promises.push(q.range(currentOffset, currentOffset + CHUNK_SIZE - 1));
+    }
+
+    const results = await Promise.all(promises);
+    let reachedEnd = false;
+
+    for (const res of results) {
+      if (res.error) {
+        reachedEnd = true;
+        break;
+      }
+      const chunk = (res.data || []) as unknown as T[];
+      if (chunk.length === 0) {
+        reachedEnd = true;
+        break;
+      }
+      allRows.push(...chunk);
+      if (chunk.length < CHUNK_SIZE) {
+        reachedEnd = true;
+        break;
+      }
+    }
+
+    if (reachedEnd) {
+      hasMore = false;
+    } else {
+      offset += CONCURRENCY * CHUNK_SIZE;
+    }
+  }
+
+  return allRows;
+}
+
 /**
- * Carga el 100% de las filas de fact_ventas aplicando paginación en lotes paralelos (evitando el límite de 1000 filas de PostgREST).
+ * Carga las filas de fact_ventas aplicando paginación optimizada y segmentación por años para evitar timeouts.
  */
 export async function fetchAllFactVentas<T = Record<string, unknown>>(
   columns: string,
   filtros: FiltrosBI,
   maxRows = 300000
 ): Promise<T[]> {
-  const CHUNK_SIZE = 1000;
-  const allRows: T[] = [];
+  let rows: T[] = [];
 
-  let baseQuery = supabase.from("fact_ventas").select(columns, { count: "exact" });
-  baseQuery = aplicarFiltrosQuery(baseQuery, filtros);
-
-  const firstRes = await baseQuery
-    .order("id", { ascending: true })
-    .range(0, CHUNK_SIZE - 1);
-
-  if (firstRes.error) {
-    console.error("Error al consultar fact_ventas:", firstRes.error);
-    return [];
-  }
-
-  const firstBatch = (firstRes.data || []) as unknown as T[];
-  allRows.push(...firstBatch);
-
-  const totalCount = firstRes.count ?? firstBatch.length;
-  if (totalCount <= CHUNK_SIZE || firstBatch.length < CHUNK_SIZE) {
-    return allRows.filter((r) => cumpleFiltros(r as Record<string, unknown>, filtros));
-  }
-
-  const targetCount = Math.min(totalCount, maxRows);
-  const chunkRanges: [number, number][] = [];
-
-  for (let start = CHUNK_SIZE; start < targetCount; start += CHUNK_SIZE) {
-    const end = Math.min(start + CHUNK_SIZE - 1, targetCount - 1);
-    chunkRanges.push([start, end]);
-  }
-
-  // Ejecutar solicitudes en paralelo con concurrencia controlada
-  const CONCURRENCY = 8;
-  for (let i = 0; i < chunkRanges.length; i += CONCURRENCY) {
-    const batch = chunkRanges.slice(i, i + CONCURRENCY);
-    const results = await Promise.all(
-      batch.map(async ([start, end]) => {
-        let q = supabase.from("fact_ventas").select(columns);
-        q = aplicarFiltrosQuery(q, filtros);
-        const res = await q.order("id", { ascending: true }).range(start, end);
-        return (res.data || []) as unknown as T[];
-      })
+  // Cuando no hay rango de fecha ni año específico (Todo el Histórico),
+  // segmentamos por años en paralelo para evitar escaneos lentos y timeouts en tablas grandes
+  if (!filtros.fecha_desde && !filtros.fecha_hasta && !filtros.anio) {
+    const candidateYears = [2026, 2025, 2024, 2023, 2022];
+    const yearResults = await Promise.all(
+      candidateYears.map((yr) =>
+        fetchChunksDirect<T>(columns, { ...filtros, anio: yr }, maxRows)
+      )
     );
-    for (const chunk of results) {
-      allRows.push(...chunk);
-    }
+    rows = yearResults.flat();
+  } else {
+    rows = await fetchChunksDirect<T>(columns, filtros, maxRows);
   }
 
-  return allRows.filter((r) => cumpleFiltros(r as Record<string, unknown>, filtros));
+  return rows.filter((r) => cumpleFiltros(r as Record<string, unknown>, filtros));
 }
 
 export async function obtenerResumenCliente() {
