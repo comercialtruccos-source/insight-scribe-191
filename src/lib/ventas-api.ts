@@ -461,7 +461,7 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
 }
 
 export const COLUMNAS_ALL_FACT_VENTAS =
-  "id, anio, anio_col, mes, dia, fecha, transaccion, valor, cantidad, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, pais_id, sku, producto, prenda_hgi, talla, color";
+  "id, anio, anio_col, mes, dia, fecha, transaccion, valor, cantidad, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, ciudad_id, pais_id, sku, producto, prenda_hgi, talla, color";
 
 export type FilaFactVentas = {
   id: number;
@@ -481,6 +481,7 @@ export type FilaFactVentas = {
   linea_id: number | null;
   zona_id: number | null;
   zona_colombia_id: number | null;
+  ciudad_id: number | null;
   pais_id: number | null;
   sku: string | null;
   producto: string | null;
@@ -645,11 +646,31 @@ export type ReferenciaTop = {
   porcentaje: number;
 };
 
-export type ZonaAporte = {
+export type CiudadAporte = {
+  id: number | null;
+  ciudad: string;
   zona: string;
   venta: number;
   unidades: number;
   porcentaje: number;
+};
+
+export type CiudadEnZona = {
+  id: number | null;
+  ciudad: string;
+  venta: number;
+  unidades: number;
+  porcentaje: number;
+  porcentajeGlobal: number;
+};
+
+export type ZonaAporte = {
+  id: number | null;
+  zona: string;
+  venta: number;
+  unidades: number;
+  porcentaje: number;
+  ciudades: CiudadEnZona[];
 };
 
 export type CanalAporte = {
@@ -679,34 +700,52 @@ export type DataDashboard1 = {
   rankingVendedores: VendedorAporte[];
   topReferencias: ReferenciaTop[];
   distribucionZonas: ZonaAporte[];
+  topCiudades: CiudadAporte[];
   mixCanales: CanalAporte[];
 };
 
 export function calcularDashboard1Cumplimiento(
   data: FilaFactVentas[],
   filtros: FiltrosBI,
-  catalogos?: {
-    lineas?: CatalogoItem[];
-    marcas?: CatalogoItem[];
-    vendedores?: CatalogoItem[];
-    canales?: CatalogoItem[];
-    zonas?: CatalogoItem[];
-  }
+  catalogosLineas?:
+    | CatalogoItem[]
+    | {
+        lineas?: CatalogoItem[];
+        marcas?: CatalogoItem[];
+        vendedores?: CatalogoItem[];
+        canales?: CatalogoItem[];
+        zonas?: CatalogoItem[];
+        ciudades?: CatalogoItem[];
+      },
+  catalogosMarcas?: CatalogoItem[],
+  catalogosVendedores?: CatalogoItem[],
+  catalogosZonas?: CatalogoItem[],
+  catalogosCanales?: CatalogoItem[],
+  catalogosCiudades?: CatalogoItem[]
 ): DataDashboard1 {
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-  const lineaMap = new Map<number, string>((catalogos?.lineas || []).map((l) => [l.id, l.nombre]));
-  const marcaMap = new Map<number, string>((catalogos?.marcas || []).map((m) => [m.id, m.nombre]));
-  const vendedorMap = new Map<number, string>((catalogos?.vendedores || []).map((v) => [v.id, v.nombre]));
-  const canalMap = new Map<number, string>((catalogos?.canales || []).map((c) => [c.id, c.nombre]));
-  const zonaMap = new Map<number, string>((catalogos?.zonas || []).map((z) => [z.id, z.nombre]));
+  const lineasArr = Array.isArray(catalogosLineas) ? catalogosLineas : catalogosLineas?.lineas;
+  const marcasArr = Array.isArray(catalogosLineas) ? catalogosMarcas : catalogosLineas?.marcas;
+  const vendedoresArr = Array.isArray(catalogosLineas) ? catalogosVendedores : catalogosLineas?.vendedores;
+  const zonasArr = Array.isArray(catalogosLineas) ? catalogosZonas : catalogosLineas?.zonas;
+  const canalesArr = Array.isArray(catalogosLineas) ? catalogosCanales : catalogosLineas?.canales;
+  const ciudadesArr = Array.isArray(catalogosLineas) ? catalogosCiudades : catalogosLineas?.ciudades;
+
+  const lineaMap = new Map<number, string>((lineasArr || []).map((l) => [l.id, l.nombre]));
+  const marcaMap = new Map<number, string>((marcasArr || []).map((m) => [m.id, m.nombre]));
+  const vendedorMap = new Map<number, string>((vendedoresArr || []).map((v) => [v.id, v.nombre]));
+  const canalMap = new Map<number, string>((canalesArr || []).map((c) => [c.id, c.nombre]));
+  const zonaMap = new Map<number, string>((zonasArr || []).map((z) => [z.id, z.nombre]));
+  const ciudadMap = new Map<number, string>((ciudadesArr || []).map((c) => [c.id, c.nombre]));
 
   const periodoMap = new Map<string, { anio: number; mes: number; venta: number; unidades: number; dev: number }>();
   const lineaVentaMap = new Map<string, { venta: number; unidades: number }>();
   const marcaVentaMap = new Map<string, number>();
   const vendedorVentaMap = new Map<string, { id: number | null; venta: number; unidades: number }>();
   const refVentaMap = new Map<string, { producto: string; linea: string; unidades: number; valor: number }>();
-  const zonaVentaMap = new Map<string, { venta: number; unidades: number }>();
+  const zonaVentaMap = new Map<string, { id: number | null; venta: number; unidades: number; ciudadesMap: Map<string, { id: number | null; venta: number; unidades: number }> }>();
+  const ciudadGlobalMap = new Map<string, { id: number | null; ciudad: string; zona: string; venta: number; unidades: number }>();
   const canalVentaMap = new Map<string, { venta: number; unidades: number }>();
   const transaccionesSet = new Set<string>();
 
@@ -777,17 +816,39 @@ export function calcularDashboard1Cumplimiento(
       valor: prevRef.valor + v,
     });
 
-    // Zonas / Regiones
+    // Zonas / Regiones y Ciudades
     const zId = r.zona_id || r.zona_colombia_id || null;
     const zNom = (zId && zonaMap.get(zId)) || "Nacional / Sin Zona";
-    const prevZ = zonaVentaMap.get(zNom) || { venta: 0, unidades: 0 };
-    zonaVentaMap.set(zNom, { venta: prevZ.venta + v, unidades: prevZ.unidades + cant });
+    const cId = r.ciudad_id || null;
+    const cNom = (cId && ciudadMap.get(cId)) || "General / Sin Ciudad";
+
+    if (!zonaVentaMap.has(zNom)) {
+      zonaVentaMap.set(zNom, { id: zId, venta: 0, unidades: 0, ciudadesMap: new Map() });
+    }
+    const currZ = zonaVentaMap.get(zNom)!;
+    currZ.venta += v;
+    currZ.unidades += cant;
+
+    if (!currZ.ciudadesMap.has(cNom)) {
+      currZ.ciudadesMap.set(cNom, { id: cId, venta: 0, unidades: 0 });
+    }
+    const currZC = currZ.ciudadesMap.get(cNom)!;
+    currZC.venta += v;
+    currZC.unidades += cant;
+
+    const ciudadKey = `${cNom}||${zNom}`;
+    if (!ciudadGlobalMap.has(ciudadKey)) {
+      ciudadGlobalMap.set(ciudadKey, { id: cId, ciudad: cNom, zona: zNom, venta: 0, unidades: 0 });
+    }
+    const currC = ciudadGlobalMap.get(ciudadKey)!;
+    currC.venta += v;
+    currC.unidades += cant;
 
     // Canales
-    const cId = r.canal_id || null;
-    const cNom = (cId && canalMap.get(cId)) || "Mayorista General";
-    const prevC = canalVentaMap.get(cNom) || { venta: 0, unidades: 0 };
-    canalVentaMap.set(cNom, { venta: prevC.venta + v, unidades: prevC.unidades + cant });
+    const cIdCanal = r.canal_id || null;
+    const cNomCanal = (cIdCanal && canalMap.get(cIdCanal)) || "Mayorista General";
+    const prevC = canalVentaMap.get(cNomCanal) || { venta: 0, unidades: 0 };
+    canalVentaMap.set(cNomCanal, { venta: prevC.venta + v, unidades: prevC.unidades + cant });
   }
 
   // Meses cronológicos
@@ -879,11 +940,37 @@ export function calcularDashboard1Cumplimiento(
     .slice(0, 15);
 
   const distribucionZonas: ZonaAporte[] = Array.from(zonaVentaMap.entries())
-    .map(([zona, val]) => ({
-      zona,
-      venta: val.venta,
-      unidades: val.unidades,
-      porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+    .map(([zona, val]) => {
+      const ciudadesList: CiudadEnZona[] = Array.from(val.ciudadesMap.entries())
+        .map(([ciudad, cVal]) => ({
+          id: cVal.id,
+          ciudad,
+          venta: cVal.venta,
+          unidades: cVal.unidades,
+          porcentaje: val.venta > 0 ? Math.round((cVal.venta / val.venta) * 1000) / 10 : 0,
+          porcentajeGlobal: totalVentas > 0 ? Math.round((cVal.venta / totalVentas) * 1000) / 10 : 0,
+        }))
+        .sort((a, b) => b.venta - a.venta);
+
+      return {
+        id: val.id,
+        zona,
+        venta: val.venta,
+        unidades: val.unidades,
+        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+        ciudades: ciudadesList,
+      };
+    })
+    .sort((a, b) => b.venta - a.venta);
+
+  const topCiudades: CiudadAporte[] = Array.from(ciudadGlobalMap.values())
+    .map((c) => ({
+      id: c.id,
+      ciudad: c.ciudad,
+      zona: c.zona,
+      venta: c.venta,
+      unidades: c.unidades,
+      porcentaje: totalVentas > 0 ? Math.round((c.venta / totalVentas) * 1000) / 10 : 0,
     }))
     .sort((a, b) => b.venta - a.venta);
 
@@ -922,6 +1009,7 @@ export function calcularDashboard1Cumplimiento(
     rankingVendedores,
     topReferencias,
     distribucionZonas,
+    topCiudades,
     mixCanales,
   };
 }

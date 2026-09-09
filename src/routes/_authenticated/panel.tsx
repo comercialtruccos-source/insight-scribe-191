@@ -161,6 +161,11 @@ function Panel() {
   const [vendedorId, setVendedorId] = useState<string>("todos");
   const [zonaId, setZonaId] = useState<string>("todos");
 
+  // Explorador de ubicaciones (Zonas y Ciudades) en Dashboard 1
+  const [zonaUbicacionD1, setZonaUbicacionD1] = useState<string>("todas");
+  const [busquedaCiudadD1, setBusquedaCiudadD1] = useState<string>("");
+  const [vistaUbicacionesD1, setVistaUbicacionesD1] = useState<"graficas" | "tabla">("graficas");
+
   // Explorador detalle
   const [busquedaDetalle, setBusquedaDetalle] = useState("");
   const [paginaDetalle, setPaginaDetalle] = useState(0);
@@ -283,14 +288,50 @@ function Panel() {
       calcularDashboard1Cumplimiento(
         rawVentas || [],
         filtros,
-        catalogos?.lineas,
-        catalogos?.marcas,
-        catalogos?.vendedores,
-        catalogos?.zonas,
-        catalogos?.canales
+        catalogos
       ),
     [rawVentas, filtros, catalogos]
   );
+
+  const vendedorSeleccionadoNombre = useMemo(() => {
+    if (vendedorId === "todos") return null;
+    return catalogos?.vendedores?.find((v) => String(v.id) === String(vendedorId))?.nombre || null;
+  }, [vendedorId, catalogos]);
+
+  const ciudadesFiltradasD1 = useMemo(() => {
+    if (!d1) return [];
+    let list: Array<{
+      id: number | null;
+      ciudad: string;
+      zona: string;
+      venta: number;
+      unidades: number;
+      porcentaje: number;
+      porcentajeGlobal?: number;
+    }> = [];
+
+    if (zonaUbicacionD1 === "todas") {
+      list = d1.topCiudades || [];
+    } else {
+      const zonaObj = d1.distribucionZonas?.find((z) => z.zona === zonaUbicacionD1);
+      list = (zonaObj?.ciudades || []).map((c) => ({
+        id: c.id,
+        ciudad: c.ciudad,
+        zona: zonaObj?.zona || "",
+        venta: c.venta,
+        unidades: c.unidades,
+        porcentaje: c.porcentaje,
+        porcentajeGlobal: c.porcentajeGlobal,
+      }));
+    }
+
+    if (busquedaCiudadD1.trim()) {
+      const q = busquedaCiudadD1.toLowerCase().trim();
+      list = list.filter((c) => c.ciudad.toLowerCase().includes(q) || c.zona.toLowerCase().includes(q));
+    }
+
+    return list;
+  }, [d1, zonaUbicacionD1, busquedaCiudadD1]);
   const d2 = useMemo(
     () => calcularDashboard2RunRate(rawVentas || [], filtros),
     [rawVentas, filtros]
@@ -1056,6 +1097,306 @@ function Panel() {
             </Card>
 
             {/* Fila 2: Aporte por Vendedor & Distribución Geográfica por Zonas */}
+            {/* ========================================================================= */}
+            {/* SECCIÓN DE UBICACIONES: ZONAS Y CIUDADES DE VENTAS */}
+            {/* ========================================================================= */}
+            <Card className="border-border/80 shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/40">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CardTitle className="text-base font-semibold flex items-center gap-2 text-foreground">
+                        <MapPin className="h-4 w-4 text-emerald-500" /> Ubicaciones de Ventas: Zonas y Ciudades
+                      </CardTitle>
+                      {vendedorSeleccionadoNombre ? (
+                        <Badge className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs">
+                          Asesor: {vendedorSeleccionadoNombre}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          Nacional / Todos los Vendedores
+                        </Badge>
+                      )}
+                      <Badge variant="secondary" className="text-xs">
+                        {(d1?.distribucionZonas || []).length} Zonas
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {(d1?.topCiudades || []).length} Ciudades
+                      </Badge>
+                    </div>
+                    <CardDescription className="text-xs">
+                      {vendedorSeleccionadoNombre
+                        ? `Analizando las zonas territoriales y municipios/ciudades donde ${vendedorSeleccionadoNombre} ha tenido sus ventas.`
+                        : "Distribución geográfica de ventas y ciudades con mayor facturación en Colombia."}
+                    </CardDescription>
+                  </div>
+
+                  {/* Controles de filtro y modo de vista */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Select value={zonaUbicacionD1} onValueChange={setZonaUbicacionD1}>
+                      <SelectTrigger className="w-[170px] h-8 text-xs bg-background">
+                        <SelectValue placeholder="Filtrar por Zona" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todas">Todas las Zonas (Nacional)</SelectItem>
+                        {(d1?.distribucionZonas || []).map((z) => (
+                          <SelectItem key={z.zona} value={z.zona}>
+                            {z.zona} ({z.porcentaje}%)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar ciudad o zona..."
+                        value={busquedaCiudadD1}
+                        onChange={(e) => setBusquedaCiudadD1(e.target.value)}
+                        className="h-8 pl-8 text-xs w-[160px] bg-background"
+                      />
+                    </div>
+
+                    <div className="flex rounded-md bg-muted p-0.5 border border-border/50">
+                      <button
+                        type="button"
+                        onClick={() => setVistaUbicacionesD1("graficas")}
+                        className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                          vistaUbicacionesD1 === "graficas"
+                            ? "bg-background shadow-sm text-foreground font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Gráficas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setVistaUbicacionesD1("tabla")}
+                        className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                          vistaUbicacionesD1 === "tabla"
+                            ? "bg-background shadow-sm text-foreground font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Tabla
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="pt-4">
+                {vistaUbicacionesD1 === "graficas" ? (
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    {/* Gráfico 1: Zonas Comerciales / Departamentos */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                          1. Participación por Zonas Comerciales
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          Clic en una zona para filtrar sus ciudades
+                        </span>
+                      </div>
+                      {(!d1?.distribucionZonas || d1.distribucionZonas.length === 0) ? (
+                        <div className="h-[280px] grid place-items-center text-sm text-muted-foreground">
+                          Sin datos de zonas para los filtros actuales
+                        </div>
+                      ) : (
+                        <div className="h-[280px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={d1.distribucionZonas.slice(0, 10)}
+                              layout="vertical"
+                              margin={{ left: 20, right: 20 }}
+                              onClick={(e) => {
+                                if (e && e.activePayload && e.activePayload[0]) {
+                                  const zName = e.activePayload[0].payload.zona;
+                                  setZonaUbicacionD1(zonaUbicacionD1 === zName ? "todas" : zName);
+                                }
+                              }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                              <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} />
+                              <YAxis type="category" dataKey="zona" width={110} tick={{ fontSize: 11 }} />
+                              <Tooltip
+                                formatter={(v: number, name: string, item: any) => [
+                                  `${formatoCOPFull(v)} (${item.payload.porcentaje}% • ${item.payload.unidades.toLocaleString("es-CO")} unds)`,
+                                  "Facturación",
+                                ]}
+                              />
+                              <Bar dataKey="venta" fill="#10b981" radius={[0, 4, 4, 0]} className="cursor-pointer">
+                                {d1.distribucionZonas.slice(0, 10).map((entry, i) => (
+                                  <Cell
+                                    key={`bar-zona-${i}`}
+                                    fill={
+                                      zonaUbicacionD1 === "todas" || zonaUbicacionD1 === entry.zona
+                                        ? COLORES[i % COLORES.length]
+                                        : "#94a3b8"
+                                    }
+                                    opacity={zonaUbicacionD1 === "todas" || zonaUbicacionD1 === entry.zona ? 1 : 0.4}
+                                  />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+
+                      {/* Chips interactivos de zonas */}
+                      <div className="flex flex-wrap gap-1.5 pt-1 max-h-[80px] overflow-y-auto">
+                        <button
+                          type="button"
+                          onClick={() => setZonaUbicacionD1("todas")}
+                          className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                            zonaUbicacionD1 === "todas"
+                              ? "bg-primary text-primary-foreground border-primary font-bold"
+                              : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/40"
+                          }`}
+                        >
+                          Todas ({d1?.distribucionZonas?.length || 0})
+                        </button>
+                        {(d1?.distribucionZonas || []).map((z, idx) => (
+                          <button
+                            key={z.zona}
+                            type="button"
+                            onClick={() => setZonaUbicacionD1(zonaUbicacionD1 === z.zona ? "todas" : z.zona)}
+                            className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors flex items-center gap-1.5 ${
+                              zonaUbicacionD1 === z.zona
+                                ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-sm"
+                                : "bg-muted/40 hover:bg-muted text-foreground border-border/40"
+                            }`}
+                          >
+                            <span
+                              className="h-1.5 w-1.5 rounded-full"
+                              style={{ backgroundColor: COLORES[idx % COLORES.length] }}
+                            />
+                            <span>{z.zona}</span>
+                            <span className="text-muted-foreground font-medium">({z.porcentaje}%)</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Gráfico 2: Ciudades y Municipios */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                          2. {zonaUbicacionD1 === "todas" ? "Top Ciudades Líderes en Facturación" : `Ciudades en Zona: ${zonaUbicacionD1}`}
+                        </span>
+                        <Badge variant="outline" className="text-[11px]">
+                          {ciudadesFiltradasD1.length} {ciudadesFiltradasD1.length === 1 ? "Ciudad" : "Ciudades"}
+                        </Badge>
+                      </div>
+
+                      {ciudadesFiltradasD1.length === 0 ? (
+                        <div className="h-[280px] grid place-items-center text-sm text-muted-foreground">
+                          Sin ciudades registradas para la selección actual
+                        </div>
+                      ) : (
+                        <div className="h-[280px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={ciudadesFiltradasD1.slice(0, 10)}
+                              layout="vertical"
+                              margin={{ left: 20, right: 20 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                              <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} />
+                              <YAxis type="category" dataKey="ciudad" width={110} tick={{ fontSize: 11 }} />
+                              <Tooltip
+                                formatter={(v: number, name: string, item: any) => [
+                                  `${formatoCOPFull(v)} (${item.payload.porcentaje}% • ${item.payload.unidades.toLocaleString("es-CO")} unds)`,
+                                  `Ventas en ${item.payload.zona || ""}`,
+                                ]}
+                              />
+                              <Bar dataKey="venta" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                                {ciudadesFiltradasD1.slice(0, 10).map((_, i) => (
+                                  <Cell key={`bar-ciudad-${i}`} fill={COLORES[(i + 2) % COLORES.length]} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+
+                      {/* Resumen rápido de ciudades */}
+                      <div className="space-y-1.5 max-h-[80px] overflow-y-auto pr-1">
+                        {ciudadesFiltradasD1.slice(0, 5).map((c, idx) => (
+                          <div key={`${c.ciudad}-${idx}`} className="flex items-center justify-between text-xs border-b border-border/20 pb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-muted-foreground">#{idx + 1}</span>
+                              <span className="font-semibold text-foreground">{c.ciudad}</span>
+                              <Badge variant="secondary" className="text-[10px] py-0 px-1 font-normal">
+                                {c.zona}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">{c.unidades.toLocaleString("es-CO")} unds</span>
+                              <span className="font-semibold text-foreground">{formatoCOP(c.venta)}</span>
+                              <span className="text-emerald-600 font-bold text-[11px]">({c.porcentaje}%)</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Modo Tabla Territorial */
+                  <div className="overflow-x-auto max-h-[380px]">
+                    <table className="w-full text-xs text-left">
+                      <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0">
+                        <tr>
+                          <th className="py-2.5 px-3">#</th>
+                          <th className="py-2.5 px-3">Zona / Departamento</th>
+                          <th className="py-2.5 px-3">Ciudad / Municipio</th>
+                          <th className="py-2.5 px-3 text-right">Unidades Vendidas</th>
+                          <th className="py-2.5 px-3 text-right">Venta Neta Facturada</th>
+                          <th className="py-2.5 px-3 text-right">
+                            {zonaUbicacionD1 === "todas" ? "% Aporte Total" : "% Aporte en Zona"}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/40">
+                        {ciudadesFiltradasD1.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-6 text-center text-muted-foreground">
+                              Sin ubicaciones registradas para el filtro seleccionado
+                            </td>
+                          </tr>
+                        ) : (
+                          ciudadesFiltradasD1.map((loc, idx) => (
+                            <tr key={`${loc.ciudad}-${loc.zona}-${idx}`} className="hover:bg-muted/30 transition-colors">
+                              <td className="py-2.5 px-3 font-bold text-muted-foreground">#{idx + 1}</td>
+                              <td className="py-2.5 px-3 font-medium text-foreground">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <MapPin className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                  {loc.zona}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 font-semibold text-foreground">{loc.ciudad}</td>
+                              <td className="py-2.5 px-3 text-right font-medium text-muted-foreground">
+                                {loc.unidades.toLocaleString("es-CO")}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                {formatoCOPFull(loc.venta)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                <Badge variant="outline" className="font-semibold text-[11px] bg-primary/5">
+                                  {loc.porcentaje}%
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Fila 2: Aporte por Vendedor & Mix por Canal Comercial */}
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Ranking y Aporte de Vendedores */}
               <Card>
@@ -1100,68 +1441,30 @@ function Panel() {
                 </CardContent>
               </Card>
 
-              {/* Distribución Geográfica por Zona Comercial */}
+              {/* Mix de Canales */}
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-emerald-500" /> Distribución Geográfica por Zonas
-                      </CardTitle>
-                      <CardDescription>
-                        Participación de ventas por regiones y zonas comerciales
-                      </CardDescription>
-                    </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {(d1?.distribucionZonas || []).length} Zonas
-                    </Badge>
-                  </div>
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-blue-500" /> Mix por Canal Comercial
+                  </CardTitle>
+                  <CardDescription>Participación de ventas por canal de comercialización</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {(!d1?.distribucionZonas || d1.distribucionZonas.length === 0) ? (
-                    <div className="h-[280px] grid place-items-center text-sm text-muted-foreground">Sin datos de zonas</div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                      <div className="h-[240px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={d1.distribucionZonas}
-                              dataKey="venta"
-                              nameKey="zona"
-                              cx="50%"
-                              cy="50%"
-                              outerRadius={80}
-                              innerRadius={45}
-                              paddingAngle={3}
-                            >
-                              {d1.distribucionZonas.map((_, i) => (
-                                <Cell key={`zona-cell-${i}`} fill={COLORES[i % COLORES.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(v: number) => [formatoCOPFull(v), "Venta"]} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
-                        {d1.distribucionZonas.map((z, idx) => (
-                          <div key={z.zona} className="flex items-center justify-between text-xs border-b border-border/30 pb-1.5">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span
-                                className="h-2.5 w-2.5 rounded-full shrink-0"
-                                style={{ backgroundColor: COLORES[idx % COLORES.length] }}
-                              />
-                              <span className="truncate font-medium">{z.zona}</span>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <span className="font-semibold">{formatoCOP(z.venta)}</span>
-                              <span className="text-muted-foreground ml-1.5 font-medium">({z.porcentaje}%)</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <div className="h-[280px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={d1?.mixCanales || []} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} />
+                        <YAxis type="category" dataKey="canal" width={100} tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(v: number) => [formatoCOPFull(v), "Ventas"]} />
+                        <Bar dataKey="venta" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                          {(d1?.mixCanales || []).map((_, i) => (
+                            <Cell key={`mix-canal-${i}`} fill={COLORES[(i + 3) % COLORES.length]} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </CardContent>
               </Card>
             </div>
