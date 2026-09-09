@@ -915,7 +915,7 @@ function Panel() {
               <CardKpi
                 titulo="Venta Neta Total"
                 valor={formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}
-                subtexto={`Presupuesto: ${formatoCOP(d1?.kpis.pptoYTD ?? 0)}`}
+                subtexto={`Bruta: ${formatoCOP(d1?.kpis.ventaBrutaTotal ?? 0)} • Ppto: ${formatoCOP(d1?.kpis.pptoYTD ?? 0)}`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD1}
               />

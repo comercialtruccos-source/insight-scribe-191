@@ -609,6 +609,7 @@ export type MixLinea = {
 export type DataDashboard1 = {
   kpis: {
     ventaYTD: number;
+    ventaBrutaTotal: number;
     pptoYTD: number;
     cumplimientoGlobalPct: number;
     crecimientoYoYPct: number;
@@ -679,12 +680,14 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
       periodoMap.set(pKey, { anio: an, mes: m, venta: 0, unidades: 0, dev: 0 });
     }
     const currP = periodoMap.get(pKey)!;
+    
+    // Venta Neta = SUM(valor) incluyendo valores negativos de devoluciones
+    currP.venta += v;
+    totalVentas += v;
+
     if (v < 0) {
       currP.dev += Math.abs(v);
       totalDevoluciones += Math.abs(v);
-    } else {
-      currP.venta += v;
-      totalVentas += v;
     }
     currP.unidades += cant;
     totalUnidades += cant;
@@ -704,6 +707,7 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
       const mNum = idx + 1;
       const d = periodoMap.get(String(mNum)) || { anio: filtros.anio!, mes: mNum, venta: 0, unidades: 0, dev: 0 };
       const ppto = Math.round(d.venta > 0 ? d.venta * 1.10 : 0);
+      const ventaBrutaMes = d.venta + d.dev;
       return {
         anio: filtros.anio!,
         mes: mNum,
@@ -715,7 +719,7 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
         cumplimientoPct: ppto > 0 ? Math.round((d.venta / ppto) * 100) : (d.venta > 0 ? 100 : 0),
         crecimientoYoY: 0,
         devolucionesMonto: d.dev,
-        tasaDevolucionPct: d.venta > 0 ? Math.round((d.dev / d.venta) * 1000) / 10 : 0,
+        tasaDevolucionPct: ventaBrutaMes > 0 ? Math.round((d.dev / ventaBrutaMes) * 1000) / 10 : 0,
         unidades: d.unidades,
       };
     });
@@ -726,6 +730,7 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
       const nombreMesStr = nombresMes[(d.mes || 1) - 1] ?? `M${d.mes}`;
       const nombre = `${nombreMesStr} ${d.anio}`;
       const ppto = Math.round(d.venta > 0 ? d.venta * 1.10 : 0);
+      const ventaBrutaMes = d.venta + d.dev;
       return {
         anio: d.anio,
         mes: d.mes,
@@ -737,7 +742,7 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
         cumplimientoPct: ppto > 0 ? Math.round((d.venta / ppto) * 100) : 100,
         crecimientoYoY: 0,
         devolucionesMonto: d.dev,
-        tasaDevolucionPct: d.venta > 0 ? Math.round((d.dev / d.venta) * 1000) / 10 : 0,
+        tasaDevolucionPct: ventaBrutaMes > 0 ? Math.round((d.dev / ventaBrutaMes) * 1000) / 10 : 0,
         unidades: d.unidades,
       };
     });
@@ -761,15 +766,17 @@ export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise
     .sort((a, b) => b.venta - a.venta);
 
   const totalPpto = meses.reduce((a, b) => a + b.ppto, 0);
+  const totalVentaBruta = totalVentas + totalDevoluciones;
 
   return {
     kpis: {
       ventaYTD: totalVentas,
+      ventaBrutaTotal: totalVentaBruta,
       pptoYTD: totalPpto > 0 ? totalPpto : Math.round(totalVentas * 1.10),
       cumplimientoGlobalPct: totalPpto > 0 ? Math.round((totalVentas / totalPpto) * 100) : 100,
       crecimientoYoYPct: 0,
       devolucionesTotal: totalDevoluciones,
-      tasaDevolucionGlobalPct: totalVentas > 0 ? Math.round((totalDevoluciones / totalVentas) * 1000) / 10 : 0,
+      tasaDevolucionGlobalPct: totalVentaBruta > 0 ? Math.round((totalDevoluciones / totalVentaBruta) * 1000) / 10 : 0,
       volumenUnidades: totalUnidades,
     },
     meses,
