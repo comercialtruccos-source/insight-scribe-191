@@ -25,4 +25,4 @@ npm i
 npm run dev
 ```
 
-<!-- Lovable sync test -->
+<!-- Lovable sync: todas las fases y modulo interactivo completados -->
