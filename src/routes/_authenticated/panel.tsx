@@ -149,7 +149,7 @@ function Panel() {
   const queryClient = useQueryClient();
 
   // Modo de rango temporal
-  const [tipoRango, setTipoRango] = useState<string>("todo");
+  const [tipoRango, setTipoRango] = useState<string>("mesActual");
   const [fechaDesde, setFechaDesde] = useState<string>("");
   const [fechaHasta, setFechaHasta] = useState<string>("");
 
@@ -200,13 +200,23 @@ function Panel() {
     let anioVal: number | null = null;
     let mesVal: number | null = null;
 
-    if (tipoRango === "personalizado") {
+    if (tipoRango === "mesActual") {
+      // Solo el mes más reciente con información (carga inicial rápida)
+      const maxDateStr = rangoTotal?.fechaMax || new Date().toISOString().slice(0, 10);
+      const [y, m] = maxDateStr.split("-").map(Number);
+      const anioM = y || new Date().getFullYear();
+      const mesM = m || new Date().getMonth() + 1;
+      const mPad = String(mesM).padStart(2, "0");
+      const ultimoDia = new Date(anioM, mesM, 0).getDate();
+      fDesde = `${anioM}-${mPad}-01`;
+      fHasta = `${anioM}-${mPad}-${String(ultimoDia).padStart(2, "0")}`;
+    } else if (tipoRango === "personalizado") {
       fDesde = fechaDesde.trim() || null;
       fHasta = fechaHasta.trim() || null;
     } else if (tipoRango === "ultimos12") {
       const maxDateStr = rangoTotal?.fechaMax || new Date().toISOString().slice(0, 10);
       const [y, m, d] = maxDateStr.split("-").map(Number);
-      const baseDate = new Date(y, (m || 1) - 1, d || 1);
+      const baseDate = new Date(y || new Date().getFullYear(), (m || 1) - 1, d || 1);
       const hace12 = new Date(baseDate);
       hace12.setFullYear(hace12.getFullYear() - 1);
       const y12 = hace12.getFullYear();
@@ -217,7 +227,7 @@ function Panel() {
     } else if (tipoRango === "ultimos6") {
       const maxDateStr = rangoTotal?.fechaMax || new Date().toISOString().slice(0, 10);
       const [y, m, d] = maxDateStr.split("-").map(Number);
-      const baseDate = new Date(y, (m || 1) - 1, d || 1);
+      const baseDate = new Date(y || new Date().getFullYear(), (m || 1) - 1, d || 1);
       const hace6 = new Date(baseDate);
       hace6.setMonth(hace6.getMonth() - 6);
       const y6 = hace6.getFullYear();
@@ -245,7 +255,7 @@ function Panel() {
   }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, ciudadId, rangoTotal?.fechaMax]);
 
   const hayFiltrosActivos =
-    tipoRango !== "todo" ||
+    tipoRango !== "mesActual" ||
     anio !== "todos" ||
     mes !== "todos" ||
     canalId !== "todos" ||
@@ -257,7 +267,7 @@ function Panel() {
     Boolean(fechaHasta);
 
   const limpiarFiltros = () => {
-    setTipoRango("todo");
+    setTipoRango("mesActual");
     setFechaDesde("");
     setFechaHasta("");
     setAnio("todos");
@@ -274,6 +284,8 @@ function Panel() {
     queryKey: ["bi-fact-ventas", filtros],
     queryFn: () => obtenerVentasRaw(filtros),
     staleTime: 60 * 1000,
+    // En modo "Mes Actual" esperamos a conocer el último mes con datos
+    enabled: tipoRango !== "mesActual" || rangoTotal !== undefined,
   });
 
   const cMultianual = cVentas;
@@ -619,6 +631,7 @@ function Panel() {
                 <SelectValue placeholder="Rango Temporal" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="mesActual">📆 Mes Actual (carga rápida)</SelectItem>
                 <SelectItem value="todo">🌐 Todo el Histórico Completo</SelectItem>
                 <SelectItem value="anio">🗓️ Por Año y Mes</SelectItem>
                 <SelectItem value="personalizado">📅 Rango de Fechas (Desde/Hasta)</SelectItem>
