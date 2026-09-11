@@ -255,7 +255,7 @@ function Panel() {
   }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, ciudadId, rangoTotal?.fechaMax]);
 
   const hayFiltrosActivos =
-    tipoRango !== "todo" ||
+    tipoRango !== "mesActual" ||
     anio !== "todos" ||
     mes !== "todos" ||
     canalId !== "todos" ||
@@ -267,7 +267,7 @@ function Panel() {
     Boolean(fechaHasta);
 
   const limpiarFiltros = () => {
-    setTipoRango("todo");
+    setTipoRango("mesActual");
     setFechaDesde("");
     setFechaHasta("");
     setAnio("todos");
@@ -629,6 +629,7 @@ function Panel() {
                 <SelectValue placeholder="Rango Temporal" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="mesActual">📆 Mes Actual (carga rápida)</SelectItem>
                 <SelectItem value="todo">🌐 Todo el Histórico Completo</SelectItem>
                 <SelectItem value="anio">🗓️ Por Año y Mes</SelectItem>
                 <SelectItem value="personalizado">📅 Rango de Fechas (Desde/Hasta)</SelectItem>
