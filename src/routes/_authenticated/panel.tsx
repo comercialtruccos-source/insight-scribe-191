@@ -149,7 +149,7 @@ function Panel() {
   const queryClient = useQueryClient();
 
   // Modo de rango temporal
-  const [tipoRango, setTipoRango] = useState<string>("todo");
+  const [tipoRango, setTipoRango] = useState<string>("mesActual");
   const [fechaDesde, setFechaDesde] = useState<string>("");
   const [fechaHasta, setFechaHasta] = useState<string>("");
 
@@ -200,7 +200,17 @@ function Panel() {
     let anioVal: number | null = null;
     let mesVal: number | null = null;
 
-    if (tipoRango === "personalizado") {
+    if (tipoRango === "mesActual") {
+      // Solo el mes más reciente con información (carga inicial rápida)
+      const maxDateStr = rangoTotal?.fechaMax || new Date().toISOString().slice(0, 10);
+      const [y, m] = maxDateStr.split("-").map(Number);
+      const anioM = y || new Date().getFullYear();
+      const mesM = m || new Date().getMonth() + 1;
+      const mPad = String(mesM).padStart(2, "0");
+      const ultimoDia = new Date(anioM, mesM, 0).getDate();
+      fDesde = `${anioM}-${mPad}-01`;
+      fHasta = `${anioM}-${mPad}-${String(ultimoDia).padStart(2, "0")}`;
+    } else if (tipoRango === "personalizado") {
       fDesde = fechaDesde.trim() || null;
       fHasta = fechaHasta.trim() || null;
     } else if (tipoRango === "ultimos12") {
