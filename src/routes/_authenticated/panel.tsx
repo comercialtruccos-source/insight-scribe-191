@@ -284,6 +284,8 @@ function Panel() {
     queryKey: ["bi-fact-ventas", filtros],
     queryFn: () => obtenerVentasRaw(filtros),
     staleTime: 60 * 1000,
+    // En modo "Mes Actual" esperamos a conocer el último mes con datos
+    enabled: tipoRango !== "mesActual" || rangoTotal !== undefined,
   });
 
   const cMultianual = cVentas;
