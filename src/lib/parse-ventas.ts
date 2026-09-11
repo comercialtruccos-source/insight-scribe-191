@@ -724,7 +724,7 @@ export function normalizarFila(
       out[campo] = parseMonth(val);
     } else if (campo === "anio") {
       out[campo] = parseYear(val);
-    } else if (NUMERICOS.includes(campo)) {
+    } else if ((NUMERICOS as readonly string[]).includes(campo)) {
       out[campo] = toNumber(val);
     } else {
       out[campo] = toText(val);
