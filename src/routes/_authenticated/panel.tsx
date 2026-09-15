@@ -102,7 +102,18 @@ import {
 import { toast } from "sonner";
 
 const TAMANO_LOTE = 1000;
-const COLORES = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#f97316", "#64748b", "#14b8a6", "#84cc16"];
+const COLORES = [
+  "#4f46e5", // Electric Indigo
+  "#10b981", // Emerald Mint
+  "#f59e0b", // Amber Gold
+  "#06b6d4", // Cyan Sky
+  "#ec4899", // Rose Pink
+  "#8b5cf6", // Violet Purple
+  "#3b82f6", // Royal Blue
+  "#f97316", // Coral Orange
+  "#14b8a6", // Teal Aqua
+  "#6366f1", // Iris Indigo
+];
 
 const MESES = [
   { num: 1, nombre: "Enero" },
@@ -688,43 +699,48 @@ function Panel() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950/80 font-sans">
       {/* Header Superior */}
-      <header className="sticky top-0 z-30 border-b border-border/80 bg-background/95 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-border/70 bg-background/85 backdrop-blur-xl shadow-2xs">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground font-bold text-lg shadow-sm">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-indigo-700 text-white font-bold text-lg shadow-sm shadow-indigo-500/25 shrink-0">
               T
             </div>
             <div>
-              <p className="font-display text-lg font-bold tracking-tight text-foreground">Trucco´s BI</p>
-              <p className="text-xs text-muted-foreground">Plataforma Consolidada de Inteligencia Comercial</p>
+              <div className="flex items-center gap-2">
+                <p className="font-display text-lg font-bold tracking-tight text-foreground">Trucco´s BI</p>
+                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                  Analytics
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground font-medium">Plataforma Consolidada de Inteligencia Comercial</p>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             {rangoTotal?.fechaMin && rangoTotal?.fechaMax && (
               <Badge variant="outline" className="hidden md:inline-flex bg-primary/10 border-primary/20 text-primary font-mono text-xs">
                 <Calendar className="mr-1.5 h-3 w-3" />
-                Rango Documento: {rangoTotal.fechaMin} al {rangoTotal.fechaMax}
+                Rango: {rangoTotal.fechaMin} al {rangoTotal.fechaMax}
               </Badge>
             )}
             {cFetching && (
               <Badge variant="secondary" className="animate-pulse bg-primary/15 border-primary/30 text-primary font-medium text-xs">
                 <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                Actualizando datos...
+                Actualizando...
               </Badge>
             )}
             <Badge variant="outline" className="hidden sm:inline-flex bg-muted/40 font-mono text-xs">
               {(resumen?.totalVentas ?? 0).toLocaleString("es-CO")} registros
             </Badge>
-            <Button variant="ghost" size="sm" onClick={salir}>
+            <Button variant="ghost" size="sm" onClick={salir} className="h-8 text-xs font-medium hover:bg-muted/80">
               Cerrar sesión
             </Button>
           </div>
         </div>
 
         {/* Barra de Filtros Globales (Slicers) */}
-        <div className="border-t border-border/60 bg-muted/30 px-4 py-2 sm:px-6">
+        <div className="border-t border-border/50 bg-background/60 backdrop-blur-md px-4 py-2 sm:px-6">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1 flex items-center gap-1">
               <Clock className="h-3 w-3 text-primary" />
@@ -1024,41 +1040,68 @@ function Panel() {
               </Button>
             </div>
           ) : (
-            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 md:grid-cols-9 h-auto p-1 bg-muted/60">
-              <TabsTrigger value="multianual" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-                <History className="h-3.5 w-3.5 text-purple-500" />
+            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 md:grid-cols-9 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
+              <TabsTrigger
+                value="multianual"
+                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400 data-[state=active]:shadow-2xs transition-all duration-200"
+              >
+                <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                 Multianual
               </TabsTrigger>
-              <TabsTrigger value="d1" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-                <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
+              <TabsTrigger
+                value="d1"
+                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-2xs transition-all duration-200"
+              >
+                <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                 1. Cumplimiento
               </TabsTrigger>
-              <TabsTrigger value="d2" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-                <Calendar className="h-3.5 w-3.5 text-emerald-500" />
+              <TabsTrigger
+                value="d2"
+                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-emerald-500/10 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-2xs transition-all duration-200"
+              >
+                <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                 2. Run Rate
               </TabsTrigger>
-              <TabsTrigger value="d3" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-                <Globe className="h-3.5 w-3.5 text-indigo-500" />
+              <TabsTrigger
+                value="d3"
+                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-indigo-500/10 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 data-[state=active]:shadow-2xs transition-all duration-200"
+              >
+                <Globe className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
                 3. Digital
               </TabsTrigger>
-              <TabsTrigger value="d4" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-                <Award className="h-3.5 w-3.5 text-amber-500" />
+              <TabsTrigger
+                value="d4"
+                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-2xs transition-all duration-200"
+              >
+                <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                 4. Fuerza Ventas
               </TabsTrigger>
-              <TabsTrigger value="d5" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-                <ShoppingBag className="h-3.5 w-3.5 text-pink-500" />
+              <TabsTrigger
+                value="d5"
+                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-pink-500/10 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-400 data-[state=active]:shadow-2xs transition-all duration-200"
+              >
+                <ShoppingBag className="h-3.5 w-3.5 text-pink-500 shrink-0" />
                 5. Marketplaces
               </TabsTrigger>
-              <TabsTrigger value="referencias" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-                <Package className="h-3.5 w-3.5 text-cyan-500" />
+              <TabsTrigger
+                value="referencias"
+                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:shadow-2xs transition-all duration-200"
+              >
+                <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
                 6. Referencias
               </TabsTrigger>
-              <TabsTrigger value="explorador" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-                <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500" />
+              <TabsTrigger
+                value="explorador"
+                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-teal-500/10 data-[state=active]:text-teal-600 dark:data-[state=active]:text-teal-400 data-[state=active]:shadow-2xs transition-all duration-200"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                 Detalle
               </TabsTrigger>
-              <TabsTrigger value="carga" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-                <UploadCloud className="h-3.5 w-3.5 text-slate-500" />
+              <TabsTrigger
+                value="carga"
+                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
+              >
+                <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
                 Cargar
               </TabsTrigger>
             </TabsList>
@@ -3866,23 +3909,37 @@ function CardKpi({
   badgeSemaforo?: number | undefined;
 }) {
   return (
-    <Card className="relative overflow-hidden">
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{titulo}</p>
-          {icono && <div className="p-1.5 rounded-md bg-muted/40">{icono}</div>}
+    <Card className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 backdrop-blur-xs shadow-2xs hover:shadow-md hover:border-primary/40 transition-all duration-300">
+      {/* Top accent highlight */}
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <CardContent className="p-5 flex flex-col justify-between h-full">
+        <div>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground line-clamp-1">
+              {titulo}
+            </p>
+            {icono && (
+              <div className="grid h-8 w-8 place-items-center rounded-xl bg-muted/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary group-hover:scale-105 transition-all duration-200 shrink-0">
+                {icono}
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap items-baseline gap-2 mt-2">
+            <p className="text-2xl sm:text-[1.65rem] font-bold font-display tracking-tight text-foreground tabular-nums leading-none">
+              {cargando ? "—" : valor}
+            </p>
+            {badgeSemaforo !== undefined && (
+              <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border shadow-2xs ${colorSemaforo(badgeSemaforo)}`}>
+                {badgeSemaforo >= 100 ? "Meta Cumplida" : badgeSemaforo >= 90 ? "Alerta" : "Crítico"}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-baseline gap-2 mt-2">
-          <p className="text-2xl font-bold font-display tracking-tight text-foreground">
-            {cargando ? "—" : valor}
+        {subtexto && (
+          <p className="mt-3 text-xs text-muted-foreground font-medium flex items-center gap-1 line-clamp-2">
+            {subtexto}
           </p>
-          {badgeSemaforo !== undefined && (
-            <span className={`px-1.5 py-0.5 text-[11px] font-bold rounded border ${colorSemaforo(badgeSemaforo)}`}>
-              {badgeSemaforo >= 100 ? "Meta Cumplida" : badgeSemaforo >= 90 ? "Alerta" : "Crítico"}
-            </span>
-          )}
-        </div>
-        {subtexto && <p className="mt-1 text-xs text-muted-foreground">{subtexto}</p>}
+        )}
       </CardContent>
     </Card>
   );
