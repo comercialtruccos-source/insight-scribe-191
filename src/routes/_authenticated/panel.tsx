@@ -1315,7 +1315,7 @@ function Panel() {
             </div>
 
             {/* 6 Tarjetas KPI Ejecutivas */}
-            <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
               <CardKpi
                 titulo="Venta Neta Total"
                 valor={formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}
@@ -3893,6 +3893,14 @@ function Panel() {
   );
 }
 
+function getKpiValueFontSize(val: string) {
+  const len = val.length;
+  if (len >= 16) return "text-sm sm:text-base xl:text-lg 2xl:text-xl";
+  if (len >= 13) return "text-base sm:text-lg xl:text-xl 2xl:text-2xl";
+  if (len >= 10) return "text-lg sm:text-xl xl:text-2xl 2xl:text-[1.65rem]";
+  return "text-xl sm:text-2xl xl:text-[1.65rem]";
+}
+
 function CardKpi({
   titulo,
   valor,
@@ -3912,31 +3920,43 @@ function CardKpi({
     <Card className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 backdrop-blur-xs shadow-2xs hover:shadow-md hover:border-primary/40 transition-all duration-300">
       {/* Top accent highlight */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      <CardContent className="p-5 flex flex-col justify-between h-full">
+      <CardContent className="p-4 sm:p-4.5 flex flex-col justify-between h-full">
         <div>
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground line-clamp-1">
+          <div className="flex items-start justify-between gap-1.5 min-h-[2.2rem]">
+            <p
+              className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground leading-snug line-clamp-2"
+              title={titulo}
+            >
               {titulo}
             </p>
             {icono && (
-              <div className="grid h-8 w-8 place-items-center rounded-xl bg-muted/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary group-hover:scale-105 transition-all duration-200 shrink-0">
+              <div className="grid h-7 w-7 sm:h-8 sm:w-8 place-items-center rounded-xl bg-muted/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary group-hover:scale-105 transition-all duration-200 shrink-0">
                 {icono}
               </div>
             )}
           </div>
-          <div className="flex flex-wrap items-baseline gap-2 mt-2">
-            <p className="text-2xl sm:text-[1.65rem] font-bold font-display tracking-tight text-foreground tabular-nums leading-none">
+          <div className="flex flex-wrap items-baseline gap-1.5 mt-2">
+            <p
+              className={cn(
+                "font-bold font-display tracking-tight text-foreground tabular-nums leading-tight break-all sm:break-normal",
+                getKpiValueFontSize(cargando ? "—" : valor)
+              )}
+              title={cargando ? undefined : valor}
+            >
               {cargando ? "—" : valor}
             </p>
             {badgeSemaforo !== undefined && (
-              <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border shadow-2xs ${colorSemaforo(badgeSemaforo)}`}>
+              <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border shadow-2xs shrink-0 ${colorSemaforo(badgeSemaforo)}`}>
                 {badgeSemaforo >= 100 ? "Meta Cumplida" : badgeSemaforo >= 90 ? "Alerta" : "Crítico"}
               </span>
             )}
           </div>
         </div>
         {subtexto && (
-          <p className="mt-3 text-xs text-muted-foreground font-medium flex items-center gap-1 line-clamp-2">
+          <p
+            className="mt-2.5 text-[11px] sm:text-xs text-muted-foreground font-medium flex items-center gap-1 line-clamp-2 leading-snug"
+            title={subtexto}
+          >
             {subtexto}
           </p>
         )}
