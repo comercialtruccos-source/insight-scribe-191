@@ -151,7 +151,7 @@ function Panel() {
   const queryClient = useQueryClient();
 
   // Modo de rango temporal
-  const [tipoRango, setTipoRango] = useState<string>("mesActual");
+  const [tipoRango, setTipoRango] = useState<string>("todo");
   const [fechaDesde, setFechaDesde] = useState<string>("");
   const [fechaHasta, setFechaHasta] = useState<string>("");
 
@@ -203,7 +203,6 @@ function Panel() {
     let mesVal: number | null = null;
 
     if (tipoRango === "mesActual") {
-      // Solo el mes más reciente con información (carga inicial rápida)
       const maxDateStr = rangoTotal?.fechaMax || new Date().toISOString().slice(0, 10);
       const [y, m] = maxDateStr.split("-").map(Number);
       const anioM = y || new Date().getFullYear();
@@ -217,25 +216,27 @@ function Panel() {
       fHasta = fechaHasta.trim() || null;
     } else if (tipoRango === "ultimos12") {
       const maxDateStr = rangoTotal?.fechaMax || new Date().toISOString().slice(0, 10);
-      const [y, m, d] = maxDateStr.split("-").map(Number);
-      const baseDate = new Date(y || new Date().getFullYear(), (m || 1) - 1, d || 1);
+      const [y, m] = maxDateStr.split("-").map(Number);
+      const anioMax = y || new Date().getFullYear();
+      const mesMax = m || new Date().getMonth() + 1;
+      const baseDate = new Date(anioMax, mesMax - 1, 1);
       const hace12 = new Date(baseDate);
-      hace12.setFullYear(hace12.getFullYear() - 1);
+      hace12.setMonth(hace12.getMonth() - 11);
       const y12 = hace12.getFullYear();
       const m12 = String(hace12.getMonth() + 1).padStart(2, "0");
-      const d12 = String(hace12.getDate()).padStart(2, "0");
-      fDesde = `${y12}-${m12}-${d12}`;
+      fDesde = `${y12}-${m12}-01`;
       fHasta = maxDateStr;
     } else if (tipoRango === "ultimos6") {
       const maxDateStr = rangoTotal?.fechaMax || new Date().toISOString().slice(0, 10);
-      const [y, m, d] = maxDateStr.split("-").map(Number);
-      const baseDate = new Date(y || new Date().getFullYear(), (m || 1) - 1, d || 1);
+      const [y, m] = maxDateStr.split("-").map(Number);
+      const anioMax = y || new Date().getFullYear();
+      const mesMax = m || new Date().getMonth() + 1;
+      const baseDate = new Date(anioMax, mesMax - 1, 1);
       const hace6 = new Date(baseDate);
-      hace6.setMonth(hace6.getMonth() - 6);
+      hace6.setMonth(hace6.getMonth() - 5);
       const y6 = hace6.getFullYear();
       const m6 = String(hace6.getMonth() + 1).padStart(2, "0");
-      const d6 = String(hace6.getDate()).padStart(2, "0");
-      fDesde = `${y6}-${m6}-${d6}`;
+      fDesde = `${y6}-${m6}-01`;
       fHasta = maxDateStr;
     } else {
       // Modo "anio" o "todo" con año/mes seleccionados
@@ -257,7 +258,7 @@ function Panel() {
   }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, ciudadId, rangoTotal?.fechaMax]);
 
   const hayFiltrosActivos =
-    tipoRango !== "mesActual" ||
+    tipoRango !== "todo" ||
     anio !== "todos" ||
     mes !== "todos" ||
     canalId !== "todos" ||
@@ -269,7 +270,7 @@ function Panel() {
     Boolean(fechaHasta);
 
   const limpiarFiltros = () => {
-    setTipoRango("mesActual");
+    setTipoRango("todo");
     setFechaDesde("");
     setFechaHasta("");
     setAnio("todos");

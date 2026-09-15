@@ -127,13 +127,43 @@ export function cumpleFiltros(r: any, filtros: FiltrosBI): boolean {
   return true;
 }
 
+function generarMesesEnRango(fDesde: string, fHasta: string) {
+  const [y1, m1] = fDesde.split("-").map(Number);
+  const [y2, m2] = fHasta.split("-").map(Number);
+
+  const meses: Array<{ anio: number; mes: number; desde: string; hasta: string }> = [];
+  let currY = y1 || 2025;
+  let currM = m1 || 1;
+  const targetY = y2 || 2026;
+  const targetM = m2 || 12;
+
+  while (currY < targetY || (currY === targetY && currM <= targetM)) {
+    const ultimoDia = new Date(currY, currM, 0).getDate();
+    const mPad = String(currM).padStart(2, "0");
+    const dInicio = `${currY}-${mPad}-01`;
+    const dFin = `${currY}-${mPad}-${String(ultimoDia).padStart(2, "0")}`;
+
+    const mesDesde = dInicio < fDesde ? fDesde : dInicio;
+    const mesHasta = dFin > fHasta ? fHasta : dFin;
+
+    meses.push({ anio: currY, mes: currM, desde: mesDesde, hasta: mesHasta });
+
+    currM++;
+    if (currM > 12) {
+      currM = 1;
+      currY++;
+    }
+  }
+  return meses;
+}
+
 async function fetchChunksDirect<T>(
   columns: string,
   filtros: FiltrosBI,
   maxRows: number
 ): Promise<T[]> {
   const CHUNK_SIZE = 1000;
-  const CONCURRENCY = 4;
+  const CONCURRENCY = 6;
   const allRows: T[] = [];
   let offset = 0;
   let hasMore = true;
@@ -161,7 +191,9 @@ async function fetchChunksDirect<T>(
         reachedEnd = true;
         break;
       }
-      allRows.push(...chunk);
+      for (let i = 0; i < chunk.length; i++) {
+        allRows.push(chunk[i]);
+      }
       if (chunk.length < CHUNK_SIZE) {
         reachedEnd = true;
         break;
@@ -179,27 +211,56 @@ async function fetchChunksDirect<T>(
 }
 
 /**
- * Carga las filas de fact_ventas aplicando paginación optimizada y segmentación por años para evitar timeouts.
+ * Carga las filas de fact_ventas aplicando paginación optimizada y segmentación mensual/anual para cobertura total sin timeouts.
  */
 export async function fetchAllFactVentas<T = Record<string, unknown>>(
   columns: string,
   filtros: FiltrosBI,
-  maxRows = 300000
+  maxRows = 500000
 ): Promise<T[]> {
-  let rows: T[] = [];
+  const rows: T[] = [];
 
-  // Cuando no hay rango de fecha ni año específico (Todo el Histórico),
-  // segmentamos por años en paralelo para evitar escaneos lentos y timeouts en tablas grandes
-  if (!filtros.fecha_desde && !filtros.fecha_hasta && !filtros.anio) {
+  if (filtros.fecha_desde && filtros.fecha_hasta) {
+    // Cuando hay rango de fechas (ej: Últimos 12 meses, Últimos 6 meses, Personalizado):
+    // Particionamos por cada mes contenido en el rango para asegurar que el 100% de los meses se carguen
+    const meses = generarMesesEnRango(filtros.fecha_desde, filtros.fecha_hasta);
+    const BATCH_SIZE = 4;
+    for (let i = 0; i < meses.length; i += BATCH_SIZE) {
+      const batch = meses.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map((m) =>
+          fetchChunksDirect<T>(
+            columns,
+            { ...filtros, fecha_desde: m.desde, fecha_hasta: m.hasta, anio: null, mes: null },
+            50000
+          )
+        )
+      );
+      for (const bRes of batchResults) {
+        for (let j = 0; j < bRes.length; j++) {
+          rows.push(bRes[j]);
+        }
+      }
+    }
+  } else if (!filtros.fecha_desde && !filtros.fecha_hasta && !filtros.anio) {
+    // Cuando no hay rango de fecha ni año específico (Todo el Histórico):
+    // Segmentamos por años en paralelo para evitar escaneos lentos y timeouts en tablas grandes
     const candidateYears = [2026, 2025, 2024, 2023, 2022];
     const yearResults = await Promise.all(
       candidateYears.map((yr) =>
         fetchChunksDirect<T>(columns, { ...filtros, anio: yr }, maxRows)
       )
     );
-    rows = yearResults.flat();
+    for (const yRes of yearResults) {
+      for (let j = 0; j < yRes.length; j++) {
+        rows.push(yRes[j]);
+      }
+    }
   } else {
-    rows = await fetchChunksDirect<T>(columns, filtros, maxRows);
+    const directRows = await fetchChunksDirect<T>(columns, filtros, maxRows);
+    for (let j = 0; j < directRows.length; j++) {
+      rows.push(directRows[j]);
+    }
   }
 
   return rows.filter((r) => cumpleFiltros(r as Record<string, unknown>, filtros));
