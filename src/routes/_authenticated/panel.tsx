@@ -15,6 +15,7 @@ import {
   calcularDashboard3Digital,
   calcularDashboard4FuerzaVentas,
   calcularDashboard5Marketplaces,
+  calcularDashboard6Referencias,
   obtenerTransaccionesDetalle,
   purgarDatosVentas,
   eliminarCarga,
@@ -169,6 +170,14 @@ function Panel() {
   const [busquedaCiudadD1, setBusquedaCiudadD1] = useState<string>("");
   const [vistaUbicacionesD1, setVistaUbicacionesD1] = useState<"graficas" | "tabla">("graficas");
 
+  // Dashboard 6: Referencias
+  const [busquedaRef, setBusquedaRef] = useState("");
+  const [filtroLineaRef, setFiltroLineaRef] = useState("todas");
+  const [filtroAbcRef, setFiltroAbcRef] = useState("todos");
+  const [ordenRef, setOrdenRef] = useState<"ventaDesc" | "unidadesDesc" | "precioDesc" | "devDesc" | "paretoAsc">("ventaDesc");
+  const [filasPorPaginaRef, setFilasPorPaginaRef] = useState("25");
+  const [paginaRef, setPaginaRef] = useState(1);
+
   // Explorador detalle
   const [busquedaDetalle, setBusquedaDetalle] = useState("");
   const [paginaDetalle, setPaginaDetalle] = useState(0);
@@ -297,6 +306,7 @@ function Panel() {
   const cD3 = cVentas;
   const cD4 = cVentas;
   const cD5 = cVentas;
+  const cD6 = cVentas;
 
   const dMultianual = useMemo(
     () => calcularHistoricoMultianual(rawVentas || [], filtros),
@@ -372,6 +382,110 @@ function Panel() {
     () => calcularDashboard5Marketplaces(rawVentas || [], filtros, catalogos?.canales),
     [rawVentas, filtros, catalogos]
   );
+  const d6 = useMemo(
+    () => calcularDashboard6Referencias(rawVentas || [], filtros, catalogos),
+    [rawVentas, filtros, catalogos]
+  );
+
+  const referenciasFiltradas = useMemo(() => {
+    if (!d6?.todasReferencias) return [];
+    let list = d6.todasReferencias;
+
+    if (filtroLineaRef !== "todas") {
+      list = list.filter((r) => r.linea === filtroLineaRef);
+    }
+    if (filtroAbcRef !== "todos") {
+      list = list.filter((r) => r.clasificacionABC === filtroAbcRef);
+    }
+    if (busquedaRef.trim()) {
+      const q = busquedaRef.toLowerCase().trim();
+      list = list.filter(
+        (r) =>
+          r.sku.toLowerCase().includes(q) ||
+          r.producto.toLowerCase().includes(q) ||
+          r.linea.toLowerCase().includes(q)
+      );
+    }
+
+    const sorted = [...list];
+    if (ordenRef === "ventaDesc") {
+      sorted.sort((a, b) => b.ventaNeta - a.ventaNeta);
+    } else if (ordenRef === "unidadesDesc") {
+      sorted.sort((a, b) => b.unidades - a.unidades);
+    } else if (ordenRef === "precioDesc") {
+      sorted.sort((a, b) => b.precioPromedio - a.precioPromedio);
+    } else if (ordenRef === "devDesc") {
+      sorted.sort((a, b) => b.devoluciones - a.devoluciones);
+    } else if (ordenRef === "paretoAsc") {
+      sorted.sort((a, b) => a.acumuladoPareto - b.acumuladoPareto);
+    }
+
+    return sorted;
+  }, [d6, filtroLineaRef, filtroAbcRef, busquedaRef, ordenRef]);
+
+  const referenciasPaginadas = useMemo(() => {
+    if (filasPorPaginaRef === "todas") return referenciasFiltradas;
+    const limit = Number(filasPorPaginaRef) || 25;
+    const start = (paginaRef - 1) * limit;
+    return referenciasFiltradas.slice(start, start + limit);
+  }, [referenciasFiltradas, paginaRef, filasPorPaginaRef]);
+
+  const totalPaginasRef = useMemo(() => {
+    if (filasPorPaginaRef === "todas") return 1;
+    const limit = Number(filasPorPaginaRef) || 25;
+    return Math.max(1, Math.ceil(referenciasFiltradas.length / limit));
+  }, [referenciasFiltradas.length, filasPorPaginaRef]);
+
+  const exportarCSVReferencias = () => {
+    if (!referenciasFiltradas || referenciasFiltradas.length === 0) {
+      toast.info("No hay datos de referencias para exportar");
+      return;
+    }
+    const headers = [
+      "Ranking",
+      "SKU / Referencia",
+      "Producto / Descripcion",
+      "Linea",
+      "Marca",
+      "Unidades Vendidas",
+      "Venta Bruta",
+      "Devoluciones",
+      "Venta Neta",
+      "Precio Promedio Unitario",
+      "Tasa Devolucion %",
+      "Participacion Venta %",
+      "Acumulado Pareto %",
+      "Clasificacion ABC",
+    ];
+    const csvRows = [
+      headers.join(","),
+      ...referenciasFiltradas.map((r, idx) => [
+        idx + 1,
+        `"${(r.sku || "").replace(/"/g, '""')}"`,
+        `"${(r.producto || "").replace(/"/g, '""')}"`,
+        `"${(r.linea || "").replace(/"/g, '""')}"`,
+        `"${(r.marca || "").replace(/"/g, '""')}"`,
+        r.unidades,
+        r.ventaBruta,
+        r.devoluciones,
+        r.ventaNeta,
+        r.precioPromedio,
+        r.tasaDevolucion,
+        r.porcentajeVenta,
+        r.acumuladoPareto,
+        `"${r.clasificacionABC}"`,
+      ].join(",")),
+    ];
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `catalogo_referencias_truccos_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Catálogo de referencias descargado en CSV con éxito");
+  };
 
   // Explorador de transacciones
   const { data: transaccionesDetalle, isLoading: cDetalle } = useQuery({
@@ -800,7 +914,7 @@ function Panel() {
       {/* Contenido Principal */}
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
         <Tabs defaultValue="multianual" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 h-auto p-1 bg-muted/60">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 md:grid-cols-9 h-auto p-1 bg-muted/60">
             <TabsTrigger value="multianual" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
               <History className="h-3.5 w-3.5 text-purple-500" />
               Multianual
@@ -824,6 +938,10 @@ function Panel() {
             <TabsTrigger value="d5" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
               <ShoppingBag className="h-3.5 w-3.5 text-pink-500" />
               5. Marketplaces
+            </TabsTrigger>
+            <TabsTrigger value="referencias" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+              <Package className="h-3.5 w-3.5 text-cyan-500" />
+              6. Referencias
             </TabsTrigger>
             <TabsTrigger value="explorador" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
               <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500" />
@@ -2232,7 +2350,772 @@ function Panel() {
           </TabsContent>
 
           {/* ========================================================================= */}
-          {/* TAB 6: EXPLORADOR DE TRANSACCIONES */}
+          {/* TAB 6: INTELIGENCIA Y RENDIMIENTO DE REFERENCIAS (CATÁLOGO GLOBAL) */}
+          {/* ========================================================================= */}
+          <TabsContent value="referencias" className="space-y-6">
+            {/* Encabezado del Dashboard */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/60 pb-3">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground font-display flex items-center gap-2">
+                  <Package className="h-5 w-5 text-cyan-500" />
+                  Dashboard 6: Inteligencia y Rendimiento de Referencias (Catálogo Global)
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Análisis gerencial del portafolio completo de productos: rotación física, concentración ABC (Pareto 80/20), ticket promedio por prenda, curva de demanda y calidad.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="bg-cyan-500/10 border-cyan-500/30 text-cyan-700 dark:text-cyan-300 font-mono text-xs">
+                  <Package className="mr-1 h-3 w-3" />
+                  {(d6?.kpis.totalReferenciasActivas ?? 0).toLocaleString("es-CO")} SKUs activos
+                </Badge>
+                {d6?.kpis.concentracionParetoA && (
+                  <Badge variant="outline" className="bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+                    <Percent className="mr-1 h-3 w-3" />
+                    Top {d6.kpis.concentracionParetoA.referenciasPct}% genera el {d6.kpis.concentracionParetoA.ventaPct}% de la venta
+                  </Badge>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportarCSVReferencias}
+                  className="h-8 text-xs font-medium border-primary/30 text-primary hover:bg-primary/10"
+                >
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  Exportar Catálogo CSV
+                </Button>
+              </div>
+            </div>
+
+            {/* Tarjetas KPI Gerenciales de Referencias */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+              <CardKpi
+                titulo="Facturación Neta"
+                valor={formatoCOPFull(d6?.kpis.totalVentaNeta ?? 0)}
+                subtexto={`Bruta: ${formatoCOP(d6?.kpis.totalVentaBruta ?? 0)} • Devs: ${formatoCOP(d6?.kpis.totalDevoluciones ?? 0)}`}
+                icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
+                cargando={cD6}
+              />
+              <CardKpi
+                titulo="Volumen Prendas"
+                valor={`${(d6?.kpis.totalUnidades ?? 0).toLocaleString("es-CO")} unds`}
+                subtexto="Total unidades comercializadas"
+                icono={<Package className="h-5 w-5 text-blue-500" />}
+                cargando={cD6}
+              />
+              <CardKpi
+                titulo="Catálogo Activo"
+                valor={`${(d6?.kpis.totalReferenciasActivas ?? 0).toLocaleString("es-CO")} SKUs`}
+                subtexto={`${d6?.kpis.concentracionParetoA.referenciasCount ?? 0} referencias en Clase A`}
+                icono={<Layers className="h-5 w-5 text-indigo-500" />}
+                cargando={cD6}
+              />
+              <CardKpi
+                titulo="Precio Promedio (ASP)"
+                valor={formatoCOPFull(d6?.kpis.precioPromedioPonderado ?? 0)}
+                subtexto="Ticket unitario ponderado"
+                icono={<Tag className="h-5 w-5 text-amber-500" />}
+                cargando={cD6}
+              />
+              <CardKpi
+                titulo="Concentración Pareto"
+                valor={`${d6?.kpis.concentracionParetoA.ventaPct ?? 0}%`}
+                subtexto={`Generado por el ${d6?.kpis.concentracionParetoA.referenciasPct ?? 0}% de SKUs`}
+                icono={<Percent className="h-5 w-5 text-purple-500" />}
+                cargando={cD6}
+              />
+              <CardKpi
+                titulo="Top #1 en Ventas"
+                valor={d6?.kpis.referenciaTopVentas?.sku ?? "N/A"}
+                subtexto={
+                  d6?.kpis.referenciaTopVentas
+                    ? `${formatoCOP(d6.kpis.referenciaTopVentas.valor)} (${d6.kpis.referenciaTopVentas.porcentaje}% total)`
+                    : "Sin datos"
+                }
+                icono={<Award className="h-5 w-5 text-pink-500" />}
+                cargando={cD6}
+              />
+              <CardKpi
+                titulo="Tasa Devolución"
+                valor={`${d6?.kpis.tasaDevolucionGlobal ?? 0}%`}
+                subtexto={`Total devs: ${formatoCOP(d6?.kpis.totalDevoluciones ?? 0)}`}
+                icono={<ArrowDownRight className="h-5 w-5 text-rose-500" />}
+                cargando={cD6}
+              />
+            </div>
+
+            {/* SECCIÓN 1: Rankings Top Performers (Facturación $ vs Rotación Unidades) */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Top 15 por Facturación */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4 text-emerald-500" />
+                        Top 15 Referencias por Facturación ($ COP)
+                      </CardTitle>
+                      <CardDescription>
+                        SKUs que generan el mayor flujo de ingresos para la compañía
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[380px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        layout="vertical"
+                        data={d6?.top15PorValor || []}
+                        margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.3} />
+                        <XAxis
+                          type="number"
+                          tickFormatter={(v) => formatoCOP(v)}
+                          tick={{ fontSize: 11 }}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="sku"
+                          tick={{ fontSize: 11, fontWeight: 500 }}
+                          width={75}
+                        />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload as ItemReferenciaAnalisis;
+                              return (
+                                <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1 z-50">
+                                  <p className="font-bold text-foreground text-sm font-mono">{data.sku}</p>
+                                  <p className="text-muted-foreground font-medium">{data.producto}</p>
+                                  <div className="h-px bg-border my-1.5" />
+                                  <p className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                    Venta Neta: {formatoCOPFull(data.ventaNeta)}
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    Unidades: <span className="font-semibold text-foreground">{data.unidades.toLocaleString("es-CO")}</span>
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    Precio Promedio: <span className="font-semibold text-foreground">{formatoCOPFull(data.precioPromedio)}</span>
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    Línea: <span className="font-semibold text-foreground">{data.linea}</span>
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    Participación: <span className="font-semibold text-foreground">{data.porcentajeVenta}%</span> • Clase <span className="font-bold text-primary">{data.clasificacionABC}</span>
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar dataKey="ventaNeta" fill="#0284c7" radius={[0, 4, 4, 0]}>
+                          {(d6?.top15PorValor || []).map((_, index) => (
+                            <Cell
+                              key={`cell-val-${index}`}
+                              fill={index === 0 ? "#059669" : index < 3 ? "#0284c7" : "#3b82f6"}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Top 15 por Rotación (Unidades) */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <Package className="h-4 w-4 text-cyan-500" />
+                        Top 15 Referencias por Rotación (Unidades Físicas)
+                      </CardTitle>
+                      <CardDescription>
+                        Prendas con mayor volumen de salida física de inventario
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[380px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        layout="vertical"
+                        data={d6?.top15PorVolumen || []}
+                        margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.3} />
+                        <XAxis
+                          type="number"
+                          tickFormatter={(v) => `${(v).toLocaleString("es-CO")} u`}
+                          tick={{ fontSize: 11 }}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="sku"
+                          tick={{ fontSize: 11, fontWeight: 500 }}
+                          width={75}
+                        />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload as ItemReferenciaAnalisis;
+                              return (
+                                <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1 z-50">
+                                  <p className="font-bold text-foreground text-sm font-mono">{data.sku}</p>
+                                  <p className="text-muted-foreground font-medium">{data.producto}</p>
+                                  <div className="h-px bg-border my-1.5" />
+                                  <p className="text-blue-600 dark:text-blue-400 font-semibold">
+                                    Unidades Vendidas: {data.unidades.toLocaleString("es-CO")} unds
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    Facturación: <span className="font-semibold text-foreground">{formatoCOPFull(data.ventaNeta)}</span>
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    Precio Promedio: <span className="font-semibold text-foreground">{formatoCOPFull(data.precioPromedio)}</span>
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    Línea: <span className="font-semibold text-foreground">{data.linea}</span>
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar dataKey="unidades" fill="#0d9488" radius={[0, 4, 4, 0]}>
+                          {(d6?.top15PorVolumen || []).map((_, index) => (
+                            <Cell
+                              key={`cell-vol-${index}`}
+                              fill={index === 0 ? "#0d9488" : index < 3 ? "#14b8a6" : "#2dd4bf"}
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* SECCIÓN 2: Mezcla por Líneas & Clasificación ABC de Pareto */}
+            <div className="grid gap-6 lg:grid-cols-12">
+              {/* Distribución por Líneas de Producto (7 cols) */}
+              <Card className="lg:col-span-7">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-indigo-500" />
+                    Ventas y Unidades por Línea de Producto
+                  </CardTitle>
+                  <CardDescription>
+                    Comparativo de facturación total, prendas comercializadas y ticket promedio por categoría
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={d6?.distribucionLineas.slice(0, 8) || []}
+                        margin={{ top: 10, right: 10, left: 10, bottom: 25 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                        <XAxis
+                          dataKey="linea"
+                          tick={{ fontSize: 10 }}
+                          angle={-15}
+                          textAnchor="end"
+                          interval={0}
+                        />
+                        <YAxis
+                          yAxisId="left"
+                          tickFormatter={(v) => formatoCOP(v)}
+                          tick={{ fontSize: 10 }}
+                        />
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          tickFormatter={(v) => `${(v).toLocaleString("es-CO")} u`}
+                          tick={{ fontSize: 10 }}
+                        />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1 z-50">
+                                  <p className="font-bold text-foreground text-sm">{data.linea}</p>
+                                  <div className="h-px bg-border my-1" />
+                                  <p className="text-indigo-600 dark:text-indigo-400 font-semibold">
+                                    Venta Total: {formatoCOPFull(data.venta)} ({data.porcentaje}%)
+                                  </p>
+                                  <p className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                    Unidades: {data.unidades.toLocaleString("es-CO")} prendas
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    Referencias Activas: {data.referenciasCount} SKUs
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    Precio Promedio: {formatoCOPFull(data.precioPromedio)}
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar yAxisId="left" dataKey="venta" name="Facturación ($)" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Matriz y Diagnóstico ABC de Pareto (5 cols) */}
+              <Card className="lg:col-span-5 flex flex-col justify-between">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Percent className="h-4 w-4 text-purple-500" />
+                    Estructura Pareto / Clasificación ABC
+                  </CardTitle>
+                  <CardDescription>
+                    Segmentación estratégica del catálogo para optimizar inventarios y compras
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3.5">
+                  {(d6?.clasificacionABCResumen || []).map((item) => (
+                    <div
+                      key={item.clase}
+                      className={`p-3 rounded-lg border transition-all ${
+                        item.clase === "A"
+                          ? "bg-emerald-500/10 border-emerald-500/30"
+                          : item.clase === "B"
+                          ? "bg-amber-500/10 border-amber-500/30"
+                          : "bg-slate-500/10 border-slate-500/20"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            className={
+                              item.clase === "A"
+                                ? "bg-emerald-600 text-white font-bold"
+                                : item.clase === "B"
+                                ? "bg-amber-600 text-white font-bold"
+                                : "bg-slate-600 text-white font-bold"
+                            }
+                          >
+                            Clase {item.clase}
+                          </Badge>
+                          <span className="text-xs font-semibold text-foreground">
+                            {item.clase === "A"
+                              ? "Alto Impacto (Motor de Ingresos)"
+                              : item.clase === "B"
+                              ? "Rotación Regular (Catálogo Activo)"
+                              : "Cola Larga (Revisión de Inventario)"}
+                          </span>
+                        </div>
+                        <span className="text-xs font-bold font-mono text-foreground">
+                          {item.porcentajeVenta}% Venta
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mb-2">
+                        {item.descripcion}
+                      </p>
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs bg-background/60 rounded p-1.5 border border-border/40">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">SKUs</p>
+                          <p className="font-bold text-foreground font-mono">{item.referenciasCount} ({item.referenciasPct}%)</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">Facturación</p>
+                          <p className="font-bold text-foreground font-mono">{formatoCOP(item.ventaTotal)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">Prendas</p>
+                          <p className="font-bold text-foreground font-mono">{item.unidadesTotal.toLocaleString("es-CO")}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* SECCIÓN 3: Curva de Tallas, Colores y Alertas de Calidad / Devoluciones */}
+            <div className="grid gap-6 lg:grid-cols-3">
+              {/* Curva de Tallas */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-purple-500" />
+                    Curva de Tallas Más Demandadas
+                  </CardTitle>
+                  <CardDescription>Distribución de unidades vendidas por talla</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[240px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={d6?.curvaTallas || []}
+                        margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                        <XAxis dataKey="talla" tick={{ fontSize: 11, fontWeight: 600 }} />
+                        <YAxis tickFormatter={(v) => `${(v).toLocaleString("es-CO")}`} tick={{ fontSize: 10 }} />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const d = payload[0].payload;
+                              return (
+                                <div className="rounded border bg-popover p-2 shadow text-xs">
+                                  <p className="font-bold">Talla: {d.talla}</p>
+                                  <p className="text-purple-600 font-semibold">{d.unidades.toLocaleString("es-CO")} unds ({d.porcentaje}%)</p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar dataKey="unidades" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Colores Líderes */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <ShoppingBag className="h-4 w-4 text-pink-500" />
+                    Colores Más Vendidos
+                  </CardTitle>
+                  <CardDescription>Demanda cromática de referencias</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[240px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={d6?.coloresLideres || []}
+                        margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                        <XAxis dataKey="color" tick={{ fontSize: 10 }} angle={-15} textAnchor="end" interval={0} />
+                        <YAxis tickFormatter={(v) => `${(v).toLocaleString("es-CO")}`} tick={{ fontSize: 10 }} />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const d = payload[0].payload;
+                              return (
+                                <div className="rounded border bg-popover p-2 shadow text-xs">
+                                  <p className="font-bold">Color: {d.color}</p>
+                                  <p className="text-pink-600 font-semibold">{d.unidades.toLocaleString("es-CO")} unds ({d.porcentaje}%)</p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar dataKey="unidades" fill="#ec4899" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Alertas de Calidad / Devoluciones */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-rose-500" />
+                    Top Devoluciones por Referencia
+                  </CardTitle>
+                  <CardDescription>Alertas de fit o calidad para revisión de producción</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2.5 max-h-[240px] overflow-y-auto pr-1">
+                    {(d6?.top10Devoluciones || []).length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-[180px] text-center text-muted-foreground text-xs">
+                        <Package className="h-8 w-8 mb-2 opacity-30" />
+                        No se registran devoluciones en el periodo
+                      </div>
+                    ) : (
+                      (d6?.top10Devoluciones || []).slice(0, 5).map((ref, idx) => (
+                        <div key={ref.sku} className="flex items-center justify-between p-2 rounded-md bg-rose-500/10 border border-rose-500/20 text-xs">
+                          <div className="min-w-0 flex-1 pr-2">
+                            <p className="font-mono font-bold text-rose-700 dark:text-rose-300 truncate">
+                              #{idx + 1} {ref.sku}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground truncate">{ref.producto}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-rose-600 dark:text-rose-400 font-mono">
+                              {formatoCOPFull(ref.devoluciones)}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {ref.tasaDevolucion}% tasa dev.
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* SECCIÓN 4: Maestro y Explorador Completo de Referencias */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <FileSpreadsheet className="h-4 w-4 text-primary" />
+                      Maestro Interactivo de Referencias del Catálogo
+                    </CardTitle>
+                    <CardDescription>
+                      Mostrando {referenciasFiltradas.length.toLocaleString("es-CO")} referencias filtradas de {(d6?.todasReferencias?.length ?? 0).toLocaleString("es-CO")} en catálogo
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exportarCSVReferencias}
+                    className="h-8 text-xs font-medium border-primary/40 text-primary hover:bg-primary/10 self-start md:self-auto"
+                  >
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    Descargar Tabla en CSV
+                  </Button>
+                </div>
+
+                {/* Filtros locales de la tabla */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-3 border-t border-border/50 mt-2">
+                  {/* Buscador */}
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar SKU o nombre..."
+                      value={busquedaRef}
+                      onChange={(e) => {
+                        setBusquedaRef(e.target.value);
+                        setPaginaRef(1);
+                      }}
+                      className="h-8 pl-8 text-xs bg-background"
+                    />
+                  </div>
+
+                  {/* Filtro por Línea */}
+                  <Select
+                    value={filtroLineaRef}
+                    onValueChange={(v) => {
+                      setFiltroLineaRef(v);
+                      setPaginaRef(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="Todas las Líneas" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      <SelectItem value="todas">Todas las Líneas</SelectItem>
+                      {(d6?.distribucionLineas || []).map((l) => (
+                        <SelectItem key={l.linea} value={l.linea}>
+                          {l.linea} ({l.referenciasCount} SKUs)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Filtro por Clase ABC */}
+                  <Select
+                    value={filtroAbcRef}
+                    onValueChange={(v) => {
+                      setFiltroAbcRef(v);
+                      setPaginaRef(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="Clasificación ABC" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todas las Clases (A, B, C)</SelectItem>
+                      <SelectItem value="A">⭐ Solo Clase A (Alto Impacto - 80%)</SelectItem>
+                      <SelectItem value="B">📦 Solo Clase B (Medio Impacto - 15%)</SelectItem>
+                      <SelectItem value="C">⏳ Solo Clase C (Larga Cola - 5%)</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Selector de Orden */}
+                  <Select
+                    value={ordenRef}
+                    onValueChange={(v: any) => {
+                      setOrdenRef(v);
+                      setPaginaRef(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="Ordenar por" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ventaDesc">💰 Mayor Facturación Neta ($)</SelectItem>
+                      <SelectItem value="unidadesDesc">📦 Mayor Unidades Vendidas</SelectItem>
+                      <SelectItem value="precioDesc">🏷️ Mayor Precio Promedio Unitario</SelectItem>
+                      <SelectItem value="devDesc">⚠️ Mayor Monto de Devolución</SelectItem>
+                      <SelectItem value="paretoAsc">📈 Orden Pareto Acumulado</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {/* Filas por página */}
+                  <Select
+                    value={filasPorPaginaRef}
+                    onValueChange={(v) => {
+                      setFilasPorPaginaRef(v);
+                      setPaginaRef(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="Registros por página" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="25">Ver 25 registros</SelectItem>
+                      <SelectItem value="50">Ver 50 registros</SelectItem>
+                      <SelectItem value="100">Ver 100 registros</SelectItem>
+                      <SelectItem value="todas">Ver todas ({referenciasFiltradas.length})</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider border-y border-border/60">
+                      <tr>
+                        <th className="py-2.5 px-3 text-center w-12">#</th>
+                        <th className="py-2.5 px-3">SKU / Referencia</th>
+                        <th className="py-2.5 px-3">Descripción de Producto</th>
+                        <th className="py-2.5 px-3">Línea</th>
+                        <th className="py-2.5 px-3 text-center">Clase ABC</th>
+                        <th className="py-2.5 px-3 text-right">Unidades</th>
+                        <th className="py-2.5 px-3 text-right">Facturación Neta</th>
+                        <th className="py-2.5 px-3 text-right">Precio Prom.</th>
+                        <th className="py-2.5 px-3 text-right">% Aporte</th>
+                        <th className="py-2.5 px-3 text-right">Tasa Dev.</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {referenciasPaginadas.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="py-8 text-center text-muted-foreground">
+                            No se encontraron referencias con los filtros aplicados.
+                          </td>
+                        </tr>
+                      ) : (
+                        referenciasPaginadas.map((ref, idx) => {
+                          const rank = filasPorPaginaRef === "todas"
+                            ? idx + 1
+                            : (paginaRef - 1) * Number(filasPorPaginaRef) + idx + 1;
+                          return (
+                            <tr key={ref.sku} className="hover:bg-muted/30 transition-colors">
+                              <td className="py-2.5 px-3 text-center text-muted-foreground font-mono font-semibold">
+                                {rank}
+                              </td>
+                              <td className="py-2.5 px-3 font-mono font-bold text-primary">
+                                {ref.sku}
+                              </td>
+                              <td className="py-2.5 px-3 font-medium text-foreground max-w-[220px] truncate" title={ref.producto}>
+                                {ref.producto}
+                              </td>
+                              <td className="py-2.5 px-3 text-muted-foreground">
+                                {ref.linea}
+                              </td>
+                              <td className="py-2.5 px-3 text-center">
+                                <Badge
+                                  className={
+                                    ref.clasificacionABC === "A"
+                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-bold"
+                                      : ref.clasificacionABC === "B"
+                                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px] font-bold"
+                                      : "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30 text-[10px] font-bold"
+                                  }
+                                >
+                                  Clase {ref.clasificacionABC}
+                                </Badge>
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-semibold text-foreground">
+                                {ref.unidades.toLocaleString("es-CO")}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                                {formatoCOPFull(ref.ventaNeta)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
+                                {formatoCOP(ref.precioPromedio)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <div className="w-12 bg-muted rounded-full h-1.5 overflow-hidden hidden sm:block">
+                                    <div
+                                      className="bg-primary h-full rounded-full"
+                                      style={{ width: `${Math.min(100, ref.porcentajeVenta * 10)}%` }}
+                                    />
+                                  </div>
+                                  <span className="font-mono font-medium">{ref.porcentajeVenta}%</span>
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono">
+                                {ref.tasaDevolucion > 0 ? (
+                                  <span className="text-rose-600 dark:text-rose-400 font-medium">
+                                    {ref.tasaDevolucion}%
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">0%</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Paginación */}
+                {filasPorPaginaRef !== "todas" && totalPaginasRef > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-border/60 bg-muted/20">
+                    <p className="text-xs text-muted-foreground">
+                      Página <span className="font-bold text-foreground">{paginaRef}</span> de <span className="font-bold text-foreground">{totalPaginasRef}</span> ({referenciasFiltradas.length.toLocaleString("es-CO")} registros en total)
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={paginaRef <= 1}
+                        onClick={() => setPaginaRef((p) => Math.max(1, p - 1))}
+                      >
+                        Anterior
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={paginaRef >= totalPaginasRef}
+                        onClick={() => setPaginaRef((p) => Math.min(totalPaginasRef, p + 1))}
+                      >
+                        Siguiente
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ========================================================================= */}
+          {/* TAB 7: EXPLORADOR DE TRANSACCIONES */}
           {/* ========================================================================= */}
           <TabsContent value="explorador" className="space-y-4">
             <Card>

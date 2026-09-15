@@ -1643,6 +1643,377 @@ export async function obtenerDashboard5Marketplaces(filtros: FiltrosBI): Promise
   return calcularDashboard5Marketplaces(data, filtros, canalesRes.data || []);
 }
 
+// =========================================================================
+// DASHBOARD 6: INTELIGENCIA DE REFERENCIAS Y PRODUCTO (GERENCIAL GLOBAL)
+// =========================================================================
+export type ItemReferenciaAnalisis = {
+  sku: string;
+  producto: string;
+  linea: string;
+  marca: string;
+  unidades: number;
+  unidadesDevueltas: number;
+  ventaBruta: number;
+  devoluciones: number;
+  ventaNeta: number;
+  tasaDevolucion: number;
+  precioPromedio: number;
+  porcentajeVenta: number;
+  acumuladoPareto: number;
+  clasificacionABC: "A" | "B" | "C";
+  costoTotal?: number;
+  margenBrutoEstimado?: number;
+};
+
+export type DataDashboard6 = {
+  kpis: {
+    totalVentaNeta: number;
+    totalVentaBruta: number;
+    totalDevoluciones: number;
+    tasaDevolucionGlobal: number;
+    totalUnidades: number;
+    totalReferenciasActivas: number;
+    precioPromedioPonderado: number;
+    referenciaTopVentas: { sku: string; producto: string; valor: number; unidades: number; porcentaje: number } | null;
+    referenciaTopVolumen: { sku: string; producto: string; unidades: number; valor: number } | null;
+    concentracionParetoA: { referenciasCount: number; referenciasPct: number; ventaTotal: number; ventaPct: number };
+    totalLineasActivas: number;
+    totalMarcasActivas: number;
+  };
+  todasReferencias: ItemReferenciaAnalisis[];
+  top15PorValor: ItemReferenciaAnalisis[];
+  top15PorVolumen: ItemReferenciaAnalisis[];
+  top10Devoluciones: ItemReferenciaAnalisis[];
+  distribucionLineas: { linea: string; venta: number; unidades: number; referenciasCount: number; precioPromedio: number; porcentaje: number }[];
+  distribucionMarcas: { marca: string; venta: number; unidades: number; referenciasCount: number; porcentaje: number }[];
+  clasificacionABCResumen: { clase: "A" | "B" | "C"; label: string; descripcion: string; referenciasCount: number; referenciasPct: number; ventaTotal: number; unidadesTotal: number; porcentajeVenta: number }[];
+  curvaTallas: { talla: string; unidades: number; porcentaje: number }[];
+  coloresLideres: { color: string; unidades: number; porcentaje: number }[];
+  matrizDispersion: { sku: string; producto: string; linea: string; unidades: number; precioPromedio: number; ventaNeta: number; clasificacionABC: "A" | "B" | "C" }[];
+};
+
+export function calcularDashboard6Referencias(
+  data: FilaFactVentas[],
+  filtros: FiltrosBI,
+  catalogos?: CatalogosDisponibles | { lineas?: CatalogoItem[]; marcas?: CatalogoItem[] }
+): DataDashboard6 {
+  const lineaMap = new Map<number, string>((catalogos?.lineas || []).map((l) => [l.id, l.nombre]));
+  const marcaMap = new Map<number, string>((catalogos?.marcas || []).map((m) => [m.id, m.nombre]));
+
+  let totalVentaNeta = 0;
+  let totalVentaBruta = 0;
+  let totalDevoluciones = 0;
+  let totalUnidades = 0;
+  let totalUnidadesDevueltas = 0;
+
+  type RefAcum = {
+    sku: string;
+    producto: string;
+    linea: string;
+    marca: string;
+    unidades: number;
+    unidadesDevueltas: number;
+    ventaBruta: number;
+    devoluciones: number;
+    ventaNeta: number;
+    costoTotal: number;
+  };
+
+  const refMap = new Map<string, RefAcum>();
+  const lineaMapStats = new Map<string, { venta: number; unidades: number; skus: Set<string> }>();
+  const marcaMapStats = new Map<string, { venta: number; unidades: number; skus: Set<string> }>();
+  const tallasMap = new Map<string, number>();
+  const coloresMap = new Map<string, number>();
+
+  for (const r of data) {
+    if (!cumpleFiltros(r, filtros)) continue;
+
+    const v = Number(r.valor || 0);
+    const cant = Number(r.cantidad || 0);
+    const costo = Number(r.costo_total || 0);
+
+    const rawSku = (r.sku || r.prenda_hgi || "").trim();
+    const sku = rawSku || "REF-DESCONOCIDA";
+    const prod = (r.producto || r.prenda_hgi || `Referencia ${sku}`).trim();
+    const linea = (r.linea_id && lineaMap.get(r.linea_id)) || "General / Confección";
+    const marca = (r.marca_id && marcaMap.get(r.marca_id)) || "Trucco's";
+    const talla = (r.talla || "").trim().toUpperCase();
+    const color = (r.color || "").trim().toUpperCase();
+
+    totalVentaNeta += v;
+    if (v > 0) totalVentaBruta += v;
+    if (v < 0) totalDevoluciones += Math.abs(v);
+    if (cant > 0) totalUnidades += cant;
+    if (cant < 0) totalUnidadesDevueltas += Math.abs(cant);
+
+    let currRef = refMap.get(sku);
+    if (!currRef) {
+      currRef = {
+        sku,
+        producto: prod,
+        linea,
+        marca,
+        unidades: 0,
+        unidadesDevueltas: 0,
+        ventaBruta: 0,
+        devoluciones: 0,
+        ventaNeta: 0,
+        costoTotal: 0,
+      };
+      refMap.set(sku, currRef);
+    }
+
+    currRef.unidades += cant;
+    currRef.ventaNeta += v;
+    currRef.costoTotal += costo;
+    if (v > 0) currRef.ventaBruta += v;
+    if (v < 0) {
+      currRef.devoluciones += Math.abs(v);
+      currRef.unidadesDevueltas += Math.abs(cant);
+    }
+    // Si prod no es genérico, enriquecer descripción
+    if (prod && !prod.startsWith("Referencia ") && currRef.producto.startsWith("Referencia ")) {
+      currRef.producto = prod;
+    }
+
+    // Estadísticas por Línea
+    let currLinea = lineaMapStats.get(linea);
+    if (!currLinea) {
+      currLinea = { venta: 0, unidades: 0, skus: new Set() };
+      lineaMapStats.set(linea, currLinea);
+    }
+    currLinea.venta += v;
+    currLinea.unidades += cant;
+    currLinea.skus.add(sku);
+
+    // Estadísticas por Marca
+    let currMarca = marcaMapStats.get(marca);
+    if (!currMarca) {
+      currMarca = { venta: 0, unidades: 0, skus: new Set() };
+      marcaMapStats.set(marca, currMarca);
+    }
+    currMarca.venta += v;
+    currMarca.unidades += cant;
+    currMarca.skus.add(sku);
+
+    if (talla) tallasMap.set(talla, (tallasMap.get(talla) || 0) + cant);
+    if (color) coloresMap.set(color, (coloresMap.get(color) || 0) + cant);
+  }
+
+  // Ordenar por Venta Neta descendente para Pareto
+  const sortedRawRefs = Array.from(refMap.values()).sort((a, b) => b.ventaNeta - a.ventaNeta);
+
+  let acumuladoPareto = 0;
+  const baseVenta = totalVentaNeta > 0 ? totalVentaNeta : 1;
+
+  const todasReferencias: ItemReferenciaAnalisis[] = sortedRawRefs.map((r, index) => {
+    const pct = (r.ventaNeta / baseVenta) * 100;
+    acumuladoPareto += Math.max(0, pct);
+    const acumuladoNormalizado = Math.min(100, Math.round(acumuladoPareto * 10) / 10);
+
+    let clasificacionABC: "A" | "B" | "C" = "C";
+    if (acumuladoNormalizado <= 80 || index === 0) {
+      clasificacionABC = "A";
+    } else if (acumuladoNormalizado <= 95) {
+      clasificacionABC = "B";
+    } else {
+      clasificacionABC = "C";
+    }
+
+    const precioPromedio = r.unidades > 0 ? Math.round(r.ventaNeta / r.unidades) : 0;
+    const tasaDevolucion = r.ventaBruta > 0 ? Math.round((r.devoluciones / r.ventaBruta) * 1000) / 10 : 0;
+    const margenBrutoEstimado =
+      r.ventaNeta > 0 && r.costoTotal > 0
+        ? Math.round(((r.ventaNeta - r.costoTotal) / r.ventaNeta) * 1000) / 10
+        : undefined;
+
+    return {
+      sku: r.sku,
+      producto: r.producto,
+      linea: r.linea,
+      marca: r.marca,
+      unidades: r.unidades,
+      unidadesDevueltas: r.unidadesDevueltas,
+      ventaBruta: r.ventaBruta,
+      devoluciones: r.devoluciones,
+      ventaNeta: r.ventaNeta,
+      tasaDevolucion,
+      precioPromedio,
+      porcentajeVenta: Math.round(pct * 100) / 100,
+      acumuladoPareto: acumuladoNormalizado,
+      clasificacionABC,
+      costoTotal: r.costoTotal,
+      margenBrutoEstimado,
+    };
+  });
+
+  const top15PorValor = todasReferencias.slice(0, 15);
+  const top15PorVolumen = [...todasReferencias].sort((a, b) => b.unidades - a.unidades).slice(0, 15);
+  const top10Devoluciones = [...todasReferencias]
+    .filter((r) => r.devoluciones > 0)
+    .sort((a, b) => b.devoluciones - a.devoluciones)
+    .slice(0, 10);
+
+  const distribucionLineas = Array.from(lineaMapStats.entries())
+    .map(([linea, val]) => ({
+      linea,
+      venta: val.venta,
+      unidades: val.unidades,
+      referenciasCount: val.skus.size,
+      precioPromedio: val.unidades > 0 ? Math.round(val.venta / val.unidades) : 0,
+      porcentaje: totalVentaNeta > 0 ? Math.round((val.venta / totalVentaNeta) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.venta - a.venta);
+
+  const distribucionMarcas = Array.from(marcaMapStats.entries())
+    .map(([marca, val]) => ({
+      marca,
+      venta: val.venta,
+      unidades: val.unidades,
+      referenciasCount: val.skus.size,
+      porcentaje: totalVentaNeta > 0 ? Math.round((val.venta / totalVentaNeta) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.venta - a.venta);
+
+  // Resumen Clasificación ABC
+  const refsA = todasReferencias.filter((r) => r.clasificacionABC === "A");
+  const refsB = todasReferencias.filter((r) => r.clasificacionABC === "B");
+  const refsC = todasReferencias.filter((r) => r.clasificacionABC === "C");
+
+  const totalRefsCount = todasReferencias.length || 1;
+  const clasificacionABCResumen = [
+    {
+      clase: "A" as const,
+      label: "Clase A (Alto Impacto - 80% Facturación)",
+      descripcion: "Referencias estratégicas de mayor facturación. Motor principal de ingresos.",
+      referenciasCount: refsA.length,
+      referenciasPct: Math.round((refsA.length / totalRefsCount) * 1000) / 10,
+      ventaTotal: refsA.reduce((sum, r) => sum + r.ventaNeta, 0),
+      unidadesTotal: refsA.reduce((sum, r) => sum + r.unidades, 0),
+      porcentajeVenta:
+        totalVentaNeta > 0 ? Math.round((refsA.reduce((sum, r) => sum + r.ventaNeta, 0) / totalVentaNeta) * 1000) / 10 : 0,
+    },
+    {
+      clase: "B" as const,
+      label: "Clase B (Impacto Medio - 15% Facturación)",
+      descripcion: "Referencias de rotación intermedia y catálogo complementario.",
+      referenciasCount: refsB.length,
+      referenciasPct: Math.round((refsB.length / totalRefsCount) * 1000) / 10,
+      ventaTotal: refsB.reduce((sum, r) => sum + r.ventaNeta, 0),
+      unidadesTotal: refsB.reduce((sum, r) => sum + r.unidades, 0),
+      porcentajeVenta:
+        totalVentaNeta > 0 ? Math.round((refsB.reduce((sum, r) => sum + r.ventaNeta, 0) / totalVentaNeta) * 1000) / 10 : 0,
+    },
+    {
+      clase: "C" as const,
+      label: "Clase C (Larga Cola - 5% Facturación)",
+      descripcion: "Referencias de baja rotación o remanentes de colección para revisión de inventario.",
+      referenciasCount: refsC.length,
+      referenciasPct: Math.round((refsC.length / totalRefsCount) * 1000) / 10,
+      ventaTotal: refsC.reduce((sum, r) => sum + r.ventaNeta, 0),
+      unidadesTotal: refsC.reduce((sum, r) => sum + r.unidades, 0),
+      porcentajeVenta:
+        totalVentaNeta > 0 ? Math.round((refsC.reduce((sum, r) => sum + r.ventaNeta, 0) / totalVentaNeta) * 1000) / 10 : 0,
+    },
+  ];
+
+  const curvaTallas = Array.from(tallasMap.entries())
+    .map(([talla, unidades]) => ({
+      talla,
+      unidades,
+      porcentaje: totalUnidades > 0 ? Math.round((unidades / totalUnidades) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.unidades - a.unidades)
+    .slice(0, 10);
+
+  const coloresLideres = Array.from(coloresMap.entries())
+    .map(([color, unidades]) => ({
+      color,
+      unidades,
+      porcentaje: totalUnidades > 0 ? Math.round((unidades / totalUnidades) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.unidades - a.unidades)
+    .slice(0, 10);
+
+  const matrizDispersion = todasReferencias.slice(0, 40).map((r) => ({
+    sku: r.sku,
+    producto: r.producto,
+    linea: r.linea,
+    unidades: r.unidades,
+    precioPromedio: r.precioPromedio,
+    ventaNeta: r.ventaNeta,
+    clasificacionABC: r.clasificacionABC,
+  }));
+
+  const refTopV = top15PorValor[0];
+  const refTopU = top15PorVolumen[0];
+
+  const precioPromedioPonderado = totalUnidades > 0 ? Math.round(totalVentaNeta / totalUnidades) : 0;
+  const tasaDevolucionGlobal = totalVentaBruta > 0 ? Math.round((totalDevoluciones / totalVentaBruta) * 1000) / 10 : 0;
+
+  return {
+    kpis: {
+      totalVentaNeta,
+      totalVentaBruta,
+      totalDevoluciones,
+      tasaDevolucionGlobal,
+      totalUnidades,
+      totalReferenciasActivas: todasReferencias.length,
+      precioPromedioPonderado,
+      referenciaTopVentas: refTopV
+        ? {
+            sku: refTopV.sku,
+            producto: refTopV.producto,
+            valor: refTopV.ventaNeta,
+            unidades: refTopV.unidades,
+            porcentaje: refTopV.porcentajeVenta,
+          }
+        : null,
+      referenciaTopVolumen: refTopU
+        ? {
+            sku: refTopU.sku,
+            producto: refTopU.producto,
+            unidades: refTopU.unidades,
+            valor: refTopU.ventaNeta,
+          }
+        : null,
+      concentracionParetoA: {
+        referenciasCount: refsA.length,
+        referenciasPct: Math.round((refsA.length / totalRefsCount) * 1000) / 10,
+        ventaTotal: refsA.reduce((sum, r) => sum + r.ventaNeta, 0),
+        ventaPct:
+          totalVentaNeta > 0
+            ? Math.round((refsA.reduce((sum, r) => sum + r.ventaNeta, 0) / totalVentaNeta) * 1000) / 10
+            : 0,
+      },
+      totalLineasActivas: lineaMapStats.size,
+      totalMarcasActivas: marcaMapStats.size,
+    },
+    todasReferencias,
+    top15PorValor,
+    top15PorVolumen,
+    top10Devoluciones,
+    distribucionLineas,
+    distribucionMarcas,
+    clasificacionABCResumen,
+    curvaTallas,
+    coloresLideres,
+    matrizDispersion,
+  };
+}
+
+export async function obtenerDashboard6Referencias(filtros: FiltrosBI): Promise<DataDashboard6> {
+  const [data, lineasRes, marcasRes] = await Promise.all([
+    obtenerVentasRaw(filtros),
+    supabase.from("dim_linea").select("id, nombre"),
+    supabase.from("dim_marca").select("id, nombre"),
+  ]);
+  return calcularDashboard6Referencias(data, filtros, {
+    lineas: lineasRes.data || [],
+    marcas: marcasRes.data || [],
+  });
+}
+
 export type FilaDetalleVenta = {
   id: number;
   transaccion: string | null;
