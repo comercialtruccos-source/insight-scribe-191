@@ -131,17 +131,14 @@ function AuthPage() {
   };
 
   return (
-    <main className="grid min-h-screen place-items-center bg-background px-4 py-16">
-      <div className="w-full max-w-md">
-        <Link to="/" className="mb-8 block text-center text-sm text-muted-foreground">
-          ← Volver al inicio
-        </Link>
-        <Card className="border-border/60 bg-card">
-          <CardHeader>
-            <CardTitle className="font-display text-2xl">
-              {modo === "login" ? "Ingresar a la plataforma" : "Crear cuenta"}
+    <main className="grid min-h-screen place-items-center bg-background px-4 py-12">
+      <div className="w-full max-w-md space-y-6">
+        <Card className="border-border/70 bg-card shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="font-display text-xl">
+              {modo === "login" ? "Ingreso de Usuario" : "Crear Cuenta de Acceso"}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs">
               Acceso restringido al equipo comercial y de analítica.
             </CardDescription>
           </CardHeader>
