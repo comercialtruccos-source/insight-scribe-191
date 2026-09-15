@@ -115,11 +115,13 @@ const MESES = [
 ];
 
 function formatoCOP(val: number) {
-  if (val >= 1_000_000_000) {
-    return `$${(val / 1_000_000_000).toFixed(2)}B`;
+  const abs = Math.abs(val);
+  const sign = val < 0 ? "-" : "";
+  if (abs >= 1_000_000_000) {
+    return `${sign}$${(abs / 1_000_000_000).toFixed(2)}B`;
   }
-  if (val >= 1_000_000) {
-    return `$${(val / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000_000) {
+    return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
   }
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(val);
 }

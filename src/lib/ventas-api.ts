@@ -874,7 +874,7 @@ export function calcularDashboard1Cumplimiento(
         ventaReal: d.venta,
         ventaAnterior: 0,
         ppto,
-        cumplimientoPct: ppto > 0 ? Math.round((d.venta / ppto) * 100) : (d.venta > 0 ? 100 : 0),
+        cumplimientoPct: ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 100) : 0,
         crecimientoYoY: 0,
         devolucionesMonto: d.dev,
         tasaDevolucionPct: ventaBrutaMes > 0 ? Math.round((d.dev / ventaBrutaMes) * 1000) / 10 : 0,
@@ -897,7 +897,7 @@ export function calcularDashboard1Cumplimiento(
         ventaReal: d.venta,
         ventaAnterior: 0,
         ppto,
-        cumplimientoPct: ppto > 0 ? Math.round((d.venta / ppto) * 100) : 100,
+        cumplimientoPct: ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 100) : 0,
         crecimientoYoY: 0,
         devolucionesMonto: d.dev,
         tasaDevolucionPct: ventaBrutaMes > 0 ? Math.round((d.dev / ventaBrutaMes) * 1000) / 10 : 0,
@@ -1000,8 +1000,8 @@ export function calcularDashboard1Cumplimiento(
     kpis: {
       ventaYTD: totalVentas,
       ventaBrutaTotal: totalVentaBruta,
-      pptoYTD: totalPpto > 0 ? totalPpto : Math.round(totalVentas * 1.10),
-      cumplimientoGlobalPct: totalPpto > 0 ? Math.round((totalVentas / totalPpto) * 100) : 100,
+      pptoYTD: totalPpto > 0 ? totalPpto : (totalVentas > 0 ? Math.round(totalVentas * 1.10) : 0),
+      cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 100) : (totalVentas > 0 ? 100 : 0),
       crecimientoYoYPct: 0,
       devolucionesTotal: totalDevoluciones,
       tasaDevolucionGlobalPct: totalVentaBruta > 0 ? Math.round((totalDevoluciones / totalVentaBruta) * 1000) / 10 : 0,
@@ -1125,7 +1125,7 @@ export function calcularDashboard2RunRate(data: FilaFactVentas[], filtros: Filtr
   const ventaAcumuladaCorte = ventasPorDia.slice(1, diaCorte + 1).reduce((a, b) => a + b, 0);
   const pptoRestante = Math.max(0, pptoMes - ventaAcumuladaCorte);
   const runRateRequerido = diasHabilesRestantes > 0 ? Math.round(pptoRestante / diasHabilesRestantes) : 0;
-  const cumplimientoMesPct = pptoMes > 0 ? Math.round((ventaTotalMes / pptoMes) * 100) : 0;
+  const cumplimientoMesPct = pptoMes > 0 && ventaTotalMes > 0 ? Math.round((ventaTotalMes / pptoMes) * 100) : 0;
   const brechaAcumulada = ventaAcumuladaCorte - (metaDiariaFija * diasHabilesTranscurridos);
 
   let acumuladoReal = 0;
@@ -1381,10 +1381,10 @@ export function calcularDashboard4FuerzaVentas(
 
   const asesores: AsesorComercial[] = Array.from(asesorDataMap.entries())
     .map(([vendedor, val]) => {
-      const cuotaAsignada = Math.round(val.venta * 1.12);
-      const cumplimientoPct = cuotaAsignada > 0 ? Math.round((val.venta / cuotaAsignada) * 100) : 100;
-      const participacionCarteraPct = totalVentaFuerza > 0 ? Math.round((val.venta / totalVentaFuerza) * 1000) / 10 : 0;
-      const comisionEstimada = Math.round(val.venta * 0.05);
+      const cuotaAsignada = val.venta > 0 ? Math.round(val.venta * 1.12) : 0;
+      const cumplimientoPct = cuotaAsignada > 0 && val.venta > 0 ? Math.round((val.venta / cuotaAsignada) * 100) : 0;
+      const participacionCarteraPct = totalVentaFuerza > 0 && val.venta > 0 ? Math.round((val.venta / totalVentaFuerza) * 1000) / 10 : 0;
+      const comisionEstimada = val.venta > 0 ? Math.round(val.venta * 0.05) : 0;
       const viaticosZona = 1_500_000;
 
       return {
