@@ -1361,7 +1361,8 @@ export function calcularDashboard3Digital(
         lineas?: CatalogoItem[];
         ciudades?: CatalogoItem[];
       },
-  marcasCatalogo?: CatalogoItem[]
+  marcasCatalogo?: CatalogoItem[],
+  subCanalFiltro?: "todos" | "tienda_virtual" | "redes_sociales"
 ): DataDashboard3 {
   let vendedoresList: CatalogoItem[] = [];
   let canalesList: CatalogoItem[] = [];
@@ -1470,6 +1471,10 @@ export function calcularDashboard3Digital(
     }
 
     if (esDigital) {
+      if (subCanalFiltro && subCanalFiltro !== "todos" && digitalTipo !== subCanalFiltro) {
+        continue;
+      }
+
       ventaDigitalTotal += v;
       unidadesDigitales += cant;
 

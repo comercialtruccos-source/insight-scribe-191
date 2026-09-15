@@ -159,6 +159,9 @@ function Panel() {
   const [fechaDesde, setFechaDesde] = useState<string>("");
   const [fechaHasta, setFechaHasta] = useState<string>("");
 
+  // Control de Tab Activo
+  const [tabActivo, setTabActivo] = useState<string>("multianual");
+
   // Filtros globales
   const [anio, setAnio] = useState<string>("todos");
   const [mes, setMes] = useState<string>("todos");
@@ -167,6 +170,9 @@ function Panel() {
   const [vendedorId, setVendedorId] = useState<string>("todos");
   const [zonaId, setZonaId] = useState<string>("todos");
   const [ciudadId, setCiudadId] = useState<string>("todos");
+
+  // Sub-filtro de canal digital para Dashboard 3
+  const [filtroCanalDigital, setFiltroCanalDigital] = useState<"todos" | "tienda_virtual" | "redes_sociales">("todos");
 
   // Explorador de ubicaciones (Zonas y Ciudades) en Dashboard 1
   const [zonaUbicacionD1, setZonaUbicacionD1] = useState<string>("todas");
@@ -270,16 +276,25 @@ function Panel() {
   }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, ciudadId, rangoTotal?.fechaMax]);
 
   const hayFiltrosActivos =
-    tipoRango !== "todo" ||
-    anio !== "todos" ||
-    mes !== "todos" ||
-    canalId !== "todos" ||
-    marcaId !== "todos" ||
-    vendedorId !== "todos" ||
-    zonaId !== "todos" ||
-    ciudadId !== "todos" ||
-    Boolean(fechaDesde) ||
-    Boolean(fechaHasta);
+    tabActivo === "d3"
+      ? tipoRango !== "todo" ||
+        anio !== "todos" ||
+        mes !== "todos" ||
+        marcaId !== "todos" ||
+        ciudadId !== "todos" ||
+        filtroCanalDigital !== "todos" ||
+        Boolean(fechaDesde) ||
+        Boolean(fechaHasta)
+      : tipoRango !== "todo" ||
+        anio !== "todos" ||
+        mes !== "todos" ||
+        canalId !== "todos" ||
+        marcaId !== "todos" ||
+        vendedorId !== "todos" ||
+        zonaId !== "todos" ||
+        ciudadId !== "todos" ||
+        Boolean(fechaDesde) ||
+        Boolean(fechaHasta);
 
   const limpiarFiltros = () => {
     setTipoRango("todo");
@@ -292,6 +307,7 @@ function Panel() {
     setVendedorId("todos");
     setZonaId("todos");
     setCiudadId("todos");
+    setFiltroCanalDigital("todos");
   };
 
   // Carga unificada de ventas para todos los dashboards
@@ -374,8 +390,8 @@ function Panel() {
     [rawVentas, filtros]
   );
   const d3 = useMemo(
-    () => calcularDashboard3Digital(rawVentas || [], filtros, catalogos),
-    [rawVentas, filtros, catalogos]
+    () => calcularDashboard3Digital(rawVentas || [], filtros, catalogos, undefined, filtroCanalDigital),
+    [rawVentas, filtros, catalogos, filtroCanalDigital]
   );
   const d4 = useMemo(
     () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, catalogos?.vendedores, catalogos?.canales),
@@ -824,80 +840,137 @@ function Panel() {
 
             <div className="h-4 w-px bg-border/80 mx-1 hidden sm:block" />
 
-            {/* Canal */}
-            <Select value={canalId} onValueChange={setCanalId}>
-              <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
-                <SelectValue placeholder="Canal" />
-              </SelectTrigger>
-              <SelectContent className="max-h-72 overflow-y-auto">
-                <SelectItem value="todos">Todos los Canales</SelectItem>
-                {(catalogos?.canales || []).map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Si estamos en el Dashboard Digital (d3), desactivamos los filtros físicos y activamos el selector de canal digital */}
+            {tabActivo === "d3" ? (
+              <>
+                {/* Selector especializado de Canal Digital */}
+                <Select
+                  value={filtroCanalDigital}
+                  onValueChange={(v: "todos" | "tienda_virtual" | "redes_sociales") => setFiltroCanalDigital(v)}
+                >
+                  <SelectTrigger className="h-8 w-[205px] text-xs bg-background border-indigo-500/60 text-indigo-700 dark:text-indigo-300 font-semibold shadow-xs">
+                    <SelectValue placeholder="Canal Digital" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">🌐 Todo el Ecosistema Digital</SelectItem>
+                    <SelectItem value="tienda_virtual">🛒 Tienda Virtual (Shopify / Web)</SelectItem>
+                    <SelectItem value="redes_sociales">📱 Redes Sociales (WhatsApp)</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            {/* Marca */}
-            <Select value={marcaId} onValueChange={setMarcaId}>
-              <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
-                <SelectValue placeholder="Marca" />
-              </SelectTrigger>
-              <SelectContent className="max-h-72 overflow-y-auto">
-                <SelectItem value="todos">Todas las Marcas</SelectItem>
-                {(catalogos?.marcas || []).map((m) => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    {m.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                {/* Marca */}
+                <Select value={marcaId} onValueChange={setMarcaId}>
+                  <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
+                    <SelectValue placeholder="Marca" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value="todos">Todas las Marcas</SelectItem>
+                    {(catalogos?.marcas || []).map((m) => (
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        {m.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            {/* Vendedor */}
-            <Select value={vendedorId} onValueChange={setVendedorId}>
-              <SelectTrigger className="h-8 w-[140px] text-xs bg-background">
-                <SelectValue placeholder="Vendedor" />
-              </SelectTrigger>
-              <SelectContent className="max-h-72 overflow-y-auto">
-                <SelectItem value="todos">Todos los Vendedores</SelectItem>
-                {(catalogos?.vendedores || []).map((v) => (
-                  <SelectItem key={v.id} value={String(v.id)}>
-                    {v.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                {/* Ciudad (Compradores Digitales) */}
+                <Select value={ciudadId} onValueChange={setCiudadId}>
+                  <SelectTrigger className={`h-8 w-[140px] text-xs bg-background ${ciudadId !== "todos" ? "border-emerald-500 font-semibold text-emerald-700 dark:text-emerald-300" : ""}`}>
+                    <SelectValue placeholder="Ciudad Destino" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value="todos">Todas las Ciudades</SelectItem>
+                    {(catalogos?.ciudades || []).map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            {/* Zona */}
-            <Select value={zonaId} onValueChange={setZonaId}>
-              <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
-                <SelectValue placeholder="Zona" />
-              </SelectTrigger>
-              <SelectContent className="max-h-72 overflow-y-auto">
-                <SelectItem value="todos">Todas las Zonas</SelectItem>
-                {(catalogos?.zonas || []).map((z) => (
-                  <SelectItem key={z.id} value={String(z.id)}>
-                    {z.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <Badge variant="outline" className="hidden lg:inline-flex bg-indigo-500/10 text-indigo-600 border-indigo-500/30 text-xs font-semibold py-1 px-2.5 items-center gap-1.5 ml-auto">
+                  <Globe className="h-3.5 w-3.5" />
+                  Modo Enfoque Digital
+                </Badge>
+              </>
+            ) : (
+              <>
+                {/* Canal Físico/General */}
+                <Select value={canalId} onValueChange={setCanalId}>
+                  <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
+                    <SelectValue placeholder="Canal" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value="todos">Todos los Canales</SelectItem>
+                    {(catalogos?.canales || []).map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            {/* Ciudad */}
-            <Select value={ciudadId} onValueChange={setCiudadId}>
-              <SelectTrigger className={`h-8 w-[140px] text-xs bg-background ${ciudadId !== "todos" ? "border-emerald-500 font-semibold text-emerald-700 dark:text-emerald-300" : ""}`}>
-                <SelectValue placeholder="Ciudad" />
-              </SelectTrigger>
-              <SelectContent className="max-h-72 overflow-y-auto">
-                <SelectItem value="todos">Todas las Ciudades</SelectItem>
-                {(catalogos?.ciudades || []).map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                {/* Marca */}
+                <Select value={marcaId} onValueChange={setMarcaId}>
+                  <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
+                    <SelectValue placeholder="Marca" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value="todos">Todas las Marcas</SelectItem>
+                    {(catalogos?.marcas || []).map((m) => (
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        {m.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Vendedor */}
+                <Select value={vendedorId} onValueChange={setVendedorId}>
+                  <SelectTrigger className="h-8 w-[140px] text-xs bg-background">
+                    <SelectValue placeholder="Vendedor" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value="todos">Todos los Vendedores</SelectItem>
+                    {(catalogos?.vendedores || []).map((v) => (
+                      <SelectItem key={v.id} value={String(v.id)}>
+                        {v.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Zona */}
+                <Select value={zonaId} onValueChange={setZonaId}>
+                  <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
+                    <SelectValue placeholder="Zona" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value="todos">Todas las Zonas</SelectItem>
+                    {(catalogos?.zonas || []).map((z) => (
+                      <SelectItem key={z.id} value={String(z.id)}>
+                        {z.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Ciudad */}
+                <Select value={ciudadId} onValueChange={setCiudadId}>
+                  <SelectTrigger className={`h-8 w-[140px] text-xs bg-background ${ciudadId !== "todos" ? "border-emerald-500 font-semibold text-emerald-700 dark:text-emerald-300" : ""}`}>
+                    <SelectValue placeholder="Ciudad" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72 overflow-y-auto">
+                    <SelectItem value="todos">Todas las Ciudades</SelectItem>
+                    {(catalogos?.ciudades || []).map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
 
             {hayFiltrosActivos && (
               <Button
@@ -916,7 +989,7 @@ function Panel() {
 
       {/* Contenido Principal */}
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
-        <Tabs defaultValue="multianual" className="space-y-6">
+        <Tabs value={tabActivo} onValueChange={setTabActivo} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 md:grid-cols-9 h-auto p-1 bg-muted/60">
             <TabsTrigger value="multianual" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
               <History className="h-3.5 w-3.5 text-purple-500" />
@@ -2036,6 +2109,62 @@ function Panel() {
                 </Badge>
                 <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-semibold text-xs">
                   AOV: {formatoCOPFull(d3?.kpis.aovTicketPromedio ?? 0)}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Barra de Segmentación Rápida de Canales Digitales (Modo Enfoque) */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-indigo-500/5 dark:bg-indigo-950/20 rounded-xl border border-indigo-500/20 shadow-xs">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold text-foreground ml-1 mr-2 flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5 text-indigo-500" />
+                  Enfoque de Canal:
+                </span>
+                <Button
+                  variant={filtroCanalDigital === "todos" ? "default" : "outline"}
+                  size="sm"
+                  className={`h-7 text-xs font-medium ${
+                    filtroCanalDigital === "todos"
+                      ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                      : "border-border/80 text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setFiltroCanalDigital("todos")}
+                >
+                  🌐 Todo el Ecosistema Digital (Consolidado)
+                </Button>
+                <Button
+                  variant={filtroCanalDigital === "tienda_virtual" ? "default" : "outline"}
+                  size="sm"
+                  className={`h-7 text-xs font-medium ${
+                    filtroCanalDigital === "tienda_virtual"
+                      ? "bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                      : "border-border/80 text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setFiltroCanalDigital("tienda_virtual")}
+                >
+                  🛒 Tienda Virtual (Shopify / Web)
+                </Button>
+                <Button
+                  variant={filtroCanalDigital === "redes_sociales" ? "default" : "outline"}
+                  size="sm"
+                  className={`h-7 text-xs font-medium ${
+                    filtroCanalDigital === "redes_sociales"
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                      : "border-border/80 text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setFiltroCanalDigital("redes_sociales")}
+                >
+                  📱 Redes Sociales (WhatsApp / Social Selling)
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-[11px] font-mono bg-background border border-border/60">
+                  {filtroCanalDigital === "todos"
+                    ? "Vista: Consolidada (TV + RS)"
+                    : filtroCanalDigital === "tienda_virtual"
+                    ? "Vista: 100% Tienda Virtual"
+                    : "Vista: 100% Redes Sociales"}
                 </Badge>
               </div>
             </div>
