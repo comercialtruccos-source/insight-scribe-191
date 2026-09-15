@@ -12,12 +12,12 @@ import { Lock, ShieldCheck } from "lucide-react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Acceso Corporativo | Nexa BI" },
+      { title: "Acceso Corporativo | Trucco´s BI" },
       {
         name: "description",
         content: "Plataforma interna de inteligencia comercial y analítica de ventas.",
       },
-      { property: "og:title", content: "Acceso Corporativo | Nexa BI" },
+      { property: "og:title", content: "Acceso Corporativo | Trucco´s BI" },
       {
         property: "og:description",
         content: "Plataforma interna de inteligencia comercial y analítica de ventas.",
@@ -136,11 +136,11 @@ function LoginPage() {
         {/* Identidad de la plataforma */}
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary text-primary-foreground font-bold text-2xl shadow-md">
-            N
+            T
           </div>
           <div>
             <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
-              Nexa BI
+              Trucco´s BI
             </h1>
             <p className="text-xs text-muted-foreground flex items-center justify-center gap-1.5 mt-0.5">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
@@ -231,7 +231,7 @@ function LoginPage() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground">
-          Nexa BI • Sistema confidencial de uso exclusivo interno
+          Trucco´s BI • Sistema confidencial de uso exclusivo interno
         </p>
       </div>
     </main>

@@ -560,10 +560,10 @@ function Panel() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground font-bold text-lg shadow-sm">
-              N
+              T
             </div>
             <div>
-              <p className="font-display text-lg font-bold tracking-tight text-foreground">Nexa BI</p>
+              <p className="font-display text-lg font-bold tracking-tight text-foreground">Trucco´s BI</p>
               <p className="text-xs text-muted-foreground">Plataforma Consolidada de Inteligencia Comercial</p>
             </div>
           </div>

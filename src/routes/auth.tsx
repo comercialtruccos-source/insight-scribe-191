@@ -11,13 +11,13 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Acceso | Nexa BI de Ventas" },
+      { title: "Acceso | Trucco´s BI de Ventas" },
       {
         name: "description",
         content:
           "Inicia sesión para cargar tu histórico de ventas y explorar los indicadores de tu empresa.",
       },
-      { property: "og:title", content: "Acceso | Nexa BI de Ventas" },
+      { property: "og:title", content: "Acceso | Trucco´s BI de Ventas" },
       {
         property: "og:description",
         content: "Panel de Business Intelligence de ventas para tu empresa.",
