@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -358,10 +358,32 @@ function Panel() {
     return catalogos?.vendedores?.find((v) => String(v.id) === String(vendedorId))?.nombre || null;
   }, [vendedorId, catalogos]);
 
+  const zonaSeleccionadaNombre = useMemo(() => {
+    if (zonaId === "todos") return null;
+    return catalogos?.zonas?.find((z) => String(z.id) === String(zonaId))?.nombre || null;
+  }, [zonaId, catalogos]);
+
   const ciudadSeleccionadaObj = useMemo(() => {
     if (ciudadId === "todos") return null;
     return catalogos?.ciudades?.find((c) => String(c.id) === String(ciudadId)) || null;
   }, [ciudadId, catalogos]);
+
+  const ciudadSeleccionadaNombre = useMemo(() => {
+    return ciudadSeleccionadaObj?.nombre || null;
+  }, [ciudadSeleccionadaObj]);
+
+  // Redirección inteligente si se filtra por vendedor o territorio y el usuario está en un tab desactivado (Digital o Marketplaces)
+  useEffect(() => {
+    if (vendedorId !== "todos") {
+      if (tabActivo === "d3" || tabActivo === "d5") {
+        setTabActivo("d4");
+      }
+    } else if (zonaId !== "todos" || (ciudadId !== "todos" && tabActivo !== "d3")) {
+      if (tabActivo === "d3" || tabActivo === "d5") {
+        setTabActivo("d1");
+      }
+    }
+  }, [vendedorId, zonaId, ciudadId]);
 
   const ciudadesFiltradasD1 = useMemo(() => {
     if (!d1) return [];
@@ -1038,6 +1060,183 @@ function Panel() {
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Volver a Todos los Dashboards
               </Button>
+            </div>
+          ) : vendedorId !== "todos" ? (
+            <div className="space-y-3">
+              {/* Barra de Enfoque Exclusivo Vendedor / Asesor Comercial */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-amber-500/10 dark:bg-amber-950/40 rounded-xl border border-amber-500/30 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 place-items-center rounded-lg bg-amber-600 text-white font-bold shadow-xs shrink-0">
+                    <Award className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-sm text-foreground font-display">
+                        Modo Enfoque: Asesor Comercial — {vendedorSeleccionadoNombre}
+                      </span>
+                      <Badge variant="outline" className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40 font-semibold text-[11px]">
+                        ✨ Enfoque Vendedor Activo
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Los paneles de Canales Digitales y Marketplaces se han desactivado para concentrar el análisis exclusivamente en el desempeño del vendedor.
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs font-semibold border-amber-500/40 hover:bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:text-amber-950 dark:hover:text-white flex items-center gap-1.5 shrink-0 bg-background/80"
+                  onClick={() => setVendedorId("todos")}
+                >
+                  <FilterX className="h-3.5 w-3.5" />
+                  Ver Todos los Vendedores
+                </Button>
+              </div>
+
+              {/* Tabs enfocados para Vendedor (sin Digital ni Marketplaces) */}
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-7 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
+                <TabsTrigger
+                  value="d4"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  4. Fuerza Ventas
+                </TabsTrigger>
+                <TabsTrigger
+                  value="d1"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                  1. Cumplimiento
+                </TabsTrigger>
+                <TabsTrigger
+                  value="d2"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-emerald-500/10 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  2. Run Rate
+                </TabsTrigger>
+                <TabsTrigger
+                  value="referencias"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
+                  6. Referencias
+                </TabsTrigger>
+                <TabsTrigger
+                  value="multianual"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                  Multianual
+                </TabsTrigger>
+                <TabsTrigger
+                  value="explorador"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-teal-500/10 data-[state=active]:text-teal-600 dark:data-[state=active]:text-teal-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+                  Detalle
+                </TabsTrigger>
+                <TabsTrigger
+                  value="carga"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                  Cargar
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          ) : (zonaId !== "todos" || ciudadId !== "todos") ? (
+            <div className="space-y-3">
+              {/* Barra de Enfoque Exclusivo Territorial / Regional */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-blue-500/10 dark:bg-blue-950/40 rounded-xl border border-blue-500/30 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 place-items-center rounded-lg bg-blue-600 text-white font-bold shadow-xs shrink-0">
+                    <MapPin className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-sm text-foreground font-display">
+                        Modo Enfoque Territorial — {zonaSeleccionadaNombre ? `Zona: ${zonaSeleccionadaNombre}` : `Ciudad: ${ciudadSeleccionadaNombre}`}
+                      </span>
+                      <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/40 font-semibold text-[11px]">
+                        ✨ Enfoque Territorial Activo
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Los paneles no territoriales se han desactivado para concentrar el análisis en la cobertura y cumplimiento de esta región.
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs font-semibold border-blue-500/40 hover:bg-blue-500/15 text-blue-700 dark:text-blue-300 hover:text-blue-950 dark:hover:text-white flex items-center gap-1.5 shrink-0 bg-background/80"
+                  onClick={() => {
+                    setZonaId("todos");
+                    setCiudadId("todos");
+                  }}
+                >
+                  <FilterX className="h-3.5 w-3.5" />
+                  Restablecer Territorio
+                </Button>
+              </div>
+
+              {/* Tabs enfocados para Región (sin Digital ni Marketplaces) */}
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-7 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
+                <TabsTrigger
+                  value="d1"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                  1. Cumplimiento
+                </TabsTrigger>
+                <TabsTrigger
+                  value="d2"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-emerald-500/10 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  2. Run Rate
+                </TabsTrigger>
+                <TabsTrigger
+                  value="d4"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  4. Fuerza Ventas
+                </TabsTrigger>
+                <TabsTrigger
+                  value="referencias"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
+                  6. Referencias
+                </TabsTrigger>
+                <TabsTrigger
+                  value="multianual"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                  Multianual
+                </TabsTrigger>
+                <TabsTrigger
+                  value="explorador"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-teal-500/10 data-[state=active]:text-teal-600 dark:data-[state=active]:text-teal-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+                  Detalle
+                </TabsTrigger>
+                <TabsTrigger
+                  value="carga"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                  Cargar
+                </TabsTrigger>
+              </TabsList>
             </div>
           ) : (
             <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 md:grid-cols-9 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
@@ -2674,22 +2873,50 @@ function Panel() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
-                    {(d4?.asesores || []).map((a) => (
-                      <tr key={a.vendedor} className="hover:bg-muted/30">
-                        <td className="py-2.5 px-3 font-medium text-foreground">{a.vendedor}</td>
-                        <td className="py-2.5 px-3 text-right font-semibold">{formatoCOPFull(a.ventaTotal)}</td>
-                        <td className="py-2.5 px-3 text-right text-muted-foreground">{a.unidades.toLocaleString("es-CO")}</td>
-                        <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(a.cuotaAsignada)}</td>
-                        <td className="py-2.5 px-3 text-right">
-                          <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${colorSemaforo(a.cumplimientoPct)}`}>
-                            {a.cumplimientoPct}%
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-medium">{a.participacionCarteraPct}%</td>
-                        <td className="py-2.5 px-3 text-right font-semibold text-emerald-600">{formatoCOP(a.comisionEstimada)}</td>
-                        <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(a.viaticosZona)}</td>
-                      </tr>
-                    ))}
+                    {(d4?.asesores || []).map((a) => {
+                      const matchVendedor = (catalogos?.vendedores || []).find(
+                        (v) => v.nombre.toLowerCase() === a.vendedor.toLowerCase()
+                      );
+                      const isSelected = matchVendedor && String(matchVendedor.id) === String(vendedorId);
+                      return (
+                        <tr
+                          key={a.vendedor}
+                          onClick={() => {
+                            if (matchVendedor) {
+                              setVendedorId(isSelected ? "todos" : String(matchVendedor.id));
+                            }
+                          }}
+                          className={`cursor-pointer transition-colors ${
+                            isSelected
+                              ? "bg-amber-500/15 dark:bg-amber-950/30 border-l-2 border-l-amber-500 font-semibold"
+                              : "hover:bg-muted/40"
+                          }`}
+                          title={matchVendedor ? "Clic para activar Modo Enfoque de este asesor" : undefined}
+                        >
+                          <td className="py-2.5 px-3 font-medium text-foreground">
+                            <div className="flex items-center gap-2">
+                              <span>{a.vendedor}</span>
+                              {isSelected && (
+                                <Badge variant="outline" className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40">
+                                  Activo
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-semibold">{formatoCOPFull(a.ventaTotal)}</td>
+                          <td className="py-2.5 px-3 text-right text-muted-foreground">{a.unidades.toLocaleString("es-CO")}</td>
+                          <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(a.cuotaAsignada)}</td>
+                          <td className="py-2.5 px-3 text-right">
+                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${colorSemaforo(a.cumplimientoPct)}`}>
+                              {a.cumplimientoPct}%
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-medium">{a.participacionCarteraPct}%</td>
+                          <td className="py-2.5 px-3 text-right font-semibold text-emerald-600">{formatoCOP(a.comisionEstimada)}</td>
+                          <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(a.viaticosZona)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </CardContent>
