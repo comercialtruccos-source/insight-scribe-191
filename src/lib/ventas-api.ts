@@ -941,14 +941,20 @@ export function calcularDashboard1Cumplimiento(
     canalVentaMap.set(cNomCanal, { venta: prevC.venta + v, unidades: prevC.unidades + cant });
   }
 
-  // Meses cronológicos
+  // Meses cronológicos con meta presupuestal dinámica y cumplimiento con precisión decimal
   let meses: CumplimientoMes[] = [];
   if (filtros.anio && !filtros.fecha_desde) {
+    const mesesConVenta = Array.from(periodoMap.values()).filter((d) => d.venta > 0);
+    const totalVentasAnio = mesesConVenta.reduce((acc, d) => acc + d.venta, 0);
+    const promedioVentaMes = mesesConVenta.length > 0 ? totalVentasAnio / mesesConVenta.length : 0;
+    const metaBaseMensual = promedioVentaMes > 0 ? Math.round(promedioVentaMes * 1.05) : 0;
+
     meses = nombresMes.map((nombre, idx) => {
       const mNum = idx + 1;
       const d = periodoMap.get(String(mNum)) || { anio: filtros.anio!, mes: mNum, venta: 0, unidades: 0, dev: 0 };
-      const ppto = Math.round(d.venta > 0 ? d.venta * 1.10 : 0);
+      const ppto = d.venta > 0 ? metaBaseMensual : 0;
       const ventaBrutaMes = d.venta + d.dev;
+      const cumplimientoPct = ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 1000) / 10 : (d.venta > 0 ? 100 : 0);
       return {
         anio: filtros.anio!,
         mes: mNum,
@@ -957,7 +963,7 @@ export function calcularDashboard1Cumplimiento(
         ventaReal: d.venta,
         ventaAnterior: 0,
         ppto,
-        cumplimientoPct: ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 100) : 0,
+        cumplimientoPct,
         crecimientoYoY: 0,
         devolucionesMonto: d.dev,
         tasaDevolucionPct: ventaBrutaMes > 0 ? Math.round((d.dev / ventaBrutaMes) * 1000) / 10 : 0,
@@ -966,12 +972,18 @@ export function calcularDashboard1Cumplimiento(
     });
   } else {
     const keys = Array.from(periodoMap.keys()).sort();
+    const periodosConVenta = keys.map((k) => periodoMap.get(k)!).filter((d) => d.venta > 0);
+    const totalVentasHist = periodosConVenta.reduce((acc, d) => acc + d.venta, 0);
+    const promedioVentaPeriodo = periodosConVenta.length > 0 ? totalVentasHist / periodosConVenta.length : 0;
+    const metaBasePeriodo = promedioVentaPeriodo > 0 ? Math.round(promedioVentaPeriodo * 1.05) : 0;
+
     meses = keys.map((k) => {
       const d = periodoMap.get(k)!;
       const nombreMesStr = nombresMes[(d.mes || 1) - 1] ?? `M${d.mes}`;
       const nombre = `${nombreMesStr} ${d.anio}`;
-      const ppto = Math.round(d.venta > 0 ? d.venta * 1.10 : 0);
+      const ppto = d.venta > 0 ? metaBasePeriodo : 0;
       const ventaBrutaMes = d.venta + d.dev;
+      const cumplimientoPct = ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 1000) / 10 : (d.venta > 0 ? 100 : 0);
       return {
         anio: d.anio,
         mes: d.mes,
@@ -980,7 +992,7 @@ export function calcularDashboard1Cumplimiento(
         ventaReal: d.venta,
         ventaAnterior: 0,
         ppto,
-        cumplimientoPct: ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 100) : 0,
+        cumplimientoPct,
         crecimientoYoY: 0,
         devolucionesMonto: d.dev,
         tasaDevolucionPct: ventaBrutaMes > 0 ? Math.round((d.dev / ventaBrutaMes) * 1000) / 10 : 0,
@@ -1083,8 +1095,8 @@ export function calcularDashboard1Cumplimiento(
     kpis: {
       ventaYTD: totalVentas,
       ventaBrutaTotal: totalVentaBruta,
-      pptoYTD: totalPpto > 0 ? totalPpto : (totalVentas > 0 ? Math.round(totalVentas * 1.10) : 0),
-      cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 100) : (totalVentas > 0 ? 100 : 0),
+      pptoYTD: totalPpto > 0 ? totalPpto : (totalVentas > 0 ? Math.round(totalVentas * 1.05) : 0),
+      cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 1000) / 10 : (totalVentas > 0 ? 100 : 0),
       crecimientoYoYPct: 0,
       devolucionesTotal: totalDevoluciones,
       tasaDevolucionGlobalPct: totalVentaBruta > 0 ? Math.round((totalDevoluciones / totalVentaBruta) * 1000) / 10 : 0,
@@ -1208,7 +1220,7 @@ export function calcularDashboard2RunRate(data: FilaFactVentas[], filtros: Filtr
   const ventaAcumuladaCorte = ventasPorDia.slice(1, diaCorte + 1).reduce((a, b) => a + b, 0);
   const pptoRestante = Math.max(0, pptoMes - ventaAcumuladaCorte);
   const runRateRequerido = diasHabilesRestantes > 0 ? Math.round(pptoRestante / diasHabilesRestantes) : 0;
-  const cumplimientoMesPct = pptoMes > 0 && ventaTotalMes > 0 ? Math.round((ventaTotalMes / pptoMes) * 100) : 0;
+  const cumplimientoMesPct = pptoMes > 0 && ventaTotalMes > 0 ? Math.round((ventaTotalMes / pptoMes) * 1000) / 10 : 0;
   const brechaAcumulada = ventaAcumuladaCorte - (metaDiariaFija * diasHabilesTranscurridos);
 
   let acumuladoReal = 0;
@@ -1462,10 +1474,14 @@ export function calcularDashboard4FuerzaVentas(
     }
   }
 
+  const totalAsesores = asesorDataMap.size;
+  const promedioVentaAsesor = totalAsesores > 0 ? totalVentaFuerza / totalAsesores : 0;
+  const cuotaBaseAsesor = Math.round(promedioVentaAsesor * 1.05);
+
   const asesores: AsesorComercial[] = Array.from(asesorDataMap.entries())
     .map(([vendedor, val]) => {
-      const cuotaAsignada = val.venta > 0 ? Math.round(val.venta * 1.12) : 0;
-      const cumplimientoPct = cuotaAsignada > 0 && val.venta > 0 ? Math.round((val.venta / cuotaAsignada) * 100) : 0;
+      const cuotaAsignada = cuotaBaseAsesor > 0 ? cuotaBaseAsesor : (val.venta > 0 ? Math.round(val.venta * 1.05) : 0);
+      const cumplimientoPct = cuotaAsignada > 0 && val.venta > 0 ? Math.round((val.venta / cuotaAsignada) * 1000) / 10 : 0;
       const participacionCarteraPct = totalVentaFuerza > 0 && val.venta > 0 ? Math.round((val.venta / totalVentaFuerza) * 1000) / 10 : 0;
       const comisionEstimada = val.venta > 0 ? Math.round(val.venta * 0.05) : 0;
       const viaticosZona = 1_500_000;
@@ -1484,12 +1500,12 @@ export function calcularDashboard4FuerzaVentas(
     .sort((a, b) => b.ventaTotal - a.ventaTotal);
 
   const comisionesTotales = asesores.reduce((a, b) => a + b.comisionEstimada, 0);
-  const pctExportaciones = totalVentaFuerza > 0 ? Math.round((ventaExportaciones / totalVentaFuerza) * 100) : 0;
+  const pctExportaciones = totalVentaFuerza > 0 ? Math.round((ventaExportaciones / totalVentaFuerza) * 1000) / 10 : 0;
 
   const distribucionCanales = Array.from(canalDistMap.entries()).map(([canal, venta]) => ({
     canal,
     venta,
-    porcentaje: totalVentaFuerza > 0 ? Math.round((venta / totalVentaFuerza) * 100) : 0,
+    porcentaje: totalVentaFuerza > 0 ? Math.round((venta / totalVentaFuerza) * 1000) / 10 : 0,
   }));
 
   const matrizVendedorMes = asesores.slice(0, 10).map((a) => ({

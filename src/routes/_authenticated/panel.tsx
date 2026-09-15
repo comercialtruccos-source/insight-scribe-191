@@ -1237,7 +1237,7 @@ function Panel() {
                         <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
                         <Tooltip
                           formatter={(value: number, name: string) => {
-                            if (name === "cumplimientoPct") return [`${value}%`, "% Cumplimiento"];
+                            if (name === "cumplimientoPct") return [`${Number(value).toFixed(1)}%`, "% Cumplimiento"];
                             return [formatoCOPFull(value), name === "ventaReal" ? "Venta Real" : "Presupuesto (PPTO)"];
                           }}
                         />
