@@ -94,6 +94,9 @@ import {
   AlertTriangle,
   Loader2,
   MapPin,
+  Share2,
+  Smartphone,
+  Store,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -371,7 +374,7 @@ function Panel() {
     [rawVentas, filtros]
   );
   const d3 = useMemo(
-    () => calcularDashboard3Digital(rawVentas || [], filtros, catalogos?.canales, catalogos?.marcas),
+    () => calcularDashboard3Digital(rawVentas || [], filtros, catalogos),
     [rawVentas, filtros, catalogos]
   );
   const d4 = useMemo(
@@ -2021,55 +2024,82 @@ function Panel() {
                   Dashboard 3: E-Commerce, Social Selling y Marketing Digital
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Desglose de canales digitales (Tienda Virtual, Redes Sociales, Showroom), ROAS publicitario y costos SaaS.
+                  Análisis inteligente de canales directos: Tienda Virtual (Shopify / Web) vs Redes Sociales (WhatsApp / Social Selling), ROAS publicitario y rendimiento de catálogo online.
                 </p>
               </div>
-              <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-500/30 font-semibold">
-                ROAS Digital: {d3?.kpis.roas ?? 0}x
-              </Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30 font-semibold text-xs">
+                  Participación Digital: {d3?.kpis.pctVentaEmpresa ?? 0}%
+                </Badge>
+                <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-500/30 font-semibold text-xs">
+                  ROAS Promedio: {d3?.kpis.roas ?? 0}x
+                </Badge>
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-semibold text-xs">
+                  AOV: {formatoCOPFull(d3?.kpis.aovTicketPromedio ?? 0)}
+                </Badge>
+              </div>
             </div>
 
             {/* Tarjetas KPI Digital */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <CardKpi
                 titulo="Venta Canal Digital Total"
                 valor={formatoCOPFull(d3?.kpis.ventaDigitalTotal ?? 0)}
-                subtexto={`${(d3?.kpis.unidadesDigitales ?? 0).toLocaleString("es-CO")} unidades vendidas`}
+                subtexto={`${(d3?.kpis.unidadesDigitales ?? 0).toLocaleString("es-CO")} prendas vendidas`}
                 icono={<ShoppingBag className="h-5 w-5 text-indigo-500" />}
                 cargando={cD3}
               />
               <CardKpi
-                titulo="Ticket Promedio por Unidad (AOV)"
+                titulo="Tienda Virtual (Shopify)"
+                valor={formatoCOPFull(d3?.kpis.ventaTiendaVirtual ?? 0)}
+                subtexto={`${(d3?.kpis.unidadesTiendaVirtual ?? 0).toLocaleString("es-CO")} unds | AOV ${formatoCOP(d3?.kpis.aovTiendaVirtual ?? 0)}`}
+                icono={<Globe className="h-5 w-5 text-blue-500" />}
+                cargando={cD3}
+              />
+              <CardKpi
+                titulo="Redes Sociales (WhatsApp)"
+                valor={formatoCOPFull(d3?.kpis.ventaRedesSociales ?? 0)}
+                subtexto={`${(d3?.kpis.unidadesRedesSociales ?? 0).toLocaleString("es-CO")} unds | AOV ${formatoCOP(d3?.kpis.aovRedesSociales ?? 0)}`}
+                icono={<Share2 className="h-5 w-5 text-emerald-500" />}
+                cargando={cD3}
+              />
+              <CardKpi
+                titulo="Ticket Promedio (AOV)"
                 valor={formatoCOPFull(d3?.kpis.aovTicketPromedio ?? 0)}
-                subtexto="Valor promedio facturado por prenda"
-                icono={<Receipt className="h-5 w-5 text-emerald-500" />}
+                subtexto="Promedio por prenda facturada"
+                icono={<Receipt className="h-5 w-5 text-purple-500" />}
                 cargando={cD3}
               />
               <CardKpi
-                titulo="Inversión en Pauta (Meta + Google)"
+                titulo="Inversión en Pauta & ROAS"
                 valor={formatoCOPFull(d3?.kpis.inversionTotalPauta ?? 0)}
-                subtexto={`ROAS de Retorno: ${d3?.kpis.roas ?? 0}x sobre pauta`}
-                icono={<DollarSign className="h-5 w-5 text-blue-500" />}
+                subtexto={`Retorno: ${d3?.kpis.roas ?? 0}x sobre pauta`}
+                icono={<DollarSign className="h-5 w-5 text-amber-500" />}
                 cargando={cD3}
               />
               <CardKpi
-                titulo="Gasto Plataformas SaaS"
-                valor={formatoCOPFull(d3?.kpis.costoPlataformasSaas ?? 0)}
-                subtexto="Clientify + Omnisend + Canva (ajustado TRM)"
-                icono={<Layers className="h-5 w-5 text-slate-500" />}
+                titulo="Margen Operativo Digital"
+                valor={formatoCOPFull(d3?.kpis.margenOperativoDigital ?? 0)}
+                subtexto="Deduciendo Pauta + SaaS ($1.85M)"
+                icono={<TrendingUp className="h-5 w-5 text-cyan-500" />}
                 cargando={cD3}
               />
             </div>
 
-            {/* Gráficos: Participación por canal digital y Gasto Pauta vs Ingresos */}
-            <div className="grid gap-6 lg:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold">Participación por Canal Digital</CardTitle>
-                  <CardDescription>Tienda Virtual (Shopify) vs Redes Sociales vs Showroom</CardDescription>
+            {/* Fila 1: Participación por canal digital y Evolución mensual comparativa */}
+            <div className="grid gap-6 lg:grid-cols-3">
+              <Card className="lg:col-span-1 flex flex-col justify-between">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold flex items-center justify-between">
+                    <span>Participación por Canal</span>
+                    <Badge variant="outline" className="text-[11px] font-normal">
+                      {(d3?.kpis.unidadesDigitales ?? 0).toLocaleString("es-CO")} unds
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>Tienda Virtual vs Redes Sociales</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[280px] w-full">
+                  <div className="h-[240px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -2078,12 +2108,21 @@ function Panel() {
                           nameKey="canal"
                           cx="50%"
                           cy="50%"
-                          outerRadius={90}
-                          innerRadius={50}
+                          outerRadius={80}
+                          innerRadius={45}
                           paddingAngle={3}
                         >
-                          {(d3?.canalesDigitales || []).map((_, i) => (
-                            <Cell key={`cell-d3-${i}`} fill={COLORES[i % COLORES.length]} />
+                          {(d3?.canalesDigitales || []).map((entry, i) => (
+                            <Cell
+                              key={`cell-d3-${i}`}
+                              fill={
+                                entry.tipo === "tienda_virtual"
+                                  ? "#2563eb"
+                                  : entry.tipo === "redes_sociales"
+                                  ? "#10b981"
+                                  : "#f59e0b"
+                              }
+                            />
                           ))}
                         </Pie>
                         <Tooltip formatter={(v: number) => formatoCOPFull(v)} />
@@ -2091,27 +2130,266 @@ function Panel() {
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
+                  <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t text-xs">
+                    <div className="p-2 rounded bg-blue-500/10 border border-blue-500/20">
+                      <p className="font-semibold text-blue-600">Tienda Virtual</p>
+                      <p className="text-muted-foreground">{formatoCOP(d3?.kpis.ventaTiendaVirtual ?? 0)}</p>
+                      <p className="font-mono text-[11px] text-blue-700">
+                        {d3?.kpis.ventaDigitalTotal ? ((d3.kpis.ventaTiendaVirtual / d3.kpis.ventaDigitalTotal) * 100).toFixed(1) : 0}%
+                      </p>
+                    </div>
+                    <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/20">
+                      <p className="font-semibold text-emerald-600">Redes Sociales</p>
+                      <p className="text-muted-foreground">{formatoCOP(d3?.kpis.ventaRedesSociales ?? 0)}</p>
+                      <p className="font-mono text-[11px] text-emerald-700">
+                        {d3?.kpis.ventaDigitalTotal ? ((d3.kpis.ventaRedesSociales / d3.kpis.ventaDigitalTotal) * 100).toFixed(1) : 0}%
+                      </p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold">Inversión en Pauta vs. Ventas Digitales</CardTitle>
-                  <CardDescription>Elasticidad y retorno de la inversión publicitaria</CardDescription>
+              <Card className="lg:col-span-2">
+                <CardHeader className="pb-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Evolución Mensual de Ventas Digitales</CardTitle>
+                      <CardDescription>Facturación por canal digital e inversión en pauta mes a mes</CardDescription>
+                    </div>
+                    <Badge variant="outline" className="text-xs bg-muted/50 w-fit">
+                      12 Meses
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[290px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={d3?.evolucionMensual || []} margin={{ left: 10, right: 10, top: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                        <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} width={75} />
+                        <Tooltip
+                          formatter={(v: number, name: string) => [
+                            formatoCOPFull(v),
+                            name === "ventaTiendaVirtual"
+                              ? "Tienda Virtual (Shopify)"
+                              : name === "ventaRedesSociales"
+                              ? "Redes Sociales (WhatsApp)"
+                              : name === "gastoPauta"
+                              ? "Inversión en Pauta"
+                              : name,
+                          ]}
+                        />
+                        <Legend
+                          formatter={(v) =>
+                            v === "ventaTiendaVirtual"
+                              ? "Tienda Virtual (Shopify)"
+                              : v === "ventaRedesSociales"
+                              ? "Redes Sociales (WhatsApp)"
+                              : v === "gastoPauta"
+                              ? "Inversión Pauta"
+                              : v
+                          }
+                        />
+                        <Bar dataKey="ventaTiendaVirtual" fill="#2563eb" radius={[3, 3, 0, 0]} />
+                        <Bar dataKey="ventaRedesSociales" fill="#10b981" radius={[3, 3, 0, 0]} />
+                        <Bar dataKey="gastoPauta" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Fila 2: Top Referencias en Digital y Mix por Línea de Producto */}
+            <div className="grid gap-6 lg:grid-cols-3">
+              <Card className="lg:col-span-2">
+                <CardHeader className="pb-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Top 10 Referencias / SKUs Más Vendidos en Digital</CardTitle>
+                      <CardDescription>Productos estrella en Tienda Virtual y Social Selling</CardDescription>
+                    </div>
+                    <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20 w-fit">
+                      Top Sellers Digital
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={d3?.topReferenciasDigital || []}
+                        layout="vertical"
+                        margin={{ left: 20, right: 20, top: 5, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} horizontal={false} />
+                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 10 }} />
+                        <YAxis
+                          type="category"
+                          dataKey="referencia"
+                          tick={{ fontSize: 10 }}
+                          width={90}
+                        />
+                        <Tooltip
+                          formatter={(v: number, name: string, item: any) => [
+                            formatoCOPFull(v),
+                            `Venta (${item?.payload?.unidades ?? 0} unds - ${item?.payload?.linea ?? "General"})`,
+                          ]}
+                          labelFormatter={(label, payload) => {
+                            const p = payload?.[0]?.payload;
+                            return p ? `${label} - ${p.producto}` : label;
+                          }}
+                        />
+                        <Bar dataKey="venta" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="lg:col-span-1">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold">Mix por Línea en Digital</CardTitle>
+                  <CardDescription>Participación por categorías de producto</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={d3?.lineasDigital || []}
+                        layout="vertical"
+                        margin={{ left: 10, right: 10, top: 5, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} horizontal={false} />
+                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 10 }} />
+                        <YAxis type="category" dataKey="linea" tick={{ fontSize: 10 }} width={75} />
+                        <Tooltip
+                          formatter={(v: number, name: string, item: any) => [
+                            `${formatoCOPFull(v)} (${item?.payload?.porcentaje ?? 0}%)`,
+                            `Línea (${item?.payload?.unidades ?? 0} unds)`,
+                          ]}
+                        />
+                        <Bar dataKey="venta" fill="#ec4899" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Fila 3: Top Ciudades y Tabla Comparativa de Canales */}
+            <div className="grid gap-6 lg:grid-cols-3">
+              <Card className="lg:col-span-1">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold">Top Ciudades Compradoras</CardTitle>
+                  <CardDescription>Destinos principales de pedidos online</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={d3?.pautaVsIngresos || []} margin={{ left: 10 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                        <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} width={75} />
-                        <Tooltip formatter={(v: number, name: string) => [formatoCOPFull(v), name === "ventaDigital" ? "Ventas Digitales" : "Gasto Pauta"]} />
-                        <Legend formatter={(v) => (v === "ventaDigital" ? "Ventas Digitales" : "Inversión en Pauta")} />
-                        <Bar dataKey="ventaDigital" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="gastoPauta" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      <BarChart
+                        data={d3?.ciudadesDigital || []}
+                        layout="vertical"
+                        margin={{ left: 10, right: 10, top: 5, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} horizontal={false} />
+                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 10 }} />
+                        <YAxis type="category" dataKey="ciudad" tick={{ fontSize: 10 }} width={80} />
+                        <Tooltip
+                          formatter={(v: number, name: string, item: any) => [
+                            `${formatoCOPFull(v)} (${item?.payload?.porcentaje ?? 0}%)`,
+                            `Venta Ciudad (${item?.payload?.unidades ?? 0} unds)`,
+                          ]}
+                        />
+                        <Bar dataKey="venta" fill="#06b6d4" radius={[0, 4, 4, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="lg:col-span-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold">Matriz Comparativa de Canales Digitales</CardTitle>
+                  <CardDescription>Rendimiento detallado de Tienda Virtual vs Redes Sociales</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-md border overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider border-b">
+                        <tr>
+                          <th className="py-2.5 px-3">Canal Digital</th>
+                          <th className="py-2.5 px-3 text-right">Facturación</th>
+                          <th className="py-2.5 px-3 text-right">Part. %</th>
+                          <th className="py-2.5 px-3 text-right">Unidades</th>
+                          <th className="py-2.5 px-3 text-right">Ticket AOV</th>
+                          <th className="py-2.5 px-3 text-right">Pauta Est.</th>
+                          <th className="py-2.5 px-3 text-right">ROAS</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {(d3?.canalesDigitales || []).map((c, i) => (
+                          <tr key={`tbl-canal-dig-${i}`} className="hover:bg-muted/30">
+                            <td className="py-2.5 px-3 font-medium flex items-center gap-1.5">
+                              {c.tipo === "tienda_virtual" ? (
+                                <Globe className="h-4 w-4 text-blue-500 shrink-0" />
+                              ) : c.tipo === "redes_sociales" ? (
+                                <Share2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                              ) : (
+                                <Store className="h-4 w-4 text-amber-500 shrink-0" />
+                              )}
+                              <span>{c.canal}</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-semibold">
+                              {formatoCOPFull(c.venta)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono">
+                              <Badge variant="outline" className="text-[10px] py-0 font-normal">
+                                {c.porcentaje}%
+                              </Badge>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono">
+                              {c.unidades.toLocaleString("es-CO")}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
+                              {formatoCOP(c.ticketPromedio)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-amber-600">
+                              {formatoCOP(c.gastoPauta)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-semibold text-indigo-600">
+                              {c.roas}x
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-muted/30 border-t font-semibold">
+                        <tr>
+                          <td className="py-2.5 px-3">Total Ecosistema Digital</td>
+                          <td className="py-2.5 px-3 text-right text-foreground">
+                            {formatoCOPFull(d3?.kpis.ventaDigitalTotal ?? 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <Badge variant="default" className="text-[10px] py-0">
+                              100%
+                            </Badge>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            {(d3?.kpis.unidadesDigitales ?? 0).toLocaleString("es-CO")}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            {formatoCOP(d3?.kpis.aovTicketPromedio ?? 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-amber-600">
+                            {formatoCOP(d3?.kpis.inversionTotalPauta ?? 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-indigo-600">
+                            {d3?.kpis.roas ?? 0}x
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
                   </div>
                 </CardContent>
               </Card>

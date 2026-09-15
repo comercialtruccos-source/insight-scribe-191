@@ -1272,88 +1272,350 @@ export async function obtenerDashboard2RunRate(filtros: FiltrosBI): Promise<Data
 // =========================================================================
 // DASHBOARD 3: E-COMMERCE, SOCIAL SELLING Y MARKETING DIGITAL
 // =========================================================================
+export type CanalDigitalItem = {
+  canal: string;
+  tipo: "tienda_virtual" | "redes_sociales" | "otro";
+  venta: number;
+  unidades: number;
+  ticketPromedio: number;
+  porcentaje: number;
+  gastoPauta: number;
+  roas: number;
+};
+
+export type MesDigitalItem = {
+  mes: string;
+  numMes: number;
+  ventaTotal: number;
+  ventaTiendaVirtual: number;
+  ventaRedesSociales: number;
+  ventaOtros: number;
+  unidades: number;
+  gastoPauta: number;
+  roas: number;
+};
+
+export type TopReferenciaDigital = {
+  referencia: string;
+  producto: string;
+  linea: string;
+  venta: number;
+  unidades: number;
+  precioPromedio: number;
+  canalPredominante: string;
+};
+
+export type LineaDigital = {
+  linea: string;
+  venta: number;
+  unidades: number;
+  porcentaje: number;
+};
+
+export type CiudadDigital = {
+  ciudad: string;
+  venta: number;
+  unidades: number;
+  porcentaje: number;
+};
+
 export type DataDashboard3 = {
   kpis: {
     ventaDigitalTotal: number;
+    ventaTiendaVirtual: number;
+    ventaRedesSociales: number;
+    ventaOtrosDigitales: number;
     unidadesDigitales: number;
+    unidadesTiendaVirtual: number;
+    unidadesRedesSociales: number;
     aovTicketPromedio: number;
+    aovTiendaVirtual: number;
+    aovRedesSociales: number;
     inversionTotalPauta: number;
     roas: number;
     costoPlataformasSaas: number;
+    margenOperativoDigital: number;
+    pctVentaEmpresa: number;
+    totalVentaEmpresa: number;
     cumplimientoEcommercePct: number;
   };
-  canalesDigitales: { canal: string; venta: number; unidades: number; porcentaje: number }[];
+  canalesDigitales: CanalDigitalItem[];
+  evolucionMensual: MesDigitalItem[];
   pautaVsIngresos: { mes: string; ventaDigital: number; gastoPauta: number; roas: number }[];
+  topReferenciasDigital: TopReferenciaDigital[];
+  lineasDigital: LineaDigital[];
+  ciudadesDigital: CiudadDigital[];
   comparativaMarcas: { marca: string; ventaDigital: number; gastoPauta: number; roas: number }[];
 };
 
 export function calcularDashboard3Digital(
   data: FilaFactVentas[],
   filtros: FiltrosBI,
-  canalesCatalogo?: CatalogoItem[],
+  catalogosOrCanales?:
+    | CatalogosDisponibles
+    | CatalogoItem[]
+    | {
+        vendedores?: CatalogoItem[];
+        canales?: CatalogoItem[];
+        marcas?: CatalogoItem[];
+        lineas?: CatalogoItem[];
+        ciudades?: CatalogoItem[];
+      },
   marcasCatalogo?: CatalogoItem[]
 ): DataDashboard3 {
-  const canalMap = new Map<number, string>((canalesCatalogo || []).map((c) => [c.id, c.nombre]));
-  const marcaMap = new Map<number, string>((marcasCatalogo || []).map((m) => [m.id, m.nombre]));
+  let vendedoresList: CatalogoItem[] = [];
+  let canalesList: CatalogoItem[] = [];
+  let marcasList: CatalogoItem[] = [];
+  let lineasList: CatalogoItem[] = [];
+  let ciudadesList: CatalogoItem[] = [];
 
+  if (Array.isArray(catalogosOrCanales)) {
+    canalesList = catalogosOrCanales;
+    marcasList = marcasCatalogo || [];
+  } else if (catalogosOrCanales) {
+    vendedoresList = catalogosOrCanales.vendedores || [];
+    canalesList = catalogosOrCanales.canales || [];
+    marcasList = catalogosOrCanales.marcas || [];
+    lineasList = catalogosOrCanales.lineas || [];
+    ciudadesList = catalogosOrCanales.ciudades || [];
+  }
+
+  const vendedorMap = new Map<number, string>(vendedoresList.map((v) => [v.id, v.nombre]));
+  const canalMap = new Map<number, string>(canalesList.map((c) => [c.id, c.nombre]));
+  const marcaMap = new Map<number, string>(marcasList.map((m) => [m.id, m.nombre]));
+  const lineaMap = new Map<number, string>(lineasList.map((l) => [l.id, l.nombre]));
+  const ciudadMap = new Map<number, string>(ciudadesList.map((ci) => [ci.id, ci.nombre]));
+
+  // Identification helpers
+  const isTiendaVirtual = (vId?: number, vName?: string) => {
+    if (vId === 108 || vId === 3333) return true;
+    const n = (vName || "").toUpperCase();
+    return n.includes("TIENDA VIRTUAL") || n.includes("SHOPIFY") || n.includes("TRJUSA WEB") || n.includes("ECOMMERCE") || n.includes("E-COMMERCE");
+  };
+
+  const isRedesSociales = (vId?: number, vName?: string) => {
+    if (vId === 226) return true;
+    const n = (vName || "").toUpperCase();
+    return n.includes("REDES SOCIALES") || n.includes("REDES") || n.includes("SOCIAL SELLING") || n.includes("WHATSAPP");
+  };
+
+  const isOtroDigital = (vId?: number, vName?: string, cName?: string) => {
+    if (vId === 58326 || vId === 59392 || vId === 2) return true;
+    const n = (vName || "").toUpperCase();
+    const c = (cName || "").toUpperCase();
+    return n.includes("DIGITAL") || n.includes("DAFITI") || n.includes("MARKETPLACE") || c.includes("DIGITAL") || c.includes("ECOMMERCE") || c.includes("VIRTUAL");
+  };
+
+  let totalVentaEmpresa = 0;
   let ventaDigitalTotal = 0;
   let unidadesDigitales = 0;
-  const canalesDigMap = new Map<string, { venta: number; unidades: number }>();
-  const mesesVentaDigital: number[] = new Array(12).fill(0);
+
+  let ventaTiendaVirtual = 0;
+  let unidadesTiendaVirtual = 0;
+
+  let ventaRedesSociales = 0;
+  let unidadesRedesSociales = 0;
+
+  let ventaOtrosDigitales = 0;
+  let unidadesOtrosDigitales = 0;
+
+  const mesesData: {
+    ventaTotal: number;
+    ventaTiendaVirtual: number;
+    ventaRedesSociales: number;
+    ventaOtros: number;
+    unidades: number;
+  }[] = Array.from({ length: 12 }, () => ({
+    ventaTotal: 0,
+    ventaTiendaVirtual: 0,
+    ventaRedesSociales: 0,
+    ventaOtros: 0,
+    unidades: 0,
+  }));
+
+  const refMap = new Map<string, { producto: string; linea: string; venta: number; unidades: number; tvVenta: number; rsVenta: number }>();
+  const lineaDistMap = new Map<string, { venta: number; unidades: number }>();
+  const ciudadDistMap = new Map<string, { venta: number; unidades: number }>();
   const marcasDigitalMap = new Map<string, number>();
 
   for (const r of data) {
-    const canalNombre = (r.canal_id ? canalMap.get(r.canal_id) : "") || "Tienda Virtual";
-    const marcaNombre = (r.marca_id ? marcaMap.get(r.marca_id) : "") || "Trucco's";
     const v = Number(r.valor || 0);
     const cant = Number(r.cantidad || 0);
+    totalVentaEmpresa += v;
+
+    const v1 = r.vendedor_id ? vendedorMap.get(r.vendedor_id) : "";
+    const v2 = r.vendedor2_id ? vendedorMap.get(r.vendedor2_id) : "";
+    const cName = r.canal_id ? canalMap.get(r.canal_id) : "";
+    const mName = (r.marca_id ? marcaMap.get(r.marca_id) : "") || "Trucco's";
+    const lName = (r.linea_id ? lineaMap.get(r.linea_id) : "") || "General";
+    const ciName = (r.ciudad_id ? ciudadMap.get(r.ciudad_id) : "") || "Otras Ciudades";
+
     let m = Number(r.mes);
     if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
     if (!m || isNaN(m)) m = 1;
+    const mIdx = Math.max(0, Math.min(11, m - 1));
 
-    ventaDigitalTotal += v;
-    unidadesDigitales += cant;
+    let esDigital = false;
+    let digitalTipo: "tienda_virtual" | "redes_sociales" | "otro" = "otro";
 
-    const prev = canalesDigMap.get(canalNombre) || { venta: 0, unidades: 0 };
-    canalesDigMap.set(canalNombre, { venta: prev.venta + v, unidades: prev.unidades + cant });
-
-    if (m >= 1 && m <= 12) {
-      mesesVentaDigital[m - 1] = (mesesVentaDigital[m - 1] ?? 0) + v;
+    if (isTiendaVirtual(r.vendedor_id, v1) || isTiendaVirtual(r.vendedor2_id, v2)) {
+      esDigital = true;
+      digitalTipo = "tienda_virtual";
+    } else if (isRedesSociales(r.vendedor_id, v1) || isRedesSociales(r.vendedor2_id, v2)) {
+      esDigital = true;
+      digitalTipo = "redes_sociales";
+    } else if (isOtroDigital(r.vendedor_id, v1, cName) || isOtroDigital(r.vendedor2_id, v2, cName)) {
+      esDigital = true;
+      digitalTipo = "otro";
     }
-    marcasDigitalMap.set(marcaNombre, (marcasDigitalMap.get(marcaNombre) || 0) + v);
-  }
 
-  if (canalesDigMap.size === 0) {
-    canalesDigMap.set("Tienda Virtual (Shopify)", { venta: Math.round(ventaDigitalTotal * 0.55), unidades: Math.round(unidadesDigitales * 0.55) });
-    canalesDigMap.set("Redes Sociales / WhatsApp", { venta: Math.round(ventaDigitalTotal * 0.35), unidades: Math.round(unidadesDigitales * 0.35) });
-    canalesDigMap.set("Showroom Directo", { venta: Math.round(ventaDigitalTotal * 0.10), unidades: Math.round(unidadesDigitales * 0.10) });
+    if (esDigital) {
+      ventaDigitalTotal += v;
+      unidadesDigitales += cant;
+
+      if (digitalTipo === "tienda_virtual") {
+        ventaTiendaVirtual += v;
+        unidadesTiendaVirtual += cant;
+        mesesData[mIdx].ventaTiendaVirtual += v;
+      } else if (digitalTipo === "redes_sociales") {
+        ventaRedesSociales += v;
+        unidadesRedesSociales += cant;
+        mesesData[mIdx].ventaRedesSociales += v;
+      } else {
+        ventaOtrosDigitales += v;
+        unidadesOtrosDigitales += cant;
+        mesesData[mIdx].ventaOtros += v;
+      }
+
+      mesesData[mIdx].ventaTotal += v;
+      mesesData[mIdx].unidades += cant;
+
+      // Track references
+      const sku = (r.sku || r.producto || "Sin Ref").trim().toUpperCase();
+      const pNombre = (r.producto || sku).trim();
+      const prevRef = refMap.get(sku) || { producto: pNombre, linea: lName, venta: 0, unidades: 0, tvVenta: 0, rsVenta: 0 };
+      prevRef.venta += v;
+      prevRef.unidades += cant;
+      if (digitalTipo === "tienda_virtual") prevRef.tvVenta += v;
+      if (digitalTipo === "redes_sociales") prevRef.rsVenta += v;
+      refMap.set(sku, prevRef);
+
+      // Track lines
+      const prevLinea = lineaDistMap.get(lName) || { venta: 0, unidades: 0 };
+      lineaDistMap.set(lName, { venta: prevLinea.venta + v, unidades: prevLinea.unidades + cant });
+
+      // Track cities
+      const prevCiudad = ciudadDistMap.get(ciName) || { venta: 0, unidades: 0 };
+      ciudadDistMap.set(ciName, { venta: prevCiudad.venta + v, unidades: prevCiudad.unidades + cant });
+
+      // Track brands
+      marcasDigitalMap.set(mName, (marcasDigitalMap.get(mName) || 0) + v);
+    }
   }
 
   const aovTicketPromedio = unidadesDigitales > 0 ? Math.round(ventaDigitalTotal / unidadesDigitales) : 0;
-  const inversionTotalPauta = ventaDigitalTotal > 0 ? Math.round(ventaDigitalTotal * 0.08) : 5_000_000;
+  const aovTiendaVirtual = unidadesTiendaVirtual > 0 ? Math.round(ventaTiendaVirtual / unidadesTiendaVirtual) : 0;
+  const aovRedesSociales = unidadesRedesSociales > 0 ? Math.round(ventaRedesSociales / unidadesRedesSociales) : 0;
+
+  const inversionTotalPauta = ventaDigitalTotal > 0 ? Math.round(ventaDigitalTotal * 0.08) : 0;
   const roas = inversionTotalPauta > 0 ? Math.round((ventaDigitalTotal / inversionTotalPauta) * 10) / 10 : 0;
-  const costoPlataformasSaas = 1_850_000;
+  const costoPlataformasSaas = ventaDigitalTotal > 0 ? 1_850_000 : 0;
+  const margenOperativoDigital = Math.max(0, ventaDigitalTotal - inversionTotalPauta - costoPlataformasSaas);
+  const pctVentaEmpresa = totalVentaEmpresa > 0 ? Math.round((ventaDigitalTotal / totalVentaEmpresa) * 1000) / 10 : 0;
   const cumplimientoEcommercePct = Math.min(120, Math.round(roas > 0 ? (roas / 10) * 100 : 85));
 
+  const canalesDigitales: CanalDigitalItem[] = [
+    {
+      canal: "Tienda Virtual (Shopify / Web)",
+      tipo: "tienda_virtual",
+      venta: ventaTiendaVirtual,
+      unidades: unidadesTiendaVirtual,
+      ticketPromedio: aovTiendaVirtual,
+      porcentaje: ventaDigitalTotal > 0 ? Math.round((ventaTiendaVirtual / ventaDigitalTotal) * 1000) / 10 : 0,
+      gastoPauta: Math.round(ventaTiendaVirtual * 0.08),
+      roas: ventaTiendaVirtual > 0 ? Math.round((ventaTiendaVirtual / (ventaTiendaVirtual * 0.08)) * 10) / 10 : 0,
+    },
+    {
+      canal: "Redes Sociales (WhatsApp / Social Selling)",
+      tipo: "redes_sociales",
+      venta: ventaRedesSociales,
+      unidades: unidadesRedesSociales,
+      ticketPromedio: aovRedesSociales,
+      porcentaje: ventaDigitalTotal > 0 ? Math.round((ventaRedesSociales / ventaDigitalTotal) * 1000) / 10 : 0,
+      gastoPauta: Math.round(ventaRedesSociales * 0.08),
+      roas: ventaRedesSociales > 0 ? Math.round((ventaRedesSociales / (ventaRedesSociales * 0.08)) * 10) / 10 : 0,
+    },
+  ];
+
+  if (ventaOtrosDigitales > 0) {
+    canalesDigitales.push({
+      canal: "Otros Canales Digitales / Marketplaces",
+      tipo: "otro",
+      venta: ventaOtrosDigitales,
+      unidades: unidadesOtrosDigitales,
+      ticketPromedio: unidadesOtrosDigitales > 0 ? Math.round(ventaOtrosDigitales / unidadesOtrosDigitales) : 0,
+      porcentaje: ventaDigitalTotal > 0 ? Math.round((ventaOtrosDigitales / ventaDigitalTotal) * 1000) / 10 : 0,
+      gastoPauta: Math.round(ventaOtrosDigitales * 0.08),
+      roas: ventaOtrosDigitales > 0 ? Math.round((ventaOtrosDigitales / (ventaOtrosDigitales * 0.08)) * 10) / 10 : 0,
+    });
+  }
+
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-  const pautaVsIngresos = nombresMes.map((nombre, i) => {
-    const vDig = mesesVentaDigital[i] || 0;
-    const gPauta = vDig > 0 ? Math.round(vDig * 0.08) : 0;
-    const r = gPauta > 0 ? Math.round((vDig / gPauta) * 10) / 10 : 0;
+  const evolucionMensual: MesDigitalItem[] = nombresMes.map((nombre, i) => {
+    const mData = mesesData[i] || { ventaTotal: 0, ventaTiendaVirtual: 0, ventaRedesSociales: 0, ventaOtros: 0, unidades: 0 };
+    const gPauta = mData.ventaTotal > 0 ? Math.round(mData.ventaTotal * 0.08) : 0;
+    const r = gPauta > 0 ? Math.round((mData.ventaTotal / gPauta) * 10) / 10 : 0;
     return {
       mes: nombre,
-      ventaDigital: vDig,
+      numMes: i + 1,
+      ventaTotal: mData.ventaTotal,
+      ventaTiendaVirtual: mData.ventaTiendaVirtual,
+      ventaRedesSociales: mData.ventaRedesSociales,
+      ventaOtros: mData.ventaOtros,
+      unidades: mData.unidades,
       gastoPauta: gPauta,
       roas: r,
     };
   });
 
-  const canalesDigitales = Array.from(canalesDigMap.entries()).map(([canal, vals]) => ({
-    canal,
-    venta: vals.venta,
-    unidades: vals.unidades,
-    porcentaje: ventaDigitalTotal > 0 ? Math.round((vals.venta / ventaDigitalTotal) * 100) : 0,
+  const pautaVsIngresos = evolucionMensual.map((m) => ({
+    mes: m.mes,
+    ventaDigital: m.ventaTotal,
+    gastoPauta: m.gastoPauta,
+    roas: m.roas,
   }));
+
+  const topReferenciasDigital: TopReferenciaDigital[] = Array.from(refMap.entries())
+    .map(([referencia, v]) => ({
+      referencia,
+      producto: v.producto,
+      linea: v.linea,
+      venta: v.venta,
+      unidades: v.unidades,
+      precioPromedio: v.unidades > 0 ? Math.round(v.venta / v.unidades) : 0,
+      canalPredominante: v.tvVenta >= v.rsVenta ? "Tienda Virtual" : "Redes Sociales",
+    }))
+    .sort((a, b) => b.venta - a.venta)
+    .slice(0, 10);
+
+  const lineasDigital: LineaDigital[] = Array.from(lineaDistMap.entries())
+    .map(([linea, v]) => ({
+      linea,
+      venta: v.venta,
+      unidades: v.unidades,
+      porcentaje: ventaDigitalTotal > 0 ? Math.round((v.venta / ventaDigitalTotal) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.venta - a.venta);
+
+  const ciudadesDigital: CiudadDigital[] = Array.from(ciudadDistMap.entries())
+    .map(([ciudad, v]) => ({
+      ciudad,
+      venta: v.venta,
+      unidades: v.unidades,
+      porcentaje: ventaDigitalTotal > 0 ? Math.round((v.venta / ventaDigitalTotal) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.venta - a.venta)
+    .slice(0, 10);
 
   const comparativaMarcas = Array.from(marcasDigitalMap.entries()).map(([marca, v]) => {
     const gPauta = Math.round(v * 0.08);
@@ -1368,26 +1630,39 @@ export function calcularDashboard3Digital(
   return {
     kpis: {
       ventaDigitalTotal,
+      ventaTiendaVirtual,
+      ventaRedesSociales,
+      ventaOtrosDigitales,
       unidadesDigitales,
+      unidadesTiendaVirtual,
+      unidadesRedesSociales,
       aovTicketPromedio,
+      aovTiendaVirtual,
+      aovRedesSociales,
       inversionTotalPauta,
       roas,
       costoPlataformasSaas,
+      margenOperativoDigital,
+      pctVentaEmpresa,
+      totalVentaEmpresa,
       cumplimientoEcommercePct,
     },
     canalesDigitales,
+    evolucionMensual,
     pautaVsIngresos,
+    topReferenciasDigital,
+    lineasDigital,
+    ciudadesDigital,
     comparativaMarcas,
   };
 }
 
 export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<DataDashboard3> {
-  const [data, canalesRes, marcasRes] = await Promise.all([
+  const [data, catalogos] = await Promise.all([
     obtenerVentasRaw(filtros),
-    supabase.from("dim_canal").select("id, nombre"),
-    supabase.from("dim_marca").select("id, nombre"),
+    obtenerCatalogosFiltros(),
   ]);
-  return calcularDashboard3Digital(data, filtros, canalesRes.data || [], marcasRes.data || []);
+  return calcularDashboard3Digital(data, filtros, catalogos);
 }
 
 // =========================================================================
