@@ -88,6 +88,7 @@ import {
   Award,
   ArrowUpRight,
   ArrowDownRight,
+  ArrowLeft,
   History,
   Clock,
   Trash2,
@@ -990,44 +991,78 @@ function Panel() {
       {/* Contenido Principal */}
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
         <Tabs value={tabActivo} onValueChange={setTabActivo} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 md:grid-cols-9 h-auto p-1 bg-muted/60">
-            <TabsTrigger value="multianual" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-              <History className="h-3.5 w-3.5 text-purple-500" />
-              Multianual
-            </TabsTrigger>
-            <TabsTrigger value="d1" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-              <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
-              1. Cumplimiento
-            </TabsTrigger>
-            <TabsTrigger value="d2" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-              <Calendar className="h-3.5 w-3.5 text-emerald-500" />
-              2. Run Rate
-            </TabsTrigger>
-            <TabsTrigger value="d3" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-              <Globe className="h-3.5 w-3.5 text-indigo-500" />
-              3. Digital
-            </TabsTrigger>
-            <TabsTrigger value="d4" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-              <Award className="h-3.5 w-3.5 text-amber-500" />
-              4. Fuerza Ventas
-            </TabsTrigger>
-            <TabsTrigger value="d5" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-              <ShoppingBag className="h-3.5 w-3.5 text-pink-500" />
-              5. Marketplaces
-            </TabsTrigger>
-            <TabsTrigger value="referencias" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-              <Package className="h-3.5 w-3.5 text-cyan-500" />
-              6. Referencias
-            </TabsTrigger>
-            <TabsTrigger value="explorador" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-              <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500" />
-              Detalle
-            </TabsTrigger>
-            <TabsTrigger value="carga" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
-              <UploadCloud className="h-3.5 w-3.5 text-slate-500" />
-              Cargar
-            </TabsTrigger>
-          </TabsList>
+          {tabActivo === "d3" ? (
+            /* Barra de Enfoque Exclusivo Digital: Oculta y desactiva todos los demás dashboards */
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-indigo-500/10 dark:bg-indigo-950/40 rounded-xl border border-indigo-500/30 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 place-items-center rounded-lg bg-indigo-600 text-white font-bold shadow-xs shrink-0">
+                  <Globe className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-sm text-foreground font-display">
+                      Dashboard 3: E-Commerce, Social Selling y Marketing Digital
+                    </span>
+                    <Badge variant="outline" className="bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-500/40 font-semibold text-[11px]">
+                      ✨ Modo Enfoque Digital Activo
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Los demás paneles están desactivados para concentrar la visualización y análisis exclusivamente en canales digitales.
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs font-semibold border-indigo-500/40 hover:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 hover:text-indigo-950 dark:hover:text-white flex items-center gap-1.5 shrink-0 bg-background/80"
+                onClick={() => setTabActivo("multianual")}
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Volver a Todos los Dashboards
+              </Button>
+            </div>
+          ) : (
+            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 md:grid-cols-9 h-auto p-1 bg-muted/60">
+              <TabsTrigger value="multianual" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+                <History className="h-3.5 w-3.5 text-purple-500" />
+                Multianual
+              </TabsTrigger>
+              <TabsTrigger value="d1" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+                <TrendingUp className="h-3.5 w-3.5 text-blue-500" />
+                1. Cumplimiento
+              </TabsTrigger>
+              <TabsTrigger value="d2" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+                <Calendar className="h-3.5 w-3.5 text-emerald-500" />
+                2. Run Rate
+              </TabsTrigger>
+              <TabsTrigger value="d3" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+                <Globe className="h-3.5 w-3.5 text-indigo-500" />
+                3. Digital
+              </TabsTrigger>
+              <TabsTrigger value="d4" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+                <Award className="h-3.5 w-3.5 text-amber-500" />
+                4. Fuerza Ventas
+              </TabsTrigger>
+              <TabsTrigger value="d5" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+                <ShoppingBag className="h-3.5 w-3.5 text-pink-500" />
+                5. Marketplaces
+              </TabsTrigger>
+              <TabsTrigger value="referencias" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+                <Package className="h-3.5 w-3.5 text-cyan-500" />
+                6. Referencias
+              </TabsTrigger>
+              <TabsTrigger value="explorador" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+                <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500" />
+                Detalle
+              </TabsTrigger>
+              <TabsTrigger value="carga" className="flex items-center gap-1.5 py-2.5 text-xs font-medium">
+                <UploadCloud className="h-3.5 w-3.5 text-slate-500" />
+                Cargar
+              </TabsTrigger>
+            </TabsList>
+          )}
 
           {/* ========================================================================= */}
           {/* TAB MULTIANUAL: DIMENSIÓN DE TIEMPO Y COMPARATIVO HISTÓRICO */}
