@@ -90,7 +90,7 @@ export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or:
  * Verificación en memoria para garantizar que el 100% de los registros cumplan con todos los filtros activos.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function cumpleFiltros(r: Record<string, any>, filtros: FiltrosBI): boolean {
+export function cumpleFiltros(r: any, filtros: FiltrosBI): boolean {
   if (filtros.fecha_desde && "fecha" in r && r.fecha) {
     if (String(r.fecha) < filtros.fecha_desde) return false;
   }
@@ -682,6 +682,28 @@ export type ZonaAporte = {
 
 export type CanalAporte = {
   canal: string;
+  venta: number;
+  unidades: number;
+  porcentaje: number;
+};
+
+export type CumplimientoMes = {
+  anio: number;
+  mes: number;
+  nombreMes: string;
+  periodo: string;
+  ventaReal: number;
+  ventaAnterior: number;
+  ppto: number;
+  cumplimientoPct: number;
+  crecimientoYoY: number;
+  devolucionesMonto: number;
+  tasaDevolucionPct: number;
+  unidades: number;
+};
+
+export type MixLinea = {
+  linea: string;
   venta: number;
   unidades: number;
   porcentaje: number;
