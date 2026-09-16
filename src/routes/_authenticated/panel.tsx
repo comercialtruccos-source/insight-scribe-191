@@ -67,6 +67,7 @@ import {
   Cell,
   Legend,
   ComposedChart,
+  LabelList,
 } from "recharts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -2411,36 +2412,69 @@ function Panel() {
                 </CardContent>
               </Card>
 
-              {/* Mix de Canales */}
+              {/* Mix de Marcas */}
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <Globe className="h-4 w-4 text-blue-500" /> Mix por Canal Comercial
+                        <Tag className="h-4 w-4 text-emerald-500" /> Mix por Marca
                       </CardTitle>
-                      <CardDescription>Participación de ventas por canal de comercialización</CardDescription>
+                      <CardDescription>Participación de ventas por marca comercial</CardDescription>
                     </div>
                     <InfoGrafica
-                      titulo="Mix por Canal Comercial"
-                      descripcion="Distribución de los ingresos de la empresa a través de los diferentes canales de venta (Mayoristas, Tienda Directa, Digital, Distribuidores, etc.)."
-                      metrica="Facturación total ($) y porcentaje de cuota por canal comercial."
-                      interpretacion="Permite evaluar la dependencia del negocio respecto a canales tradicionales frente al crecimiento de canales directos o digitales."
+                      titulo="Mix por Marca"
+                      descripcion="Distribución de la facturación y participación porcentual entre las diferentes marcas (Trucco's, Rappaz, etc.)."
+                      metrica="Facturación acumulada ($) y porcentaje (%) de participación sobre la venta total."
+                      interpretacion="Permite analizar el peso relativo de cada marca en el portafolio comercial."
                     />
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={d1?.mixCanales || []} layout="vertical" margin={{ left: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} />
-                        <YAxis type="category" dataKey="canal" width={100} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(v: number) => [formatoCOPFull(v), "Ventas"]} />
-                        <Bar dataKey="venta" fill="#3b82f6" radius={[0, 4, 4, 0]}>
-                          {(d1?.mixCanales || []).map((_, i) => (
-                            <Cell key={`mix-canal-${i}`} fill={COLORES[(i + 3) % COLORES.length]} />
+                      <BarChart data={d1?.mixMarcas || []} layout="vertical" margin={{ left: 10, right: 50, top: 10, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} horizontal={false} />
+                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} />
+                        <YAxis type="category" dataKey="marca" width={110} tick={{ fontSize: 11 }} />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload as { marca: string; venta: number; porcentaje: number };
+                              return (
+                                <div className="bg-popover/95 backdrop-blur-md border border-border p-3 rounded-xl shadow-lg text-xs space-y-1.5 min-w-[210px]">
+                                  <p className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                                    <Tag className="h-3.5 w-3.5 text-emerald-500" />
+                                    {data.marca}
+                                  </p>
+                                  <div className="flex items-center justify-between gap-4 text-muted-foreground pt-1">
+                                    <span>Facturación:</span>
+                                    <span className="font-bold text-foreground">{formatoCOPFull(data.venta)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-1.5 mt-1 bg-emerald-500/10 -mx-3 -mb-3 p-2.5 rounded-b-lg">
+                                    <span className="font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+                                      <Percent className="h-3 w-3" /> Participación Total:
+                                    </span>
+                                    <span className="font-extrabold text-emerald-700 dark:text-emerald-300 text-sm">
+                                      {data.porcentaje}%
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Bar dataKey="venta" fill="#10b981" radius={[0, 4, 4, 0]}>
+                          {(d1?.mixMarcas || []).map((_, i) => (
+                            <Cell key={`mix-marca-${i}`} fill={COLORES[(i + 1) % COLORES.length]} />
                           ))}
+                          <LabelList
+                            dataKey="porcentaje"
+                            position="right"
+                            formatter={(v: number) => `${v}%`}
+                            className="fill-foreground text-[11px] font-bold"
+                          />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -2525,24 +2559,63 @@ function Panel() {
                     </div>
                     <InfoGrafica
                       titulo="Mix por Línea de Producto"
-                      descripcion="Distribución de los ingresos generados según las categorías o líneas de vestuario comercializadas (Ej. Básicos, Denim, Moda, etc.)."
-                      metrica="Ventas netas facturadas ($) acumuladas por cada línea de producto."
-                      interpretacion="Permite detectar qué categorías lideran las ventas y cuáles tienen oportunidad de crecimiento o reposición estratégica."
+                      descripcion="Distribución y participación porcentual de los ingresos generados según las categorías o líneas de vestuario comercializadas (Ej. TRJ Denim, TRJ Plus Size, TRJ Casual, Complementos)."
+                      metrica="Venta neta ($), unidades vendidas y porcentaje (%) de participación sobre la facturación total."
+                      interpretacion="Permite detectar qué categorías lideran las ventas y aportan la mayor proporción a la facturación global, facilitando la toma de decisiones de inventario."
                     />
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={d1?.mixLineas || []} layout="vertical" margin={{ left: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} />
-                        <YAxis type="category" dataKey="linea" width={100} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(v: number) => [formatoCOPFull(v), "Ventas"]} />
+                      <BarChart data={d1?.mixLineas || []} layout="vertical" margin={{ left: 10, right: 50, top: 10, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} horizontal={false} />
+                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} />
+                        <YAxis type="category" dataKey="linea" width={110} tick={{ fontSize: 11 }} />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload as { linea: string; venta: number; unidades: number; porcentaje: number };
+                              return (
+                                <div className="bg-popover/95 backdrop-blur-md border border-border p-3 rounded-xl shadow-lg text-xs space-y-1.5 min-w-[210px]">
+                                  <p className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                                    <Layers className="h-3.5 w-3.5 text-violet-500" />
+                                    {data.linea}
+                                  </p>
+                                  <div className="flex items-center justify-between gap-4 text-muted-foreground pt-1">
+                                    <span>Facturación:</span>
+                                    <span className="font-bold text-foreground">{formatoCOPFull(data.venta)}</span>
+                                  </div>
+                                  {data.unidades !== undefined && (
+                                    <div className="flex items-center justify-between gap-4 text-muted-foreground">
+                                      <span>Prendas / Unidades:</span>
+                                      <span className="font-medium text-foreground">{data.unidades.toLocaleString("es-CO")} unds</span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-1.5 mt-1 bg-violet-500/10 -mx-3 -mb-3 p-2.5 rounded-b-lg">
+                                    <span className="font-semibold text-violet-700 dark:text-violet-300 flex items-center gap-1">
+                                      <Percent className="h-3 w-3" /> Participación Total:
+                                    </span>
+                                    <span className="font-extrabold text-violet-700 dark:text-violet-300 text-sm">
+                                      {data.porcentaje}%
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
                         <Bar dataKey="venta" fill="#8b5cf6" radius={[0, 4, 4, 0]}>
                           {(d1?.mixLineas || []).map((_, i) => (
                             <Cell key={`mix-linea-${i}`} fill={COLORES[i % COLORES.length]} />
                           ))}
+                          <LabelList
+                            dataKey="porcentaje"
+                            position="right"
+                            formatter={(v: number) => `${v}%`}
+                            className="fill-foreground text-[11px] font-bold"
+                          />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -2563,7 +2636,7 @@ function Panel() {
                     <InfoGrafica
                       titulo="Mix por Canal Comercial"
                       descripcion="Distribución de los ingresos de la empresa a través de los diferentes canales de venta (Mayoristas, Tienda Directa, Digital, Distribuidores, etc.)."
-                      metrica="Facturación total ($) y porcentaje de cuota por canal comercial."
+                      metrica="Facturación total ($) y porcentaje (%) de cuota por canal comercial sobre la venta total."
                       interpretacion="Permite evaluar la dependencia del negocio respecto a canales tradicionales frente al crecimiento de canales directos o digitales."
                     />
                   </div>
@@ -2571,15 +2644,48 @@ function Panel() {
                 <CardContent>
                   <div className="h-[280px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={d1?.mixCanales || []} layout="vertical" margin={{ left: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} />
-                        <YAxis type="category" dataKey="canal" width={100} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(v: number) => [formatoCOPFull(v), "Ventas"]} />
+                      <BarChart data={d1?.mixCanales || []} layout="vertical" margin={{ left: 10, right: 50, top: 10, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} horizontal={false} />
+                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} />
+                        <YAxis type="category" dataKey="canal" width={110} tick={{ fontSize: 11 }} />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload as { canal: string; venta: number; porcentaje: number };
+                              return (
+                                <div className="bg-popover/95 backdrop-blur-md border border-border p-3 rounded-xl shadow-lg text-xs space-y-1.5 min-w-[210px]">
+                                  <p className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                                    <Globe className="h-3.5 w-3.5 text-blue-500" />
+                                    {data.canal}
+                                  </p>
+                                  <div className="flex items-center justify-between gap-4 text-muted-foreground pt-1">
+                                    <span>Facturación:</span>
+                                    <span className="font-bold text-foreground">{formatoCOPFull(data.venta)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-1.5 mt-1 bg-blue-500/10 -mx-3 -mb-3 p-2.5 rounded-b-lg">
+                                    <span className="font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                                      <Percent className="h-3 w-3" /> Participación Total:
+                                    </span>
+                                    <span className="font-extrabold text-blue-700 dark:text-blue-300 text-sm">
+                                      {data.porcentaje}%
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
                         <Bar dataKey="venta" fill="#3b82f6" radius={[0, 4, 4, 0]}>
                           {(d1?.mixCanales || []).map((_, i) => (
                             <Cell key={`mix-canal-${i}`} fill={COLORES[(i + 3) % COLORES.length]} />
                           ))}
+                          <LabelList
+                            dataKey="porcentaje"
+                            position="right"
+                            formatter={(v: number) => `${v}%`}
+                            className="fill-foreground text-[11px] font-bold"
+                          />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -3176,18 +3282,25 @@ function Panel() {
                       <BarChart
                         data={d3?.lineasDigital || []}
                         layout="vertical"
-                        margin={{ left: 10, right: 10, top: 5, bottom: 5 }}
+                        margin={{ left: 10, right: 45, top: 5, bottom: 5 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} horizontal={false} />
                         <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 10 }} />
-                        <YAxis type="category" dataKey="linea" tick={{ fontSize: 10 }} width={75} />
+                        <YAxis type="category" dataKey="linea" tick={{ fontSize: 10 }} width={80} />
                         <Tooltip
                           formatter={(v: number, name: string, item: any) => [
                             `${formatoCOPFull(v)} (${item?.payload?.porcentaje ?? 0}%)`,
                             `Línea (${item?.payload?.unidades ?? 0} unds)`,
                           ]}
                         />
-                        <Bar dataKey="venta" fill="#ec4899" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="venta" fill="#ec4899" radius={[0, 4, 4, 0]}>
+                          <LabelList
+                            dataKey="porcentaje"
+                            position="right"
+                            formatter={(v: number) => `${v}%`}
+                            className="fill-foreground text-[10px] font-bold"
+                          />
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
