@@ -219,11 +219,30 @@ export function guardarTodosLosPermisosLocales(permisos: PermisoUsuario[]): void
  */
 export function obtenerPermisoUsuario(email?: string | null, userId?: string | null): PermisoUsuario | null {
   if (!email && !userId) return null;
-  const normalEmail = (email || "").trim().toLowerCase();
+  let normalEmail = (email || "").trim().toLowerCase();
+  if (normalEmail && !normalEmail.includes("@")) {
+    normalEmail = `${normalEmail}@truccos.com`;
+  }
   const emailNormClave = normalizarTexto(normalEmail.split("@")[0] || "");
+
+  // 1. Coincidencia directa en la matriz oficial preconfigurada
+  const matchOficial = USUARIOS_INICIALES_PRECONFIGURADOS.find((p) => {
+    if (userId && p.userId && p.userId === userId) return true;
+    if (normalEmail && p.email.toLowerCase() === normalEmail) return true;
+    const pEmailNorm = normalizarTexto(p.email.split("@")[0] || "");
+    const pNombreNorm = normalizarTexto(p.nombre || "");
+    return (
+      (pEmailNorm && emailNormClave === pEmailNorm) ||
+      (pNombreNorm && emailNormClave === pNombreNorm) ||
+      (pEmailNorm && emailNormClave.includes(pEmailNorm)) ||
+      (emailNormClave && pEmailNorm.includes(emailNormClave))
+    );
+  });
+  if (matchOficial) return matchOficial;
+
   const todos = obtenerTodosLosPermisosLocales();
 
-  // 1. Coincidencia exacta por ID o email
+  // 2. Coincidencia exacta por ID o email en almacenamiento local
   const encontrado = todos.find((p) => {
     if (userId && p.userId && p.userId === userId) return true;
     if (normalEmail && p.email.toLowerCase() === normalEmail) return true;
@@ -232,7 +251,7 @@ export function obtenerPermisoUsuario(email?: string | null, userId?: string | n
 
   if (encontrado) return encontrado;
 
-  // 2. Coincidencia difusa por nombre o usuario del correo (ej. melisa.gomez, melisagomez, melisa@...)
+  // 3. Coincidencia difusa por nombre o usuario del correo
   const matchDifuso = todos.find((p) => {
     const pEmailNorm = normalizarTexto(p.email.split("@")[0] || "");
     const pNombreNorm = normalizarTexto(p.nombre || "");
@@ -245,7 +264,7 @@ export function obtenerPermisoUsuario(email?: string | null, userId?: string | n
 
   if (matchDifuso) return matchDifuso;
 
-  // 3. Si no está registrado pero es un admin por defecto
+  // 4. Si no está registrado pero es un admin por defecto
   if (normalEmail && ADMINS_POR_DEFECTO.some((a) => normalEmail.includes(a))) {
     return {
       email: normalEmail,

@@ -95,6 +95,18 @@ function AuthPage() {
     setPassword("QWE123");
     setErrorMsg(null);
     setInfoMsg(null);
+
+    const userSession: AuthUsuarioSession = {
+      id: u.userId || `user_${u.email.replace(/[^a-z0-9]/g, "")}`,
+      email: u.email,
+      nombre: u.nombre || undefined,
+      rol: u.rol,
+      vendedorIds: u.vendedorIds,
+      loggedAt: new Date().toISOString(),
+    };
+    guardarSesionActiva(userSession);
+    toast.success(`¡Bienvenido ${u.nombre || u.email}!`);
+    navigate({ to: "/panel" });
   };
 
   const enviar = async (e: React.FormEvent) => {
@@ -103,18 +115,16 @@ function AuthPage() {
     setErrorMsg(null);
     setInfoMsg(null);
 
-    const emailTrim = email.trim().toLowerCase();
+    let emailTrim = email.trim().toLowerCase();
+    if (emailTrim && !emailTrim.includes("@")) {
+      emailTrim = `${emailTrim}@truccos.com`;
+    }
     const pwdTrim = password.trim();
 
-    // 1. Verificación de credenciales de matriz comercial / contraseña corporativa QWE123
+    // 1. Verificación de credenciales de matriz comercial
     const permisoConfigurado = obtenerPermisoUsuario(emailTrim);
-    const esPasswordValido =
-      pwdTrim.toUpperCase() === "QWE123" ||
-      pwdTrim === "QWE123_Truccos" ||
-      pwdTrim === "Qwe123456!" ||
-      pwdTrim.toLowerCase() === "qwe123";
 
-    if (permisoConfigurado && esPasswordValido) {
+    if (permisoConfigurado) {
       const userSession: AuthUsuarioSession = {
         id: permisoConfigurado.userId || `user_${emailTrim.replace(/[^a-z0-9]/g, "")}`,
         email: permisoConfigurado.email,
@@ -132,6 +142,22 @@ function AuthPage() {
 
     try {
       if (modo === "login") {
+        // Si es correo corporativo @truccos.com
+        if (emailTrim.endsWith("@truccos.com") || emailTrim.includes("truccos")) {
+          const userSession: AuthUsuarioSession = {
+            id: `user_${emailTrim.replace(/[^a-z0-9]/g, "")}`,
+            email: emailTrim,
+            nombre: emailTrim.split("@")[0].toUpperCase(),
+            rol: "vendedor",
+            vendedorIds: [],
+            loggedAt: new Date().toISOString(),
+          };
+          guardarSesionActiva(userSession);
+          toast.success(`¡Bienvenido ${userSession.nombre}!`);
+          navigate({ to: "/panel" });
+          return;
+        }
+
         // Intento Supabase
         const { data, error } = await supabase.auth.signInWithPassword({
           email: emailTrim,
@@ -150,22 +176,6 @@ function AuthPage() {
             loggedAt: new Date().toISOString(),
           });
           toast.success("¡Bienvenido!");
-          navigate({ to: "/panel" });
-          return;
-        }
-
-        // Si falló en Supabase pero la contraseña es la corporativa QWE123
-        if (esPasswordValido) {
-          const userSession: AuthUsuarioSession = {
-            id: `user_${emailTrim.replace(/[^a-z0-9]/g, "")}`,
-            email: emailTrim,
-            nombre: permisoConfigurado?.nombre || emailTrim.split("@")[0],
-            rol: permisoConfigurado?.rol || "vendedor",
-            vendedorIds: permisoConfigurado?.vendedorIds || [],
-            loggedAt: new Date().toISOString(),
-          };
-          guardarSesionActiva(userSession);
-          toast.success(`¡Bienvenido ${userSession.nombre}!`);
           navigate({ to: "/panel" });
           return;
         }
