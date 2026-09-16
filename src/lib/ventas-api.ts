@@ -1135,6 +1135,7 @@ export type PuntoDiario = {
   ventaAcumulada: number;
   metaDiaria: number;
   pptoAcumulado: number;
+  cumplimientoPct: number;
   gapDiario: number;
   gapAcumulado: number;
 };
@@ -1242,6 +1243,7 @@ export function calcularDashboard2RunRate(data: FilaFactVentas[], filtros: Filtr
       ventaAcumulada: acumuladoReal,
       metaDiaria: metaDiariaFija,
       pptoAcumulado: acumuladoPpto,
+      cumplimientoPct: metaDiariaFija > 0 ? Math.round((vReal / metaDiariaFija) * 1000) / 10 : 0,
       gapDiario: vReal - (esHabil ? metaDiariaFija : 0),
       gapAcumulado: acumuladoReal - acumuladoPpto,
     });

@@ -2401,7 +2401,7 @@ function Panel() {
                   <InfoGrafica
                     titulo="Curva de Avance Acumulado Diario vs. Meta"
                     descripcion="Compara la trayectoria de facturación acumulada día a día frente a la línea de meta presupuestal esperada para el mes."
-                    metrica="Línea Azul: Venta Real Acumulada ($) • Línea Punteada: Presupuesto Acumulado ($)."
+                    metrica="Línea Azul: Venta Real Acumulada ($) • Línea Punteada: Presupuesto Acumulado ($) • % Avance Acumulado a la fecha."
                     interpretacion="Si la línea azul se mantiene por encima de la gris punteada, la empresa marcha con superávit sobre el ritmo presupuestal esperado."
                   />
                 </div>
@@ -2413,7 +2413,51 @@ function Panel() {
                       <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                       <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
                       <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
-                      <Tooltip formatter={(v: number) => [formatoCOPFull(v)]} />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload as PuntoDiario;
+                            const vAcum = data.ventaAcumulada || 0;
+                            const pptoAcum = data.pptoAcumulado || 0;
+                            const cumpl = pptoAcum > 0 ? ((vAcum / pptoAcum) * 100).toFixed(1) : "0.0";
+                            const supero = vAcum >= pptoAcum;
+
+                            return (
+                              <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1.5 min-w-[210px] z-50">
+                                <div className="flex items-center justify-between border-b pb-1">
+                                  <span className="font-bold text-foreground text-sm font-mono">{label || data.fecha}</span>
+                                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold border ${
+                                    Number(cumpl) >= 100
+                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                      : Number(cumpl) >= 80
+                                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                      : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                  }`}>
+                                    {cumpl}% Avance
+                                  </span>
+                                </div>
+                                <div className="space-y-1 pt-0.5">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-blue-600 dark:text-blue-400 font-medium">Venta Acumulada:</span>
+                                    <span className="font-bold text-foreground font-mono">{formatoCOPFull(vAcum)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-slate-500 font-medium">Meta Acumulada:</span>
+                                    <span className="font-medium text-muted-foreground font-mono">{formatoCOPFull(pptoAcum)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
+                                    <span className="text-muted-foreground text-[11px]">Brecha Acumulada:</span>
+                                    <span className={`font-mono font-semibold text-[11px] ${supero ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                      {supero ? "+" : ""}{formatoCOPFull(vAcum - pptoAcum)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
                       <Legend formatter={(v) => (v === "ventaAcumulada" ? "Facturación Real Acumulada" : "Meta Presupuesto Acumulada")} />
                       <Line type="monotone" dataKey="ventaAcumulada" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} />
                       <Line type="monotone" dataKey="pptoAcumulado" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
@@ -2434,8 +2478,8 @@ function Panel() {
                   <InfoGrafica
                     titulo="Facturación Diaria Real vs. Meta por Día"
                     descripcion="Muestra la facturación individual facturada en cada jornada frente al requerimiento diario promedio para alcanzar el presupuesto mensual."
-                    metrica="Barras Verdes: Venta diaria ($) • Línea Naranja: Meta fija diaria calculada por días hábiles."
-                    interpretacion="Permite identificar días pico de alta facturación y jornadas por debajo del objetivo diario mínimo."
+                    metrica="Barras Verdes: Venta diaria ($) • Línea Naranja: Meta fija diaria ($) • % Cumplimiento Diario: Tasa porcentual de logro diario alcanzado (Venta Real / Meta Diaria × 100)."
+                    interpretacion="Permite identificar de un vistazo las jornadas con superávit (cumplimiento ≥ 100%) y los días críticos con déficit frente al ritmo de ventas exigido."
                   />
                 </div>
               </CardHeader>
@@ -2446,7 +2490,57 @@ function Panel() {
                       <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                       <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
                       <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
-                      <Tooltip formatter={(v: number, name: string) => [formatoCOPFull(v), name === "ventaReal" ? "Venta Diaria Real" : "Meta Diaria"]} />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload as PuntoDiario;
+                            const vReal = data.ventaReal || 0;
+                            const meta = data.metaDiaria || 0;
+                            const cumpl = meta > 0 ? ((vReal / meta) * 100).toFixed(1) : "0.0";
+                            const superoMeta = vReal >= meta;
+
+                            return (
+                              <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1.5 min-w-[210px] z-50">
+                                <div className="flex items-center justify-between border-b pb-1">
+                                  <span className="font-bold text-foreground text-sm font-mono">{label || data.fecha}</span>
+                                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold border ${
+                                    Number(cumpl) >= 100
+                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                      : Number(cumpl) >= 80
+                                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                      : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                  }`}>
+                                    {cumpl}% Cumpl.
+                                  </span>
+                                </div>
+                                <div className="space-y-1 pt-0.5">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                                      Venta Diaria Real:
+                                    </span>
+                                    <span className="font-bold text-foreground font-mono">{formatoCOPFull(vReal)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1.5">
+                                      <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                                      Meta Diaria:
+                                    </span>
+                                    <span className="font-medium text-muted-foreground font-mono">{formatoCOPFull(meta)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
+                                    <span className="text-muted-foreground text-[11px]">Diferencia (Gap):</span>
+                                    <span className={`font-mono font-semibold text-[11px] ${superoMeta ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                      {superoMeta ? "+" : ""}{formatoCOPFull(vReal - meta)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
                       <Legend formatter={(v) => (v === "ventaReal" ? "Venta Diaria Real" : "Meta Diaria")} />
                       <Bar dataKey="ventaReal" name="ventaReal" fill="#10b981" radius={[4, 4, 0, 0]} />
                       <Line type="monotone" dataKey="metaDiaria" name="metaDiaria" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 2 }} />
