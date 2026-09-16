@@ -620,7 +620,7 @@ function Panel() {
     return "Mismo periodo del año anterior";
   }, [filtrosYoY]);
 
-  const cMultianual = cVentas;
+  const cMultianual = cVentas || (compararAnioAnterior && cYoYLoading);
   const cD1 = cVentas || (compararAnioAnterior && cYoYLoading);
   const cD2 = cVentas || (compararAnioAnterior && cYoYLoading);
   const cD3 = cVentas || (compararAnioAnterior && cYoYLoading);
@@ -629,8 +629,13 @@ function Panel() {
   const cD6 = cVentas || (compararAnioAnterior && cYoYLoading);
 
   const dMultianual = useMemo(
-    () => calcularHistoricoMultianual(rawVentas || [], filtros),
-    [rawVentas, filtros]
+    () =>
+      calcularHistoricoMultianual(
+        rawVentas || [],
+        filtros,
+        compararAnioAnterior ? rawVentasYoY : undefined
+      ),
+    [rawVentas, filtros, compararAnioAnterior, rawVentasYoY]
   );
   const d1 = useMemo(
     () =>
@@ -1807,38 +1812,91 @@ function Panel() {
             {/* Tarjetas KPI Multianual */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <CardKpi
-                titulo="Facturación Histórica Total"
+                titulo={compararAnioAnterior && dMultianual?.aniosResumen.length ? `Facturación Año ${dMultianual.aniosResumen[0].anio}` : "Facturación Histórica Total"}
                 valor={formatoCOPFull(
-                  (dMultianual?.aniosResumen || []).reduce((a, b) => a + b.totalVentas, 0)
+                  compararAnioAnterior && dMultianual?.aniosResumen.length
+                    ? dMultianual.aniosResumen[0].totalVentas
+                    : (dMultianual?.aniosResumen || []).reduce((a, b) => a + b.totalVentas, 0)
                 )}
-                subtexto={`Acumulado de todos los años en el documento`}
+                subtexto={
+                  compararAnioAnterior && dMultianual?.aniosResumen.length
+                    ? `Periodo activo en año ${dMultianual.aniosResumen[0].anio}`
+                    : `Acumulado de todos los años en el documento`
+                }
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cMultianual}
+                badgeYoY={
+                  compararAnioAnterior && dMultianual?.aniosResumen && dMultianual.aniosResumen.length > 1
+                    ? (
+                      <BadgeYoY
+                        actual={dMultianual.aniosResumen[0].totalVentas}
+                        anterior={dMultianual.aniosResumen[1].totalVentas}
+                        porcentaje={dMultianual.aniosResumen[0].crecimientoYoYPct}
+                        label={`año ${dMultianual.aniosResumen[1].anio}`}
+                      />
+                    )
+                    : undefined
+                }
               />
               <CardKpi
-                titulo="Unidades Históricas Vendidas"
-                valor={`${(dMultianual?.aniosResumen || [])
-                  .reduce((a, b) => a + b.totalUnidades, 0)
-                  .toLocaleString("es-CO")} unds`}
-                subtexto="Total de prendas y artículos facturados"
+                titulo={compararAnioAnterior && dMultianual?.aniosResumen.length ? `Unidades Año ${dMultianual.aniosResumen[0].anio}` : "Unidades Históricas Vendidas"}
+                valor={`${(
+                  compararAnioAnterior && dMultianual?.aniosResumen.length
+                    ? dMultianual.aniosResumen[0].totalUnidades
+                    : (dMultianual?.aniosResumen || []).reduce((a, b) => a + b.totalUnidades, 0)
+                ).toLocaleString("es-CO")} unds`}
+                subtexto={
+                  compararAnioAnterior && dMultianual?.aniosResumen.length
+                    ? `Prendas facturadas en año ${dMultianual.aniosResumen[0].anio}`
+                    : "Total de prendas y artículos facturados"
+                }
                 icono={<Package className="h-5 w-5 text-blue-500" />}
                 cargando={cMultianual}
+                badgeYoY={
+                  compararAnioAnterior && dMultianual?.aniosResumen && dMultianual.aniosResumen.length > 1
+                    ? (
+                      <BadgeYoYUnidades
+                        actual={dMultianual.aniosResumen[0].totalUnidades}
+                        anterior={dMultianual.aniosResumen[1].totalUnidades}
+                        label={`año ${dMultianual.aniosResumen[1].anio}`}
+                      />
+                    )
+                    : undefined
+                }
               />
               <CardKpi
-                titulo="Años Históricos en Sistema"
+                titulo="Años Registrados"
                 valor={`${dMultianual?.aniosResumen.length ?? 0} Años`}
                 subtexto={`Rango: ${(dMultianual?.aniosPresentes || []).join(", ")}`}
                 icono={<History className="h-5 w-5 text-purple-500" />}
                 cargando={cMultianual}
               />
               <CardKpi
-                titulo="Transacciones Totales"
-                valor={(dMultianual?.aniosResumen || [])
-                  .reduce((a, b) => a + b.totalTransacciones, 0)
-                  .toLocaleString("es-CO")}
-                subtexto="Facturas y recibos únicos procesados"
+                titulo={compararAnioAnterior && dMultianual?.aniosResumen.length ? `Transacciones Año ${dMultianual.aniosResumen[0].anio}` : "Transacciones Totales"}
+                valor={(
+                  compararAnioAnterior && dMultianual?.aniosResumen.length
+                    ? dMultianual.aniosResumen[0].totalTransacciones
+                    : (dMultianual?.aniosResumen || []).reduce((a, b) => a + b.totalTransacciones, 0)
+                ).toLocaleString("es-CO")}
+                subtexto={
+                  compararAnioAnterior && dMultianual?.aniosResumen.length
+                    ? `Documentos en año ${dMultianual.aniosResumen[0].anio}`
+                    : "Facturas y recibos únicos procesados"
+                }
                 icono={<Receipt className="h-5 w-5 text-amber-500" />}
                 cargando={cMultianual}
+                badgeYoY={
+                  compararAnioAnterior && dMultianual?.aniosResumen && dMultianual.aniosResumen.length > 1
+                    ? (
+                      <BadgeYoY
+                        actual={dMultianual.aniosResumen[0].totalTransacciones}
+                        anterior={dMultianual.aniosResumen[1].totalTransacciones}
+                        tipo="entero"
+                        label={`trans. ${dMultianual.aniosResumen[1].anio}`}
+                      />
+                    )
+                    : undefined
+                }
               />
             </div>
 

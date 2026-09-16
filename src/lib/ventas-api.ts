@@ -613,11 +613,15 @@ export type DataHistoricoMultianual = {
   aniosPresentes: number[];
 };
 
-export function calcularHistoricoMultianual(data: FilaFactVentas[], filtros: FiltrosBI): DataHistoricoMultianual {
+export function calcularHistoricoMultianual(
+  data: FilaFactVentas[],
+  filtros: FiltrosBI,
+  dataAnterior?: FilaFactVentas[]
+): DataHistoricoMultianual {
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   const aniosMap = new Map<number, { ventas: number; unidades: number; costo: number; trans: Set<string>; meses: number[] }>();
 
-  for (const r of data) {
+  const procesarFila = (r: FilaFactVentas, defaultAnio: number) => {
     let an = Number(r.anio);
     if (!an || isNaN(an) || an < 1990 || an > 2060) {
       if (r.fecha) an = parseInt(String(r.fecha).slice(0, 4), 10);
@@ -628,13 +632,13 @@ export function calcularHistoricoMultianual(data: FilaFactVentas[], filtros: Fil
         if (m && m[1]) an = parseInt(m[1], 10);
       }
     }
-    if (!an || isNaN(an)) an = filtros.anio || 2025;
+    if (!an || isNaN(an)) an = defaultAnio;
 
     let m = Number(r.mes);
     if ((!m || isNaN(m) || m < 1 || m > 12) && r.fecha) {
       m = parseInt(String(r.fecha).slice(5, 7), 10);
     }
-    if (!m || isNaN(m) || m < 1 || m > 12) m = 1;
+    if (!m || isNaN(m)) m = 1;
 
     if (!aniosMap.has(an)) {
       aniosMap.set(an, { ventas: 0, unidades: 0, costo: 0, trans: new Set(), meses: new Array(12).fill(0) });
@@ -651,6 +655,18 @@ export function calcularHistoricoMultianual(data: FilaFactVentas[], filtros: Fil
       curr.meses[m - 1] = (curr.meses[m - 1] ?? 0) + v;
     }
     if (r.transaccion) curr.trans.add(String(r.transaccion));
+  };
+
+  const defaultYear = filtros.anio || 2026;
+  for (const r of data) {
+    procesarFila(r, defaultYear);
+  }
+
+  if (dataAnterior && dataAnterior.length > 0) {
+    const defaultPrevYear = filtros.anio ? filtros.anio - 1 : (defaultYear - 1);
+    for (const r of dataAnterior) {
+      procesarFila(r, defaultPrevYear);
+    }
   }
 
   const aniosOrdenados = Array.from(aniosMap.keys()).sort((a, b) => b - a);
