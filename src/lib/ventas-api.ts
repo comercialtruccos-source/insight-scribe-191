@@ -1412,6 +1412,7 @@ export type DataDashboard2 = {
     pptoMesAnterior?: number;
     ventaAcumuladaMes: number;
     ventaAnteriorMes?: number;
+    ventaAcumuladaAnterior?: number;
     crecimientoYoYPct?: number;
     cumplimientoMesPct: number;
     diasHabilesTotales: number;
@@ -1563,6 +1564,7 @@ export function calcularDashboard2RunRate(
       pptoMesAnterior,
       ventaAcumuladaMes: ventaTotalMes,
       ventaAnteriorMes: ventaTotalMesAnterior,
+      ventaAcumuladaAnterior: ventaTotalMesAnterior,
       crecimientoYoYPct,
       cumplimientoMesPct,
       diasHabilesTotales,
@@ -1857,8 +1859,11 @@ export function calcularDashboard3Digital(
   let ventaDigitalAnterior = 0;
   let unidadesDigitalesAnterior = 0;
   let ventaTiendaVirtualAnterior = 0;
+  let unidadesTiendaVirtualAnterior = 0;
   let ventaRedesSocialesAnterior = 0;
+  let unidadesRedesSocialesAnterior = 0;
   let ventaOtrosDigitalesAnterior = 0;
+  let unidadesOtrosDigitalesAnterior = 0;
   const mesesDataAnterior = new Array(12).fill(0);
   const mesesUnidadesAnterior = new Array(12).fill(0);
 
@@ -1894,9 +1899,16 @@ export function calcularDashboard3Digital(
 
         ventaDigitalAnterior += v;
         unidadesDigitalesAnterior += cant;
-        if (digitalTipo === "tienda_virtual") ventaTiendaVirtualAnterior += v;
-        else if (digitalTipo === "redes_sociales") ventaRedesSocialesAnterior += v;
-        else ventaOtrosDigitalesAnterior += v;
+        if (digitalTipo === "tienda_virtual") {
+          ventaTiendaVirtualAnterior += v;
+          unidadesTiendaVirtualAnterior += cant;
+        } else if (digitalTipo === "redes_sociales") {
+          ventaRedesSocialesAnterior += v;
+          unidadesRedesSocialesAnterior += cant;
+        } else {
+          ventaOtrosDigitalesAnterior += v;
+          unidadesOtrosDigitalesAnterior += cant;
+        }
 
         mesesDataAnterior[mIdx] += v;
         mesesUnidadesAnterior[mIdx] += cant;
