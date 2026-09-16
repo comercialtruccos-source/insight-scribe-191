@@ -2442,15 +2442,15 @@ function Panel() {
               <CardContent className="pt-2">
                 <div className="h-[280px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={d2?.dias || []} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+                    <ComposedChart data={d2?.dias || []} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                       <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
                       <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
-                      <Tooltip formatter={(v: number) => [formatoCOPFull(v)]} />
+                      <Tooltip formatter={(v: number, name: string) => [formatoCOPFull(v), name === "ventaReal" ? "Venta Diaria Real" : "Meta Diaria"]} />
                       <Legend formatter={(v) => (v === "ventaReal" ? "Venta Diaria Real" : "Meta Diaria")} />
-                      <Bar dataKey="ventaReal" fill="#10b981" radius={[4, 4, 0, 0]} />
-                      <Line type="monotone" dataKey="metaDiaria" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                    </BarChart>
+                      <Bar dataKey="ventaReal" name="ventaReal" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      <Line type="monotone" dataKey="metaDiaria" name="metaDiaria" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 2 }} />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               </CardContent>

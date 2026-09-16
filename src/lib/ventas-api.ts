@@ -1240,7 +1240,7 @@ export function calcularDashboard2RunRate(data: FilaFactVentas[], filtros: Filtr
       esHabil,
       ventaReal: vReal,
       ventaAcumulada: acumuladoReal,
-      metaDiaria: esHabil ? metaDiariaFija : 0,
+      metaDiaria: metaDiariaFija,
       pptoAcumulado: acumuladoPpto,
       gapDiario: vReal - (esHabil ? metaDiariaFija : 0),
       gapAcumulado: acumuladoReal - acumuladoPpto,
