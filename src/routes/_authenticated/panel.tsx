@@ -68,6 +68,7 @@ import {
   Legend,
   ComposedChart,
 } from "recharts";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   TrendingUp,
   DollarSign,
@@ -99,6 +100,7 @@ import {
   Share2,
   Smartphone,
   Store,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1371,7 +1373,15 @@ function Panel() {
                     <CardTitle className="text-base font-semibold">Facturación Anual Comparativa</CardTitle>
                     <CardDescription>Ingresos totales por cada año de operación</CardDescription>
                   </div>
-                  <Badge variant="outline">Anual</Badge>
+                  <div className="flex items-center gap-2">
+                    <InfoGrafica
+                      titulo="Facturación Anual Comparativa"
+                      descripcion="Compara la facturación neta total y el margen generado en cada uno de los años registrados en el documento."
+                      metrica="Suma consolidada de ventas brutas menos devoluciones por año calendario."
+                      interpretacion="Permite evaluar la tasa de crecimiento interanual (YoY) y la estabilidad financiera del negocio en el tiempo."
+                    />
+                    <Badge variant="outline">Anual</Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-2">
@@ -1407,7 +1417,15 @@ function Panel() {
                     <CardTitle className="text-base font-semibold">Curvas de Estacionalidad Mensual por Año</CardTitle>
                     <CardDescription>Comparación directa de los meses (Ene a Dic) superponiendo cada año histórico</CardDescription>
                   </div>
-                  <Badge variant="outline">Estacionalidad</Badge>
+                  <div className="flex items-center gap-2">
+                    <InfoGrafica
+                      titulo="Curvas de Estacionalidad Mensual"
+                      descripcion="Superpone la curva mensual de ventas de cada año para identificar patrones estacionales fijos del comportamiento de compra."
+                      metrica="Ventas netas mes a mes (Enero a Diciembre) desglosadas por línea de color para cada año."
+                      interpretacion="Identifica picos comerciales (Día de la Madre, Amor y Amistad, Diciembre) y valles para sincronizar compras de insumos, confección y promociones."
+                    />
+                    <Badge variant="outline">Estacionalidad</Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-2">
@@ -1573,9 +1591,17 @@ function Panel() {
                       {d1?.meses.length ?? 0} periodos registrados en el análisis
                     </CardDescription>
                   </div>
-                  <Badge variant="outline">
-                    {anio === "todos" ? "Todo el Histórico" : `Año ${anio}`}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <InfoGrafica
+                      titulo="Venta Real vs. Presupuesto (PPTO)"
+                      descripcion="Compara la ejecución real de ventas monetarias frente a la cuota presupuestada para cada mes, mostrando el % de cumplimiento relativo."
+                      metrica="Barras azules: Venta real ($). Barras grises: Presupuesto ($). Línea verde: % de cumplimiento meta."
+                      interpretacion="Permite evaluar qué meses superaron la meta comercial (verde) y en cuáles existió brecha presupuestal para ajustar tácticas de venta."
+                    />
+                    <Badge variant="outline">
+                      {anio === "todos" ? "Todo el Histórico" : `Año ${anio}`}
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-2">
@@ -1740,9 +1766,17 @@ function Panel() {
                     {/* Gráfico 1: Zonas Comerciales / Departamentos */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                          1. Participación por Zonas Comerciales
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                            1. Participación por Zonas Comerciales
+                          </span>
+                          <InfoGrafica
+                            titulo="Participación por Zonas Comerciales"
+                            descripcion="Muestra la facturación y el volumen de prendas concentrado en cada departamento o macro-zona geográfica."
+                            metrica="Ventas netas ($) y % de participación por zona comercial."
+                            interpretacion="Permite evaluar qué regiones geográficas tienen mayor peso comercial y detectar oportunidades de expansión territorial."
+                          />
+                        </div>
                         <span className="text-[11px] text-muted-foreground">
                           Clic para filtrar ciudades de esa zona
                         </span>
@@ -1830,12 +1864,20 @@ function Panel() {
                     {/* Gráfico 2: Ciudades y Municipios (Interactivo con clic para filtrar todo el dashboard) */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                          <span>2. {zonaUbicacionD1 === "todas" ? "Top Ciudades Líderes en Facturación" : `Ciudades en Zona: ${zonaUbicacionD1}`}</span>
-                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                            (Clic para filtrar)
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                            <span>2. {zonaUbicacionD1 === "todas" ? "Top Ciudades Líderes en Facturación" : `Ciudades en Zona: ${zonaUbicacionD1}`}</span>
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                              (Clic para filtrar)
+                            </span>
                           </span>
-                        </span>
+                          <InfoGrafica
+                            titulo="Top Ciudades Líderes en Facturación"
+                            descripcion="Ranking de los municipios y ciudades con mayores ingresos por ventas. Al hacer clic en una barra, toda la plataforma se filtra para esa ciudad."
+                            metrica="Facturación neta ($) por ciudad destino de la factura."
+                            interpretacion="Permite enfocar rutas comerciales, logística de despacho y apertura de puntos de venta o distribuidores clave."
+                          />
+                        </div>
                         <Badge variant="outline" className="text-[11px]">
                           {ciudadesFiltradasD1.length} {ciudadesFiltradasD1.length === 1 ? "Ciudad" : "Ciudades"}
                         </Badge>
@@ -2085,10 +2127,20 @@ function Panel() {
               {/* Mix de Canales */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-blue-500" /> Mix por Canal Comercial
-                  </CardTitle>
-                  <CardDescription>Participación de ventas por canal de comercialización</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-blue-500" /> Mix por Canal Comercial
+                      </CardTitle>
+                      <CardDescription>Participación de ventas por canal de comercialización</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Mix por Canal Comercial"
+                      descripcion="Distribución de los ingresos de la empresa a través de los diferentes canales de venta (Mayoristas, Tienda Directa, Digital, Distribuidores, etc.)."
+                      metrica="Facturación total ($) y porcentaje de cuota por canal comercial."
+                      interpretacion="Permite evaluar la dependencia del negocio respecto a canales tradicionales frente al crecimiento de canales directos o digitales."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
@@ -2177,10 +2229,20 @@ function Panel() {
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-violet-500" /> Mix por Línea de Producto
-                  </CardTitle>
-                  <CardDescription>Aporte y cumplimiento de cada línea al total de facturación</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <Layers className="h-4 w-4 text-violet-500" /> Mix por Línea de Producto
+                      </CardTitle>
+                      <CardDescription>Aporte y cumplimiento de cada línea al total de facturación</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Mix por Línea de Producto"
+                      descripcion="Distribución de los ingresos generados según las categorías o líneas de vestuario comercializadas (Ej. Básicos, Denim, Moda, etc.)."
+                      metrica="Ventas netas facturadas ($) acumuladas por cada línea de producto."
+                      interpretacion="Permite detectar qué categorías lideran las ventas y cuáles tienen oportunidad de crecimiento o reposición estratégica."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
@@ -2204,10 +2266,20 @@ function Panel() {
               {/* Mix de Canales */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-blue-500" /> Mix por Canal Comercial
-                  </CardTitle>
-                  <CardDescription>Participación de ventas por canal de comercialización</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-blue-500" /> Mix por Canal Comercial
+                      </CardTitle>
+                      <CardDescription>Participación de ventas por canal de comercialización</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Mix por Canal Comercial"
+                      descripcion="Distribución de los ingresos de la empresa a través de los diferentes canales de venta (Mayoristas, Tienda Directa, Digital, Distribuidores, etc.)."
+                      metrica="Facturación total ($) y porcentaje de cuota por canal comercial."
+                      interpretacion="Permite evaluar la dependencia del negocio respecto a canales tradicionales frente al crecimiento de canales directos o digitales."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
@@ -2321,8 +2393,18 @@ function Panel() {
             {/* Gráfico de Avance Acumulado: PPTO Acumulado vs Real Acumulado */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base font-semibold">Curva de Avance Acumulado Diario vs. Meta ({d2?.kpis.mesSeleccionadoNombre})</CardTitle>
-                <CardDescription>Evolución acumulativa día por día en el mes</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold">Curva de Avance Acumulado Diario vs. Meta ({d2?.kpis.mesSeleccionadoNombre})</CardTitle>
+                    <CardDescription>Evolución acumulativa día por día en el mes</CardDescription>
+                  </div>
+                  <InfoGrafica
+                    titulo="Curva de Avance Acumulado Diario vs. Meta"
+                    descripcion="Compara la trayectoria de facturación acumulada día a día frente a la línea de meta presupuestal esperada para el mes."
+                    metrica="Línea Azul: Venta Real Acumulada ($) • Línea Punteada: Presupuesto Acumulado ($)."
+                    interpretacion="Si la línea azul se mantiene por encima de la gris punteada, la empresa marcha con superávit sobre el ritmo presupuestal esperado."
+                  />
+                </div>
               </CardHeader>
               <CardContent className="pt-2">
                 <div className="h-[320px] w-full">
@@ -2344,8 +2426,18 @@ function Panel() {
             {/* Gráfico de Facturación Diaria vs Meta Diaria Fija */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base font-semibold">Facturación Diaria Real vs. Meta por Día</CardTitle>
-                <CardDescription>Desempeño diario frente a la cuota base diaria</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold">Facturación Diaria Real vs. Meta por Día</CardTitle>
+                    <CardDescription>Desempeño diario frente a la cuota base diaria</CardDescription>
+                  </div>
+                  <InfoGrafica
+                    titulo="Facturación Diaria Real vs. Meta por Día"
+                    descripcion="Muestra la facturación individual facturada en cada jornada frente al requerimiento diario promedio para alcanzar el presupuesto mensual."
+                    metrica="Barras Verdes: Venta diaria ($) • Línea Naranja: Meta fija diaria calculada por días hábiles."
+                    interpretacion="Permite identificar días pico de alta facturación y jornadas por debajo del objetivo diario mínimo."
+                  />
+                </div>
               </CardHeader>
               <CardContent className="pt-2">
                 <div className="h-[280px] w-full">
@@ -2497,13 +2589,23 @@ function Panel() {
             <div className="grid gap-6 lg:grid-cols-3">
               <Card className="lg:col-span-1 flex flex-col justify-between">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold flex items-center justify-between">
-                    <span>Participación por Canal</span>
-                    <Badge variant="outline" className="text-[11px] font-normal">
-                      {(d3?.kpis.unidadesDigitales ?? 0).toLocaleString("es-CO")} unds
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription>Tienda Virtual vs Redes Sociales</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Participación por Canal</CardTitle>
+                      <CardDescription>Tienda Virtual vs Redes Sociales</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-[11px] font-normal">
+                        {(d3?.kpis.unidadesDigitales ?? 0).toLocaleString("es-CO")} unds
+                      </Badge>
+                      <InfoGrafica
+                        titulo="Participación por Canal Digital"
+                        descripcion="Compara la cuota de ventas generada por la Tienda Virtual (Shopify / Web directa) vs las ventas asistidas por Redes Sociales (WhatsApp y Social Selling)."
+                        metrica="Facturación ($) y porcentaje (%) de participación sobre el total del ecosistema digital."
+                        interpretacion="Permite evaluar la tracción orgánica de la web automatizada versus el esfuerzo comercial asistido por asesores en WhatsApp."
+                      />
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[240px] w-full">
@@ -2563,9 +2665,17 @@ function Panel() {
                       <CardTitle className="text-base font-semibold">Evolución Mensual de Ventas Digitales</CardTitle>
                       <CardDescription>Facturación por canal digital e inversión en pauta mes a mes</CardDescription>
                     </div>
-                    <Badge variant="outline" className="text-xs bg-muted/50 w-fit">
-                      12 Meses
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-xs bg-muted/50 w-fit">
+                        12 Meses
+                      </Badge>
+                      <InfoGrafica
+                        titulo="Evolución Mensual de Ventas Digitales"
+                        descripcion="Comportamiento histórico de las ventas online mes a mes, contrastando la venta de Tienda Virtual, Redes Sociales y el gasto publicitario."
+                        metrica="Barras Azules: Tienda Virtual • Barras Verdes: Redes Sociales • Barras Naranjas: Inversión en Pauta ($)."
+                        interpretacion="Permite analizar la correlación entre la inyección de pauta publicitaria y el repunte de ingresos digitales."
+                      />
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -2617,9 +2727,17 @@ function Panel() {
                       <CardTitle className="text-base font-semibold">Top 10 Referencias / SKUs Más Vendidos en Digital</CardTitle>
                       <CardDescription>Productos estrella en Tienda Virtual y Social Selling</CardDescription>
                     </div>
-                    <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20 w-fit">
-                      Top Sellers Digital
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20 w-fit">
+                        Top Sellers Digital
+                      </Badge>
+                      <InfoGrafica
+                        titulo="Top 10 Referencias en Canales Digitales"
+                        descripcion="Ranking de los productos y referencias de mayor facturación en el ecosistema digital."
+                        metrica="Ventas netas ($), unidades despachadas y línea de vestuario del SKU."
+                        interpretacion="Identifica las prendas ganadoras ('Hero Products') para priorizar en pauta publicitaria y asegurar stock continuo."
+                      />
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -2657,8 +2775,18 @@ function Panel() {
 
               <Card className="lg:col-span-1">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold">Mix por Línea en Digital</CardTitle>
-                  <CardDescription>Participación por categorías de producto</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Mix por Línea en Digital</CardTitle>
+                      <CardDescription>Participación por categorías de producto</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Mix por Línea de Producto en Digital"
+                      descripcion="Distribución porcentual de las ventas digitales clasificadas por categoría o línea de producto."
+                      metrica="Venta acumulada ($), unidades y porcentaje de participación digital."
+                      interpretacion="Permite conocer cuáles líneas de moda tienen mayor acogida en el consumidor digital."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[300px] w-full">
@@ -2689,8 +2817,18 @@ function Panel() {
             <div className="grid gap-6 lg:grid-cols-3">
               <Card className="lg:col-span-1">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold">Top Ciudades Compradoras</CardTitle>
-                  <CardDescription>Destinos principales de pedidos online</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Top Ciudades Compradoras</CardTitle>
+                      <CardDescription>Destinos principales de pedidos online</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Top Ciudades Compradoras en Digital"
+                      descripcion="Ciudades y municipios con mayor concentración de órdenes y facturación digital."
+                      metrica="Facturación ($), unidades y porcentaje de penetración por ciudad."
+                      interpretacion="Esencial para segmentar campañas geográficas de Meta Ads / Google Ads y negociar tarifas de transporte logístico."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
@@ -2865,11 +3003,20 @@ function Panel() {
               {/* Top 10 Asesores por Facturación */}
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold flex items-center justify-between">
-                    <span>Top 10 Asesores por Facturación ($)</span>
-                    <span className="text-[11px] font-normal text-muted-foreground">(Clic en una barra para enfocar)</span>
-                  </CardTitle>
-                  <CardDescription>Participación en valor monetario del equipo comercial</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center justify-between">
+                        <span>Top 10 Asesores por Facturación ($)</span>
+                      </CardTitle>
+                      <CardDescription>Participación en valor monetario del equipo comercial</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Top 10 Asesores por Facturación"
+                      descripcion="Ranking de los 10 asesores comerciales con mayor recaudo y facturación dentro del periodo seleccionado. Puedes hacer clic sobre una barra para aislar y enfocar a dicho vendedor."
+                      metrica="Ventas netas totales ($) facturadas por el asesor."
+                      interpretacion="Permite reconocer a los mejores ejecutivos de cuenta y detectar brechas de rendimiento dentro del equipo comercial."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {(d4?.asesores || []).length === 0 ? (
@@ -2914,8 +3061,18 @@ function Panel() {
               {/* Evolución Mensual del Equipo */}
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold">Evolución Mensual de Ventas y Unidades</CardTitle>
-                  <CardDescription>Comportamiento cronológico de la fuerza comercial</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Evolución Mensual de Ventas y Unidades</CardTitle>
+                      <CardDescription>Comportamiento cronológico de la fuerza comercial</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Evolución Mensual de la Fuerza Comercial"
+                      descripcion="Histórico mes a mes de los ingresos en pesos colombianos y el volumen de prendas comercializadas por la fuerza de ventas."
+                      metrica="Barras Moradas: Facturación ($) • Línea Verde: Cantidad total de prendas (Unidades)."
+                      interpretacion="Permite evaluar la estacionalidad de la demanda en canales tradicionales mayoristas e institucionales."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
@@ -3110,8 +3267,18 @@ function Panel() {
             <div className="grid gap-6 lg:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Participación por Marketplace</CardTitle>
-                  <CardDescription>Cuota de facturación de Mercado Libre, Falabella, Dafiti y Linio</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Participación por Marketplace</CardTitle>
+                      <CardDescription>Cuota de facturación de Mercado Libre, Falabella, Dafiti y Linio</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Participación por Marketplace"
+                      descripcion="Distribución porcentual de los ingresos recaudados en cada portal de retail externo o marketplace integrado."
+                      metrica="Facturación total ($) y porcentaje de cuota por plataforma (Mercado Libre, Falabella, Dafiti, Linio)."
+                      interpretacion="Permite saber en qué marketplace se concentra la mayor demanda y dónde vale la pena invertir en posicionamiento patrocinado."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
@@ -3142,8 +3309,18 @@ function Panel() {
               {/* Curva de Tallas */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold">Curva de Demanda por Tallas</CardTitle>
-                  <CardDescription>Tallas con mayor volumen de reposición y demanda</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Curva de Demanda por Tallas</CardTitle>
+                      <CardDescription>Tallas con mayor volumen de reposición y demanda</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Curva de Demanda por Tallas en Marketplaces"
+                      descripcion="Distribución física de unidades demandadas desglosadas por talla en las ventas de retail y marketplaces."
+                      metrica="Cantidad total de prendas vendidas agrupadas por talla (XS, S, M, L, XL, etc.)."
+                      interpretacion="Fundamental para planificar lotes de confección y abastecimiento de bodegas fullfillment sin generar quiebres ni sobrestocks."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[280px] w-full">
@@ -3164,8 +3341,18 @@ function Panel() {
             {/* Top 10 Referencias Más Vendidas */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base font-semibold">Top 10 Referencias / SKUs Líderes</CardTitle>
-                <CardDescription>Productos de mayor rotación y recaudación</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold">Top 10 Referencias / SKUs Líderes</CardTitle>
+                    <CardDescription>Productos de mayor rotación y recaudación</CardDescription>
+                  </div>
+                  <InfoGrafica
+                    titulo="Top 10 SKUs en Marketplaces"
+                    descripcion="Listado de las 10 referencias con mayor facturación y rotación en canales de marketplaces."
+                    metrica="Unidades vendidas, facturación total ($) y precio promedio unitario."
+                    interpretacion="Identifica las prendas con mayor tracción en canales de retail para garantizar disponibilidad en centros de cumplimiento (Fulfillment)."
+                  />
+                </div>
               </CardHeader>
               <CardContent className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
@@ -3304,6 +3491,12 @@ function Panel() {
                         SKUs que generan el mayor flujo de ingresos para la compañía
                       </CardDescription>
                     </div>
+                    <InfoGrafica
+                      titulo="Top 15 Referencias por Facturación"
+                      descripcion="Las 15 referencias con mayor recaudación acumulada en ventas netas dentro del catálogo."
+                      metrica="Ventas netas ($ COP), unidades físicas vendidas, precio unitario y clasificación ABC."
+                      interpretacion="Representa el núcleo de facturación del negocio. Son referencias que deben estar siempre priorizadas en compras de materia prima."
+                    />
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -3383,6 +3576,12 @@ function Panel() {
                         Prendas con mayor volumen de salida física de inventario
                       </CardDescription>
                     </div>
+                    <InfoGrafica
+                      titulo="Top 15 Referencias por Rotación Física"
+                      descripcion="Las 15 referencias con mayor volumen de unidades entregadas y despachadas de bodega."
+                      metrica="Cantidad neta de prendas vendidas (Unidades físicas)."
+                      interpretacion="Permite monitorear la velocidad de rotación física de inventario y programar la capacidad de planta y talleres."
+                    />
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -3452,13 +3651,23 @@ function Panel() {
               {/* Distribución por Líneas de Producto (7 cols) */}
               <Card className="lg:col-span-7">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-indigo-500" />
-                    Ventas y Unidades por Línea de Producto
-                  </CardTitle>
-                  <CardDescription>
-                    Comparativo de facturación total, prendas comercializadas y ticket promedio por categoría
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <Layers className="h-4 w-4 text-indigo-500" />
+                        Ventas y Unidades por Línea de Producto
+                      </CardTitle>
+                      <CardDescription>
+                        Comparativo de facturación total, prendas comercializadas y ticket promedio por categoría
+                      </CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Ventas y Unidades por Línea de Producto"
+                      descripcion="Rendimiento consolidado de cada línea de vestuario con su facturación, volumen de prendas y precio promedio ponderado."
+                      metrica="Barras: Facturación en $ • Tooltip interactivo con unidades y número de SKUs activos."
+                      interpretacion="Permite balancear la colección evaluando qué líneas generan mayor rentabilidad y volumen comercial."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[300px] w-full">
@@ -3522,13 +3731,23 @@ function Panel() {
               {/* Matriz y Diagnóstico ABC de Pareto (5 cols) */}
               <Card className="lg:col-span-5 flex flex-col justify-between">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Percent className="h-4 w-4 text-purple-500" />
-                    Estructura Pareto / Clasificación ABC
-                  </CardTitle>
-                  <CardDescription>
-                    Segmentación estratégica del catálogo para optimizar inventarios y compras
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <Percent className="h-4 w-4 text-purple-500" />
+                        Estructura Pareto / Clasificación ABC
+                      </CardTitle>
+                      <CardDescription>
+                        Segmentación estratégica del catálogo para optimizar inventarios y compras
+                      </CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Estructura Pareto / Clasificación ABC"
+                      descripcion="Clasifica el catálogo en 3 zonas: Clase A (80% de ventas, ~20% SKUs), Clase B (15% ventas, ~30% SKUs) y Clase C (5% ventas, cola larga)."
+                      metrica="Porcentaje acumulado de facturación ($) y cantidad de SKUs por grupo."
+                      interpretacion="Optimiza el capital de trabajo: enfoca el 80% de los esfuerzos de aprovisionamiento en la Clase A y evalúa liquidaciones en la Clase C."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3.5">
                   {(d6?.clasificacionABCResumen || []).map((item) => (
@@ -3595,11 +3814,21 @@ function Panel() {
               {/* Curva de Tallas */}
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-purple-500" />
-                    Curva de Tallas Más Demandadas
-                  </CardTitle>
-                  <CardDescription>Distribución de unidades vendidas por talla</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <Tag className="h-4 w-4 text-purple-500" />
+                        Curva de Tallas Más Demandadas
+                      </CardTitle>
+                      <CardDescription>Distribución de unidades vendidas por talla</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Curva de Tallas Más Demandadas"
+                      descripcion="Muestra la proporción de unidades vendidas clasificadas por talla física del producto en el periodo."
+                      metrica="Prendas vendidas y porcentaje de demanda por talla."
+                      interpretacion="Permite afinar la escala de corte en confección y rebalancear compras de insumos para evitar agotados en tallas clave."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[240px] w-full">
@@ -3635,11 +3864,21 @@ function Panel() {
               {/* Colores Líderes */}
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <ShoppingBag className="h-4 w-4 text-pink-500" />
-                    Colores Más Vendidos
-                  </CardTitle>
-                  <CardDescription>Demanda cromática de referencias</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <ShoppingBag className="h-4 w-4 text-pink-500" />
+                        Colores Más Vendidos
+                      </CardTitle>
+                      <CardDescription>Demanda cromática de referencias</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Colores Más Vendidos"
+                      descripcion="Ranking de los tonos y variantes de color preferidos por los clientes en las compras de prendas."
+                      metrica="Volumen total de unidades vendidas y cuota porcentual por color."
+                      interpretacion="Guía las decisiones de tintorería y selección de paleta de color para próximas colecciones y lanzamientos."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[240px] w-full">
@@ -3675,11 +3914,21 @@ function Panel() {
               {/* Alertas de Calidad / Devoluciones */}
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-rose-500" />
-                    Top Devoluciones por Referencia
-                  </CardTitle>
-                  <CardDescription>Alertas de fit o calidad para revisión de producción</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-rose-500" />
+                        Top Devoluciones por Referencia
+                      </CardTitle>
+                      <CardDescription>Alertas de fit o calidad para revisión de producción</CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Alertas de Devolución por Referencia"
+                      descripcion="Referencias con mayor impacto monetario o tasa de devolución y notas crédito registradas."
+                      metrica="Valor monetario devuelto ($ COP) y tasa de devolución relativa sobre las ventas del SKU."
+                      interpretacion="Permite detectar precozmente problemas de horma, moldería, costura o tela en referencias específicas para corregir en fábrica."
+                    />
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2.5 max-h-[240px] overflow-y-auto pr-1">
@@ -4250,6 +4499,63 @@ function Panel() {
         </Tabs>
       </main>
     </div>
+  );
+}
+
+function InfoGrafica({
+  titulo,
+  descripcion,
+  metrica,
+  interpretacion,
+}: {
+  titulo: string;
+  descripcion: string;
+  metrica?: string;
+  interpretacion?: string;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Información de la gráfica: ${titulo}`}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/70 hover:text-foreground border border-transparent hover:border-border/60 transition-all duration-200 shrink-0"
+        >
+          <Info className="h-4 w-4" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        side="bottom"
+        className="w-80 sm:w-96 p-4 rounded-2xl border border-border/80 shadow-lg bg-popover/95 backdrop-blur-md text-xs space-y-3 z-50"
+      >
+        <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+          <div className="grid h-6 w-6 place-items-center rounded-lg bg-primary/10 text-primary shrink-0">
+            <Info className="h-3.5 w-3.5" />
+          </div>
+          <span className="font-semibold text-sm text-foreground font-display">{titulo}</span>
+        </div>
+        <p className="text-muted-foreground leading-relaxed text-xs">
+          {descripcion}
+        </p>
+        {metrica && (
+          <div className="bg-muted/50 p-2.5 rounded-xl border border-border/40">
+            <span className="font-semibold text-foreground block text-[11px] uppercase tracking-wider mb-0.5">
+              📊 ¿Qué datos muestra?
+            </span>
+            <p className="text-muted-foreground text-[11px] leading-snug">{metrica}</p>
+          </div>
+        )}
+        {interpretacion && (
+          <div className="bg-primary/5 p-2.5 rounded-xl border border-primary/20">
+            <span className="font-semibold text-primary block text-[11px] uppercase tracking-wider mb-0.5">
+              💡 Utilidad gerencial
+            </span>
+            <p className="text-muted-foreground text-[11px] leading-snug">{interpretacion}</p>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 
