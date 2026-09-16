@@ -718,8 +718,11 @@ export type VendedorAporte = {
   id: number | null;
   vendedor: string;
   venta: number;
+  ventaAnterior?: number;
   unidades: number;
+  unidadesAnterior?: number;
   porcentaje: number;
+  crecimientoYoY?: number;
 };
 
 export type ReferenciaTop = {
@@ -727,9 +730,12 @@ export type ReferenciaTop = {
   producto: string;
   linea: string;
   unidades: number;
+  unidadesAnterior?: number;
   valor: number;
+  valorAnterior?: number;
   precioPromedio: number;
   porcentaje: number;
+  crecimientoYoY?: number;
 };
 
 export type CiudadAporte = {
@@ -737,33 +743,45 @@ export type CiudadAporte = {
   ciudad: string;
   zona: string;
   venta: number;
+  ventaAnterior?: number;
   unidades: number;
+  unidadesAnterior?: number;
   porcentaje: number;
+  crecimientoYoY?: number;
 };
 
 export type CiudadEnZona = {
   id: number | null;
   ciudad: string;
   venta: number;
+  ventaAnterior?: number;
   unidades: number;
+  unidadesAnterior?: number;
   porcentaje: number;
   porcentajeGlobal: number;
+  crecimientoYoY?: number;
 };
 
 export type ZonaAporte = {
   id: number | null;
   zona: string;
   venta: number;
+  ventaAnterior?: number;
   unidades: number;
+  unidadesAnterior?: number;
   porcentaje: number;
+  crecimientoYoY?: number;
   ciudades: CiudadEnZona[];
 };
 
 export type CanalAporte = {
   canal: string;
   venta: number;
+  ventaAnterior?: number;
   unidades: number;
+  unidadesAnterior?: number;
   porcentaje: number;
+  crecimientoYoY?: number;
 };
 
 export type CumplimientoMes = {
@@ -779,38 +797,86 @@ export type CumplimientoMes = {
   devolucionesMonto: number;
   tasaDevolucionPct: number;
   unidades: number;
+  unidadesAnterior?: number;
 };
 
 export type MixLinea = {
   linea: string;
   venta: number;
+  ventaAnterior?: number;
   unidades: number;
+  unidadesAnterior?: number;
   porcentaje: number;
+  crecimientoYoY?: number;
 };
 
 export type DataDashboard1 = {
   kpis: {
     ventaYTD: number;
     ventaBrutaTotal: number;
+    ventaAnteriorTotal: number;
     pptoYTD: number;
     cumplimientoGlobalPct: number;
     crecimientoYoYPct: number;
     devolucionesTotal: number;
     tasaDevolucionGlobalPct: number;
     volumenUnidades: number;
+    unidadesAnteriorTotal: number;
     ticketPromedio: number;
+    ticketPromedioAnterior?: number;
     precioPromedioPrenda: number;
     totalTransacciones: number;
+    totalTransaccionesAnterior?: number;
   };
   meses: CumplimientoMes[];
   mixLineas: MixLinea[];
-  mixMarcas: { marca: string; venta: number; porcentaje: number }[];
+  mixMarcas: { marca: string; venta: number; ventaAnterior?: number; porcentaje: number; crecimientoYoY?: number }[];
   rankingVendedores: VendedorAporte[];
   topReferencias: ReferenciaTop[];
   distribucionZonas: ZonaAporte[];
   topCiudades: CiudadAporte[];
   mixCanales: CanalAporte[];
 };
+
+/**
+ * Calcula los filtros correspondientes exactamente al mismo periodo del año anterior
+ */
+export function obtenerFiltrosAnioAnterior(filtros: FiltrosBI, aniosCatalogo?: number[]): FiltrosBI {
+  let anioYoY: number | null = null;
+  let mesYoY: number | null = filtros.mes ?? null;
+  let fDesdeYoY: string | null = null;
+  let fHastaYoY: string | null = null;
+
+  if (filtros.fecha_desde && filtros.fecha_hasta) {
+    const shiftDate = (dStr: string) => {
+      const parts = dStr.split("-");
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10) - 1;
+        return `${y}-${parts[1]}-${parts[2]}`;
+      }
+      return dStr;
+    };
+    fDesdeYoY = shiftDate(filtros.fecha_desde);
+    fHastaYoY = shiftDate(filtros.fecha_hasta);
+  } else if (filtros.anio) {
+    anioYoY = filtros.anio - 1;
+  } else if (filtros.mes) {
+    const baseAnio = (aniosCatalogo && aniosCatalogo[0]) || new Date().getFullYear();
+    anioYoY = baseAnio - 1;
+  } else {
+    // Modo "todo": compara con el año previo al más reciente disponible
+    const baseAnio = (aniosCatalogo && aniosCatalogo[0]) || new Date().getFullYear();
+    anioYoY = baseAnio - 1;
+  }
+
+  return {
+    ...filtros,
+    anio: anioYoY,
+    mes: mesYoY,
+    fecha_desde: fDesdeYoY,
+    fecha_hasta: fHastaYoY,
+  };
+}
 
 export function calcularDashboard1Cumplimiento(
   data: FilaFactVentas[],
@@ -829,7 +895,8 @@ export function calcularDashboard1Cumplimiento(
   catalogosVendedores?: CatalogoItem[],
   catalogosZonas?: CatalogoItem[],
   catalogosCanales?: CatalogoItem[],
-  catalogosCiudades?: CatalogoItem[]
+  catalogosCiudades?: CatalogoItem[],
+  dataAnterior?: FilaFactVentas[]
 ): DataDashboard1 {
   const nombresMes = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
@@ -959,6 +1026,80 @@ export function calcularDashboard1Cumplimiento(
     canalVentaMap.set(cNomCanal, { venta: prevC.venta + v, unidades: prevC.unidades + cant });
   }
 
+  // Procesamiento opcional de datos del año anterior
+  const periodoAntMap = new Map<string, { venta: number; unidades: number }>();
+  const lineaAntMap = new Map<string, { venta: number; unidades: number }>();
+  const marcaAntMap = new Map<string, number>();
+  const vendedorAntMap = new Map<string, { venta: number; unidades: number }>();
+  const refAntMap = new Map<string, { valor: number; unidades: number }>();
+  const zonaAntMap = new Map<string, { venta: number; unidades: number; ciudadesMap: Map<string, { venta: number; unidades: number }> }>();
+  const ciudadGlobalAntMap = new Map<string, { venta: number; unidades: number }>();
+  const canalAntMap = new Map<string, { venta: number; unidades: number }>();
+  const transaccionesAntSet = new Set<string>();
+  let totalVentasAnterior = 0;
+  let totalUnidadesAnterior = 0;
+
+  if (dataAnterior && dataAnterior.length > 0) {
+    for (const r of dataAnterior) {
+      let m = Number(r.mes);
+      if ((!m || isNaN(m) || m < 1 || m > 12) && r.fecha) {
+        m = parseInt(String(r.fecha).slice(5, 7), 10);
+      }
+      if (!m || isNaN(m)) m = 1;
+
+      const v = Number(r.valor ?? 0);
+      const cant = Math.round(Number(r.cantidad ?? 0));
+      totalVentasAnterior += v;
+      totalUnidadesAnterior += cant;
+
+      if (r.transaccion) transaccionesAntSet.add(String(r.transaccion));
+
+      const pKey = String(m);
+      const prevP = periodoAntMap.get(pKey) || { venta: 0, unidades: 0 };
+      periodoAntMap.set(pKey, { venta: prevP.venta + v, unidades: prevP.unidades + cant });
+
+      const lNom = (r.linea_id && lineaMap.get(r.linea_id)) || "General / Confección";
+      const prevL = lineaAntMap.get(lNom) || { venta: 0, unidades: 0 };
+      lineaAntMap.set(lNom, { venta: prevL.venta + v, unidades: prevL.unidades + cant });
+
+      const mNom = (r.marca_id && marcaMap.get(r.marca_id)) || "Trucco's";
+      marcaAntMap.set(mNom, (marcaAntMap.get(mNom) || 0) + v);
+
+      const vId = r.vendedor_id || r.vendedor2_id || null;
+      const vNom = (vId && vendedorMap.get(vId)) || "Ventas Directas / Mostrador";
+      const prevV = vendedorAntMap.get(vNom) || { venta: 0, unidades: 0 };
+      vendedorAntMap.set(vNom, { venta: prevV.venta + v, unidades: prevV.unidades + cant });
+
+      const sku = r.sku || r.prenda_hgi || "N/A";
+      const prevRef = refAntMap.get(sku) || { valor: 0, unidades: 0 };
+      refAntMap.set(sku, { valor: prevRef.valor + v, unidades: prevRef.unidades + cant });
+
+      const zId = r.zona_id || r.zona_colombia_id || null;
+      const zNom = (zId && zonaMap.get(zId)) || "Nacional / Sin Zona";
+      const cId = r.ciudad_id || null;
+      const cNom = (cId && ciudadMap.get(cId)) || "General / Sin Ciudad";
+
+      if (!zonaAntMap.has(zNom)) {
+        zonaAntMap.set(zNom, { venta: 0, unidades: 0, ciudadesMap: new Map() });
+      }
+      const currZ = zonaAntMap.get(zNom)!;
+      currZ.venta += v;
+      currZ.unidades += cant;
+
+      const currZC = currZ.ciudadesMap.get(cNom) || { venta: 0, unidades: 0 };
+      currZ.ciudadesMap.set(cNom, { venta: currZC.venta + v, unidades: currZC.unidades + cant });
+
+      const ciudadKey = `${cNom}||${zNom}`;
+      const prevC = ciudadGlobalAntMap.get(ciudadKey) || { venta: 0, unidades: 0 };
+      ciudadGlobalAntMap.set(ciudadKey, { venta: prevC.venta + v, unidades: prevC.unidades + cant });
+
+      const cIdCanal = r.canal_id || null;
+      const cNomCanal = (cIdCanal && canalMap.get(cIdCanal)) || "Mayorista General";
+      const prevCan = canalAntMap.get(cNomCanal) || { venta: 0, unidades: 0 };
+      canalAntMap.set(cNomCanal, { venta: prevCan.venta + v, unidades: prevCan.unidades + cant });
+    }
+  }
+
   // Meses cronológicos con meta presupuestal dinámica y cumplimiento con precisión decimal
   let meses: CumplimientoMes[] = [];
   if (filtros.anio && !filtros.fecha_desde) {
@@ -973,19 +1114,24 @@ export function calcularDashboard1Cumplimiento(
       const ppto = d.venta > 0 ? metaBaseMensual : 0;
       const ventaBrutaMes = d.venta + d.dev;
       const cumplimientoPct = ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 1000) / 10 : (d.venta > 0 ? 100 : 0);
+      const vAnt = periodoAntMap.get(String(mNum))?.venta || 0;
+      const uAnt = periodoAntMap.get(String(mNum))?.unidades || 0;
+      const yoy = vAnt > 0 ? Math.round(((d.venta - vAnt) / vAnt) * 1000) / 10 : 0;
+
       return {
         anio: filtros.anio!,
         mes: mNum,
         nombreMes: nombre,
         periodo: `${nombre} ${filtros.anio}`,
         ventaReal: d.venta,
-        ventaAnterior: 0,
+        ventaAnterior: vAnt,
         ppto,
         cumplimientoPct,
-        crecimientoYoY: 0,
+        crecimientoYoY: yoy,
         devolucionesMonto: d.dev,
         tasaDevolucionPct: ventaBrutaMes > 0 ? Math.round((d.dev / ventaBrutaMes) * 1000) / 10 : 0,
         unidades: d.unidades,
+        unidadesAnterior: uAnt,
       };
     });
   } else {
@@ -1002,126 +1148,207 @@ export function calcularDashboard1Cumplimiento(
       const ppto = d.venta > 0 ? metaBasePeriodo : 0;
       const ventaBrutaMes = d.venta + d.dev;
       const cumplimientoPct = ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 1000) / 10 : (d.venta > 0 ? 100 : 0);
+      const vAnt = periodoAntMap.get(String(d.mes))?.venta || 0;
+      const uAnt = periodoAntMap.get(String(d.mes))?.unidades || 0;
+      const yoy = vAnt > 0 ? Math.round(((d.venta - vAnt) / vAnt) * 1000) / 10 : 0;
+
       return {
         anio: d.anio,
         mes: d.mes,
         nombreMes: nombre,
         periodo: nombre,
         ventaReal: d.venta,
-        ventaAnterior: 0,
+        ventaAnterior: vAnt,
         ppto,
         cumplimientoPct,
-        crecimientoYoY: 0,
+        crecimientoYoY: yoy,
         devolucionesMonto: d.dev,
         tasaDevolucionPct: ventaBrutaMes > 0 ? Math.round((d.dev / ventaBrutaMes) * 1000) / 10 : 0,
         unidades: d.unidades,
+        unidadesAnterior: uAnt,
       };
     });
   }
 
   const mixLineas: MixLinea[] = Array.from(lineaVentaMap.entries())
-    .map(([linea, val]) => ({
-      linea,
-      venta: val.venta,
-      unidades: val.unidades,
-      porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
-    }))
+    .map(([linea, val]) => {
+      const lAnt = lineaAntMap.get(linea);
+      const vAnt = lAnt?.venta || 0;
+      const uAnt = lAnt?.unidades || 0;
+      const yoy = vAnt > 0 ? Math.round(((val.venta - vAnt) / vAnt) * 1000) / 10 : 0;
+      return {
+        linea,
+        venta: val.venta,
+        ventaAnterior: vAnt,
+        unidades: val.unidades,
+        unidadesAnterior: uAnt,
+        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+        crecimientoYoY: yoy,
+      };
+    })
     .sort((a, b) => b.venta - a.venta);
 
   const mixMarcas = Array.from(marcaVentaMap.entries())
-    .map(([marca, venta]) => ({
-      marca,
-      venta,
-      porcentaje: totalVentas > 0 ? Math.round((venta / totalVentas) * 1000) / 10 : 0,
-    }))
+    .map(([marca, venta]) => {
+      const vAnt = marcaAntMap.get(marca) || 0;
+      const yoy = vAnt > 0 ? Math.round(((venta - vAnt) / vAnt) * 1000) / 10 : 0;
+      return {
+        marca,
+        venta,
+        ventaAnterior: vAnt,
+        porcentaje: totalVentas > 0 ? Math.round((venta / totalVentas) * 1000) / 10 : 0,
+        crecimientoYoY: yoy,
+      };
+    })
     .sort((a, b) => b.venta - a.venta);
 
   const rankingVendedores: VendedorAporte[] = Array.from(vendedorVentaMap.entries())
-    .map(([vendedor, val]) => ({
-      id: val.id,
-      vendedor,
-      venta: val.venta,
-      unidades: val.unidades,
-      porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
-    }))
+    .map(([vendedor, val]) => {
+      const vAnt = vendedorAntMap.get(vendedor);
+      const vAntVal = vAnt?.venta || 0;
+      const uAntVal = vAnt?.unidades || 0;
+      const yoy = vAntVal > 0 ? Math.round(((val.venta - vAntVal) / vAntVal) * 1000) / 10 : 0;
+      return {
+        id: val.id,
+        vendedor,
+        venta: val.venta,
+        ventaAnterior: vAntVal,
+        unidades: val.unidades,
+        unidadesAnterior: uAntVal,
+        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+        crecimientoYoY: yoy,
+      };
+    })
     .sort((a, b) => b.venta - a.venta);
 
   const topReferencias: ReferenciaTop[] = Array.from(refVentaMap.entries())
-    .map(([sku, val]) => ({
-      sku,
-      producto: val.producto,
-      linea: val.linea,
-      unidades: val.unidades,
-      valor: val.valor,
-      precioPromedio: val.unidades > 0 ? Math.round(val.valor / val.unidades) : 0,
-      porcentaje: totalVentas > 0 ? Math.round((val.valor / totalVentas) * 1000) / 10 : 0,
-    }))
+    .map(([sku, val]) => {
+      const rAnt = refAntMap.get(sku);
+      const valAnt = rAnt?.valor || 0;
+      const uAnt = rAnt?.unidades || 0;
+      const yoy = valAnt > 0 ? Math.round(((val.valor - valAnt) / valAnt) * 1000) / 10 : 0;
+      return {
+        sku,
+        producto: val.producto,
+        linea: val.linea,
+        unidades: val.unidades,
+        unidadesAnterior: uAnt,
+        valor: val.valor,
+        valorAnterior: valAnt,
+        precioPromedio: val.unidades > 0 ? Math.round(val.valor / val.unidades) : 0,
+        porcentaje: totalVentas > 0 ? Math.round((val.valor / totalVentas) * 1000) / 10 : 0,
+        crecimientoYoY: yoy,
+      };
+    })
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 15);
 
   const distribucionZonas: ZonaAporte[] = Array.from(zonaVentaMap.entries())
     .map(([zona, val]) => {
+      const zAnt = zonaAntMap.get(zona);
+      const zAntVenta = zAnt?.venta || 0;
+      const zAntUnidades = zAnt?.unidades || 0;
+      const zYoY = zAntVenta > 0 ? Math.round(((val.venta - zAntVenta) / zAntVenta) * 1000) / 10 : 0;
+
       const ciudadesList: CiudadEnZona[] = Array.from(val.ciudadesMap.entries())
-        .map(([ciudad, cVal]) => ({
-          id: cVal.id,
-          ciudad,
-          venta: cVal.venta,
-          unidades: cVal.unidades,
-          porcentaje: val.venta > 0 ? Math.round((cVal.venta / val.venta) * 1000) / 10 : 0,
-          porcentajeGlobal: totalVentas > 0 ? Math.round((cVal.venta / totalVentas) * 1000) / 10 : 0,
-        }))
+        .map(([ciudad, cVal]) => {
+          const cAnt = zAnt?.ciudadesMap.get(ciudad);
+          const cAntVenta = cAnt?.venta || 0;
+          const cAntUnidades = cAnt?.unidades || 0;
+          const cYoY = cAntVenta > 0 ? Math.round(((cVal.venta - cAntVenta) / cAntVenta) * 1000) / 10 : 0;
+          return {
+            id: cVal.id,
+            ciudad,
+            venta: cVal.venta,
+            ventaAnterior: cAntVenta,
+            unidades: cVal.unidades,
+            unidadesAnterior: cAntUnidades,
+            porcentaje: val.venta > 0 ? Math.round((cVal.venta / val.venta) * 1000) / 10 : 0,
+            porcentajeGlobal: totalVentas > 0 ? Math.round((cVal.venta / totalVentas) * 1000) / 10 : 0,
+            crecimientoYoY: cYoY,
+          };
+        })
         .sort((a, b) => b.venta - a.venta);
 
       return {
         id: val.id,
         zona,
         venta: val.venta,
+        ventaAnterior: zAntVenta,
         unidades: val.unidades,
+        unidadesAnterior: zAntUnidades,
         porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+        crecimientoYoY: zYoY,
         ciudades: ciudadesList,
       };
     })
     .sort((a, b) => b.venta - a.venta);
 
   const topCiudades: CiudadAporte[] = Array.from(ciudadGlobalMap.values())
-    .map((c) => ({
-      id: c.id,
-      ciudad: c.ciudad,
-      zona: c.zona,
-      venta: c.venta,
-      unidades: c.unidades,
-      porcentaje: totalVentas > 0 ? Math.round((c.venta / totalVentas) * 1000) / 10 : 0,
-    }))
+    .map((c) => {
+      const ciudadKey = `${c.ciudad}||${c.zona}`;
+      const cAnt = ciudadGlobalAntMap.get(ciudadKey);
+      const cAntVenta = cAnt?.venta || 0;
+      const cAntUnidades = cAnt?.unidades || 0;
+      const cYoY = cAntVenta > 0 ? Math.round(((c.venta - cAntVenta) / cAntVenta) * 1000) / 10 : 0;
+      return {
+        id: c.id,
+        ciudad: c.ciudad,
+        zona: c.zona,
+        venta: c.venta,
+        ventaAnterior: cAntVenta,
+        unidades: c.unidades,
+        unidadesAnterior: cAntUnidades,
+        porcentaje: totalVentas > 0 ? Math.round((c.venta / totalVentas) * 1000) / 10 : 0,
+        crecimientoYoY: cYoY,
+      };
+    })
     .sort((a, b) => b.venta - a.venta);
 
   const mixCanales: CanalAporte[] = Array.from(canalVentaMap.entries())
-    .map(([canal, val]) => ({
-      canal,
-      venta: val.venta,
-      unidades: val.unidades,
-      porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
-    }))
+    .map(([canal, val]) => {
+      const cAnt = canalAntMap.get(canal);
+      const cAntVenta = cAnt?.venta || 0;
+      const cAntUnidades = cAnt?.unidades || 0;
+      const cYoY = cAntVenta > 0 ? Math.round(((val.venta - cAntVenta) / cAntVenta) * 1000) / 10 : 0;
+      return {
+        canal,
+        venta: val.venta,
+        ventaAnterior: cAntVenta,
+        unidades: val.unidades,
+        unidadesAnterior: cAntUnidades,
+        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+        crecimientoYoY: cYoY,
+      };
+    })
     .sort((a, b) => b.venta - a.venta);
 
   const totalPpto = meses.reduce((a, b) => a + b.ppto, 0);
   const totalVentaBruta = totalVentas + totalDevoluciones;
   const numTransacciones = transaccionesSet.size > 0 ? transaccionesSet.size : totalUnidades;
+  const numTransaccionesAnterior = transaccionesAntSet.size > 0 ? transaccionesAntSet.size : totalUnidadesAnterior;
   const ticketPromedio = numTransacciones > 0 ? Math.round(totalVentas / numTransacciones) : 0;
+  const ticketPromedioAnterior = numTransaccionesAnterior > 0 ? Math.round(totalVentasAnterior / numTransaccionesAnterior) : 0;
   const precioPromedioPrenda = totalUnidades > 0 ? Math.round(totalVentas / totalUnidades) : 0;
+  const crecimientoYoYGlobal = totalVentasAnterior > 0 ? Math.round(((totalVentas - totalVentasAnterior) / totalVentasAnterior) * 1000) / 10 : 0;
 
   return {
     kpis: {
       ventaYTD: totalVentas,
       ventaBrutaTotal: totalVentaBruta,
+      ventaAnteriorTotal: totalVentasAnterior,
       pptoYTD: totalPpto > 0 ? totalPpto : (totalVentas > 0 ? Math.round(totalVentas * 1.05) : 0),
       cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 1000) / 10 : (totalVentas > 0 ? 100 : 0),
-      crecimientoYoYPct: 0,
+      crecimientoYoYPct: crecimientoYoYGlobal,
       devolucionesTotal: totalDevoluciones,
       tasaDevolucionGlobalPct: totalVentaBruta > 0 ? Math.round((totalDevoluciones / totalVentaBruta) * 1000) / 10 : 0,
       volumenUnidades: totalUnidades,
+      unidadesAnteriorTotal: totalUnidadesAnterior,
       ticketPromedio,
+      ticketPromedioAnterior,
       precioPromedioPrenda,
       totalTransacciones: numTransacciones,
+      totalTransaccionesAnterior: numTransaccionesAnterior,
     },
     meses,
     mixLineas,
@@ -1150,7 +1377,9 @@ export type PuntoDiario = {
   fecha: string;
   esHabil: boolean;
   ventaReal: number;
+  ventaRealAnterior?: number;
   ventaAcumulada: number;
+  ventaAcumuladaAnterior?: number;
   metaDiaria: number;
   pptoAcumulado: number;
   cumplimientoPct: number;
@@ -1162,6 +1391,8 @@ export type DataDashboard2 = {
   kpis: {
     pptoMes: number;
     ventaAcumuladaMes: number;
+    ventaAnteriorMes?: number;
+    crecimientoYoYPct?: number;
     cumplimientoMesPct: number;
     diasHabilesTotales: number;
     diasHabilesTranscurridos: number;
@@ -1174,7 +1405,11 @@ export type DataDashboard2 = {
   dias: PuntoDiario[];
 };
 
-export function calcularDashboard2RunRate(data: FilaFactVentas[], filtros: FiltrosBI): DataDashboard2 {
+export function calcularDashboard2RunRate(
+  data: FilaFactVentas[],
+  filtros: FiltrosBI,
+  dataAnterior?: FilaFactVentas[]
+): DataDashboard2 {
   let anioTarget = filtros.anio;
   let mesTarget = filtros.mes;
 
@@ -1215,8 +1450,29 @@ export function calcularDashboard2RunRate(data: FilaFactVentas[], filtros: Filtr
     }
   }
 
+  // Ventas año anterior por día
+  const ventasPorDiaAnterior: number[] = new Array(diasEnMes + 1).fill(0);
+  let ventaTotalMesAnterior = 0;
+  if (dataAnterior && dataAnterior.length > 0) {
+    for (const r of dataAnterior) {
+      let rMes = Number(r.mes) || (r.fecha ? parseInt(String(r.fecha).slice(5, 7), 10) : mes);
+      if (rMes !== mes) continue;
+
+      let d = Number(r.dia);
+      if ((!d || isNaN(d)) && r.fecha) {
+        d = parseInt(String(r.fecha).slice(8, 10), 10);
+      }
+      const v = Number(r.valor || 0);
+      ventaTotalMesAnterior += v;
+      if (d >= 1 && d <= diasEnMes) {
+        ventasPorDiaAnterior[d] = (ventasPorDiaAnterior[d] ?? 0) + v;
+      }
+    }
+  }
+
   const ventaTotalMes = ventasPorDia.reduce((a, b) => a + b, 0);
   const pptoMes = ventaTotalMes > 0 ? Math.round(ventaTotalMes * 1.10) : 50_000_000;
+  const crecimientoYoYPct = ventaTotalMesAnterior > 0 ? Math.round(((ventaTotalMes - ventaTotalMesAnterior) / ventaTotalMesAnterior) * 1000) / 10 : 0;
 
   let diasHabilesTotales = 0;
   let diasHabilesTranscurridos = 0;
@@ -1243,6 +1499,7 @@ export function calcularDashboard2RunRate(data: FilaFactVentas[], filtros: Filtr
   const brechaAcumulada = ventaAcumuladaCorte - (metaDiariaFija * diasHabilesTranscurridos);
 
   let acumuladoReal = 0;
+  let acumuladoRealAnterior = 0;
   let acumuladoPpto = 0;
   const puntos: PuntoDiario[] = [];
 
@@ -1250,7 +1507,9 @@ export function calcularDashboard2RunRate(data: FilaFactVentas[], filtros: Filtr
     const fecha = new Date(anio, mes - 1, d);
     const esHabil = fecha.getDay() !== 0;
     const vReal = ventasPorDia[d] || 0;
+    const vRealAnt = ventasPorDiaAnterior[d] || 0;
     acumuladoReal += vReal;
+    acumuladoRealAnterior += vRealAnt;
     if (esHabil) acumuladoPpto += metaDiariaFija;
 
     puntos.push({
@@ -1258,7 +1517,9 @@ export function calcularDashboard2RunRate(data: FilaFactVentas[], filtros: Filtr
       fecha: `${d}/${mes}`,
       esHabil,
       ventaReal: vReal,
+      ventaRealAnterior: vRealAnt,
       ventaAcumulada: acumuladoReal,
+      ventaAcumuladaAnterior: acumuladoRealAnterior,
       metaDiaria: metaDiariaFija,
       pptoAcumulado: acumuladoPpto,
       cumplimientoPct: metaDiariaFija > 0 ? Math.round((vReal / metaDiariaFija) * 1000) / 10 : 0,
@@ -1271,6 +1532,8 @@ export function calcularDashboard2RunRate(data: FilaFactVentas[], filtros: Filtr
     kpis: {
       pptoMes,
       ventaAcumuladaMes: ventaTotalMes,
+      ventaAnteriorMes: ventaTotalMesAnterior,
+      crecimientoYoYPct,
       cumplimientoMesPct,
       diasHabilesTotales,
       diasHabilesTranscurridos,
@@ -1296,6 +1559,8 @@ export type CanalDigitalItem = {
   canal: string;
   tipo: "tienda_virtual" | "redes_sociales" | "otro";
   venta: number;
+  ventaAnterior?: number;
+  crecimientoYoY?: number;
   unidades: number;
   ticketPromedio: number;
   porcentaje: number;
@@ -1307,10 +1572,13 @@ export type MesDigitalItem = {
   mes: string;
   numMes: number;
   ventaTotal: number;
+  ventaAnterior?: number;
+  crecimientoYoY?: number;
   ventaTiendaVirtual: number;
   ventaRedesSociales: number;
   ventaOtros: number;
   unidades: number;
+  unidadesAnterior?: number;
   gastoPauta: number;
   roas: number;
 };
@@ -1342,10 +1610,13 @@ export type CiudadDigital = {
 export type DataDashboard3 = {
   kpis: {
     ventaDigitalTotal: number;
+    ventaDigitalAnterior?: number;
+    crecimientoYoYPct?: number;
     ventaTiendaVirtual: number;
     ventaRedesSociales: number;
     ventaOtrosDigitales: number;
     unidadesDigitales: number;
+    unidadesDigitalesAnterior?: number;
     unidadesTiendaVirtual: number;
     unidadesRedesSociales: number;
     aovTicketPromedio: number;
@@ -1382,7 +1653,8 @@ export function calcularDashboard3Digital(
         ciudades?: CatalogoItem[];
       },
   marcasCatalogo?: CatalogoItem[],
-  subCanalFiltro?: "todos" | "tienda_virtual" | "redes_sociales"
+  subCanalFiltro?: "todos" | "tienda_virtual" | "redes_sociales",
+  dataAnterior?: FilaFactVentas[]
 ): DataDashboard3 {
   let vendedoresList: CatalogoItem[] = [];
   let canalesList: CatalogoItem[] = [];
@@ -1538,6 +1810,58 @@ export function calcularDashboard3Digital(
     }
   }
 
+  // YoY Digital Data
+  let ventaDigitalAnterior = 0;
+  let unidadesDigitalesAnterior = 0;
+  let ventaTiendaVirtualAnterior = 0;
+  let ventaRedesSocialesAnterior = 0;
+  let ventaOtrosDigitalesAnterior = 0;
+  const mesesDataAnterior = new Array(12).fill(0);
+  const mesesUnidadesAnterior = new Array(12).fill(0);
+
+  if (dataAnterior && dataAnterior.length > 0) {
+    for (const r of dataAnterior) {
+      const v = Number(r.valor || 0);
+      const cant = Math.round(Number(r.cantidad || 0));
+      const v1 = r.vendedor_id ? vendedorMap.get(r.vendedor_id) : "";
+      const v2 = r.vendedor2_id ? vendedorMap.get(r.vendedor2_id) : "";
+      const cName = r.canal_id ? canalMap.get(r.canal_id) : "";
+
+      let m = Number(r.mes);
+      if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+      if (!m || isNaN(m)) m = 1;
+      const mIdx = Math.max(0, Math.min(11, m - 1));
+
+      let esDigital = false;
+      let digitalTipo: "tienda_virtual" | "redes_sociales" | "otro" = "otro";
+
+      if (isTiendaVirtual(r.vendedor_id, v1) || isTiendaVirtual(r.vendedor2_id, v2)) {
+        esDigital = true;
+        digitalTipo = "tienda_virtual";
+      } else if (isRedesSociales(r.vendedor_id, v1) || isRedesSociales(r.vendedor2_id, v2)) {
+        esDigital = true;
+        digitalTipo = "redes_sociales";
+      } else if (isOtroDigital(r.vendedor_id, v1, cName) || isOtroDigital(r.vendedor2_id, v2, cName)) {
+        esDigital = true;
+        digitalTipo = "otro";
+      }
+
+      if (esDigital) {
+        if (subCanalFiltro && subCanalFiltro !== "todos" && digitalTipo !== subCanalFiltro) continue;
+
+        ventaDigitalAnterior += v;
+        unidadesDigitalesAnterior += cant;
+        if (digitalTipo === "tienda_virtual") ventaTiendaVirtualAnterior += v;
+        else if (digitalTipo === "redes_sociales") ventaRedesSocialesAnterior += v;
+        else ventaOtrosDigitalesAnterior += v;
+
+        mesesDataAnterior[mIdx] += v;
+        mesesUnidadesAnterior[mIdx] += cant;
+      }
+    }
+  }
+
+  const crecimientoYoYPct = ventaDigitalAnterior > 0 ? Math.round(((ventaDigitalTotal - ventaDigitalAnterior) / ventaDigitalAnterior) * 1000) / 10 : 0;
   const aovTicketPromedio = unidadesDigitales > 0 ? Math.round(ventaDigitalTotal / unidadesDigitales) : 0;
   const aovTiendaVirtual = unidadesTiendaVirtual > 0 ? Math.round(ventaTiendaVirtual / unidadesTiendaVirtual) : 0;
   const aovRedesSociales = unidadesRedesSociales > 0 ? Math.round(ventaRedesSociales / unidadesRedesSociales) : 0;
@@ -1549,11 +1873,17 @@ export function calcularDashboard3Digital(
   const pctVentaEmpresa = totalVentaEmpresa > 0 ? Math.round((ventaDigitalTotal / totalVentaEmpresa) * 1000) / 10 : 0;
   const cumplimientoEcommercePct = Math.min(120, Math.round(roas > 0 ? (roas / 10) * 100 : 85));
 
+  const yoyTV = ventaTiendaVirtualAnterior > 0 ? Math.round(((ventaTiendaVirtual - ventaTiendaVirtualAnterior) / ventaTiendaVirtualAnterior) * 1000) / 10 : 0;
+  const yoyRS = ventaRedesSocialesAnterior > 0 ? Math.round(((ventaRedesSociales - ventaRedesSocialesAnterior) / ventaRedesSocialesAnterior) * 1000) / 10 : 0;
+  const yoyOtros = ventaOtrosDigitalesAnterior > 0 ? Math.round(((ventaOtrosDigitales - ventaOtrosDigitalesAnterior) / ventaOtrosDigitalesAnterior) * 1000) / 10 : 0;
+
   const canalesDigitales: CanalDigitalItem[] = [
     {
       canal: "Tienda Virtual (Shopify / Web)",
       tipo: "tienda_virtual",
       venta: ventaTiendaVirtual,
+      ventaAnterior: ventaTiendaVirtualAnterior,
+      crecimientoYoY: yoyTV,
       unidades: unidadesTiendaVirtual,
       ticketPromedio: aovTiendaVirtual,
       porcentaje: ventaDigitalTotal > 0 ? Math.round((ventaTiendaVirtual / ventaDigitalTotal) * 1000) / 10 : 0,
@@ -1564,6 +1894,8 @@ export function calcularDashboard3Digital(
       canal: "Redes Sociales (WhatsApp / Social Selling)",
       tipo: "redes_sociales",
       venta: ventaRedesSociales,
+      ventaAnterior: ventaRedesSocialesAnterior,
+      crecimientoYoY: yoyRS,
       unidades: unidadesRedesSociales,
       ticketPromedio: aovRedesSociales,
       porcentaje: ventaDigitalTotal > 0 ? Math.round((ventaRedesSociales / ventaDigitalTotal) * 1000) / 10 : 0,
@@ -1572,11 +1904,13 @@ export function calcularDashboard3Digital(
     },
   ];
 
-  if (ventaOtrosDigitales > 0) {
+  if (ventaOtrosDigitales > 0 || ventaOtrosDigitalesAnterior > 0) {
     canalesDigitales.push({
       canal: "Otros Canales Digitales / Marketplaces",
       tipo: "otro",
       venta: ventaOtrosDigitales,
+      ventaAnterior: ventaOtrosDigitalesAnterior,
+      crecimientoYoY: yoyOtros,
       unidades: unidadesOtrosDigitales,
       ticketPromedio: unidadesOtrosDigitales > 0 ? Math.round(ventaOtrosDigitales / unidadesOtrosDigitales) : 0,
       porcentaje: ventaDigitalTotal > 0 ? Math.round((ventaOtrosDigitales / ventaDigitalTotal) * 1000) / 10 : 0,
@@ -1590,14 +1924,21 @@ export function calcularDashboard3Digital(
     const mData = mesesData[i] || { ventaTotal: 0, ventaTiendaVirtual: 0, ventaRedesSociales: 0, ventaOtros: 0, unidades: 0 };
     const gPauta = mData.ventaTotal > 0 ? Math.round(mData.ventaTotal * 0.08) : 0;
     const r = gPauta > 0 ? Math.round((mData.ventaTotal / gPauta) * 10) / 10 : 0;
+    const vAnt = mesesDataAnterior[i] || 0;
+    const uAnt = mesesUnidadesAnterior[i] || 0;
+    const yoy = vAnt > 0 ? Math.round(((mData.ventaTotal - vAnt) / vAnt) * 1000) / 10 : 0;
+
     return {
       mes: nombre,
       numMes: i + 1,
       ventaTotal: mData.ventaTotal,
+      ventaAnterior: vAnt,
+      crecimientoYoY: yoy,
       ventaTiendaVirtual: mData.ventaTiendaVirtual,
       ventaRedesSociales: mData.ventaRedesSociales,
       ventaOtros: mData.ventaOtros,
       unidades: mData.unidades,
+      unidadesAnterior: uAnt,
       gastoPauta: gPauta,
       roas: r,
     };
@@ -1655,10 +1996,13 @@ export function calcularDashboard3Digital(
   return {
     kpis: {
       ventaDigitalTotal,
+      ventaDigitalAnterior,
+      crecimientoYoYPct,
       ventaTiendaVirtual,
       ventaRedesSociales,
       ventaOtrosDigitales,
       unidadesDigitales,
+      unidadesDigitalesAnterior,
       unidadesTiendaVirtual,
       unidadesRedesSociales,
       aovTicketPromedio,
@@ -1693,12 +2037,13 @@ export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<Data
 // =========================================================================
 // DASHBOARD 4: FUERZA DE VENTAS Y CANALES B2B / MAYORISTAS
 // =========================================================================
-// DASHBOARD 4: FUERZA DE VENTAS Y CANALES B2B / MAYORISTAS
-// =========================================================================
 export type AsesorComercial = {
   vendedor: string;
   ventaTotal: number;
+  ventaAnterior?: number;
+  crecimientoYoY?: number;
   unidades: number;
+  unidadesAnterior?: number;
   transacciones: number;
   participacionCarteraPct: number;
   ticketPromedio: number;
@@ -1710,7 +2055,10 @@ export type AsesorComercial = {
 export type DataDashboard4 = {
   kpis: {
     totalVentaFuerza: number;
+    totalVentaFuerzaAnterior?: number;
+    crecimientoYoYPct?: number;
     totalUnidades: number;
+    totalUnidadesAnterior?: number;
     totalTransacciones: number;
     totalAsesores: number;
     ticketPromedio: number;
@@ -1722,7 +2070,7 @@ export type DataDashboard4 = {
   asesores: AsesorComercial[];
   distribucionCanales: { canal: string; venta: number; porcentaje: number }[];
   matrizVendedorMes: { vendedor: string; meses: number[] }[];
-  evolucionMensualEquipo: { mesNum: number; mesNombre: string; venta: number; unidades: number }[];
+  evolucionMensualEquipo: { mesNum: number; mesNombre: string; venta: number; ventaAnterior?: number; crecimientoYoY?: number; unidades: number; unidadesAnterior?: number }[];
 };
 
 export function calcularDashboard4FuerzaVentas(
@@ -1730,7 +2078,8 @@ export function calcularDashboard4FuerzaVentas(
   filtros: FiltrosBI,
   vendedoresCatalogo?: CatalogoItem[],
   canalesCatalogo?: CatalogoItem[],
-  paisesCatalogo?: CatalogoItem[]
+  paisesCatalogo?: CatalogoItem[],
+  dataAnterior?: FilaFactVentas[]
 ): DataDashboard4 {
   const vendedorMap = new Map<number, string>((vendedoresCatalogo || []).map((v) => [v.id, v.nombre]));
   const canalMap = new Map<number, string>((canalesCatalogo || []).map((c) => [c.id, c.nombre]));
@@ -1803,6 +2152,42 @@ export function calcularDashboard4FuerzaVentas(
     }
   }
 
+  // YoY data
+  const asesorDataAntMap = new Map<string, { venta: number; unidades: number }>();
+  const mesVentasAntArray = new Array(12).fill(0);
+  const mesUnidadesAntArray = new Array(12).fill(0);
+  let totalVentaFuerzaAnterior = 0;
+  let totalUnidadesAnterior = 0;
+
+  if (dataAnterior && dataAnterior.length > 0) {
+    for (const r of dataAnterior) {
+      const v = Number(r.valor || 0);
+      const cant = Math.round(Number(r.cantidad || 0));
+      let m = Number(r.mes);
+      if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+      if (!m || isNaN(m)) m = 1;
+
+      totalVentaFuerzaAnterior += v;
+      totalUnidadesAnterior += cant;
+
+      if (m >= 1 && m <= 12) {
+        mesVentasAntArray[m - 1] += v;
+        mesUnidadesAntArray[m - 1] += cant;
+      }
+
+      let vNombre = (r.vendedor_id ? vendedorMap.get(r.vendedor_id) : "") || (r.vendedor2_id ? vendedorMap.get(r.vendedor2_id) : "") || "Asesor General";
+      if (filtros.vendedor_id) {
+        const nombreFiltrado = vendedorMap.get(filtros.vendedor_id);
+        if (nombreFiltrado) vNombre = nombreFiltrado;
+      }
+
+      const prevA = asesorDataAntMap.get(vNombre) || { venta: 0, unidades: 0 };
+      asesorDataAntMap.set(vNombre, { venta: prevA.venta + v, unidades: prevA.unidades + cant });
+    }
+  }
+
+  const crecimientoYoYPct = totalVentaFuerzaAnterior > 0 ? Math.round(((totalVentaFuerza - totalVentaFuerzaAnterior) / totalVentaFuerzaAnterior) * 1000) / 10 : 0;
+
   const asesores: AsesorComercial[] = Array.from(asesorDataMap.entries())
     .map(([vendedor, val]) => {
       const txCount = val.transaccionesSet.size;
@@ -1810,11 +2195,18 @@ export function calcularDashboard4FuerzaVentas(
       const ticketPromedio = txCount > 0 ? Math.round(val.venta / txCount) : 0;
       const precioPromedioPrenda = val.unidades > 0 ? Math.round(val.venta / val.unidades) : 0;
       const prendasPorTransaccion = txCount > 0 ? Math.round(val.unidades / txCount) : 0;
+      const aAnt = asesorDataAntMap.get(vendedor);
+      const vAnt = aAnt?.venta || 0;
+      const uAnt = aAnt?.unidades || 0;
+      const yoy = vAnt > 0 ? Math.round(((val.venta - vAnt) / vAnt) * 1000) / 10 : 0;
 
       return {
         vendedor,
         ventaTotal: val.venta,
+        ventaAnterior: vAnt,
+        crecimientoYoY: yoy,
         unidades: val.unidades,
+        unidadesAnterior: uAnt,
         transacciones: txCount,
         participacionCarteraPct,
         ticketPromedio,
@@ -1842,17 +2234,30 @@ export function calcularDashboard4FuerzaVentas(
   }));
 
   const MESES_NOMBRES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-  const evolucionMensualEquipo = MESES_NOMBRES.map((mesNombre, idx) => ({
-    mesNum: idx + 1,
-    mesNombre,
-    venta: mesVentasArray[idx] || 0,
-    unidades: mesUnidadesArray[idx] || 0,
-  }));
+  const evolucionMensualEquipo = MESES_NOMBRES.map((mesNombre, idx) => {
+    const v = mesVentasArray[idx] || 0;
+    const vAnt = mesVentasAntArray[idx] || 0;
+    const u = mesUnidadesArray[idx] || 0;
+    const uAnt = mesUnidadesAntArray[idx] || 0;
+    const yoy = vAnt > 0 ? Math.round(((v - vAnt) / vAnt) * 1000) / 10 : 0;
+    return {
+      mesNum: idx + 1,
+      mesNombre,
+      venta: v,
+      ventaAnterior: vAnt,
+      crecimientoYoY: yoy,
+      unidades: u,
+      unidadesAnterior: uAnt,
+    };
+  });
 
   return {
     kpis: {
       totalVentaFuerza,
+      totalVentaFuerzaAnterior,
+      crecimientoYoYPct,
       totalUnidades,
+      totalUnidadesAnterior,
       totalTransacciones,
       totalAsesores: asesores.length,
       ticketPromedio,
@@ -1884,12 +2289,15 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
 export type DataDashboard5 = {
   kpis: {
     ventaTotalMarketplaces: number;
+    ventaTotalMarketplacesAnterior?: number;
+    crecimientoYoYPct?: number;
     unidadesMarketplaces: number;
+    unidadesMarketplacesAnterior?: number;
     totalReferenciasActivas: number;
     precioPromedioSKU: number;
   };
-  marketplaces: { nombre: string; venta: number; unidades: number; porcentaje: number }[];
-  topReferencias: { sku: string; producto: string; unidades: number; valor: number; precioPromedio: number }[];
+  marketplaces: { nombre: string; venta: number; ventaAnterior?: number; crecimientoYoY?: number; unidades: number; porcentaje: number }[];
+  topReferencias: { sku: string; producto: string; unidades: number; valor: number; valorAnterior?: number; crecimientoYoY?: number; precioPromedio: number }[];
   curvaTallas: { talla: string; unidades: number; porcentaje: number }[];
   coloresLideres: { color: string; unidades: number; porcentaje: number }[];
 };
@@ -1897,7 +2305,8 @@ export type DataDashboard5 = {
 export function calcularDashboard5Marketplaces(
   data: FilaFactVentas[],
   filtros: FiltrosBI,
-  canalesCatalogo?: CatalogoItem[]
+  canalesCatalogo?: CatalogoItem[],
+  dataAnterior?: FilaFactVentas[]
 ): DataDashboard5 {
   const canalMap = new Map<number, string>((canalesCatalogo || []).map((c) => [c.id, c.nombre]));
 
@@ -1931,6 +2340,30 @@ export function calcularDashboard5Marketplaces(
     if (color) coloresMap.set(color, (coloresMap.get(color) || 0) + cant);
   }
 
+  // YoY Marketplaces
+  let ventaTotalMarketplacesAnterior = 0;
+  let unidadesMarketplacesAnterior = 0;
+  const mpAntMap = new Map<string, { venta: number; unidades: number }>();
+  const refAntMap = new Map<string, { valor: number; unidades: number }>();
+
+  if (dataAnterior && dataAnterior.length > 0) {
+    for (const r of dataAnterior) {
+      const v = Number(r.valor || 0);
+      const cant = Math.round(Number(r.cantidad || 0));
+      const sku = r.sku || "N/A";
+      const canal = (r.canal_id ? canalMap.get(r.canal_id) : "") || "Mercado Libre";
+
+      ventaTotalMarketplacesAnterior += v;
+      unidadesMarketplacesAnterior += cant;
+
+      const mpPrev = mpAntMap.get(canal) || { venta: 0, unidades: 0 };
+      mpAntMap.set(canal, { venta: mpPrev.venta + v, unidades: mpPrev.unidades + cant });
+
+      const refPrev = refAntMap.get(sku) || { valor: 0, unidades: 0 };
+      refAntMap.set(sku, { valor: refPrev.valor + v, unidades: refPrev.unidades + cant });
+    }
+  }
+
   if (mpMap.size <= 1) {
     mpMap.clear();
     mpMap.set("Mercado Libre", { venta: Math.round(ventaTotalMarketplaces * 0.48), unidades: Math.round(unidadesMarketplaces * 0.48) });
@@ -1939,21 +2372,37 @@ export function calcularDashboard5Marketplaces(
     mpMap.set("Linio / Otros", { venta: Math.round(ventaTotalMarketplaces * 0.10), unidades: Math.round(unidadesMarketplaces * 0.10) });
   }
 
-  const marketplaces = Array.from(mpMap.entries()).map(([nombre, val]) => ({
-    nombre,
-    venta: val.venta,
-    unidades: val.unidades,
-    porcentaje: ventaTotalMarketplaces > 0 ? Math.round((val.venta / ventaTotalMarketplaces) * 100) : 0,
-  }));
+  const crecimientoYoYPct = ventaTotalMarketplacesAnterior > 0 ? Math.round(((ventaTotalMarketplaces - ventaTotalMarketplacesAnterior) / ventaTotalMarketplacesAnterior) * 1000) / 10 : 0;
+
+  const marketplaces = Array.from(mpMap.entries()).map(([nombre, val]) => {
+    const mAnt = mpAntMap.get(nombre);
+    const vAnt = mAnt?.venta || 0;
+    const yoy = vAnt > 0 ? Math.round(((val.venta - vAnt) / vAnt) * 1000) / 10 : 0;
+    return {
+      nombre,
+      venta: val.venta,
+      ventaAnterior: vAnt,
+      crecimientoYoY: yoy,
+      unidades: val.unidades,
+      porcentaje: ventaTotalMarketplaces > 0 ? Math.round((val.venta / ventaTotalMarketplaces) * 100) : 0,
+    };
+  });
 
   const topReferencias = Array.from(refMap.entries())
-    .map(([sku, val]) => ({
-      sku,
-      producto: val.producto,
-      unidades: val.unidades,
-      valor: val.valor,
-      precioPromedio: val.unidades > 0 ? Math.round(val.valor / val.unidades) : 0,
-    }))
+    .map(([sku, val]) => {
+      const rAnt = refAntMap.get(sku);
+      const vAnt = rAnt?.valor || 0;
+      const yoy = vAnt > 0 ? Math.round(((val.valor - vAnt) / vAnt) * 1000) / 10 : 0;
+      return {
+        sku,
+        producto: val.producto,
+        unidades: val.unidades,
+        valor: val.valor,
+        valorAnterior: vAnt,
+        crecimientoYoY: yoy,
+        precioPromedio: val.unidades > 0 ? Math.round(val.valor / val.unidades) : 0,
+      };
+    })
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 10);
 
@@ -1980,7 +2429,10 @@ export function calcularDashboard5Marketplaces(
   return {
     kpis: {
       ventaTotalMarketplaces,
+      ventaTotalMarketplacesAnterior,
+      crecimientoYoYPct,
       unidadesMarketplaces,
+      unidadesMarketplacesAnterior,
       totalReferenciasActivas: refMap.size,
       precioPromedioSKU,
     },
@@ -2008,10 +2460,13 @@ export type ItemReferenciaAnalisis = {
   linea: string;
   marca: string;
   unidades: number;
+  unidadesAnterior?: number;
   unidadesDevueltas: number;
   ventaBruta: number;
   devoluciones: number;
   ventaNeta: number;
+  ventaAnterior?: number;
+  crecimientoYoY?: number;
   tasaDevolucion: number;
   precioPromedio: number;
   porcentajeVenta: number;
@@ -2024,10 +2479,13 @@ export type ItemReferenciaAnalisis = {
 export type DataDashboard6 = {
   kpis: {
     totalVentaNeta: number;
+    totalVentaNetaAnterior?: number;
+    crecimientoYoYPct?: number;
     totalVentaBruta: number;
     totalDevoluciones: number;
     tasaDevolucionGlobal: number;
     totalUnidades: number;
+    totalUnidadesAnterior?: number;
     totalReferenciasActivas: number;
     precioPromedioPonderado: number;
     referenciaTopVentas: { sku: string; producto: string; valor: number; unidades: number; porcentaje: number } | null;
@@ -2051,7 +2509,8 @@ export type DataDashboard6 = {
 export function calcularDashboard6Referencias(
   data: FilaFactVentas[],
   filtros: FiltrosBI,
-  catalogos?: CatalogosDisponibles | { lineas?: CatalogoItem[]; marcas?: CatalogoItem[] }
+  catalogos?: CatalogosDisponibles | { lineas?: CatalogoItem[]; marcas?: CatalogoItem[] },
+  dataAnterior?: FilaFactVentas[]
 ): DataDashboard6 {
   const lineaMap = new Map<number, string>((catalogos?.lineas || []).map((l) => [l.id, l.nombre]));
   const marcaMap = new Map<number, string>((catalogos?.marcas || []).map((m) => [m.id, m.nombre]));
@@ -2156,6 +2615,30 @@ export function calcularDashboard6Referencias(
     if (color) coloresMap.set(color, (coloresMap.get(color) || 0) + cant);
   }
 
+  // YoY Referencias
+  let totalVentaNetaAnterior = 0;
+  let totalUnidadesAnterior = 0;
+  const refAntMap = new Map<string, { ventaNeta: number; unidades: number }>();
+
+  if (dataAnterior && dataAnterior.length > 0) {
+    for (const r of dataAnterior) {
+      if (!cumpleFiltros(r, filtros)) continue;
+
+      const v = Number(r.valor || 0);
+      const cant = Math.round(Number(r.cantidad || 0));
+      const rawSku = (r.sku || r.prenda_hgi || "").trim();
+      const sku = rawSku || "REF-DESCONOCIDA";
+
+      totalVentaNetaAnterior += v;
+      if (cant > 0) totalUnidadesAnterior += cant;
+
+      const prevR = refAntMap.get(sku) || { ventaNeta: 0, unidades: 0 };
+      refAntMap.set(sku, { ventaNeta: prevR.ventaNeta + v, unidades: prevR.unidades + cant });
+    }
+  }
+
+  const crecimientoYoYPct = totalVentaNetaAnterior > 0 ? Math.round(((totalVentaNeta - totalVentaNetaAnterior) / totalVentaNetaAnterior) * 1000) / 10 : 0;
+
   // Ordenar por Venta Neta descendente para Pareto
   const sortedRawRefs = Array.from(refMap.values()).sort((a, b) => b.ventaNeta - a.ventaNeta);
 
@@ -2183,16 +2666,24 @@ export function calcularDashboard6Referencias(
         ? Math.round(((r.ventaNeta - r.costoTotal) / r.ventaNeta) * 1000) / 10
         : undefined;
 
+    const rAnt = refAntMap.get(r.sku);
+    const vAnt = rAnt?.ventaNeta || 0;
+    const uAnt = rAnt?.unidades || 0;
+    const yoy = vAnt > 0 ? Math.round(((r.ventaNeta - vAnt) / vAnt) * 1000) / 10 : 0;
+
     return {
       sku: r.sku,
       producto: r.producto,
       linea: r.linea,
       marca: r.marca,
       unidades: r.unidades,
+      unidadesAnterior: uAnt,
       unidadesDevueltas: r.unidadesDevueltas,
       ventaBruta: r.ventaBruta,
       devoluciones: r.devoluciones,
       ventaNeta: r.ventaNeta,
+      ventaAnterior: vAnt,
+      crecimientoYoY: yoy,
       tasaDevolucion,
       precioPromedio,
       porcentajeVenta: Math.round(pct * 100) / 100,
@@ -2310,10 +2801,13 @@ export function calcularDashboard6Referencias(
   return {
     kpis: {
       totalVentaNeta,
+      totalVentaNetaAnterior,
+      crecimientoYoYPct,
       totalVentaBruta,
       totalDevoluciones,
       tasaDevolucionGlobal,
       totalUnidades,
+      totalUnidadesAnterior,
       totalReferenciasActivas: todasReferencias.length,
       precioPromedioPonderado,
       referenciaTopVentas: refTopV

@@ -9,6 +9,7 @@ import {
   obtenerRangoFechasTotal,
   obtenerCatalogosFiltros,
   obtenerVentasRaw,
+  obtenerFiltrosAnioAnterior,
   calcularHistoricoMultianual,
   calcularDashboard1Cumplimiento,
   calcularDashboard2RunRate,
@@ -175,6 +176,91 @@ function colorSemaforo(pct: number) {
   if (pct >= 100) return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
   if (pct >= 90) return "bg-amber-500/15 text-amber-600 border-amber-500/30";
   return "bg-rose-500/15 text-rose-600 border-rose-500/30";
+}
+
+function BadgeYoY({
+  actual,
+  anterior,
+  porcentaje,
+  invertido = false,
+  label = "vs año ant.",
+}: {
+  actual?: number;
+  anterior?: number;
+  porcentaje?: number;
+  invertido?: boolean;
+  label?: string;
+}) {
+  if (anterior === undefined || anterior === null || anterior === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground/80 bg-muted/40 px-1.5 py-0.5 rounded border border-border/40">
+        Sin datos año ant.
+      </span>
+    );
+  }
+  const pct = porcentaje !== undefined ? porcentaje : (anterior > 0 ? Math.round((((actual ?? 0) - anterior) / anterior) * 1000) / 10 : 0);
+  const esPositivo = pct >= 0;
+  const esBueno = invertido ? !esPositivo : esPositivo;
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap text-xs">
+      <span
+        className={cn(
+          "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-semibold text-[11px]",
+          esBueno
+            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+            : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+        )}
+      >
+        {esPositivo ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+        {pct > 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`}
+      </span>
+      <span className="text-[11px] text-muted-foreground font-normal">
+        ({formatoCOP(anterior)} {label})
+      </span>
+    </div>
+  );
+}
+
+function BadgeYoYUnidades({
+  actual,
+  anterior,
+  porcentaje,
+  label = "vs año ant.",
+}: {
+  actual?: number;
+  anterior?: number;
+  porcentaje?: number;
+  label?: string;
+}) {
+  if (anterior === undefined || anterior === null || anterior === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground/80 bg-muted/40 px-1.5 py-0.5 rounded border border-border/40">
+        Sin datos año ant.
+      </span>
+    );
+  }
+  const pct = porcentaje !== undefined ? porcentaje : (anterior > 0 ? Math.round((((actual ?? 0) - anterior) / anterior) * 1000) / 10 : 0);
+  const esPositivo = pct >= 0;
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap text-xs">
+      <span
+        className={cn(
+          "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-semibold text-[11px]",
+          esPositivo
+            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+            : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+        )}
+      >
+        {esPositivo ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+        {pct > 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`}
+      </span>
+      <span className="text-[11px] text-muted-foreground font-normal">
+        ({formatoEntero(anterior)} unds {label})
+      </span>
+    </div>
+  );
 }
 
 export const Route = createFileRoute("/_authenticated/panel")({
@@ -490,6 +576,14 @@ function Panel() {
     setFiltroCanalDigital("todos");
   };
 
+  // Modo Comparativa vs Año Anterior (YoY) - Activación On-Demand
+  const [compararAnioAnterior, setCompararAnioAnterior] = useState<boolean>(false);
+
+  const filtrosYoY = useMemo(() => {
+    if (!compararAnioAnterior) return null;
+    return obtenerFiltrosAnioAnterior(filtros, catalogos?.anios);
+  }, [compararAnioAnterior, filtros, catalogos?.anios]);
+
   // Carga unificada de ventas para todos los dashboards
   const { data: rawVentas, isLoading: cVentas, isFetching: cFetching } = useQuery({
     queryKey: ["bi-fact-ventas", filtros],
@@ -499,13 +593,35 @@ function Panel() {
     enabled: tipoRango !== "mesActual" || rangoTotal !== undefined,
   });
 
+  // Carga on-demand de ventas del año anterior (sólo si se activa el botón)
+  const { data: rawVentasYoY, isLoading: cYoYLoading } = useQuery({
+    queryKey: ["bi-fact-ventas-yoy", filtrosYoY],
+    queryFn: () => (filtrosYoY ? obtenerVentasRaw(filtrosYoY) : Promise.resolve([])),
+    enabled: Boolean(compararAnioAnterior && filtrosYoY),
+    staleTime: 60 * 1000,
+  });
+
+  const etiquetaPeriodoAnterior = useMemo(() => {
+    if (filtrosYoY?.fecha_desde && filtrosYoY?.fecha_hasta) {
+      return `${filtrosYoY.fecha_desde} al ${filtrosYoY.fecha_hasta}`;
+    }
+    if (filtrosYoY?.anio && filtrosYoY?.mes) {
+      const nomMes = MESES.find((m) => m.num === filtrosYoY.mes)?.nombre || `Mes ${filtrosYoY.mes}`;
+      return `${nomMes} ${filtrosYoY.anio}`;
+    }
+    if (filtrosYoY?.anio) {
+      return `Año ${filtrosYoY.anio}`;
+    }
+    return "Mismo periodo del año anterior";
+  }, [filtrosYoY]);
+
   const cMultianual = cVentas;
-  const cD1 = cVentas;
-  const cD2 = cVentas;
-  const cD3 = cVentas;
-  const cD4 = cVentas;
-  const cD5 = cVentas;
-  const cD6 = cVentas;
+  const cD1 = cVentas || (compararAnioAnterior && cYoYLoading);
+  const cD2 = cVentas || (compararAnioAnterior && cYoYLoading);
+  const cD3 = cVentas || (compararAnioAnterior && cYoYLoading);
+  const cD4 = cVentas || (compararAnioAnterior && cYoYLoading);
+  const cD5 = cVentas || (compararAnioAnterior && cYoYLoading);
+  const cD6 = cVentas || (compararAnioAnterior && cYoYLoading);
 
   const dMultianual = useMemo(
     () => calcularHistoricoMultianual(rawVentas || [], filtros),
@@ -516,9 +632,15 @@ function Panel() {
       calcularDashboard1Cumplimiento(
         rawVentas || [],
         filtros,
-        catalogos
+        catalogos,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        compararAnioAnterior ? rawVentasYoY : undefined
       ),
-    [rawVentas, filtros, catalogos]
+    [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]
   );
 
   const vendedorSeleccionadoNombre = useMemo(() => {
@@ -641,24 +763,24 @@ function Panel() {
     return list;
   }, [d1, zonaUbicacionD1, busquedaCiudadD1]);
   const d2 = useMemo(
-    () => calcularDashboard2RunRate(rawVentas || [], filtros),
-    [rawVentas, filtros]
+    () => calcularDashboard2RunRate(rawVentas || [], filtros, compararAnioAnterior ? rawVentasYoY : undefined),
+    [rawVentas, filtros, compararAnioAnterior, rawVentasYoY]
   );
   const d3 = useMemo(
-    () => calcularDashboard3Digital(rawVentas || [], filtros, catalogos, undefined, filtroCanalDigital),
-    [rawVentas, filtros, catalogos, filtroCanalDigital]
+    () => calcularDashboard3Digital(rawVentas || [], filtros, catalogos, undefined, filtroCanalDigital, compararAnioAnterior ? rawVentasYoY : undefined),
+    [rawVentas, filtros, catalogos, filtroCanalDigital, compararAnioAnterior, rawVentasYoY]
   );
   const d4 = useMemo(
-    () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, vendedoresDisponibles, catalogos?.canales),
-    [rawVentas, filtros, vendedoresDisponibles, catalogos]
+    () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, vendedoresDisponibles, catalogos?.canales, undefined, compararAnioAnterior ? rawVentasYoY : undefined),
+    [rawVentas, filtros, vendedoresDisponibles, catalogos, compararAnioAnterior, rawVentasYoY]
   );
   const d5 = useMemo(
-    () => calcularDashboard5Marketplaces(rawVentas || [], filtros, catalogos?.canales),
-    [rawVentas, filtros, catalogos]
+    () => calcularDashboard5Marketplaces(rawVentas || [], filtros, catalogos?.canales, compararAnioAnterior ? rawVentasYoY : undefined),
+    [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]
   );
   const d6 = useMemo(
-    () => calcularDashboard6Referencias(rawVentas || [], filtros, catalogos),
-    [rawVentas, filtros, catalogos]
+    () => calcularDashboard6Referencias(rawVentas || [], filtros, catalogos, compararAnioAnterior ? rawVentasYoY : undefined),
+    [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]
   );
 
   const referenciasFiltradas = useMemo(() => {
@@ -1286,6 +1408,30 @@ function Panel() {
               </>
             )}
 
+            <div className="h-4 w-px bg-border/80 mx-1 hidden sm:block" />
+
+            {/* Botón On-Demand para Comparativa vs Año Anterior (YoY) */}
+            <Button
+              type="button"
+              variant={compararAnioAnterior ? "default" : "outline"}
+              size="sm"
+              onClick={() => setCompararAnioAnterior((prev) => !prev)}
+              className={cn(
+                "h-8 px-3 text-xs font-semibold transition-all duration-200 shadow-xs",
+                compararAnioAnterior
+                  ? "bg-amber-600 hover:bg-amber-700 text-white border-amber-600 ring-2 ring-amber-500/20"
+                  : "bg-background text-foreground hover:bg-muted/80 border-amber-500/40 text-amber-700 dark:text-amber-400 hover:border-amber-500"
+              )}
+            >
+              <History className="mr-1.5 h-3.5 w-3.5" />
+              <span>Vs. Año Anterior (YoY)</span>
+              {compararAnioAnterior && (
+                <span className="ml-1.5 px-1.5 py-0.2 bg-white/20 text-white rounded text-[10px] font-bold">
+                  ON
+                </span>
+              )}
+            </Button>
+
             {hayFiltrosActivos && (
               <Button
                 variant="outline"
@@ -1303,6 +1449,36 @@ function Panel() {
 
       {/* Contenido Principal */}
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
+        {/* Banner Informativo de Comparación YoY Activa */}
+        {compararAnioAnterior && (
+          <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-indigo-500/10 to-amber-500/15 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-200">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-lg bg-amber-500/20 border border-amber-500/40 grid place-items-center shrink-0">
+                <TrendingUp className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  Modo Comparativa vs Año Anterior Activado
+                  {cYoYLoading && <Loader2 className="h-3 w-3 animate-spin text-amber-600" />}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Comparando contra: <strong className="text-amber-700 dark:text-amber-300">{etiquetaPeriodoAnterior}</strong>. Los indicadores, gráficas y tablas reflejan variaciones YoY y valores del periodo previo.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCompararAnioAnterior(false)}
+                className="h-7 text-xs text-muted-foreground hover:text-foreground hover:bg-amber-500/20"
+              >
+                Desactivar Comparación
+              </Button>
+            </div>
+          </div>
+        )}
+
         {!esAdmin && vendedoresDisponibles.length === 0 && (
           <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 shadow-2xs">
             <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
@@ -1836,6 +2012,7 @@ function Panel() {
                 subtexto={`Bruta: ${formatoCOP(d1?.kpis.ventaBrutaTotal ?? 0)}`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD1}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
               />
               <CardKpi
                 titulo="Cumplimiento PPTO"
@@ -1851,6 +2028,7 @@ function Panel() {
                 subtexto="Prendas comercializadas"
                 icono={<Package className="h-5 w-5 text-indigo-500" />}
                 cargando={cD1}
+                badgeYoY={compararAnioAnterior ? <BadgeYoYUnidades actual={d1?.kpis.volumenUnidades} anterior={d1?.kpis.unidadesAnteriorTotal} /> : undefined}
               />
               <CardKpi
                 titulo="Tasa Devolución"
@@ -1865,6 +2043,7 @@ function Panel() {
                 subtexto={`${(d1?.kpis.totalTransacciones ?? 0).toLocaleString("es-CO")} transacciones`}
                 icono={<Receipt className="h-5 w-5 text-amber-500" />}
                 cargando={cD1}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d1?.kpis.ticketPromedio} anterior={d1?.kpis.ticketPromedioAnterior} /> : undefined}
               />
               <CardKpi
                 titulo="Precio Prom. / Prenda"
@@ -1884,14 +2063,14 @@ function Panel() {
                       {anio === "todos" ? "Evolución Cronológica Completa de Ventas (Todos los Periodos)" : `Venta Real vs. Presupuesto Mensual (${anio})`}
                     </CardTitle>
                     <CardDescription>
-                      {d1?.meses.length ?? 0} periodos registrados en el análisis
+                      {d1?.meses.length ?? 0} periodos registrados en el análisis {compararAnioAnterior && "• Superposición de Venta Año Anterior activada"}
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
                     <InfoGrafica
                       titulo="Venta Real vs. Presupuesto (PPTO)"
                       descripcion="Compara la ejecución real de ventas monetarias frente a la cuota presupuestada para cada mes, mostrando el % de cumplimiento relativo."
-                      metrica="Barras azules: Venta real ($). Barras grises: Presupuesto ($). Línea verde: % de cumplimiento meta."
+                      metrica="Barras azules: Venta real ($). Barras grises: Presupuesto ($). Línea verde: % de cumplimiento meta. Línea ámbar punteada: Venta Año Anterior."
                       interpretacion="Permite evaluar qué meses superaron la meta comercial (verde) y en cuáles existió brecha presupuestal para ajustar tácticas de venta."
                     />
                     <Badge variant="outline">
@@ -1913,14 +2092,18 @@ function Panel() {
                         <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
                         <Tooltip
                           formatter={(value: number, name: string) => {
-                            if (name === "cumplimientoPct") return [`${Number(value).toFixed(1)}%`, "% Cumplimiento"];
-                            return [formatoCOPFull(value), name === "ventaReal" ? "Venta Real" : "Presupuesto (PPTO)"];
+                            if (name === "cumplimientoPct" || name === "% Cumplimiento") return [`${Number(value).toFixed(1)}%`, "% Cumplimiento"];
+                            if (name === "ventaAnterior" || name === "Venta Año Anterior ($)") return [formatoCOPFull(value), "Venta Año Anterior"];
+                            return [formatoCOPFull(value), name === "ventaReal" || name === "Venta Real ($)" ? "Venta Real" : "Presupuesto (PPTO)"];
                           }}
                         />
                         <Legend
-                          formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
+                          formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ventaAnterior" ? "Venta Año Anterior ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
                         />
                         <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                        {compararAnioAnterior && (
+                          <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3.5, fill: "#f59e0b" }} />
+                        )}
                         <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]} opacity={0.4} />
                         <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
                       </ComposedChart>
@@ -2767,6 +2950,7 @@ function Panel() {
                 subtexto={`Meta Mes: ${formatoCOP(d2?.kpis.pptoMes ?? 0)} (${d2?.kpis.cumplimientoMesPct ?? 0}%)`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD2}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d2?.kpis.ventaAcumuladaMes} anterior={d2?.kpis.ventaAcumuladaAnterior} porcentaje={d2?.kpis.crecimientoYoYPct} /> : undefined}
               />
               <CardKpi
                 titulo="Meta Diaria (PPTO Diario)"
@@ -2797,12 +2981,12 @@ function Panel() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-base font-semibold">Curva de Avance Acumulado Diario vs. Meta ({d2?.kpis.mesSeleccionadoNombre})</CardTitle>
-                    <CardDescription>Evolución acumulativa día por día en el mes</CardDescription>
+                    <CardDescription>Evolución acumulativa día por día en el mes {compararAnioAnterior && "• Superposición de Venta Año Anterior activada"}</CardDescription>
                   </div>
                   <InfoGrafica
                     titulo="Curva de Avance Acumulado Diario vs. Meta"
                     descripcion="Compara la trayectoria de facturación acumulada día a día frente a la línea de meta presupuestal esperada para el mes."
-                    metrica="Línea Azul: Venta Real Acumulada ($) • Línea Punteada: Presupuesto Acumulado ($) • % Avance Acumulado a la fecha."
+                    metrica="Línea Azul: Venta Real Acumulada ($) • Línea Ámbar Punteada: Venta Año Anterior ($) • Línea Gris Punteada: Presupuesto Acumulado ($) • % Avance Acumulado a la fecha."
                     interpretacion="Si la línea azul se mantiene por encima de la gris punteada, la empresa marcha con superávit sobre el ritmo presupuestal esperado."
                   />
                 </div>
@@ -2820,6 +3004,7 @@ function Panel() {
                             const data = payload[0].payload as PuntoDiario;
                             const vAcum = data.ventaAcumulada || 0;
                             const pptoAcum = data.pptoAcumulado || 0;
+                            const vAnterior = data.ventaAcumuladaAnterior;
                             const cumpl = pptoAcum > 0 ? ((vAcum / pptoAcum) * 100).toFixed(1) : "0.0";
                             const supero = vAcum >= pptoAcum;
 
@@ -2842,6 +3027,12 @@ function Panel() {
                                     <span className="text-blue-600 dark:text-blue-400 font-medium">Venta Acumulada:</span>
                                     <span className="font-bold text-foreground font-mono">{formatoCOPFull(vAcum)}</span>
                                   </div>
+                                  {compararAnioAnterior && vAnterior !== undefined && (
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-amber-600 dark:text-amber-400 font-medium">Venta Año Anterior:</span>
+                                      <span className="font-bold text-foreground font-mono">{formatoCOPFull(vAnterior)}</span>
+                                    </div>
+                                  )}
                                   <div className="flex items-center justify-between gap-3">
                                     <span className="text-slate-500 font-medium">Meta Acumulada:</span>
                                     <span className="font-medium text-muted-foreground font-mono">{formatoCOPFull(pptoAcum)}</span>
@@ -2859,8 +3050,19 @@ function Panel() {
                           return null;
                         }}
                       />
-                      <Legend formatter={(v) => (v === "ventaAcumulada" ? "Facturación Real Acumulada" : "Meta Presupuesto Acumulada")} />
+                      <Legend
+                        formatter={(v) =>
+                          v === "ventaAcumulada"
+                            ? "Facturación Real Acumulada"
+                            : v === "ventaAcumuladaAnterior"
+                            ? "Venta Acumulada Año Anterior"
+                            : "Meta Presupuesto Acumulada"
+                        }
+                      />
                       <Line type="monotone" dataKey="ventaAcumulada" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} />
+                      {compararAnioAnterior && (
+                        <Line type="monotone" dataKey="ventaAcumuladaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 2.5, fill: "#f59e0b" }} />
+                      )}
                       <Line type="monotone" dataKey="pptoAcumulado" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -3043,6 +3245,7 @@ function Panel() {
                 subtexto={`${(d3?.kpis.unidadesDigitales ?? 0).toLocaleString("es-CO")} prendas vendidas`}
                 icono={<ShoppingBag className="h-5 w-5 text-indigo-500" />}
                 cargando={cD3}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d3?.kpis.ventaDigitalTotal} anterior={d3?.kpis.ventaAnterior} porcentaje={d3?.kpis.crecimientoYoYPct} /> : undefined}
               />
               <CardKpi
                 titulo="Tienda Virtual (Shopify)"
@@ -3050,6 +3253,7 @@ function Panel() {
                 subtexto={`${(d3?.kpis.unidadesTiendaVirtual ?? 0).toLocaleString("es-CO")} unds | AOV ${formatoCOP(d3?.kpis.aovTiendaVirtual ?? 0)}`}
                 icono={<Globe className="h-5 w-5 text-blue-500" />}
                 cargando={cD3}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d3?.kpis.ventaTiendaVirtual} anterior={d3?.kpis.ventaTiendaVirtualAnterior} /> : undefined}
               />
               <CardKpi
                 titulo="Redes Sociales (WhatsApp)"
@@ -3057,6 +3261,7 @@ function Panel() {
                 subtexto={`${(d3?.kpis.unidadesRedesSociales ?? 0).toLocaleString("es-CO")} unds | AOV ${formatoCOP(d3?.kpis.aovRedesSociales ?? 0)}`}
                 icono={<Share2 className="h-5 w-5 text-emerald-500" />}
                 cargando={cD3}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d3?.kpis.ventaRedesSociales} anterior={d3?.kpis.ventaRedesSocialesAnterior} /> : undefined}
               />
               <CardKpi
                 titulo="Ticket Promedio (AOV)"
@@ -3159,7 +3364,7 @@ function Panel() {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                     <div>
                       <CardTitle className="text-base font-semibold">Evolución Mensual de Ventas Digitales</CardTitle>
-                      <CardDescription>Facturación por canal digital e inversión en pauta mes a mes</CardDescription>
+                      <CardDescription>Facturación por canal digital e inversión en pauta mes a mes {compararAnioAnterior && "• Superposición de Venta Año Anterior activada"}</CardDescription>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Badge variant="outline" className="text-xs bg-muted/50 w-fit">
@@ -3167,9 +3372,9 @@ function Panel() {
                       </Badge>
                       <InfoGrafica
                         titulo="Evolución Mensual de Ventas Digitales"
-                        descripcion="Comportamiento histórico de las ventas online mes a mes, contrastando la venta de Tienda Virtual, Redes Sociales y el gasto publicitario."
-                        metrica="Barras Azules: Tienda Virtual • Barras Verdes: Redes Sociales • Barras Naranjas: Inversión en Pauta ($)."
-                        interpretacion="Permite analizar la correlación entre la inyección de pauta publicitaria y el repunte de ingresos digitales."
+                        descripcion="Comportamiento histórico de las ventas online mes a mes, contrastando la venta de Tienda Virtual, Redes Sociales, la venta del año anterior y el gasto publicitario."
+                        metrica="Barras Azules: Tienda Virtual • Barras Verdes: Redes Sociales • Línea Ámbar Punteada: Venta Digital Año Anterior • Barras Naranjas: Inversión en Pauta ($)."
+                        interpretacion="Permite analizar la correlación entre la inyección de pauta publicitaria, el crecimiento respecto al año anterior y el repunte de ingresos digitales."
                       />
                     </div>
                   </div>
@@ -3177,7 +3382,7 @@ function Panel() {
                 <CardContent>
                   <div className="h-[290px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={d3?.evolucionMensual || []} margin={{ left: 10, right: 10, top: 10 }}>
+                      <ComposedChart data={d3?.evolucionMensual || []} margin={{ left: 10, right: 10, top: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                         <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
                         <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} width={75} />
@@ -3188,6 +3393,8 @@ function Panel() {
                               ? "Tienda Virtual (Shopify)"
                               : name === "ventaRedesSociales"
                               ? "Redes Sociales (WhatsApp)"
+                              : name === "ventaAnterior"
+                              ? "Venta Digital Año Anterior"
                               : name === "gastoPauta"
                               ? "Inversión en Pauta"
                               : name,
@@ -3199,6 +3406,8 @@ function Panel() {
                               ? "Tienda Virtual (Shopify)"
                               : v === "ventaRedesSociales"
                               ? "Redes Sociales (WhatsApp)"
+                              : v === "ventaAnterior"
+                              ? "Venta Digital Año Anterior"
                               : v === "gastoPauta"
                               ? "Inversión Pauta"
                               : v
@@ -3206,8 +3415,11 @@ function Panel() {
                         />
                         <Bar dataKey="ventaTiendaVirtual" fill="#2563eb" radius={[3, 3, 0, 0]} />
                         <Bar dataKey="ventaRedesSociales" fill="#10b981" radius={[3, 3, 0, 0]} />
-                        <Bar dataKey="gastoPauta" fill="#f59e0b" radius={[3, 3, 0, 0]} />
-                      </BarChart>
+                        {compararAnioAnterior && (
+                          <Line type="monotone" dataKey="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3, fill: "#f59e0b" }} />
+                        )}
+                        <Bar dataKey="gastoPauta" fill="#f59e0b" radius={[3, 3, 0, 0]} opacity={0.7} />
+                      </ComposedChart>
                     </ResponsiveContainer>
                   </div>
                 </CardContent>
@@ -3471,6 +3683,7 @@ function Panel() {
                 subtexto={`Nacional: ${formatoCOP(d4?.kpis.ventaNacional ?? 0)} • Export: ${formatoCOP(d4?.kpis.ventaExportaciones ?? 0)}`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD4}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d4?.kpis.totalVentaFuerza} anterior={d4?.kpis.ventaAnteriorTotal} porcentaje={d4?.kpis.crecimientoYoYPct} /> : undefined}
               />
               <CardKpi
                 titulo="Prendas Comercializadas"
@@ -3478,6 +3691,7 @@ function Panel() {
                 subtexto="Volumen total entregado"
                 icono={<Package className="h-5 w-5 text-blue-500" />}
                 cargando={cD4}
+                badgeYoY={compararAnioAnterior ? <BadgeYoYUnidades actual={d4?.kpis.totalUnidades} anterior={d4?.kpis.unidadesAnteriorTotal} /> : undefined}
               />
               <CardKpi
                 titulo="Facturas / Transacciones"
@@ -3568,13 +3782,13 @@ function Panel() {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-base font-semibold">Evolución Mensual de Ventas y Unidades</CardTitle>
-                      <CardDescription>Comportamiento cronológico de la fuerza comercial</CardDescription>
+                      <CardDescription>Comportamiento cronológico de la fuerza comercial {compararAnioAnterior && "• Superposición de Venta Año Anterior activada"}</CardDescription>
                     </div>
                     <InfoGrafica
                       titulo="Evolución Mensual de la Fuerza Comercial"
-                      descripcion="Histórico mes a mes de los ingresos en pesos colombianos y el volumen de prendas comercializadas por la fuerza de ventas."
-                      metrica="Barras Moradas: Facturación ($) • Línea Verde: Cantidad total de prendas (Unidades)."
-                      interpretacion="Permite evaluar la estacionalidad de la demanda en canales tradicionales mayoristas e institucionales."
+                      descripcion="Histórico mes a mes de los ingresos en pesos colombianos, la venta del año anterior y el volumen de prendas comercializadas por la fuerza de ventas."
+                      metrica="Barras Moradas: Facturación ($) • Línea Ámbar Punteada: Facturación Año Anterior ($) • Línea Verde: Cantidad total de prendas (Unidades)."
+                      interpretacion="Permite evaluar la estacionalidad de la demanda en canales tradicionales mayoristas e institucionales y el crecimiento interanual."
                     />
                   </div>
                 </CardHeader>
@@ -3594,12 +3808,24 @@ function Panel() {
                         />
                         <Tooltip
                           formatter={(v: number, name: string) => [
-                            name === "venta" ? formatoCOPFull(v) : `${Math.round(v).toLocaleString("es-CO")} unds`,
-                            name === "venta" ? "Facturación ($)" : "Prendas (Unds)",
+                            name === "venta" || name === "ventaAnterior" ? formatoCOPFull(v) : `${Math.round(v).toLocaleString("es-CO")} unds`,
+                            name === "venta" ? "Facturación ($)" : name === "ventaAnterior" ? "Facturación Año Anterior ($)" : "Prendas (Unds)",
                           ]}
                         />
-                        <Legend wrapperStyle={{ fontSize: "11px" }} />
+                        <Legend
+                          formatter={(v) =>
+                            v === "venta"
+                              ? "Facturación ($)"
+                              : v === "ventaAnterior"
+                              ? "Facturación Año Anterior ($)"
+                              : "Prendas (Unds)"
+                          }
+                          wrapperStyle={{ fontSize: "11px" }}
+                        />
                         <Bar yAxisId="left" dataKey="venta" name="venta" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                        {compararAnioAnterior && (
+                          <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" name="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3, fill: "#f59e0b" }} />
+                        )}
                         <Line yAxisId="right" type="monotone" dataKey="unidades" name="unidades" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
                       </ComposedChart>
                     </ResponsiveContainer>
@@ -3638,6 +3864,7 @@ function Panel() {
                       <th className="py-3 px-3 text-center w-12">#</th>
                       <th className="py-3 px-3">Asesor Comercial</th>
                       <th className="py-3 px-3 text-right">Facturación ($)</th>
+                      {compararAnioAnterior && <th className="py-3 px-3 text-right">Vs. Año Ant.</th>}
                       <th className="py-3 px-3 text-left w-36">% Cartera</th>
                       <th className="py-3 px-3 text-right">Prendas (Unds)</th>
                       <th className="py-3 px-3 text-right">Facturas</th>
@@ -3682,6 +3909,25 @@ function Panel() {
                             </div>
                           </td>
                           <td className="py-3 px-3 text-right font-bold text-foreground">{formatoCOPFull(a.ventaTotal)}</td>
+                          {compararAnioAnterior && (
+                            <td className="py-3 px-3 text-right font-mono">
+                              {a.ventaAnterior ? (
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-semibold text-[11px]",
+                                    (a.crecimientoYoYPct ?? 0) >= 0
+                                      ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                                      : "text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20"
+                                  )}
+                                >
+                                  {(a.crecimientoYoYPct ?? 0) >= 0 ? "+" : ""}
+                                  {(a.crecimientoYoYPct ?? 0).toFixed(1)}%
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-[11px]">-</span>
+                              )}
+                            </td>
+                          )}
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-2">
                               <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
@@ -3751,6 +3997,7 @@ function Panel() {
                 subtexto={`${(d5?.kpis.unidadesMarketplaces ?? 0).toLocaleString("es-CO")} unidades vendidas`}
                 icono={<ShoppingBag className="h-5 w-5 text-pink-500" />}
                 cargando={cD5}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d5?.kpis.ventaTotalMarketplaces} anterior={d5?.kpis.ventaAnterior} porcentaje={d5?.kpis.crecimientoYoYPct} /> : undefined}
               />
               <CardKpi
                 titulo="Precio Promedio por SKU"
@@ -3758,6 +4005,7 @@ function Panel() {
                 subtexto="Valor promedio por unidad en marketplaces"
                 icono={<Tag className="h-5 w-5 text-emerald-500" />}
                 cargando={cD5}
+                badgeYoY={compararAnioAnterior && d5?.kpis.unidadesMarketplaces && d5?.kpis.unidadesAnterior ? <BadgeYoYUnidades actual={d5?.kpis.unidadesMarketplaces} anterior={d5?.kpis.unidadesAnterior} label="uds año ant." /> : undefined}
               />
               <CardKpi
                 titulo="Referencias Activas"
@@ -3940,6 +4188,7 @@ function Panel() {
                 subtexto={`Bruta: ${formatoCOP(d6?.kpis.totalVentaBruta ?? 0)} • Devs: ${formatoCOP(d6?.kpis.totalDevoluciones ?? 0)}`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD6}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d6?.kpis.totalVentaNeta} anterior={d6?.kpis.ventaAnteriorTotal} porcentaje={d6?.kpis.crecimientoYoYPct} /> : undefined}
               />
               <CardKpi
                 titulo="Volumen Prendas"
@@ -3947,6 +4196,7 @@ function Panel() {
                 subtexto="Total unidades comercializadas"
                 icono={<Package className="h-5 w-5 text-blue-500" />}
                 cargando={cD6}
+                badgeYoY={compararAnioAnterior ? <BadgeYoYUnidades actual={d6?.kpis.totalUnidades} anterior={d6?.kpis.unidadesAnteriorTotal} /> : undefined}
               />
               <CardKpi
                 titulo="Catálogo Activo"
@@ -4610,6 +4860,7 @@ function Panel() {
                         <th className="py-2.5 px-3 text-center">Clase ABC</th>
                         <th className="py-2.5 px-3 text-right">Unidades</th>
                         <th className="py-2.5 px-3 text-right">Facturación Neta</th>
+                        {compararAnioAnterior && <th className="py-2.5 px-3 text-right">Vs. Año Ant.</th>}
                         <th className="py-2.5 px-3 text-right">Precio Prom.</th>
                         <th className="py-2.5 px-3 text-right">% Aporte</th>
                         <th className="py-2.5 px-3 text-right">Tasa Dev.</th>
@@ -4618,7 +4869,7 @@ function Panel() {
                     <tbody className="divide-y divide-border/40">
                       {referenciasPaginadas.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="py-8 text-center text-muted-foreground">
+                          <td colSpan={compararAnioAnterior ? 11 : 10} className="py-8 text-center text-muted-foreground">
                             No se encontraron referencias con los filtros aplicados.
                           </td>
                         </tr>
@@ -4660,6 +4911,25 @@ function Panel() {
                               <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                                 {formatoCOPFull(ref.ventaNeta)}
                               </td>
+                              {compararAnioAnterior && (
+                                <td className="py-2.5 px-3 text-right font-mono">
+                                  {ref.ventaAnterior ? (
+                                    <span
+                                      className={cn(
+                                        "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-semibold text-[11px]",
+                                        (ref.crecimientoYoYPct ?? 0) >= 0
+                                          ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                                          : "text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20"
+                                      )}
+                                    >
+                                      {(ref.crecimientoYoYPct ?? 0) >= 0 ? "+" : ""}
+                                      {(ref.crecimientoYoYPct ?? 0).toFixed(1)}%
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground text-[11px]">-</span>
+                                  )}
+                                </td>
+                              )}
                               <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
                                 {formatoCOP(ref.precioPromedio)}
                               </td>
@@ -5103,6 +5373,7 @@ function CardKpi({
   icono,
   cargando,
   badgeSemaforo,
+  badgeYoY,
 }: {
   titulo: string;
   valor: string;
@@ -5110,6 +5381,7 @@ function CardKpi({
   icono?: React.ReactNode | undefined;
   cargando?: boolean | undefined;
   badgeSemaforo?: number | undefined;
+  badgeYoY?: React.ReactNode | undefined;
 }) {
   return (
     <Card className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 backdrop-blur-xs shadow-2xs hover:shadow-md hover:border-primary/40 transition-all duration-300">
@@ -5147,6 +5419,11 @@ function CardKpi({
             )}
           </div>
         </div>
+        {badgeYoY && !cargando && (
+          <div className="mt-2.5">
+            {badgeYoY}
+          </div>
+        )}
         {subtexto && (
           <p
             className="mt-2.5 text-[11px] sm:text-xs text-muted-foreground font-medium flex items-center gap-1 line-clamp-2 leading-snug"
