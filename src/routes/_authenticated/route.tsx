@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { obtenerSesionActiva } from "@/lib/permisos-vendedores";
 import type { User } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -18,6 +19,19 @@ function AuthenticatedLayout() {
 
     const verificarAuth = async () => {
       try {
+        const sesionLocal = obtenerSesionActiva();
+        if (sesionLocal) {
+          if (montado) {
+            setUser({
+              id: sesionLocal.id,
+              email: sesionLocal.email,
+              user_metadata: { full_name: sesionLocal.nombre },
+            } as unknown as User);
+            setCargando(false);
+          }
+          return;
+        }
+
         const { data: sessionData } = await supabase.auth.getSession();
         if (sessionData.session?.user) {
           if (montado) {
@@ -45,19 +59,28 @@ function AuthenticatedLayout() {
 
     verificarAuth();
 
+    const handleLocalAuthChange = () => {
+      verificarAuth();
+    };
+    window.addEventListener("truccos_auth_change", handleLocalAuthChange);
+
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (session?.user) {
           setUser(session.user);
           setCargando(false);
         } else if (event === "SIGNED_OUT") {
-          navigate({ to: "/auth" });
+          const sesionLocal = obtenerSesionActiva();
+          if (!sesionLocal && montado) {
+            navigate({ to: "/auth" });
+          }
         }
       }
     );
 
     return () => {
       montado = false;
+      window.removeEventListener("truccos_auth_change", handleLocalAuthChange);
       authListener.subscription.unsubscribe();
     };
   }, [navigate]);

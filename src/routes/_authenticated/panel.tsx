@@ -112,6 +112,8 @@ import {
   obtenerPermisoUsuario,
   obtenerSimulacionAdmin,
   establecerSimulacionAdmin,
+  obtenerSesionActiva,
+  cerrarSesionActiva,
   type PermisoUsuario,
 } from "@/lib/permisos-vendedores";
 
@@ -241,21 +243,43 @@ function Panel() {
   });
 
   // Control de Usuario y Permisos de Vendedores
-  const [currentUser, setCurrentUser] = useState<{ id: string; email: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string; nombre?: string | null } | null>(() => {
+    const s = obtenerSesionActiva();
+    return s ? { id: s.id, email: s.email, nombre: s.nombre } : null;
+  });
   const [permisoVersion, setPermisoVersion] = useState(0);
   const [modalPermisosAbierto, setModalPermisosAbierto] = useState(false);
 
   useEffect(() => {
+    const s = obtenerSesionActiva();
+    if (s) {
+      setCurrentUser({ id: s.id, email: s.email, nombre: s.nombre });
+    }
+
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) {
-        setCurrentUser({ id: data.user.id, email: data.user.email || "" });
+        setCurrentUser({
+          id: data.user.id,
+          email: data.user.email || "",
+          nombre: (data.user.user_metadata?.full_name as string) || null,
+        });
       }
     });
 
     const handlePermisosChange = () => setPermisoVersion((v) => v + 1);
+    const handleAuthChange = () => {
+      const ses = obtenerSesionActiva();
+      if (ses) {
+        setCurrentUser({ id: ses.id, email: ses.email, nombre: ses.nombre });
+      }
+      setPermisoVersion((v) => v + 1);
+    };
+
     window.addEventListener("truccos_permisos_actualizados", handlePermisosChange);
+    window.addEventListener("truccos_auth_change", handleAuthChange);
     return () => {
       window.removeEventListener("truccos_permisos_actualizados", handlePermisosChange);
+      window.removeEventListener("truccos_auth_change", handleAuthChange);
     };
   }, []);
 
@@ -845,6 +869,7 @@ function Panel() {
   };
 
   const salir = async () => {
+    cerrarSesionActiva();
     await supabase.auth.signOut();
     navigate({ to: "/auth" });
   };

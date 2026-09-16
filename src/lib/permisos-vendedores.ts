@@ -330,3 +330,47 @@ export function establecerSimulacionAdmin(permiso: PermisoUsuario | null): void 
   }
   window.dispatchEvent(new Event("truccos_permisos_actualizados"));
 }
+
+export const STORAGE_KEY_AUTH_SESSION = "TRUCCOS_AUTH_USER_SESSION_V1";
+
+export type AuthUsuarioSession = {
+  id: string;
+  email: string;
+  nombre?: string | null;
+  rol: RolUsuario;
+  vendedorIds: number[];
+  loggedAt: string;
+};
+
+export function obtenerSesionActiva(): AuthUsuarioSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const data = localStorage.getItem(STORAGE_KEY_AUTH_SESSION);
+    if (!data) return null;
+    return JSON.parse(data) as AuthUsuarioSession;
+  } catch {
+    return null;
+  }
+}
+
+export function guardarSesionActiva(session: AuthUsuarioSession): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY_AUTH_SESSION, JSON.stringify(session));
+    window.dispatchEvent(new Event("truccos_auth_change"));
+  } catch (err) {
+    console.warn("Error guardando sesión activa:", err);
+  }
+}
+
+export function cerrarSesionActiva(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(STORAGE_KEY_AUTH_SESSION);
+    sessionStorage.removeItem(STORAGE_KEY_ADMIN_OVERRIDE);
+    window.dispatchEvent(new Event("truccos_auth_change"));
+  } catch (err) {
+    console.warn("Error cerrando sesión activa:", err);
+  }
+}
+
