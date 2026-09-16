@@ -8,7 +8,10 @@ export type PermisoUsuario = {
   email: string;
   nombre?: string | null;
   rol: RolUsuario;
-  vendedorIds: number[]; // Array de IDs de dim_vendedor asignados (ej. [12, 18])
+  vendedorIds: number[]; // Array de IDs de dim_vendedor asignados
+  zona?: string | null;
+  canal?: string | null;
+  marca?: string | null;
   creadoEn?: string;
   actualizadoEn?: string;
 };
@@ -16,26 +19,185 @@ export type PermisoUsuario = {
 const STORAGE_KEY_PERMISOS = "TRUCCOS_BI_PERMISOS_USUARIOS_V1";
 const STORAGE_KEY_ADMIN_OVERRIDE = "TRUCCOS_BI_ADMIN_SIMULACION";
 
-// Lista por defecto de administradores conocidos
+// Lista oficial preconfigurada según la matriz comercial de Trucco's
+export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
+  {
+    nombre: "MELISA GOMEZ",
+    email: "melisagomez@truccos.com",
+    rol: "admin",
+    vendedorIds: [],
+    zona: "CONSULTA ADMIN",
+    canal: "ADMIN",
+    marca: "ADMIN",
+  },
+  {
+    nombre: "LUIS VILLA",
+    email: "luisvilla@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [15], // Luis Villa
+    zona: "MEDELLIN",
+    canal: "MAYORISTA NACIONAL",
+    marca: "TRUCCOS",
+  },
+  {
+    nombre: "LINA GARCIA",
+    email: "linagarcia@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [11, 10554], // LINA GARCIA, LINA PLUSS
+    zona: "MEDELLIN",
+    canal: "MAYORISTA NACIONAL",
+    marca: "TRUCCOS",
+  },
+  {
+    nombre: "FREDY SANCHEZ",
+    email: "fredysanchez@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [10, 7, 25], // JOHN FREDY MEDELLIN, JOHN FREDY CORRERIA, JOHN FREDY SANCHEZ
+    zona: "MEDELLIN-SANTADERES-SUR-VALLE",
+    canal: "MAYORISTA NACIONAL",
+    marca: "RAPPAZ",
+  },
+  {
+    nombre: "JUAN DIEGO GIRALDO",
+    email: "juandiegogiraldo@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [16, 12, 18, 34], // DIEGO GIRALDO-MEDELLIN, Diego Giraldo Correria, DIEGO GIRALDO RAPPAZ, DIEGO GIRALDO
+    zona: "COSTA - PERIFERIA MEDELLIN",
+    canal: "MAYORISTA NACIONAL",
+    marca: "TRUCCOS-RAPPAZ",
+  },
+  {
+    nombre: "CLAUDIA GIRALDO",
+    email: "claudiagiraldo@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [131, 157], // Claudia Giraldo, CLAUDIA GIRALDO
+    zona: "VALLE",
+    canal: "MAYORISTA NACIONAL",
+    marca: "TRUCCOS",
+  },
+  {
+    nombre: "DIANA AGUDELO",
+    email: "dianaagudelo@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [58819, 113, 58592, 7968], // DIANA AGUDELO, JONATHAN LOPEZ, CAMILO ZULUAGA, JONATHAN LOPEZ RAPPAZ
+    zona: "EJE CAFETERO - SANTANDERES",
+    canal: "MAYORISTA NACIONAL",
+    marca: "TRUCCOS-RAPPAZ",
+  },
+  {
+    nombre: "JUAN DAVID QUINTANA",
+    email: "juandavidquintana@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [13], // JUAN DAVID QUINTANA
+    zona: "SUR",
+    canal: "MAYORISTA NACIONAL",
+    marca: "TRUCCOS",
+  },
+  {
+    nombre: "ERICA USUAGA",
+    email: "ericausuaga@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [226, 108, 3333], // REDES SOCIALES, TIENDA VIRTUAL, TRJUSA WEB
+    zona: "DIGITAL DETAL",
+    canal: "DETAL",
+    marca: "TRUCCOS-RAPPAZ",
+  },
+  {
+    nombre: "ANGELA ACEVEDO",
+    email: "angelaacevedo@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [58326, 5, 58621], // MAYORISTA DIGITAL, LEADS MAYORISTAS, ANGELA MACARENA
+    zona: "DIGITAL MAYORISTA",
+    canal: "MAYORISTA DIGITAL/PRESENCIAL",
+    marca: "TRUCCOS-RAPPAZ",
+  },
+  {
+    nombre: "CRISTINA RESTREPO",
+    email: "cristinarestrepo@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [57255, 51], // Olga Zuluaga, TRUCCO'S EXPORTACION
+    zona: "EXPORTACION",
+    canal: "EXPORTACION",
+    marca: "TRUCCOS-RAPPAZ",
+  },
+  {
+    nombre: "ALEIDA GALLEGO",
+    email: "aleidagallego@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [14], // ALEIDA GALLEGO
+    zona: "PUNTO DE VENTA FABRICA",
+    canal: "MAYORISTA DIGITAL/PRESENCIAL",
+    marca: "TRUCCOS-RAPPAZ",
+  },
+  {
+    nombre: "ALEJANDRA HERRERA",
+    email: "alejandraherrera@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [3], // ALEJANDRA HERRERA
+    zona: "PUNTO DE VENTA FABRICA",
+    canal: "MAYORISTA DIGITAL/PRESENCIAL",
+    marca: "TRUCCOS-RAPPAZ",
+  },
+  {
+    nombre: "MAYORCA",
+    email: "mayorca@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [9935, 4793, 59048, 4936, 4541], // LINA MARIA ZULUAGA, ANNY FERNANDA YARCE MEJIA, SALOME CASTELLANOS, GLORIA MONTOYA, MAYORCA
+    zona: "TIENDA FISICA",
+    canal: "DETAL",
+    marca: "TRUCCOS",
+  },
+];
+
+// Lista de administradores globales por defecto
 const ADMINS_POR_DEFECTO = [
   "admin@truccos.com",
+  "melisagomez",
+  "melisa.gomez",
+  "melisa@",
   "gerencia@truccos.com",
   "sistemas@truccos.com",
   "daniel@truccos.com",
 ];
 
+function normalizarTexto(txt: string): string {
+  return txt
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
 /**
- * Obtiene la lista de permisos configurados desde almacenamiento local.
+ * Obtiene la lista de permisos configurados desde almacenamiento local, pre-cargando los iniciales si no existen.
  */
 export function obtenerTodosLosPermisosLocales(): PermisoUsuario[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") return USUARIOS_INICIALES_PRECONFIGURADOS;
   try {
     const data = localStorage.getItem(STORAGE_KEY_PERMISOS);
-    if (!data) return [];
-    return JSON.parse(data) as PermisoUsuario[];
+    if (!data) {
+      // Guardar e inicializar con la matriz comercial preconfigurada
+      localStorage.setItem(STORAGE_KEY_PERMISOS, JSON.stringify(USUARIOS_INICIALES_PRECONFIGURADOS));
+      return USUARIOS_INICIALES_PRECONFIGURADOS;
+    }
+    const guardados = JSON.parse(data) as PermisoUsuario[];
+    
+    // Asegurar que Melisa Gomez y los usuarios base estén siempre presentes
+    const emailsGuardados = new Set(guardados.map((g) => g.email.toLowerCase()));
+    let cambio = false;
+    for (const initUser of USUARIOS_INICIALES_PRECONFIGURADOS) {
+      if (!emailsGuardados.has(initUser.email.toLowerCase())) {
+        guardados.push(initUser);
+        cambio = true;
+      }
+    }
+    if (cambio) {
+      localStorage.setItem(STORAGE_KEY_PERMISOS, JSON.stringify(guardados));
+    }
+    return guardados;
   } catch (err) {
     console.warn("Error leyendo permisos locales:", err);
-    return [];
+    return USUARIOS_INICIALES_PRECONFIGURADOS;
   }
 }
 
@@ -53,13 +215,15 @@ export function guardarTodosLosPermisosLocales(permisos: PermisoUsuario[]): void
 }
 
 /**
- * Obtiene el permiso de un usuario específico por su email o ID.
+ * Obtiene el permiso de un usuario específico por su email o ID, admitiendo variaciones de correo y nombre.
  */
 export function obtenerPermisoUsuario(email?: string | null, userId?: string | null): PermisoUsuario | null {
   if (!email && !userId) return null;
   const normalEmail = (email || "").trim().toLowerCase();
+  const emailNormClave = normalizarTexto(normalEmail.split("@")[0] || "");
   const todos = obtenerTodosLosPermisosLocales();
 
+  // 1. Coincidencia exacta por ID o email
   const encontrado = todos.find((p) => {
     if (userId && p.userId && p.userId === userId) return true;
     if (normalEmail && p.email.toLowerCase() === normalEmail) return true;
@@ -68,10 +232,24 @@ export function obtenerPermisoUsuario(email?: string | null, userId?: string | n
 
   if (encontrado) return encontrado;
 
-  // Si no está registrado pero es un admin por defecto o no hay reglas aún
-  if (normalEmail && ADMINS_POR_DEFECTO.some((a) => normalEmail.includes(a.split("@")[0]))) {
+  // 2. Coincidencia difusa por nombre o usuario del correo (ej. melisa.gomez, melisagomez, melisa@...)
+  const matchDifuso = todos.find((p) => {
+    const pEmailNorm = normalizarTexto(p.email.split("@")[0] || "");
+    const pNombreNorm = normalizarTexto(p.nombre || "");
+    return (
+      (pEmailNorm && emailNormClave.includes(pEmailNorm)) ||
+      (emailNormClave && pEmailNorm.includes(emailNormClave)) ||
+      (pNombreNorm && emailNormClave.includes(pNombreNorm))
+    );
+  });
+
+  if (matchDifuso) return matchDifuso;
+
+  // 3. Si no está registrado pero es un admin por defecto
+  if (normalEmail && ADMINS_POR_DEFECTO.some((a) => normalEmail.includes(a))) {
     return {
       email: normalEmail,
+      nombre: "Administrador",
       rol: "admin",
       vendedorIds: [],
     };

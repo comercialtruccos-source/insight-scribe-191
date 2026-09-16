@@ -473,6 +473,16 @@ export function AdminPermisosVendedoresDialog({
                               >
                                 {p.rol === "admin" ? "Administrador (Total)" : "Vendedor Restringido"}
                               </Badge>
+                              {p.zona && (
+                                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-normal bg-muted text-muted-foreground">
+                                  Zona: {p.zona}
+                                </Badge>
+                              )}
+                              {p.canal && (
+                                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-normal bg-muted text-muted-foreground">
+                                  {p.canal}
+                                </Badge>
+                              )}
                             </div>
 
                             {/* Vendedores asignados */}
