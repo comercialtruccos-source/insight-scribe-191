@@ -107,9 +107,12 @@ import {
   UserCheck,
   Eye,
   Lock,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vendedores-dialog";
+import { MentorComercialDrawer } from "@/components/mentor/MentorComercialDrawer";
+import { calcularDiagnosticoMentor } from "@/lib/mentor-comercial";
 import {
   obtenerPermisoUsuario,
   obtenerSimulacionAdmin,
@@ -349,6 +352,7 @@ function Panel() {
   });
   const [permisoVersion, setPermisoVersion] = useState(0);
   const [modalPermisosAbierto, setModalPermisosAbierto] = useState(false);
+  const [mentorOpen, setMentorOpen] = useState(false);
 
   useEffect(() => {
     const s = obtenerSesionActiva();
@@ -652,6 +656,16 @@ function Panel() {
       ),
     [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]
   );
+
+  const diagnosticoMentor = useMemo(() => {
+    return calcularDiagnosticoMentor(
+      rawVentas || [],
+      filtros,
+      catalogos,
+      compararAnioAnterior ? rawVentasYoY : undefined,
+      undefined
+    );
+  }, [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]);
 
   const vendedorSeleccionadoNombre = useMemo(() => {
     if (vendedorId === "todos") return null;
@@ -1440,6 +1454,21 @@ function Panel() {
                   ON
                 </span>
               )}
+            </Button>
+
+            {/* Botón Copiloto & Mentor Comercial */}
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => setMentorOpen(true)}
+              className="h-8 px-3 text-xs font-semibold gap-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-primary hover:from-purple-700 hover:to-indigo-700 text-white shadow-xs border border-purple-400/30 transition-all duration-200"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-300 animate-pulse" />
+              <span>Mentor Comercial</span>
+              <span className="hidden lg:inline px-1 py-0.2 bg-white/20 text-white rounded text-[10px] font-bold">
+                IA
+              </span>
             </Button>
 
             {hayFiltrosActivos && (
@@ -5375,6 +5404,17 @@ function Panel() {
           setPermisoVersion((v) => v + 1);
           queryClient.invalidateQueries({ queryKey: ["bi-fact-ventas"] });
         }}
+      />
+
+      {/* Drawer del Copiloto & Mentor Comercial Inteligente */}
+      <MentorComercialDrawer
+        open={mentorOpen}
+        onOpenChange={setMentorOpen}
+        diagnostico={diagnosticoMentor}
+        esDirectivo={esAdmin || esDirectivo}
+        vendedoresDisponibles={catalogos?.vendedores || []}
+        vendedorSeleccionadoId={vendedorId}
+        onCambiarVendedor={(id) => setVendedorId(id)}
       />
     </div>
   );
