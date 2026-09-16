@@ -8,6 +8,7 @@ export type FiltrosBI = {
   canal_id?: number | null | undefined;
   marca_id?: number | null | undefined;
   vendedor_id?: number | null | undefined;
+  vendedor_ids?: number[] | null | undefined;
   zona_id?: number | null | undefined;
   ciudad_id?: number | null | undefined;
 };
@@ -75,6 +76,9 @@ export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or:
   }
   if (filtros.vendedor_id) {
     q = q.or(`vendedor_id.eq.${filtros.vendedor_id},vendedor2_id.eq.${filtros.vendedor_id}`);
+  } else if (filtros.vendedor_ids && filtros.vendedor_ids.length > 0) {
+    const listStr = filtros.vendedor_ids.join(",");
+    q = q.or(`vendedor_id.in.(${listStr}),vendedor2_id.in.(${listStr})`);
   }
   if (filtros.zona_id) {
     q = q.or(`zona_id.eq.${filtros.zona_id},zona_colombia_id.eq.${filtros.zona_id}`);
@@ -115,6 +119,12 @@ export function cumpleFiltros(r: any, filtros: FiltrosBI): boolean {
     const v1 = r.vendedor_id ? Number(r.vendedor_id) : null;
     const v2 = r.vendedor2_id ? Number(r.vendedor2_id) : null;
     if (v1 !== filtros.vendedor_id && v2 !== filtros.vendedor_id) return false;
+  } else if (filtros.vendedor_ids && filtros.vendedor_ids.length > 0 && ("vendedor_id" in r || "vendedor2_id" in r)) {
+    const v1 = r.vendedor_id ? Number(r.vendedor_id) : null;
+    const v2 = r.vendedor2_id ? Number(r.vendedor2_id) : null;
+    const match1 = v1 !== null && filtros.vendedor_ids.includes(v1);
+    const match2 = v2 !== null && filtros.vendedor_ids.includes(v2);
+    if (!match1 && !match2) return false;
   }
   if (filtros.zona_id && ("zona_id" in r || "zona_colombia_id" in r)) {
     const z1 = r.zona_id ? Number(r.zona_id) : null;

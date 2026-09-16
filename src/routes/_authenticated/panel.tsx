@@ -101,8 +101,19 @@ import {
   Smartphone,
   Store,
   Info,
+  ShieldCheck,
+  UserCheck,
+  Eye,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vendedores-dialog";
+import {
+  obtenerPermisoUsuario,
+  obtenerSimulacionAdmin,
+  establecerSimulacionAdmin,
+  type PermisoUsuario,
+} from "@/lib/permisos-vendedores";
 
 const TAMANO_LOTE = 1000;
 const COLORES = [
@@ -229,6 +240,51 @@ function Panel() {
     queryFn: () => obtenerCatalogosFiltros(),
   });
 
+  // Control de Usuario y Permisos de Vendedores
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string } | null>(null);
+  const [permisoVersion, setPermisoVersion] = useState(0);
+  const [modalPermisosAbierto, setModalPermisosAbierto] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) {
+        setCurrentUser({ id: data.user.id, email: data.user.email || "" });
+      }
+    });
+
+    const handlePermisosChange = () => setPermisoVersion((v) => v + 1);
+    window.addEventListener("truccos_permisos_actualizados", handlePermisosChange);
+    return () => {
+      window.removeEventListener("truccos_permisos_actualizados", handlePermisosChange);
+    };
+  }, []);
+
+  const simulacionActual = useMemo(() => {
+    return obtenerSimulacionAdmin();
+  }, [permisoVersion]);
+
+  const permisoActual = useMemo(() => {
+    if (simulacionActual) return simulacionActual;
+    if (!currentUser) return null;
+    return obtenerPermisoUsuario(currentUser.email, currentUser.id);
+  }, [currentUser, simulacionActual, permisoVersion]);
+
+  const esAdmin = useMemo(() => {
+    if (!permisoActual) return true;
+    return permisoActual.rol === "admin";
+  }, [permisoActual]);
+
+  const vendedorIdsPermitidos = useMemo(() => {
+    if (esAdmin) return null;
+    return permisoActual?.vendedorIds || [];
+  }, [esAdmin, permisoActual]);
+
+  const vendedoresDisponibles = useMemo(() => {
+    const todos = catalogos?.vendedores || [];
+    if (esAdmin || !vendedorIdsPermitidos) return todos;
+    return todos.filter((v) => vendedorIdsPermitidos.includes(v.id));
+  }, [catalogos?.vendedores, esAdmin, vendedorIdsPermitidos]);
+
   const filtros: FiltrosBI = useMemo(() => {
     let fDesde: string | null = null;
     let fHasta: string | null = null;
@@ -277,6 +333,21 @@ function Panel() {
       if (mes !== "todos") mesVal = Number(mes);
     }
 
+    let fVendedorId: number | null = null;
+    let fVendedorIds: number[] | null = null;
+
+    if (!esAdmin && vendedorIdsPermitidos) {
+      if (vendedorId !== "todos") {
+        fVendedorId = Number(vendedorId);
+      } else {
+        fVendedorIds = vendedorIdsPermitidos.length > 0 ? vendedorIdsPermitidos : [-99999];
+      }
+    } else {
+      if (vendedorId !== "todos") {
+        fVendedorId = Number(vendedorId);
+      }
+    }
+
     return {
       anio: anioVal,
       mes: mesVal,
@@ -284,11 +355,12 @@ function Panel() {
       fecha_hasta: fHasta,
       canal_id: canalId !== "todos" ? Number(canalId) : null,
       marca_id: marcaId !== "todos" ? Number(marcaId) : null,
-      vendedor_id: vendedorId !== "todos" ? Number(vendedorId) : null,
+      vendedor_id: fVendedorId,
+      vendedor_ids: fVendedorIds,
       zona_id: zonaId !== "todos" ? Number(zonaId) : null,
       ciudad_id: ciudadId !== "todos" ? Number(ciudadId) : null,
     };
-  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, ciudadId, rangoTotal?.fechaMax]);
+  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, ciudadId, rangoTotal?.fechaMax, esAdmin, vendedorIdsPermitidos]);
 
   const hayFiltrosActivos =
     tabActivo === "d3"
@@ -485,8 +557,8 @@ function Panel() {
     [rawVentas, filtros, catalogos, filtroCanalDigital]
   );
   const d4 = useMemo(
-    () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, catalogos?.vendedores, catalogos?.canales),
-    [rawVentas, filtros, catalogos]
+    () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, vendedoresDisponibles, catalogos?.canales),
+    [rawVentas, filtros, vendedoresDisponibles, catalogos]
   );
   const d5 = useMemo(
     () => calcularDashboard5Marketplaces(rawVentas || [], filtros, catalogos?.canales),
@@ -809,6 +881,51 @@ function Panel() {
                 Actualizando...
               </Badge>
             )}
+
+            {/* Acciones de administración de permisos */}
+            {esAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setModalPermisosAbierto(true)}
+                className="h-8 text-xs font-semibold border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 gap-1.5 shadow-2xs"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span className="hidden md:inline">Administrar Vendedores</span>
+                <span className="md:hidden">Permisos</span>
+              </Button>
+            )}
+
+            {simulacionActual && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  establecerSimulacionAdmin(null);
+                  setPermisoVersion((v) => v + 1);
+                  toast.info("Vista de administrador restaurada");
+                }}
+                className="h-8 text-xs font-semibold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 gap-1.5"
+                title="Haga clic para volver a la vista total de administrador"
+              >
+                <Eye className="h-3.5 w-3.5 animate-pulse text-amber-600 dark:text-amber-400" />
+                <span className="hidden sm:inline">Simulando: {simulacionActual.email}</span>
+                <span className="sm:hidden">Salir Simulación</span>
+              </Button>
+            )}
+
+            {!esAdmin && !simulacionActual && (
+              <Badge
+                variant="secondary"
+                className="hidden sm:inline-flex bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-xs gap-1"
+              >
+                <UserCheck className="h-3 w-3" />
+                {vendedoresDisponibles.length === 1
+                  ? "1 Vendedor Asignado"
+                  : `${vendedoresDisponibles.length} Vendedores Asignados`}
+              </Badge>
+            )}
+
             <Badge variant="outline" className="hidden sm:inline-flex bg-muted/40 font-mono text-xs">
               {(resumen?.totalVentas ?? 0).toLocaleString("es-CO")} registros
             </Badge>
@@ -1023,12 +1140,18 @@ function Panel() {
 
                 {/* Vendedor */}
                 <Select value={vendedorId} onValueChange={setVendedorId}>
-                  <SelectTrigger className="h-8 w-[140px] text-xs bg-background">
+                  <SelectTrigger className="h-8 min-w-[150px] max-w-[200px] text-xs bg-background">
                     <SelectValue placeholder="Vendedor" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72 overflow-y-auto">
-                    <SelectItem value="todos">Todos los Vendedores</SelectItem>
-                    {(catalogos?.vendedores || []).map((v) => (
+                    <SelectItem value="todos">
+                      {esAdmin
+                        ? "Todos los Vendedores"
+                        : vendedoresDisponibles.length === 1
+                        ? "Mi Vendedor Asignado"
+                        : `Mis Vendedores (${vendedoresDisponibles.length})`}
+                    </SelectItem>
+                    {vendedoresDisponibles.map((v) => (
                       <SelectItem key={v.id} value={String(v.id)}>
                         {v.nombre}
                       </SelectItem>
@@ -1085,6 +1208,20 @@ function Panel() {
 
       {/* Contenido Principal */}
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
+        {!esAdmin && vendedoresDisponibles.length === 0 && (
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 shadow-2xs">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">
+                Sin asesores asignados para consulta
+              </p>
+              <p className="text-xs text-amber-800/80 dark:text-amber-400/80 mt-0.5">
+                Tu usuario ({currentUser?.email}) no tiene vendedores vinculados todavía. Contacta al administrador para que configure tus asesores comerciales permitidos.
+              </p>
+            </div>
+          </div>
+        )}
+
         <Tabs value={tabActivo} onValueChange={setTabActivo} className="space-y-6">
           {tabActivo === "d3" ? (
             /* Barra de Enfoque Exclusivo Digital: Oculta y desactiva todos los demás dashboards */
@@ -3181,7 +3318,7 @@ function Panel() {
                           onClick={(e) => {
                             if (e && e.activePayload && e.activePayload[0]) {
                               const aItem = e.activePayload[0].payload as AsesorComercial;
-                              const matchVendedor = (catalogos?.vendedores || []).find(
+                              const matchVendedor = vendedoresDisponibles.find(
                                 (v) => v.nombre.toLowerCase() === aItem.vendedor.toLowerCase()
                               );
                               if (matchVendedor) {
@@ -3286,7 +3423,7 @@ function Panel() {
                   </thead>
                   <tbody className="divide-y divide-border/40">
                     {(d4?.asesores || []).map((a, idx) => {
-                      const matchVendedor = (catalogos?.vendedores || []).find(
+                      const matchVendedor = vendedoresDisponibles.find(
                         (v) => v.nombre.toLowerCase() === a.vendedor.toLowerCase()
                       );
                       const isSelected = matchVendedor && String(matchVendedor.id) === String(vendedorId);
@@ -4646,6 +4783,18 @@ function Panel() {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Modal de Administración de Permisos de Vendedores */}
+      <AdminPermisosVendedoresDialog
+        open={modalPermisosAbierto}
+        onOpenChange={setModalPermisosAbierto}
+        vendedoresCatalogo={catalogos?.vendedores || []}
+        currentUserEmail={currentUser?.email}
+        onPermisosActualizados={() => {
+          setPermisoVersion((v) => v + 1);
+          queryClient.invalidateQueries({ queryKey: ["bi-fact-ventas"] });
+        }}
+      />
     </div>
   );
 }
