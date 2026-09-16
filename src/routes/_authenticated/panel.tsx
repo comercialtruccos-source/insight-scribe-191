@@ -5411,7 +5411,7 @@ function Panel() {
         open={mentorOpen}
         onOpenChange={setMentorOpen}
         diagnostico={diagnosticoMentor}
-        esDirectivo={esAdmin || esDirectivo}
+        esDirectivo={esAdmin}
         vendedoresDisponibles={catalogos?.vendedores || []}
         vendedorSeleccionadoId={vendedorId}
         onCambiarVendedor={(id) => setVendedorId(id)}
