@@ -183,24 +183,48 @@ function BadgeYoY({
   anterior,
   porcentaje,
   invertido = false,
-  label = "vs año ant.",
+  label = "año ant.",
+  tipo = "cop",
+  formatoCustom,
 }: {
   actual?: number;
   anterior?: number;
   porcentaje?: number;
   invertido?: boolean;
   label?: string;
+  tipo?: "cop" | "unidades" | "pct" | "entero" | "ratio" | "custom";
+  formatoCustom?: (val: number) => string;
 }) {
-  if (anterior === undefined || anterior === null || anterior === 0) {
+  if (anterior === undefined || anterior === null || (anterior === 0 && actual === 0)) {
     return (
       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground/80 bg-muted/40 px-1.5 py-0.5 rounded border border-border/40">
         Sin datos año ant.
       </span>
     );
   }
-  const pct = porcentaje !== undefined ? porcentaje : (anterior > 0 ? Math.round((((actual ?? 0) - anterior) / anterior) * 1000) / 10 : 0);
+  const pct =
+    porcentaje !== undefined
+      ? porcentaje
+      : anterior !== 0
+      ? Math.round((((actual ?? 0) - anterior) / Math.abs(anterior)) * 1000) / 10
+      : (actual ?? 0) > 0
+      ? 100
+      : 0;
   const esPositivo = pct >= 0;
   const esBueno = invertido ? !esPositivo : esPositivo;
+
+  let valorAnteriorFormateado = "";
+  if (formatoCustom) {
+    valorAnteriorFormateado = formatoCustom(anterior);
+  } else if (tipo === "cop") {
+    valorAnteriorFormateado = formatoCOP(anterior);
+  } else if (tipo === "unidades" || tipo === "entero") {
+    valorAnteriorFormateado = `${formatoEntero(anterior)} ${tipo === "unidades" ? "uds" : ""}`.trim();
+  } else if (tipo === "pct") {
+    valorAnteriorFormateado = `${anterior.toFixed(1)}%`;
+  } else if (tipo === "ratio") {
+    valorAnteriorFormateado = `${anterior.toFixed(2)}x`;
+  }
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap text-xs">
@@ -216,7 +240,7 @@ function BadgeYoY({
         {pct > 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`}
       </span>
       <span className="text-[11px] text-muted-foreground font-normal">
-        ({formatoCOP(anterior)} {label})
+        ({valorAnteriorFormateado} {label})
       </span>
     </div>
   );
@@ -226,40 +250,21 @@ function BadgeYoYUnidades({
   actual,
   anterior,
   porcentaje,
-  label = "vs año ant.",
+  label = "año ant.",
 }: {
   actual?: number;
   anterior?: number;
   porcentaje?: number;
   label?: string;
 }) {
-  if (anterior === undefined || anterior === null || anterior === 0) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground/80 bg-muted/40 px-1.5 py-0.5 rounded border border-border/40">
-        Sin datos año ant.
-      </span>
-    );
-  }
-  const pct = porcentaje !== undefined ? porcentaje : (anterior > 0 ? Math.round((((actual ?? 0) - anterior) / anterior) * 1000) / 10 : 0);
-  const esPositivo = pct >= 0;
-
   return (
-    <div className="flex items-center gap-1.5 flex-wrap text-xs">
-      <span
-        className={cn(
-          "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-semibold text-[11px]",
-          esPositivo
-            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-            : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
-        )}
-      >
-        {esPositivo ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-        {pct > 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`}
-      </span>
-      <span className="text-[11px] text-muted-foreground font-normal">
-        ({formatoEntero(anterior)} unds {label})
-      </span>
-    </div>
+    <BadgeYoY
+      actual={actual}
+      anterior={anterior}
+      porcentaje={porcentaje}
+      tipo="unidades"
+      label={label}
+    />
   );
 }
 
@@ -2021,6 +2026,7 @@ function Panel() {
                 icono={<Percent className="h-5 w-5 text-blue-500" />}
                 cargando={cD1}
                 badgeSemaforo={d1?.kpis.cumplimientoGlobalPct}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d1?.kpis.cumplimientoGlobalPct} anterior={d1?.kpis.cumplimientoAnteriorPct} tipo="pct" label="cumpl. año ant." /> : undefined}
               />
               <CardKpi
                 titulo="Volumen Unidades"
@@ -2036,6 +2042,7 @@ function Panel() {
                 subtexto={`Total: ${formatoCOP(d1?.kpis.devolucionesTotal ?? 0)}`}
                 icono={<ArrowDownRight className="h-5 w-5 text-rose-500" />}
                 cargando={cD1}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d1?.kpis.tasaDevolucionGlobalPct} anterior={d1?.kpis.tasaDevolucionAnteriorPct} tipo="pct" invertido={true} label="tasa año ant." /> : undefined}
               />
               <CardKpi
                 titulo="Ticket Promedio"
@@ -2051,6 +2058,7 @@ function Panel() {
                 subtexto="Por unidad vendida"
                 icono={<Tag className="h-5 w-5 text-cyan-500" />}
                 cargando={cD1}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d1?.kpis.precioPromedioPrenda} anterior={d1?.kpis.precioPromedioPrendaAnterior} /> : undefined}
               />
             </div>
 
@@ -2958,6 +2966,7 @@ function Panel() {
                 subtexto={`Calculado sobre ${d2?.kpis.diasHabilesTotales ?? 0} días hábiles`}
                 icono={<Calendar className="h-5 w-5 text-blue-500" />}
                 cargando={cD2}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d2?.kpis.metaDiariaFija} anterior={d2?.kpis.metaDiariaFijaAnterior} label="meta ant." /> : undefined}
               />
               <CardKpi
                 titulo="Run Rate / Cuota Diaria Requerida"
@@ -2965,6 +2974,7 @@ function Panel() {
                 subtexto={`Para los ${d2?.kpis.diasHabilesRestantes ?? 0} días hábiles restantes`}
                 icono={<Compass className="h-5 w-5 text-amber-500" />}
                 cargando={cD2}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d2?.kpis.runRateRequerido} anterior={d2?.kpis.runRateRequeridoAnterior} label="req. ant." /> : undefined}
               />
               <CardKpi
                 titulo="Brecha Acumulada ($ Gap)"
@@ -2972,6 +2982,7 @@ function Panel() {
                 subtexto={d2?.kpis.brechaAcumulada && d2.kpis.brechaAcumulada >= 0 ? "Superávit frente a meta a la fecha" : "Déficit acumulado a la fecha"}
                 icono={<ArrowUpRight className={`h-5 w-5 ${d2?.kpis.brechaAcumulada && d2.kpis.brechaAcumulada >= 0 ? "text-emerald-500" : "text-rose-500"}`} />}
                 cargando={cD2}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d2?.kpis.brechaAcumulada} anterior={d2?.kpis.brechaAcumuladaAnterior} label="gap ant." /> : undefined}
               />
             </div>
 
@@ -3269,6 +3280,7 @@ function Panel() {
                 subtexto="Promedio por prenda facturada"
                 icono={<Receipt className="h-5 w-5 text-purple-500" />}
                 cargando={cD3}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d3?.kpis.aovTicketPromedio} anterior={d3?.kpis.aovTicketPromedioAnterior} label="aov ant." /> : undefined}
               />
               <CardKpi
                 titulo="Inversión en Pauta & ROAS"
@@ -3276,6 +3288,7 @@ function Panel() {
                 subtexto={`Retorno: ${d3?.kpis.roas ?? 0}x sobre pauta`}
                 icono={<DollarSign className="h-5 w-5 text-amber-500" />}
                 cargando={cD3}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d3?.kpis.inversionTotalPauta} anterior={d3?.kpis.inversionTotalPautaAnterior} label="pauta ant." /> : undefined}
               />
               <CardKpi
                 titulo="Margen Operativo Digital"
@@ -3283,6 +3296,7 @@ function Panel() {
                 subtexto="Deduciendo Pauta + SaaS ($1.85M)"
                 icono={<TrendingUp className="h-5 w-5 text-cyan-500" />}
                 cargando={cD3}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d3?.kpis.margenOperativoDigital} anterior={d3?.kpis.margenOperativoDigitalAnterior} label="margen ant." /> : undefined}
               />
             </div>
 
@@ -3699,6 +3713,7 @@ function Panel() {
                 subtexto="Documentos emitidos"
                 icono={<Receipt className="h-5 w-5 text-amber-500" />}
                 cargando={cD4}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d4?.kpis.totalTransacciones} anterior={d4?.kpis.totalTransaccionesAnterior} tipo="entero" label="trans. ant." /> : undefined}
               />
               <CardKpi
                 titulo="Ticket Promedio / Pedido"
@@ -3706,6 +3721,7 @@ function Panel() {
                 subtexto="Facturación por documento"
                 icono={<ShoppingBag className="h-5 w-5 text-purple-500" />}
                 cargando={cD4}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d4?.kpis.ticketPromedio} anterior={d4?.kpis.ticketPromedioAnterior} label="ticket ant." /> : undefined}
               />
               <CardKpi
                 titulo="Precio Promedio / Prenda"
@@ -3713,6 +3729,7 @@ function Panel() {
                 subtexto="ASP unitario ponderado"
                 icono={<Tag className="h-5 w-5 text-cyan-500" />}
                 cargando={cD4}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d4?.kpis.precioPromedioPrenda} anterior={d4?.kpis.precioPromedioPrendaAnterior} /> : undefined}
               />
             </div>
 
@@ -4005,7 +4022,7 @@ function Panel() {
                 subtexto="Valor promedio por unidad en marketplaces"
                 icono={<Tag className="h-5 w-5 text-emerald-500" />}
                 cargando={cD5}
-                badgeYoY={compararAnioAnterior && d5?.kpis.unidadesMarketplaces && d5?.kpis.unidadesAnterior ? <BadgeYoYUnidades actual={d5?.kpis.unidadesMarketplaces} anterior={d5?.kpis.unidadesAnterior} label="uds año ant." /> : undefined}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d5?.kpis.precioPromedioSKU} anterior={d5?.kpis.precioPromedioSKUAnterior} label="precio ant." /> : undefined}
               />
               <CardKpi
                 titulo="Referencias Activas"
@@ -4013,6 +4030,7 @@ function Panel() {
                 subtexto="Catálogo en rotación digital"
                 icono={<Package className="h-5 w-5 text-blue-500" />}
                 cargando={cD5}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d5?.kpis.totalReferenciasActivas} anterior={d5?.kpis.totalReferenciasActivasAnterior} tipo="entero" label="refs ant." /> : undefined}
               />
               <CardKpi
                 titulo="Marketplaces Integrados"
@@ -4188,7 +4206,7 @@ function Panel() {
                 subtexto={`Bruta: ${formatoCOP(d6?.kpis.totalVentaBruta ?? 0)} • Devs: ${formatoCOP(d6?.kpis.totalDevoluciones ?? 0)}`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD6}
-                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d6?.kpis.totalVentaNeta} anterior={d6?.kpis.ventaAnteriorTotal} porcentaje={d6?.kpis.crecimientoYoYPct} /> : undefined}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d6?.kpis.totalVentaNeta} anterior={d6?.kpis.totalVentaNetaAnterior} porcentaje={d6?.kpis.crecimientoYoYPct} /> : undefined}
               />
               <CardKpi
                 titulo="Volumen Prendas"
@@ -4196,7 +4214,7 @@ function Panel() {
                 subtexto="Total unidades comercializadas"
                 icono={<Package className="h-5 w-5 text-blue-500" />}
                 cargando={cD6}
-                badgeYoY={compararAnioAnterior ? <BadgeYoYUnidades actual={d6?.kpis.totalUnidades} anterior={d6?.kpis.unidadesAnteriorTotal} /> : undefined}
+                badgeYoY={compararAnioAnterior ? <BadgeYoYUnidades actual={d6?.kpis.totalUnidades} anterior={d6?.kpis.totalUnidadesAnterior} /> : undefined}
               />
               <CardKpi
                 titulo="Catálogo Activo"
@@ -4204,6 +4222,7 @@ function Panel() {
                 subtexto={`${d6?.kpis.concentracionParetoA.referenciasCount ?? 0} referencias en Clase A`}
                 icono={<Layers className="h-5 w-5 text-indigo-500" />}
                 cargando={cD6}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d6?.kpis.totalReferenciasActivas} anterior={d6?.kpis.totalReferenciasActivasAnterior} tipo="entero" label="SKUs ant." /> : undefined}
               />
               <CardKpi
                 titulo="Precio Promedio (ASP)"
@@ -4211,6 +4230,7 @@ function Panel() {
                 subtexto="Ticket unitario ponderado"
                 icono={<Tag className="h-5 w-5 text-amber-500" />}
                 cargando={cD6}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d6?.kpis.precioPromedioPonderado} anterior={d6?.kpis.precioPromedioPonderadoAnterior} label="precio ant." /> : undefined}
               />
               <CardKpi
                 titulo="Concentración Pareto"
@@ -4236,6 +4256,7 @@ function Panel() {
                 subtexto={`Total devs: ${formatoCOP(d6?.kpis.totalDevoluciones ?? 0)}`}
                 icono={<ArrowDownRight className="h-5 w-5 text-rose-500" />}
                 cargando={cD6}
+                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d6?.kpis.tasaDevolucionGlobal} anterior={d6?.kpis.tasaDevolucionAnterior} tipo="pct" invertido={true} label="tasa ant." /> : undefined}
               />
             </div>
 

@@ -815,16 +815,22 @@ export type DataDashboard1 = {
     ventaYTD: number;
     ventaBrutaTotal: number;
     ventaAnteriorTotal: number;
+    ventaBrutaAnteriorTotal?: number;
     pptoYTD: number;
+    pptoAnteriorTotal?: number;
     cumplimientoGlobalPct: number;
+    cumplimientoAnteriorPct?: number;
     crecimientoYoYPct: number;
     devolucionesTotal: number;
+    devolucionesAnteriorTotal?: number;
     tasaDevolucionGlobalPct: number;
+    tasaDevolucionAnteriorPct?: number;
     volumenUnidades: number;
     unidadesAnteriorTotal: number;
     ticketPromedio: number;
     ticketPromedioAnterior?: number;
     precioPromedioPrenda: number;
+    precioPromedioPrendaAnterior?: number;
     totalTransacciones: number;
     totalTransaccionesAnterior?: number;
   };
@@ -1038,6 +1044,7 @@ export function calcularDashboard1Cumplimiento(
   const transaccionesAntSet = new Set<string>();
   let totalVentasAnterior = 0;
   let totalUnidadesAnterior = 0;
+  let totalDevolucionesAnterior = 0;
 
   if (dataAnterior && dataAnterior.length > 0) {
     for (const r of dataAnterior) {
@@ -1050,6 +1057,7 @@ export function calcularDashboard1Cumplimiento(
       const v = Number(r.valor ?? 0);
       const cant = Math.round(Number(r.cantidad ?? 0));
       totalVentasAnterior += v;
+      if (v < 0) totalDevolucionesAnterior += Math.abs(v);
       totalUnidadesAnterior += cant;
 
       if (r.transaccion) transaccionesAntSet.add(String(r.transaccion));
@@ -1324,29 +1332,40 @@ export function calcularDashboard1Cumplimiento(
     .sort((a, b) => b.venta - a.venta);
 
   const totalPpto = meses.reduce((a, b) => a + b.ppto, 0);
+  const totalPptoAnterior = meses.reduce((a, b) => a + (b.ventaAnterior > 0 ? Math.round(b.ventaAnterior * 1.05) : 0), 0);
   const totalVentaBruta = totalVentas + totalDevoluciones;
+  const totalVentaBrutaAnterior = totalVentasAnterior + totalDevolucionesAnterior;
   const numTransacciones = transaccionesSet.size > 0 ? transaccionesSet.size : totalUnidades;
   const numTransaccionesAnterior = transaccionesAntSet.size > 0 ? transaccionesAntSet.size : totalUnidadesAnterior;
   const ticketPromedio = numTransacciones > 0 ? Math.round(totalVentas / numTransacciones) : 0;
   const ticketPromedioAnterior = numTransaccionesAnterior > 0 ? Math.round(totalVentasAnterior / numTransaccionesAnterior) : 0;
   const precioPromedioPrenda = totalUnidades > 0 ? Math.round(totalVentas / totalUnidades) : 0;
+  const precioPromedioPrendaAnterior = totalUnidadesAnterior > 0 ? Math.round(totalVentasAnterior / totalUnidadesAnterior) : 0;
   const crecimientoYoYGlobal = totalVentasAnterior > 0 ? Math.round(((totalVentas - totalVentasAnterior) / totalVentasAnterior) * 1000) / 10 : 0;
+  const cumplimientoAnteriorPct = totalPptoAnterior > 0 && totalVentasAnterior > 0 ? Math.round((totalVentasAnterior / totalPptoAnterior) * 1000) / 10 : (totalVentasAnterior > 0 ? 100 : 0);
+  const tasaDevolucionAnteriorPct = totalVentaBrutaAnterior > 0 ? Math.round((totalDevolucionesAnterior / totalVentaBrutaAnterior) * 1000) / 10 : 0;
 
   return {
     kpis: {
       ventaYTD: totalVentas,
       ventaBrutaTotal: totalVentaBruta,
       ventaAnteriorTotal: totalVentasAnterior,
+      ventaBrutaAnteriorTotal: totalVentaBrutaAnterior,
       pptoYTD: totalPpto > 0 ? totalPpto : (totalVentas > 0 ? Math.round(totalVentas * 1.05) : 0),
+      pptoAnteriorTotal: totalPptoAnterior > 0 ? totalPptoAnterior : (totalVentasAnterior > 0 ? Math.round(totalVentasAnterior * 1.05) : 0),
       cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 1000) / 10 : (totalVentas > 0 ? 100 : 0),
+      cumplimientoAnteriorPct,
       crecimientoYoYPct: crecimientoYoYGlobal,
       devolucionesTotal: totalDevoluciones,
+      devolucionesAnteriorTotal: totalDevolucionesAnterior,
       tasaDevolucionGlobalPct: totalVentaBruta > 0 ? Math.round((totalDevoluciones / totalVentaBruta) * 1000) / 10 : 0,
+      tasaDevolucionAnteriorPct,
       volumenUnidades: totalUnidades,
       unidadesAnteriorTotal: totalUnidadesAnterior,
       ticketPromedio,
       ticketPromedioAnterior,
       precioPromedioPrenda,
+      precioPromedioPrendaAnterior,
       totalTransacciones: numTransacciones,
       totalTransaccionesAnterior: numTransaccionesAnterior,
     },
@@ -1390,6 +1409,7 @@ export type PuntoDiario = {
 export type DataDashboard2 = {
   kpis: {
     pptoMes: number;
+    pptoMesAnterior?: number;
     ventaAcumuladaMes: number;
     ventaAnteriorMes?: number;
     crecimientoYoYPct?: number;
@@ -1398,8 +1418,11 @@ export type DataDashboard2 = {
     diasHabilesTranscurridos: number;
     diasHabilesRestantes: number;
     metaDiariaFija: number;
+    metaDiariaFijaAnterior?: number;
     runRateRequerido: number;
+    runRateRequeridoAnterior?: number;
     brechaAcumulada: number;
+    brechaAcumuladaAnterior?: number;
     mesSeleccionadoNombre: string;
   };
   dias: PuntoDiario[];
@@ -1472,6 +1495,7 @@ export function calcularDashboard2RunRate(
 
   const ventaTotalMes = ventasPorDia.reduce((a, b) => a + b, 0);
   const pptoMes = ventaTotalMes > 0 ? Math.round(ventaTotalMes * 1.10) : 50_000_000;
+  const pptoMesAnterior = ventaTotalMesAnterior > 0 ? Math.round(ventaTotalMesAnterior * 1.10) : 0;
   const crecimientoYoYPct = ventaTotalMesAnterior > 0 ? Math.round(((ventaTotalMes - ventaTotalMesAnterior) / ventaTotalMesAnterior) * 1000) / 10 : 0;
 
   let diasHabilesTotales = 0;
@@ -1492,11 +1516,16 @@ export function calcularDashboard2RunRate(
 
   const diasHabilesRestantes = Math.max(1, diasHabilesTotales - diasHabilesTranscurridos);
   const metaDiariaFija = diasHabilesTotales > 0 ? Math.round(pptoMes / diasHabilesTotales) : 0;
+  const metaDiariaFijaAnterior = diasHabilesTotales > 0 && pptoMesAnterior > 0 ? Math.round(pptoMesAnterior / diasHabilesTotales) : 0;
   const ventaAcumuladaCorte = ventasPorDia.slice(1, diaCorte + 1).reduce((a, b) => a + b, 0);
+  const ventaAcumuladaCorteAnterior = ventasPorDiaAnterior.slice(1, diaCorte + 1).reduce((a, b) => a + b, 0);
   const pptoRestante = Math.max(0, pptoMes - ventaAcumuladaCorte);
+  const pptoRestanteAnterior = Math.max(0, pptoMesAnterior - ventaAcumuladaCorteAnterior);
   const runRateRequerido = diasHabilesRestantes > 0 ? Math.round(pptoRestante / diasHabilesRestantes) : 0;
+  const runRateRequeridoAnterior = diasHabilesRestantes > 0 && pptoRestanteAnterior > 0 ? Math.round(pptoRestanteAnterior / diasHabilesRestantes) : 0;
   const cumplimientoMesPct = pptoMes > 0 && ventaTotalMes > 0 ? Math.round((ventaTotalMes / pptoMes) * 1000) / 10 : 0;
   const brechaAcumulada = ventaAcumuladaCorte - (metaDiariaFija * diasHabilesTranscurridos);
+  const brechaAcumuladaAnterior = ventaAcumuladaCorteAnterior - (metaDiariaFijaAnterior * diasHabilesTranscurridos);
 
   let acumuladoReal = 0;
   let acumuladoRealAnterior = 0;
@@ -1531,6 +1560,7 @@ export function calcularDashboard2RunRate(
   return {
     kpis: {
       pptoMes,
+      pptoMesAnterior,
       ventaAcumuladaMes: ventaTotalMes,
       ventaAnteriorMes: ventaTotalMesAnterior,
       crecimientoYoYPct,
@@ -1539,8 +1569,11 @@ export function calcularDashboard2RunRate(
       diasHabilesTranscurridos,
       diasHabilesRestantes,
       metaDiariaFija,
+      metaDiariaFijaAnterior,
       runRateRequerido,
+      runRateRequeridoAnterior,
       brechaAcumulada,
+      brechaAcumuladaAnterior,
       mesSeleccionadoNombre,
     },
     dias: puntos,
@@ -1613,19 +1646,29 @@ export type DataDashboard3 = {
     ventaDigitalAnterior?: number;
     crecimientoYoYPct?: number;
     ventaTiendaVirtual: number;
+    ventaTiendaVirtualAnterior?: number;
     ventaRedesSociales: number;
+    ventaRedesSocialesAnterior?: number;
     ventaOtrosDigitales: number;
     unidadesDigitales: number;
     unidadesDigitalesAnterior?: number;
     unidadesTiendaVirtual: number;
+    unidadesTiendaVirtualAnterior?: number;
     unidadesRedesSociales: number;
+    unidadesRedesSocialesAnterior?: number;
     aovTicketPromedio: number;
+    aovTicketPromedioAnterior?: number;
     aovTiendaVirtual: number;
+    aovTiendaVirtualAnterior?: number;
     aovRedesSociales: number;
+    aovRedesSocialesAnterior?: number;
     inversionTotalPauta: number;
+    inversionTotalPautaAnterior?: number;
     roas: number;
+    roasAnterior?: number;
     costoPlataformasSaas: number;
     margenOperativoDigital: number;
+    margenOperativoDigitalAnterior?: number;
     pctVentaEmpresa: number;
     totalVentaEmpresa: number;
     cumplimientoEcommercePct: number;
@@ -1993,25 +2036,43 @@ export function calcularDashboard3Digital(
     };
   });
 
+  const aovTicketPromedioAnterior = unidadesDigitalesAnterior > 0 ? Math.round(ventaDigitalAnterior / unidadesDigitalesAnterior) : 0;
+  const aovTiendaVirtualAnterior = unidadesTiendaVirtualAnterior > 0 ? Math.round(ventaTiendaVirtualAnterior / unidadesTiendaVirtualAnterior) : 0;
+  const aovRedesSocialesAnterior = unidadesRedesSocialesAnterior > 0 ? Math.round(ventaRedesSocialesAnterior / unidadesRedesSocialesAnterior) : 0;
+  const inversionTotalPautaAnterior = ventaDigitalAnterior > 0 ? Math.round(ventaDigitalAnterior * 0.08) : 0;
+  const roasAnterior = inversionTotalPautaAnterior > 0 ? Math.round((ventaDigitalAnterior / inversionTotalPautaAnterior) * 10) / 10 : 0;
+  const costoPlataformasSaasAnterior = ventaDigitalAnterior > 0 ? 1_850_000 : 0;
+  const margenOperativoDigitalAnterior = Math.max(0, ventaDigitalAnterior - inversionTotalPautaAnterior - costoPlataformasSaasAnterior);
+
   return {
     kpis: {
       ventaDigitalTotal,
       ventaDigitalAnterior,
       crecimientoYoYPct,
       ventaTiendaVirtual,
+      ventaTiendaVirtualAnterior,
       ventaRedesSociales,
+      ventaRedesSocialesAnterior,
       ventaOtrosDigitales,
       unidadesDigitales,
       unidadesDigitalesAnterior,
       unidadesTiendaVirtual,
+      unidadesTiendaVirtualAnterior,
       unidadesRedesSociales,
+      unidadesRedesSocialesAnterior,
       aovTicketPromedio,
+      aovTicketPromedioAnterior,
       aovTiendaVirtual,
+      aovTiendaVirtualAnterior,
       aovRedesSociales,
+      aovRedesSocialesAnterior,
       inversionTotalPauta,
+      inversionTotalPautaAnterior,
       roas,
+      roasAnterior,
       costoPlataformasSaas,
       margenOperativoDigital,
+      margenOperativoDigitalAnterior,
       pctVentaEmpresa,
       totalVentaEmpresa,
       cumplimientoEcommercePct,
@@ -2060,12 +2121,19 @@ export type DataDashboard4 = {
     totalUnidades: number;
     totalUnidadesAnterior?: number;
     totalTransacciones: number;
+    totalTransaccionesAnterior?: number;
     totalAsesores: number;
+    totalAsesoresAnterior?: number;
     ticketPromedio: number;
+    ticketPromedioAnterior?: number;
     precioPromedioPrenda: number;
+    precioPromedioPrendaAnterior?: number;
     ventaNacional: number;
+    ventaNacionalAnterior?: number;
     ventaExportaciones: number;
+    ventaExportacionesAnterior?: number;
     pctExportaciones: number;
+    pctExportacionesAnterior?: number;
   };
   asesores: AsesorComercial[];
   distribucionCanales: { canal: string; venta: number; porcentaje: number }[];
@@ -2154,10 +2222,13 @@ export function calcularDashboard4FuerzaVentas(
 
   // YoY data
   const asesorDataAntMap = new Map<string, { venta: number; unidades: number }>();
+  const allTransaccionesAntSet = new Set<string>();
   const mesVentasAntArray = new Array(12).fill(0);
   const mesUnidadesAntArray = new Array(12).fill(0);
   let totalVentaFuerzaAnterior = 0;
   let totalUnidadesAnterior = 0;
+  let ventaNacionalAnterior = 0;
+  let ventaExportacionesAnterior = 0;
 
   if (dataAnterior && dataAnterior.length > 0) {
     for (const r of dataAnterior) {
@@ -2170,6 +2241,9 @@ export function calcularDashboard4FuerzaVentas(
       totalVentaFuerzaAnterior += v;
       totalUnidadesAnterior += cant;
 
+      const txAntId = r.transaccion ? String(r.transaccion) : `row_ant_${r.id}`;
+      allTransaccionesAntSet.add(txAntId);
+
       if (m >= 1 && m <= 12) {
         mesVentasAntArray[m - 1] += v;
         mesUnidadesAntArray[m - 1] += cant;
@@ -2179,6 +2253,13 @@ export function calcularDashboard4FuerzaVentas(
       if (filtros.vendedor_id) {
         const nombreFiltrado = vendedorMap.get(filtros.vendedor_id);
         if (nombreFiltrado) vNombre = nombreFiltrado;
+      }
+
+      const pNombre = ((r.pais_id ? paisMap.get(r.pais_id) : "") || "Colombia").toLowerCase();
+      if (pNombre !== "colombia" && pNombre !== "co" && pNombre !== "") {
+        ventaExportacionesAnterior += v;
+      } else {
+        ventaNacionalAnterior += v;
       }
 
       const prevA = asesorDataAntMap.get(vNombre) || { venta: 0, unidades: 0 };
@@ -2218,9 +2299,13 @@ export function calcularDashboard4FuerzaVentas(
     .sort((a, b) => b.ventaTotal - a.ventaTotal);
 
   const totalTransacciones = allTransaccionesSet.size;
+  const totalTransaccionesAnterior = allTransaccionesAntSet.size || totalUnidadesAnterior;
   const ticketPromedio = totalTransacciones > 0 ? Math.round(totalVentaFuerza / totalTransacciones) : 0;
+  const ticketPromedioAnterior = totalTransaccionesAnterior > 0 ? Math.round(totalVentaFuerzaAnterior / totalTransaccionesAnterior) : 0;
   const precioPromedioPrenda = totalUnidades > 0 ? Math.round(totalVentaFuerza / totalUnidades) : 0;
+  const precioPromedioPrendaAnterior = totalUnidadesAnterior > 0 ? Math.round(totalVentaFuerzaAnterior / totalUnidadesAnterior) : 0;
   const pctExportaciones = totalVentaFuerza > 0 ? Math.round((ventaExportaciones / totalVentaFuerza) * 1000) / 10 : 0;
+  const pctExportacionesAnterior = totalVentaFuerzaAnterior > 0 ? Math.round((ventaExportacionesAnterior / totalVentaFuerzaAnterior) * 1000) / 10 : 0;
 
   const distribucionCanales = Array.from(canalDistMap.entries()).map(([canal, venta]) => ({
     canal,
@@ -2259,12 +2344,19 @@ export function calcularDashboard4FuerzaVentas(
       totalUnidades,
       totalUnidadesAnterior,
       totalTransacciones,
+      totalTransaccionesAnterior,
       totalAsesores: asesores.length,
+      totalAsesoresAnterior: asesorDataAntMap.size,
       ticketPromedio,
+      ticketPromedioAnterior,
       precioPromedioPrenda,
+      precioPromedioPrendaAnterior,
       ventaNacional,
+      ventaNacionalAnterior,
       ventaExportaciones,
+      ventaExportacionesAnterior,
       pctExportaciones,
+      pctExportacionesAnterior,
     },
     asesores,
     distribucionCanales,
@@ -2294,7 +2386,9 @@ export type DataDashboard5 = {
     unidadesMarketplaces: number;
     unidadesMarketplacesAnterior?: number;
     totalReferenciasActivas: number;
+    totalReferenciasActivasAnterior?: number;
     precioPromedioSKU: number;
+    precioPromedioSKUAnterior?: number;
   };
   marketplaces: { nombre: string; venta: number; ventaAnterior?: number; crecimientoYoY?: number; unidades: number; porcentaje: number }[];
   topReferencias: { sku: string; producto: string; unidades: number; valor: number; valorAnterior?: number; crecimientoYoY?: number; precioPromedio: number }[];
@@ -2425,6 +2519,7 @@ export function calcularDashboard5Marketplaces(
     .slice(0, 8);
 
   const precioPromedioSKU = unidadesMarketplaces > 0 ? Math.round(ventaTotalMarketplaces / unidadesMarketplaces) : 0;
+  const precioPromedioSKUAnterior = unidadesMarketplacesAnterior > 0 ? Math.round(ventaTotalMarketplacesAnterior / unidadesMarketplacesAnterior) : 0;
 
   return {
     kpis: {
@@ -2434,7 +2529,9 @@ export function calcularDashboard5Marketplaces(
       unidadesMarketplaces,
       unidadesMarketplacesAnterior,
       totalReferenciasActivas: refMap.size,
+      totalReferenciasActivasAnterior: refAntMap.size,
       precioPromedioSKU,
+      precioPromedioSKUAnterior,
     },
     marketplaces,
     topReferencias,
@@ -2482,12 +2579,17 @@ export type DataDashboard6 = {
     totalVentaNetaAnterior?: number;
     crecimientoYoYPct?: number;
     totalVentaBruta: number;
+    totalVentaBrutaAnterior?: number;
     totalDevoluciones: number;
+    totalDevolucionesAnterior?: number;
     tasaDevolucionGlobal: number;
+    tasaDevolucionAnterior?: number;
     totalUnidades: number;
     totalUnidadesAnterior?: number;
     totalReferenciasActivas: number;
+    totalReferenciasActivasAnterior?: number;
     precioPromedioPonderado: number;
+    precioPromedioPonderadoAnterior?: number;
     referenciaTopVentas: { sku: string; producto: string; valor: number; unidades: number; porcentaje: number } | null;
     referenciaTopVolumen: { sku: string; producto: string; unidades: number; valor: number } | null;
     concentracionParetoA: { referenciasCount: number; referenciasPct: number; ventaTotal: number; ventaPct: number };
@@ -2617,6 +2719,8 @@ export function calcularDashboard6Referencias(
 
   // YoY Referencias
   let totalVentaNetaAnterior = 0;
+  let totalVentaBrutaAnterior = 0;
+  let totalDevolucionesAnterior = 0;
   let totalUnidadesAnterior = 0;
   const refAntMap = new Map<string, { ventaNeta: number; unidades: number }>();
 
@@ -2630,6 +2734,8 @@ export function calcularDashboard6Referencias(
       const sku = rawSku || "REF-DESCONOCIDA";
 
       totalVentaNetaAnterior += v;
+      if (v > 0) totalVentaBrutaAnterior += v;
+      if (v < 0) totalDevolucionesAnterior += Math.abs(v);
       if (cant > 0) totalUnidadesAnterior += cant;
 
       const prevR = refAntMap.get(sku) || { ventaNeta: 0, unidades: 0 };
@@ -2638,6 +2744,8 @@ export function calcularDashboard6Referencias(
   }
 
   const crecimientoYoYPct = totalVentaNetaAnterior > 0 ? Math.round(((totalVentaNeta - totalVentaNetaAnterior) / totalVentaNetaAnterior) * 1000) / 10 : 0;
+  const tasaDevolucionAnterior = totalVentaBrutaAnterior > 0 ? Math.round((totalDevolucionesAnterior / totalVentaBrutaAnterior) * 1000) / 10 : 0;
+  const precioPromedioPonderadoAnterior = totalUnidadesAnterior > 0 ? Math.round(totalVentaNetaAnterior / totalUnidadesAnterior) : 0;
 
   // Ordenar por Venta Neta descendente para Pareto
   const sortedRawRefs = Array.from(refMap.values()).sort((a, b) => b.ventaNeta - a.ventaNeta);
@@ -2801,15 +2909,20 @@ export function calcularDashboard6Referencias(
   return {
     kpis: {
       totalVentaNeta,
-      totalVentaNetaAnterior,
-      crecimientoYoYPct,
+      totalVentaNetaAnterior: dataAnterior ? totalVentaNetaAnterior : undefined,
+      crecimientoYoYPct: dataAnterior && totalVentaNetaAnterior > 0 ? crecimientoYoYPct : undefined,
       totalVentaBruta,
+      totalVentaBrutaAnterior: dataAnterior ? totalVentaBrutaAnterior : undefined,
       totalDevoluciones,
+      totalDevolucionesAnterior: dataAnterior ? totalDevolucionesAnterior : undefined,
       tasaDevolucionGlobal,
+      tasaDevolucionAnterior: dataAnterior ? tasaDevolucionAnterior : undefined,
       totalUnidades,
-      totalUnidadesAnterior,
+      totalUnidadesAnterior: dataAnterior ? totalUnidadesAnterior : undefined,
       totalReferenciasActivas: todasReferencias.length,
+      totalReferenciasActivasAnterior: dataAnterior ? refAntMap.size : undefined,
       precioPromedioPonderado,
+      precioPromedioPonderadoAnterior: dataAnterior ? precioPromedioPonderadoAnterior : undefined,
       referenciaTopVentas: refTopV
         ? {
             sku: refTopV.sku,
