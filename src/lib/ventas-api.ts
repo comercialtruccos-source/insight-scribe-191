@@ -458,7 +458,15 @@ const sanitizeCatalogo = (data: unknown[] | null | undefined): CatalogoItem[] =>
       const record = item as Record<string, unknown>;
       const id = Number(record["id"]);
       const nombre = String(record["nombre"] || "").trim();
-      if (id > 0 && nombre.length > 0 && !map.has(id)) {
+      const lower = nombre.toLowerCase();
+      // Excluir registros vacíos, no comerciales o inválidos como publicidad
+      if (
+        id > 0 &&
+        nombre.length > 0 &&
+        !map.has(id) &&
+        !lower.includes("publicidad") &&
+        !lower.includes("publicada")
+      ) {
         map.set(id, nombre);
       }
     }

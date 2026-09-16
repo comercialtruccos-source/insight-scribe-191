@@ -375,6 +375,60 @@ function Panel() {
     return ciudadSeleccionadaObj?.nombre || null;
   }, [ciudadSeleccionadaObj]);
 
+  // Catálogos dinámicos adaptados al vendedor y contexto seleccionado (excluyendo canales no comerciales como publicidad)
+  const canalesDisponibles = useMemo(() => {
+    const base = (catalogos?.canales || []).filter((c) => {
+      const n = (c.nombre || "").trim().toLowerCase();
+      return !n.includes("publicidad") && !n.includes("publicada");
+    });
+    if (vendedorId === "todos" || !rawVentas || rawVentas.length === 0) return base;
+    const ids = new Set(rawVentas.map((r) => r.canal_id).filter((id): id is number => id !== null && id !== undefined && id > 0));
+    const filtrados = base.filter((c) => ids.has(c.id));
+    return filtrados.length > 0 ? filtrados : base;
+  }, [vendedorId, rawVentas, catalogos?.canales]);
+
+  const marcasDisponibles = useMemo(() => {
+    const base = catalogos?.marcas || [];
+    if (vendedorId === "todos" || !rawVentas || rawVentas.length === 0) return base;
+    const ids = new Set(rawVentas.map((r) => r.marca_id).filter((id): id is number => id !== null && id !== undefined && id > 0));
+    const filtrados = base.filter((m) => ids.has(m.id));
+    return filtrados.length > 0 ? filtrados : base;
+  }, [vendedorId, rawVentas, catalogos?.marcas]);
+
+  const zonasDisponibles = useMemo(() => {
+    const base = catalogos?.zonas || [];
+    if (vendedorId === "todos" || !rawVentas || rawVentas.length === 0) return base;
+    const ids = new Set(rawVentas.map((r) => r.zona_id || r.zona_colombia_id).filter((id): id is number => id !== null && id !== undefined && id > 0));
+    const filtrados = base.filter((z) => ids.has(z.id));
+    return filtrados.length > 0 ? filtrados : base;
+  }, [vendedorId, rawVentas, catalogos?.zonas]);
+
+  const ciudadesDisponibles = useMemo(() => {
+    const base = catalogos?.ciudades || [];
+    if (vendedorId === "todos" || !rawVentas || rawVentas.length === 0) return base;
+    const ids = new Set(rawVentas.map((r) => r.ciudad_id).filter((id): id is number => id !== null && id !== undefined && id > 0));
+    const filtrados = base.filter((c) => ids.has(c.id));
+    return filtrados.length > 0 ? filtrados : base;
+  }, [vendedorId, rawVentas, catalogos?.ciudades]);
+
+  // Si se selecciona un vendedor y los filtros secundarios ya no aplican a ese vendedor, restablecerlos a 'todos'
+  useEffect(() => {
+    if (vendedorId !== "todos") {
+      if (canalId !== "todos" && !canalesDisponibles.some((c) => String(c.id) === String(canalId))) {
+        setCanalId("todos");
+      }
+      if (marcaId !== "todos" && !marcasDisponibles.some((m) => String(m.id) === String(marcaId))) {
+        setMarcaId("todos");
+      }
+      if (zonaId !== "todos" && !zonasDisponibles.some((z) => String(z.id) === String(zonaId))) {
+        setZonaId("todos");
+      }
+      if (ciudadId !== "todos" && !ciudadesDisponibles.some((c) => String(c.id) === String(ciudadId))) {
+        setCiudadId("todos");
+      }
+    }
+  }, [vendedorId, canalId, marcaId, zonaId, ciudadId, canalesDisponibles, marcasDisponibles, zonasDisponibles, ciudadesDisponibles]);
+
   // Redirección inteligente si se filtra por vendedor o territorio y el usuario está en un tab desactivado (Digital o Marketplaces)
   useEffect(() => {
     if (vendedorId !== "todos") {
@@ -907,7 +961,7 @@ function Panel() {
                   </SelectTrigger>
                   <SelectContent className="max-h-72 overflow-y-auto">
                     <SelectItem value="todos">Todas las Marcas</SelectItem>
-                    {(catalogos?.marcas || []).map((m) => (
+                    {marcasDisponibles.map((m) => (
                       <SelectItem key={m.id} value={String(m.id)}>
                         {m.nombre}
                       </SelectItem>
@@ -922,7 +976,7 @@ function Panel() {
                   </SelectTrigger>
                   <SelectContent className="max-h-72 overflow-y-auto">
                     <SelectItem value="todos">Todas las Ciudades</SelectItem>
-                    {(catalogos?.ciudades || []).map((c) => (
+                    {ciudadesDisponibles.map((c) => (
                       <SelectItem key={c.id} value={String(c.id)}>
                         {c.nombre}
                       </SelectItem>
@@ -944,7 +998,7 @@ function Panel() {
                   </SelectTrigger>
                   <SelectContent className="max-h-72 overflow-y-auto">
                     <SelectItem value="todos">Todos los Canales</SelectItem>
-                    {(catalogos?.canales || []).map((c) => (
+                    {canalesDisponibles.map((c) => (
                       <SelectItem key={c.id} value={String(c.id)}>
                         {c.nombre}
                       </SelectItem>
@@ -959,7 +1013,7 @@ function Panel() {
                   </SelectTrigger>
                   <SelectContent className="max-h-72 overflow-y-auto">
                     <SelectItem value="todos">Todas las Marcas</SelectItem>
-                    {(catalogos?.marcas || []).map((m) => (
+                    {marcasDisponibles.map((m) => (
                       <SelectItem key={m.id} value={String(m.id)}>
                         {m.nombre}
                       </SelectItem>
@@ -989,7 +1043,7 @@ function Panel() {
                   </SelectTrigger>
                   <SelectContent className="max-h-72 overflow-y-auto">
                     <SelectItem value="todos">Todas las Zonas</SelectItem>
-                    {(catalogos?.zonas || []).map((z) => (
+                    {zonasDisponibles.map((z) => (
                       <SelectItem key={z.id} value={String(z.id)}>
                         {z.nombre}
                       </SelectItem>
@@ -1004,7 +1058,7 @@ function Panel() {
                   </SelectTrigger>
                   <SelectContent className="max-h-72 overflow-y-auto">
                     <SelectItem value="todos">Todas las Ciudades</SelectItem>
-                    {(catalogos?.ciudades || []).map((c) => (
+                    {ciudadesDisponibles.map((c) => (
                       <SelectItem key={c.id} value={String(c.id)}>
                         {c.nombre}
                       </SelectItem>
