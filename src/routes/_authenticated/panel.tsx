@@ -298,6 +298,24 @@ function Panel() {
     return permisoActual.rol === "admin";
   }, [permisoActual]);
 
+  const puedeVerDigital = useMemo(() => {
+    if (esAdmin) return true;
+    const email = (permisoActual?.email || "").toLowerCase();
+    const zona = (permisoActual?.zona || "").toLowerCase();
+    const canal = (permisoActual?.canal || "").toLowerCase();
+    if (email.includes("ericausuaga") || email.includes("angelaacevedo")) return true;
+    if (zona.includes("digital") || (canal.includes("digital") && !zona.includes("punto de venta"))) return true;
+    return false;
+  }, [esAdmin, permisoActual]);
+
+  const puedeVerMarketplaces = useMemo(() => {
+    return esAdmin;
+  }, [esAdmin]);
+
+  const puedeVerCargar = useMemo(() => {
+    return esAdmin;
+  }, [esAdmin]);
+
   const vendedorIdsPermitidos = useMemo(() => {
     if (esAdmin) return null;
     return permisoActual?.vendedorIds || [];
@@ -308,6 +326,41 @@ function Panel() {
     if (esAdmin || !vendedorIdsPermitidos) return todos;
     return todos.filter((v) => vendedorIdsPermitidos.includes(v.id));
   }, [catalogos?.vendedores, esAdmin, vendedorIdsPermitidos]);
+
+  // Catálogos dinámicos adaptados al vendedor y contexto seleccionado (excluyendo canales no comerciales como publicidad)
+  const canalesDisponibles = useMemo(() => {
+    const base = (catalogos?.canales || []).filter((c) => {
+      const n = (c.nombre || "").trim().toLowerCase();
+      return !n.includes("publicidad") && !n.includes("publicada");
+    });
+
+    // Restricción estricta de canales si el usuario no es admin
+    if (!esAdmin && permisoActual) {
+      const userCanal = (permisoActual.canal || "").trim().toUpperCase();
+      const userZona = (permisoActual.zona || "").trim().toUpperCase();
+
+      const filtradosPorUsuario = base.filter((c) => {
+        const cn = (c.nombre || "").trim().toUpperCase();
+        if (userCanal.includes("MAYORISTA NACIONAL")) {
+          return cn.includes("MAYORISTA NACIONAL") || c.id === 1;
+        }
+        if (userCanal === "EXPORTACION" || userZona.includes("EXPORTACION")) {
+          return cn.includes("INTERNACIONAL") || cn.includes("EXPORTACION") || c.id === 4;
+        }
+        if (userCanal === "DETAL" || userZona.includes("TIENDA FISICA") || userZona.includes("DIGITAL DETAL")) {
+          return cn.includes("DETAL") || c.id === 2;
+        }
+        if (userCanal.includes("MAYORISTA DIGITAL") || userZona.includes("DIGITAL MAYORISTA") || userZona.includes("PUNTO DE VENTA")) {
+          return cn.includes("MAYORISTA NACIONAL") || cn.includes("DETAL") || c.id === 1 || c.id === 2;
+        }
+        return true;
+      });
+
+      if (filtradosPorUsuario.length > 0) return filtradosPorUsuario;
+    }
+
+    return base;
+  }, [catalogos?.canales, esAdmin, permisoActual]);
 
   const filtros: FiltrosBI = useMemo(() => {
     let fDesde: string | null = null;
@@ -372,19 +425,26 @@ function Panel() {
       }
     }
 
+    let fCanalId: number | null = null;
+    if (canalId !== "todos") {
+      fCanalId = Number(canalId);
+    } else if (!esAdmin && canalesDisponibles.length === 1) {
+      fCanalId = canalesDisponibles[0].id;
+    }
+
     return {
       anio: anioVal,
       mes: mesVal,
       fecha_desde: fDesde,
       fecha_hasta: fHasta,
-      canal_id: canalId !== "todos" ? Number(canalId) : null,
+      canal_id: fCanalId,
       marca_id: marcaId !== "todos" ? Number(marcaId) : null,
       vendedor_id: fVendedorId,
       vendedor_ids: fVendedorIds,
       zona_id: zonaId !== "todos" ? Number(zonaId) : null,
       ciudad_id: ciudadId !== "todos" ? Number(ciudadId) : null,
     };
-  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, ciudadId, rangoTotal?.fechaMax, esAdmin, vendedorIdsPermitidos]);
+  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, ciudadId, rangoTotal?.fechaMax, esAdmin, vendedorIdsPermitidos, canalesDisponibles]);
 
   const hayFiltrosActivos =
     tabActivo === "d3"
@@ -413,7 +473,7 @@ function Panel() {
     setFechaHasta("");
     setAnio("todos");
     setMes("todos");
-    setCanalId("todos");
+    setCanalId(!esAdmin && canalesDisponibles.length === 1 ? String(canalesDisponibles[0].id) : "todos");
     setMarcaId("todos");
     setVendedorId("todos");
     setZonaId("todos");
@@ -471,18 +531,6 @@ function Panel() {
     return ciudadSeleccionadaObj?.nombre || null;
   }, [ciudadSeleccionadaObj]);
 
-  // Catálogos dinámicos adaptados al vendedor y contexto seleccionado (excluyendo canales no comerciales como publicidad)
-  const canalesDisponibles = useMemo(() => {
-    const base = (catalogos?.canales || []).filter((c) => {
-      const n = (c.nombre || "").trim().toLowerCase();
-      return !n.includes("publicidad") && !n.includes("publicada");
-    });
-    if (vendedorId === "todos" || !rawVentas || rawVentas.length === 0) return base;
-    const ids = new Set(rawVentas.map((r) => r.canal_id).filter((id): id is number => id !== null && id !== undefined && id > 0));
-    const filtrados = base.filter((c) => ids.has(c.id));
-    return filtrados.length > 0 ? filtrados : base;
-  }, [vendedorId, rawVentas, catalogos?.canales]);
-
   const marcasDisponibles = useMemo(() => {
     const base = catalogos?.marcas || [];
     if (vendedorId === "todos" || !rawVentas || rawVentas.length === 0) return base;
@@ -507,27 +555,38 @@ function Panel() {
     return filtrados.length > 0 ? filtrados : base;
   }, [vendedorId, rawVentas, catalogos?.ciudades]);
 
-  // Si se selecciona un vendedor y los filtros secundarios ya no aplican a ese vendedor, restablecerlos a 'todos'
+  // Si se selecciona un vendedor o perfil con canales fijos, sincronizar los filtros
   useEffect(() => {
-    if (vendedorId !== "todos") {
+    if (!esAdmin && canalesDisponibles.length === 1) {
+      const unicoId = String(canalesDisponibles[0].id);
+      if (canalId !== unicoId) {
+        setCanalId(unicoId);
+      }
+    } else if (vendedorId !== "todos") {
       if (canalId !== "todos" && !canalesDisponibles.some((c) => String(c.id) === String(canalId))) {
         setCanalId("todos");
       }
-      if (marcaId !== "todos" && !marcasDisponibles.some((m) => String(m.id) === String(marcaId))) {
-        setMarcaId("todos");
-      }
-      if (zonaId !== "todos" && !zonasDisponibles.some((z) => String(z.id) === String(zonaId))) {
-        setZonaId("todos");
-      }
-      if (ciudadId !== "todos" && !ciudadesDisponibles.some((c) => String(c.id) === String(ciudadId))) {
-        setCiudadId("todos");
-      }
     }
-  }, [vendedorId, canalId, marcaId, zonaId, ciudadId, canalesDisponibles, marcasDisponibles, zonasDisponibles, ciudadesDisponibles]);
+    if (marcaId !== "todos" && !marcasDisponibles.some((m) => String(m.id) === String(marcaId))) {
+      setMarcaId("todos");
+    }
+    if (zonaId !== "todos" && !zonasDisponibles.some((z) => String(z.id) === String(zonaId))) {
+      setZonaId("todos");
+    }
+    if (ciudadId !== "todos" && !ciudadesDisponibles.some((c) => String(c.id) === String(ciudadId))) {
+      setCiudadId("todos");
+    }
+  }, [vendedorId, canalId, marcaId, zonaId, ciudadId, canalesDisponibles, marcasDisponibles, zonasDisponibles, ciudadesDisponibles, esAdmin]);
 
-  // Redirección inteligente si se filtra por vendedor o territorio y el usuario está en un tab desactivado (Digital o Marketplaces)
+  // Redirección inteligente si se filtra por vendedor o territorio o por falta de permisos en tabs protegidos
   useEffect(() => {
-    if (vendedorId !== "todos") {
+    if (tabActivo === "carga" && !puedeVerCargar) {
+      setTabActivo("d4");
+    } else if (tabActivo === "d3" && !puedeVerDigital) {
+      setTabActivo("d4");
+    } else if (tabActivo === "d5" && !puedeVerMarketplaces) {
+      setTabActivo("d4");
+    } else if (vendedorId !== "todos") {
       if (tabActivo === "d3" || tabActivo === "d5") {
         setTabActivo("d4");
       }
@@ -536,7 +595,7 @@ function Panel() {
         setTabActivo("d1");
       }
     }
-  }, [vendedorId, zonaId, ciudadId]);
+  }, [vendedorId, zonaId, ciudadId, tabActivo, puedeVerDigital, puedeVerMarketplaces, puedeVerCargar]);
 
   const ciudadesFiltradasD1 = useMemo(() => {
     if (!d1) return [];
@@ -1134,12 +1193,14 @@ function Panel() {
             ) : (
               <>
                 {/* Canal Físico/General */}
-                <Select value={canalId} onValueChange={setCanalId}>
-                  <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
+                <Select value={canalId} onValueChange={setCanalId} disabled={!esAdmin && canalesDisponibles.length === 1}>
+                  <SelectTrigger className="h-8 w-[140px] text-xs bg-background">
                     <SelectValue placeholder="Canal" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72 overflow-y-auto">
-                    <SelectItem value="todos">Todos los Canales</SelectItem>
+                    {(esAdmin || canalesDisponibles.length > 1) && (
+                      <SelectItem value="todos">Todos los Canales</SelectItem>
+                    )}
                     {canalesDisponibles.map((c) => (
                       <SelectItem key={c.id} value={String(c.id)}>
                         {c.nombre}
@@ -1315,7 +1376,7 @@ function Panel() {
               </div>
 
               {/* Tabs enfocados para Vendedor (sin Digital ni Marketplaces) */}
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-7 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-7 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
                 <TabsTrigger
                   value="d4"
                   className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-2xs transition-all duration-200"
@@ -1358,13 +1419,15 @@ function Panel() {
                   <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                   Detalle
                 </TabsTrigger>
-                <TabsTrigger
-                  value="carga"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
-                >
-                  <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                  Cargar
-                </TabsTrigger>
+                {esAdmin && (
+                  <TabsTrigger
+                    value="carga"
+                    className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
+                  >
+                    <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    Cargar
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
           ) : (zonaId !== "todos" || ciudadId !== "todos") ? (
@@ -1405,7 +1468,7 @@ function Panel() {
               </div>
 
               {/* Tabs enfocados para Región (sin Digital ni Marketplaces) */}
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-7 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-7 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
                 <TabsTrigger
                   value="d1"
                   className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-2xs transition-all duration-200"
@@ -1448,17 +1511,19 @@ function Panel() {
                   <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                   Detalle
                 </TabsTrigger>
-                <TabsTrigger
-                  value="carga"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
-                >
-                  <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                  Cargar
-                </TabsTrigger>
+                {esAdmin && (
+                  <TabsTrigger
+                    value="carga"
+                    className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
+                  >
+                    <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    Cargar
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
           ) : (
-            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 md:grid-cols-9 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-8 lg:grid-cols-9 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
               <TabsTrigger
                 value="multianual"
                 className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400 data-[state=active]:shadow-2xs transition-all duration-200"
@@ -1480,13 +1545,15 @@ function Panel() {
                 <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                 2. Run Rate
               </TabsTrigger>
-              <TabsTrigger
-                value="d3"
-                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-indigo-500/10 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 data-[state=active]:shadow-2xs transition-all duration-200"
-              >
-                <Globe className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-                3. Digital
-              </TabsTrigger>
+              {puedeVerDigital && (
+                <TabsTrigger
+                  value="d3"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-indigo-500/10 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <Globe className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                  3. Digital
+                </TabsTrigger>
+              )}
               <TabsTrigger
                 value="d4"
                 className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-2xs transition-all duration-200"
@@ -1494,13 +1561,15 @@ function Panel() {
                 <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                 4. Fuerza Ventas
               </TabsTrigger>
-              <TabsTrigger
-                value="d5"
-                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-pink-500/10 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-400 data-[state=active]:shadow-2xs transition-all duration-200"
-              >
-                <ShoppingBag className="h-3.5 w-3.5 text-pink-500 shrink-0" />
-                5. Marketplaces
-              </TabsTrigger>
+              {puedeVerMarketplaces && (
+                <TabsTrigger
+                  value="d5"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-pink-500/10 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <ShoppingBag className="h-3.5 w-3.5 text-pink-500 shrink-0" />
+                  5. Marketplaces
+                </TabsTrigger>
+              )}
               <TabsTrigger
                 value="referencias"
                 className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:shadow-2xs transition-all duration-200"
@@ -1515,13 +1584,15 @@ function Panel() {
                 <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                 Detalle
               </TabsTrigger>
-              <TabsTrigger
-                value="carga"
-                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
-              >
-                <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                Cargar
-              </TabsTrigger>
+              {esAdmin && (
+                <TabsTrigger
+                  value="carga"
+                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
+                >
+                  <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                  Cargar
+                </TabsTrigger>
+              )}
             </TabsList>
           )}
 
@@ -2770,8 +2841,9 @@ function Panel() {
           {/* ========================================================================= */}
           {/* DASHBOARD 3: E-COMMERCE, SOCIAL SELLING Y MARKETING DIGITAL */}
           {/* ========================================================================= */}
-          <TabsContent value="d3" className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
+          {puedeVerDigital && (
+            <TabsContent value="d3" className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
               <div>
                 <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
                   Dashboard 3: E-Commerce, Social Selling y Marketing Digital
@@ -3250,6 +3322,7 @@ function Panel() {
               </Card>
             </div>
           </TabsContent>
+          )}
 
           {/* ========================================================================= */}
           {/* DASHBOARD 4: FUERZA DE VENTAS Y DESEMPEÑO COMERCIAL */}
@@ -3526,8 +3599,9 @@ function Panel() {
           {/* ========================================================================= */}
           {/* DASHBOARD 5: MARKETPLACES Y ANÁLISIS DE PRODUCTO (COMERGAIN / RETAIL) */}
           {/* ========================================================================= */}
-          <TabsContent value="d5" className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
+          {puedeVerMarketplaces && (
+            <TabsContent value="d5" className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
               <div>
                 <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
                   Dashboard 5: Marketplaces y Análisis de Producto (Comergain / Retail)
@@ -3690,6 +3764,7 @@ function Panel() {
               </CardContent>
             </Card>
           </TabsContent>
+          )}
 
           {/* ========================================================================= */}
           {/* TAB 6: INTELIGENCIA Y RENDIMIENTO DE REFERENCIAS (CATÁLOGO GLOBAL) */}
@@ -4625,9 +4700,10 @@ function Panel() {
           {/* ========================================================================= */}
           {/* TAB 7: CARGA DE ARCHIVOS E HISTORIAL */}
           {/* ========================================================================= */}
-          <TabsContent value="carga" className="space-y-6">
-            {/* ZONA DE CONTROL Y LIMPIEZA DE DATOS */}
-            <Card className="border-rose-500/30 bg-rose-500/5">
+          {esAdmin && (
+            <TabsContent value="carga" className="space-y-6">
+              {/* ZONA DE CONTROL Y LIMPIEZA DE DATOS */}
+              <Card className="border-rose-500/30 bg-rose-500/5">
               <CardHeader className="pb-3">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="flex items-start gap-3">
@@ -4806,6 +4882,7 @@ function Panel() {
               </Card>
             </div>
           </TabsContent>
+          )}
         </Tabs>
       </main>
 
