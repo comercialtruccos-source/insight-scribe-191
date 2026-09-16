@@ -800,6 +800,11 @@ export function normalizarFila(
     }
   }
 
+  // Asegurar que las cantidades de prendas siempre sean unidades cerradas (sin decimales)
+  if (fila.cantidad !== null && fila.cantidad !== undefined) {
+    fila.cantidad = Math.round(fila.cantidad);
+  }
+
   // Costo total
   if (fila.costo_total === null && fila.costo !== null && fila.cantidad !== null) {
     fila.costo_total = fila.costo * fila.cantidad;

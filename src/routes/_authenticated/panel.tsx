@@ -163,6 +163,14 @@ function formatoCOPFull(val: number) {
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(val);
 }
 
+function formatoUnidades(val: number) {
+  return `${Math.round(val || 0).toLocaleString("es-CO")} unds`;
+}
+
+function formatoEntero(val: number) {
+  return Math.round(val || 0).toLocaleString("es-CO");
+}
+
 function colorSemaforo(pct: number) {
   if (pct >= 100) return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
   if (pct >= 90) return "bg-amber-500/15 text-amber-600 border-amber-500/30";
@@ -3576,10 +3584,17 @@ function Panel() {
                       <ComposedChart data={d4?.evolucionMensualEquipo || []} margin={{ left: 10, right: 10 }}>
                         <XAxis dataKey="mesNombre" tick={{ fontSize: 11 }} />
                         <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} width={70} />
-                        <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}`} tick={{ fontSize: 11 }} width={45} />
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          allowDecimals={false}
+                          tickFormatter={(v) => Math.round(v).toLocaleString("es-CO")}
+                          tick={{ fontSize: 11 }}
+                          width={55}
+                        />
                         <Tooltip
                           formatter={(v: number, name: string) => [
-                            name === "venta" ? formatoCOPFull(v) : `${v.toLocaleString("es-CO")} unds`,
+                            name === "venta" ? formatoCOPFull(v) : `${Math.round(v).toLocaleString("es-CO")} unds`,
                             name === "venta" ? "Facturación ($)" : "Prendas (Unds)",
                           ]}
                         />
@@ -3682,7 +3697,7 @@ function Panel() {
                           <td className="py-3 px-3 text-right text-muted-foreground font-medium">{a.transacciones.toLocaleString("es-CO")}</td>
                           <td className="py-3 px-3 text-right font-semibold text-foreground">{formatoCOP(a.ticketPromedio)}</td>
                           <td className="py-3 px-3 text-right text-muted-foreground">{formatoCOP(a.precioPromedioPrenda)}</td>
-                          <td className="py-3 px-3 text-right font-medium text-muted-foreground">{a.prendasPorTransaccion} unds</td>
+                          <td className="py-3 px-3 text-right font-medium text-muted-foreground">{Math.round(a.prendasPorTransaccion).toLocaleString("es-CO")} unds</td>
                           <td className="py-3 px-3 text-center">
                             <Button
                               variant={isSelected ? "default" : "outline"}
@@ -3825,8 +3840,8 @@ function Panel() {
                       <BarChart data={d5?.curvaTallas || []} margin={{ left: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                         <XAxis dataKey="talla" tick={{ fontSize: 12 }} />
-                        <YAxis tickFormatter={(v) => v.toLocaleString("es-CO")} tick={{ fontSize: 11 }} width={55} />
-                        <Tooltip formatter={(v: number) => [`${v.toLocaleString("es-CO")} unds`, "Unidades"]} />
+                        <YAxis allowDecimals={false} tickFormatter={(v) => Math.round(v).toLocaleString("es-CO")} tick={{ fontSize: 11 }} width={55} />
+                        <Tooltip formatter={(v: number) => [`${Math.round(v).toLocaleString("es-CO")} unds`, "Unidades"]} />
                         <Bar dataKey="unidades" fill="#ec4899" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -4093,7 +4108,8 @@ function Panel() {
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.3} />
                         <XAxis
                           type="number"
-                          tickFormatter={(v) => `${(v).toLocaleString("es-CO")} u`}
+                          allowDecimals={false}
+                          tickFormatter={(v) => `${Math.round(v).toLocaleString("es-CO")} u`}
                           tick={{ fontSize: 11 }}
                         />
                         <YAxis
@@ -4112,7 +4128,7 @@ function Panel() {
                                   <p className="text-muted-foreground font-medium">{data.producto}</p>
                                   <div className="h-px bg-border my-1.5" />
                                   <p className="text-blue-600 dark:text-blue-400 font-semibold">
-                                    Unidades Vendidas: {data.unidades.toLocaleString("es-CO")} unds
+                                    Unidades Vendidas: {Math.round(data.unidades).toLocaleString("es-CO")} unds
                                   </p>
                                   <p className="text-muted-foreground">
                                     Facturación: <span className="font-semibold text-foreground">{formatoCOPFull(data.ventaNeta)}</span>
@@ -4190,7 +4206,8 @@ function Panel() {
                         <YAxis
                           yAxisId="right"
                           orientation="right"
-                          tickFormatter={(v) => `${(v).toLocaleString("es-CO")} u`}
+                          allowDecimals={false}
+                          tickFormatter={(v) => `${Math.round(v).toLocaleString("es-CO")} u`}
                           tick={{ fontSize: 10 }}
                         />
                         <Tooltip
@@ -4205,7 +4222,7 @@ function Panel() {
                                     Venta Total: {formatoCOPFull(data.venta)} ({data.porcentaje}%)
                                   </p>
                                   <p className="text-emerald-600 dark:text-emerald-400 font-medium">
-                                    Unidades: {data.unidades.toLocaleString("es-CO")} prendas
+                                    Unidades: {Math.round(data.unidades).toLocaleString("es-CO")} prendas
                                   </p>
                                   <p className="text-muted-foreground">
                                     Referencias Activas: {data.referenciasCount} SKUs
@@ -4337,7 +4354,7 @@ function Panel() {
                       >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                         <XAxis dataKey="talla" tick={{ fontSize: 11, fontWeight: 600 }} />
-                        <YAxis tickFormatter={(v) => `${(v).toLocaleString("es-CO")}`} tick={{ fontSize: 10 }} />
+                        <YAxis allowDecimals={false} tickFormatter={(v) => `${Math.round(v).toLocaleString("es-CO")}`} tick={{ fontSize: 10 }} />
                         <Tooltip
                           content={({ active, payload }) => {
                             if (active && payload && payload.length) {
@@ -4345,7 +4362,7 @@ function Panel() {
                               return (
                                 <div className="rounded border bg-popover p-2 shadow text-xs">
                                   <p className="font-bold">Talla: {d.talla}</p>
-                                  <p className="text-purple-600 font-semibold">{d.unidades.toLocaleString("es-CO")} unds ({d.porcentaje}%)</p>
+                                  <p className="text-purple-600 font-semibold">{Math.round(d.unidades).toLocaleString("es-CO")} unds ({d.porcentaje}%)</p>
                                 </div>
                               );
                             }
@@ -4387,7 +4404,7 @@ function Panel() {
                       >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                         <XAxis dataKey="color" tick={{ fontSize: 10 }} angle={-15} textAnchor="end" interval={0} />
-                        <YAxis tickFormatter={(v) => `${(v).toLocaleString("es-CO")}`} tick={{ fontSize: 10 }} />
+                        <YAxis allowDecimals={false} tickFormatter={(v) => `${Math.round(v).toLocaleString("es-CO")}`} tick={{ fontSize: 10 }} />
                         <Tooltip
                           content={({ active, payload }) => {
                             if (active && payload && payload.length) {
@@ -4395,7 +4412,7 @@ function Panel() {
                               return (
                                 <div className="rounded border bg-popover p-2 shadow text-xs">
                                   <p className="font-bold">Color: {d.color}</p>
-                                  <p className="text-pink-600 font-semibold">{d.unidades.toLocaleString("es-CO")} unds ({d.porcentaje}%)</p>
+                                  <p className="text-pink-600 font-semibold">{Math.round(d.unidades).toLocaleString("es-CO")} unds ({d.porcentaje}%)</p>
                                 </div>
                               );
                             }

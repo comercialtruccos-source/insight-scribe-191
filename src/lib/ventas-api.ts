@@ -641,7 +641,7 @@ export function calcularHistoricoMultianual(data: FilaFactVentas[], filtros: Fil
     }
     const curr = aniosMap.get(an)!;
     const v = Number(r.valor ?? 0);
-    const c = Number(r.cantidad ?? 0);
+    const c = Math.round(Number(r.cantidad ?? 0));
     const ct = Number(r.costo_total ?? (v * 0.5));
 
     curr.ventas += v;
@@ -875,7 +875,7 @@ export function calcularDashboard1Cumplimiento(
     if (!m || isNaN(m)) m = 1;
 
     const v = Number(r.valor ?? 0);
-    const cant = Number(r.cantidad ?? 0);
+    const cant = Math.round(Number(r.cantidad ?? 0));
     const pKey = filtros.anio && !filtros.fecha_desde ? String(m) : `${an}-${String(m).padStart(2, "0")}`;
 
     if (!periodoMap.has(pKey)) {
@@ -1461,7 +1461,7 @@ export function calcularDashboard3Digital(
 
   for (const r of data) {
     const v = Number(r.valor || 0);
-    const cant = Number(r.cantidad || 0);
+    const cant = Math.round(Number(r.cantidad || 0));
     totalVentaEmpresa += v;
 
     const v1 = r.vendedor_id ? vendedorMap.get(r.vendedor_id) : "";
@@ -1752,7 +1752,7 @@ export function calcularDashboard4FuerzaVentas(
 
   for (const r of data) {
     const v = Number(r.valor || 0);
-    const cant = Number(r.cantidad || 0);
+    const cant = Math.round(Number(r.cantidad || 0));
     let m = Number(r.mes);
     if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
     if (!m || isNaN(m)) m = 1;
@@ -1809,7 +1809,7 @@ export function calcularDashboard4FuerzaVentas(
       const participacionCarteraPct = totalVentaFuerza > 0 && val.venta > 0 ? Math.round((val.venta / totalVentaFuerza) * 1000) / 10 : 0;
       const ticketPromedio = txCount > 0 ? Math.round(val.venta / txCount) : 0;
       const precioPromedioPrenda = val.unidades > 0 ? Math.round(val.venta / val.unidades) : 0;
-      const prendasPorTransaccion = txCount > 0 ? Math.round((val.unidades / txCount) * 10) / 10 : 0;
+      const prendasPorTransaccion = txCount > 0 ? Math.round(val.unidades / txCount) : 0;
 
       return {
         vendedor,
@@ -1911,7 +1911,7 @@ export function calcularDashboard5Marketplaces(
 
   for (const r of data) {
     const v = Number(r.valor || 0);
-    const cant = Number(r.cantidad || 0);
+    const cant = Math.round(Number(r.cantidad || 0));
     const sku = r.sku || "N/A";
     const prod = r.producto || r.prenda_hgi || "Prenda Trucco's";
     const talla = (r.talla || "").trim().toUpperCase();
@@ -2085,7 +2085,7 @@ export function calcularDashboard6Referencias(
     if (!cumpleFiltros(r, filtros)) continue;
 
     const v = Number(r.valor || 0);
-    const cant = Number(r.cantidad || 0);
+    const cant = Math.round(Number(r.cantidad || 0));
     const costo = Number(r.costo_total || 0);
 
     const rawSku = (r.sku || r.prenda_hgi || "").trim();
