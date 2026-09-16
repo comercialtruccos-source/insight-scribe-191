@@ -2804,77 +2804,183 @@ function Panel() {
           </TabsContent>
 
           {/* ========================================================================= */}
-          {/* DASHBOARD 4: FUERZA DE VENTAS Y CANALES B2B / MAYORISTAS */}
+          {/* DASHBOARD 4: FUERZA DE VENTAS Y DESEMPEÑO COMERCIAL */}
           {/* ========================================================================= */}
           <TabsContent value="d4" className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
               <div>
                 <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
-                  Dashboard 4: Fuerza de Ventas y Canales B2B / Mayoristas
+                  Dashboard 4: Fuerza de Ventas y Desempeño Comercial
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Rendimiento individual por asesor comercial, cumplimiento de cuota, comisiones (5%), viáticos y comercio exterior.
+                  Facturación real, volumen de prendas, facturas procesadas, ticket promedio y precio por unidad de cada asesor comercial.
                 </p>
               </div>
-              <Badge variant="outline" className="bg-muted/40 font-mono text-xs">
+              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 font-semibold text-xs">
                 {d4?.kpis.totalAsesores ?? 0} asesores comerciales activos
               </Badge>
             </div>
 
-            {/* Tarjetas KPI Fuerza de Ventas */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Tarjetas KPI Reales Fuerza de Ventas */}
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
               <CardKpi
                 titulo="Facturación Fuerza Comercial"
                 valor={formatoCOPFull(d4?.kpis.totalVentaFuerza ?? 0)}
-                subtexto={`Nacional: ${formatoCOP(d4?.kpis.ventaNacional ?? 0)}`}
+                subtexto={`Nacional: ${formatoCOP(d4?.kpis.ventaNacional ?? 0)} • Export: ${formatoCOP(d4?.kpis.ventaExportaciones ?? 0)}`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD4}
               />
               <CardKpi
-                titulo="Comisiones Estimadas (5%)"
-                valor={formatoCOPFull(d4?.kpis.comisionesTotales ?? 0)}
-                subtexto="Esquema comercial variable de ventas"
-                icono={<Percent className="h-5 w-5 text-amber-500" />}
+                titulo="Prendas Comercializadas"
+                valor={`${(d4?.kpis.totalUnidades ?? 0).toLocaleString("es-CO")} unds`}
+                subtexto="Volumen total entregado"
+                icono={<Package className="h-5 w-5 text-blue-500" />}
                 cargando={cD4}
               />
               <CardKpi
-                titulo="Comercio Exterior (Exportaciones)"
-                valor={formatoCOPFull(d4?.kpis.ventaExportaciones ?? 0)}
-                subtexto={`${d4?.kpis.pctExportaciones ?? 0}% del volumen total de ventas`}
-                icono={<Globe className="h-5 w-5 text-blue-500" />}
+                titulo="Facturas / Transacciones"
+                valor={`${(d4?.kpis.totalTransacciones ?? 0).toLocaleString("es-CO")}`}
+                subtexto="Documentos emitidos"
+                icono={<Receipt className="h-5 w-5 text-amber-500" />}
                 cargando={cD4}
               />
               <CardKpi
-                titulo="Asesores Comerciales"
-                valor={`${d4?.kpis.totalAsesores ?? 0}`}
-                subtexto="Ejecutivos de cuenta y ruta nacional"
-                icono={<Users className="h-5 w-5 text-indigo-500" />}
+                titulo="Ticket Promedio / Pedido"
+                valor={formatoCOP(d4?.kpis.ticketPromedio ?? 0)}
+                subtexto="Facturación por documento"
+                icono={<ShoppingBag className="h-5 w-5 text-purple-500" />}
+                cargando={cD4}
+              />
+              <CardKpi
+                titulo="Precio Promedio / Prenda"
+                valor={formatoCOP(d4?.kpis.precioPromedioPrenda ?? 0)}
+                subtexto="ASP unitario ponderado"
+                icono={<Tag className="h-5 w-5 text-cyan-500" />}
                 cargando={cD4}
               />
             </div>
 
-            {/* Tabla Matriz de Asesores con Cuota y Comisiones */}
+            {/* Gráficos de Rendimiento Comercial */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Top 10 Asesores por Facturación */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold flex items-center justify-between">
+                    <span>Top 10 Asesores por Facturación ($)</span>
+                    <span className="text-[11px] font-normal text-muted-foreground">(Clic en una barra para enfocar)</span>
+                  </CardTitle>
+                  <CardDescription>Participación en valor monetario del equipo comercial</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(d4?.asesores || []).length === 0 ? (
+                    <div className="h-[280px] grid place-items-center text-sm text-muted-foreground">
+                      Sin datos de asesores para el periodo seleccionado
+                    </div>
+                  ) : (
+                    <div className="h-[280px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={(d4?.asesores || []).slice(0, 10)}
+                          layout="vertical"
+                          margin={{ left: 30, right: 20 }}
+                          onClick={(e) => {
+                            if (e && e.activePayload && e.activePayload[0]) {
+                              const aItem = e.activePayload[0].payload as AsesorComercial;
+                              const matchVendedor = (catalogos?.vendedores || []).find(
+                                (v) => v.nombre.toLowerCase() === aItem.vendedor.toLowerCase()
+                              );
+                              if (matchVendedor) {
+                                setVendedorId(String(matchVendedor.id) === String(vendedorId) ? "todos" : String(matchVendedor.id));
+                              }
+                            }
+                          }}
+                        >
+                          <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} />
+                          <YAxis dataKey="vendedor" type="category" width={110} tick={{ fontSize: 11 }} />
+                          <Tooltip
+                            formatter={(v: number, name: string) => [
+                              formatoCOPFull(v),
+                              "Facturación Total",
+                            ]}
+                          />
+                          <Bar dataKey="ventaTotal" fill="#4f46e5" radius={[0, 6, 6, 0]} className="cursor-pointer" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Evolución Mensual del Equipo */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold">Evolución Mensual de Ventas y Unidades</CardTitle>
+                  <CardDescription>Comportamiento cronológico de la fuerza comercial</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[280px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={d4?.evolucionMensualEquipo || []} margin={{ left: 10, right: 10 }}>
+                        <XAxis dataKey="mesNombre" tick={{ fontSize: 11 }} />
+                        <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} width={70} />
+                        <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}`} tick={{ fontSize: 11 }} width={45} />
+                        <Tooltip
+                          formatter={(v: number, name: string) => [
+                            name === "venta" ? formatoCOPFull(v) : `${v.toLocaleString("es-CO")} unds`,
+                            name === "venta" ? "Facturación ($)" : "Prendas (Unds)",
+                          ]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: "11px" }} />
+                        <Bar yAxisId="left" dataKey="venta" name="venta" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                        <Line yAxisId="right" type="monotone" dataKey="unidades" name="unidades" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Tabla Matriz Integral de Asesores */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Ranking de Asesores Comerciales y Cumplimiento de Cuota</CardTitle>
-                <CardDescription>Facturación, % participación de cartera, cuota individual y comisión calculada</CardDescription>
+              <CardHeader className="pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base font-semibold">Ranking Integral de Asesores Comerciales</CardTitle>
+                    <CardDescription>
+                      Métricas reales consolidadas: facturación, cuota de participación, unidades, transacciones y promedios por documento y prenda.
+                    </CardDescription>
+                  </div>
+                  {vendedorId !== "todos" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setVendedorId("todos")}
+                      className="text-xs border-amber-500/40 text-amber-700 dark:text-amber-300"
+                    >
+                      <FilterX className="h-3.5 w-3.5 mr-1 text-amber-500" />
+                      Quitar Filtro de Asesor
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
-              <CardContent className="overflow-x-auto">
+              <CardContent className="overflow-x-auto p-0">
                 <table className="w-full text-xs text-left">
-                  <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
+                  <thead className="border-y border-border/80 uppercase text-muted-foreground font-semibold bg-muted/40">
                     <tr>
-                      <th className="py-2.5 px-3">Asesor Comercial</th>
-                      <th className="py-2.5 px-3 text-right">Facturación ($)</th>
-                      <th className="py-2.5 px-3 text-right">Unidades</th>
-                      <th className="py-2.5 px-3 text-right">Cuota Asignada</th>
-                      <th className="py-2.5 px-3 text-right">% Cumpl.</th>
-                      <th className="py-2.5 px-3 text-right">% Cartera</th>
-                      <th className="py-2.5 px-3 text-right">Comisión (5%)</th>
-                      <th className="py-2.5 px-3 text-right">Viáticos Est.</th>
+                      <th className="py-3 px-3 text-center w-12">#</th>
+                      <th className="py-3 px-3">Asesor Comercial</th>
+                      <th className="py-3 px-3 text-right">Facturación ($)</th>
+                      <th className="py-3 px-3 text-left w-36">% Cartera</th>
+                      <th className="py-3 px-3 text-right">Prendas (Unds)</th>
+                      <th className="py-3 px-3 text-right">Facturas</th>
+                      <th className="py-3 px-3 text-right">Ticket Promedio</th>
+                      <th className="py-3 px-3 text-right">Precio Prom. / Prenda</th>
+                      <th className="py-3 px-3 text-right">Prendas / Factura</th>
+                      <th className="py-3 px-3 text-center">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
-                    {(d4?.asesores || []).map((a) => {
+                    {(d4?.asesores || []).map((a, idx) => {
                       const matchVendedor = (catalogos?.vendedores || []).find(
                         (v) => v.nombre.toLowerCase() === a.vendedor.toLowerCase()
                       );
@@ -2889,32 +2995,58 @@ function Panel() {
                           }}
                           className={`cursor-pointer transition-colors ${
                             isSelected
-                              ? "bg-amber-500/15 dark:bg-amber-950/30 border-l-2 border-l-amber-500 font-semibold"
+                              ? "bg-amber-500/15 dark:bg-amber-950/30 font-semibold"
                               : "hover:bg-muted/40"
                           }`}
                           title={matchVendedor ? "Clic para activar Modo Enfoque de este asesor" : undefined}
                         >
-                          <td className="py-2.5 px-3 font-medium text-foreground">
+                          <td className="py-3 px-3 text-center text-muted-foreground font-mono">
+                            {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}`}
+                          </td>
+                          <td className="py-3 px-3 font-medium text-foreground">
                             <div className="flex items-center gap-2">
                               <span>{a.vendedor}</span>
                               {isSelected && (
                                 <Badge variant="outline" className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40">
-                                  Activo
+                                  Enfocado
                                 </Badge>
                               )}
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-semibold">{formatoCOPFull(a.ventaTotal)}</td>
-                          <td className="py-2.5 px-3 text-right text-muted-foreground">{a.unidades.toLocaleString("es-CO")}</td>
-                          <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(a.cuotaAsignada)}</td>
-                          <td className="py-2.5 px-3 text-right">
-                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${colorSemaforo(a.cumplimientoPct)}`}>
-                              {a.cumplimientoPct}%
-                            </span>
+                          <td className="py-3 px-3 text-right font-bold text-foreground">{formatoCOPFull(a.ventaTotal)}</td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className="h-full bg-indigo-600 rounded-full"
+                                  style={{ width: `${Math.min(100, a.participacionCarteraPct)}%` }}
+                                />
+                              </div>
+                              <span className="font-semibold text-[11px] text-muted-foreground">{a.participacionCarteraPct}%</span>
+                            </div>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-medium">{a.participacionCarteraPct}%</td>
-                          <td className="py-2.5 px-3 text-right font-semibold text-emerald-600">{formatoCOP(a.comisionEstimada)}</td>
-                          <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(a.viaticosZona)}</td>
+                          <td className="py-3 px-3 text-right text-muted-foreground font-medium">{a.unidades.toLocaleString("es-CO")}</td>
+                          <td className="py-3 px-3 text-right text-muted-foreground font-medium">{a.transacciones.toLocaleString("es-CO")}</td>
+                          <td className="py-3 px-3 text-right font-semibold text-foreground">{formatoCOP(a.ticketPromedio)}</td>
+                          <td className="py-3 px-3 text-right text-muted-foreground">{formatoCOP(a.precioPromedioPrenda)}</td>
+                          <td className="py-3 px-3 text-right font-medium text-muted-foreground">{a.prendasPorTransaccion} unds</td>
+                          <td className="py-3 px-3 text-center">
+                            <Button
+                              variant={isSelected ? "default" : "outline"}
+                              size="sm"
+                              className={`h-6 text-[11px] px-2 rounded-lg ${
+                                isSelected ? "bg-amber-600 hover:bg-amber-700 text-white" : "border-border/60 hover:bg-amber-500/10 hover:text-amber-700"
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (matchVendedor) {
+                                  setVendedorId(isSelected ? "todos" : String(matchVendedor.id));
+                                }
+                              }}
+                            >
+                              {isSelected ? "Enfocado" : "Enfocar"}
+                            </Button>
+                          </td>
                         </tr>
                       );
                     })}

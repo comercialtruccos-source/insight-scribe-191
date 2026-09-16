@@ -1673,22 +1673,28 @@ export async function obtenerDashboard3Digital(filtros: FiltrosBI): Promise<Data
 // =========================================================================
 // DASHBOARD 4: FUERZA DE VENTAS Y CANALES B2B / MAYORISTAS
 // =========================================================================
+// DASHBOARD 4: FUERZA DE VENTAS Y CANALES B2B / MAYORISTAS
+// =========================================================================
 export type AsesorComercial = {
   vendedor: string;
   ventaTotal: number;
   unidades: number;
-  cuotaAsignada: number;
-  cumplimientoPct: number;
+  transacciones: number;
   participacionCarteraPct: number;
-  comisionEstimada: number;
-  viaticosZona: number;
+  ticketPromedio: number;
+  precioPromedioPrenda: number;
+  prendasPorTransaccion: number;
+  meses: number[];
 };
 
 export type DataDashboard4 = {
   kpis: {
     totalVentaFuerza: number;
+    totalUnidades: number;
+    totalTransacciones: number;
     totalAsesores: number;
-    comisionesTotales: number;
+    ticketPromedio: number;
+    precioPromedioPrenda: number;
     ventaNacional: number;
     ventaExportaciones: number;
     pctExportaciones: number;
@@ -1696,6 +1702,7 @@ export type DataDashboard4 = {
   asesores: AsesorComercial[];
   distribucionCanales: { canal: string; venta: number; porcentaje: number }[];
   matrizVendedorMes: { vendedor: string; meses: number[] }[];
+  evolucionMensualEquipo: { mesNum: number; mesNombre: string; venta: number; unidades: number }[];
 };
 
 export function calcularDashboard4FuerzaVentas(
@@ -1710,11 +1717,18 @@ export function calcularDashboard4FuerzaVentas(
   const paisMap = new Map<number, string>((paisesCatalogo || []).map((p) => [p.id, p.nombre]));
 
   let totalVentaFuerza = 0;
+  let totalUnidades = 0;
   let ventaNacional = 0;
   let ventaExportaciones = 0;
 
-  const asesorDataMap = new Map<string, { venta: number; unidades: number; meses: number[] }>();
+  const asesorDataMap = new Map<
+    string,
+    { venta: number; unidades: number; transaccionesSet: Set<string>; meses: number[] }
+  >();
   const canalDistMap = new Map<string, number>();
+  const allTransaccionesSet = new Set<string>();
+  const mesVentasArray = new Array(12).fill(0);
+  const mesUnidadesArray = new Array(12).fill(0);
 
   for (const r of data) {
     const v = Number(r.valor || 0);
@@ -1724,6 +1738,15 @@ export function calcularDashboard4FuerzaVentas(
     if (!m || isNaN(m)) m = 1;
 
     totalVentaFuerza += v;
+    totalUnidades += cant;
+
+    const txId = r.transaccion ? String(r.transaccion) : `row_${r.id}`;
+    allTransaccionesSet.add(txId);
+
+    if (m >= 1 && m <= 12) {
+      mesVentasArray[m - 1] += v;
+      mesUnidadesArray[m - 1] += cant;
+    }
 
     let vNombre = (r.vendedor_id ? vendedorMap.get(r.vendedor_id) : "") || (r.vendedor2_id ? vendedorMap.get(r.vendedor2_id) : "") || "Asesor General";
 
@@ -1744,42 +1767,47 @@ export function calcularDashboard4FuerzaVentas(
     canalDistMap.set(cNombre, (canalDistMap.get(cNombre) || 0) + v);
 
     if (!asesorDataMap.has(vNombre)) {
-      asesorDataMap.set(vNombre, { venta: 0, unidades: 0, meses: new Array(12).fill(0) });
+      asesorDataMap.set(vNombre, {
+        venta: 0,
+        unidades: 0,
+        transaccionesSet: new Set<string>(),
+        meses: new Array(12).fill(0),
+      });
     }
     const curr = asesorDataMap.get(vNombre)!;
     curr.venta += v;
     curr.unidades += cant;
+    curr.transaccionesSet.add(txId);
     if (m >= 1 && m <= 12) {
       curr.meses[m - 1] = (curr.meses[m - 1] ?? 0) + v;
     }
   }
 
-  const totalAsesores = asesorDataMap.size;
-  const promedioVentaAsesor = totalAsesores > 0 ? totalVentaFuerza / totalAsesores : 0;
-  const cuotaBaseAsesor = Math.round(promedioVentaAsesor * 1.05);
-
   const asesores: AsesorComercial[] = Array.from(asesorDataMap.entries())
     .map(([vendedor, val]) => {
-      const cuotaAsignada = cuotaBaseAsesor > 0 ? cuotaBaseAsesor : (val.venta > 0 ? Math.round(val.venta * 1.05) : 0);
-      const cumplimientoPct = cuotaAsignada > 0 && val.venta > 0 ? Math.round((val.venta / cuotaAsignada) * 1000) / 10 : 0;
+      const txCount = val.transaccionesSet.size;
       const participacionCarteraPct = totalVentaFuerza > 0 && val.venta > 0 ? Math.round((val.venta / totalVentaFuerza) * 1000) / 10 : 0;
-      const comisionEstimada = val.venta > 0 ? Math.round(val.venta * 0.05) : 0;
-      const viaticosZona = 1_500_000;
+      const ticketPromedio = txCount > 0 ? Math.round(val.venta / txCount) : 0;
+      const precioPromedioPrenda = val.unidades > 0 ? Math.round(val.venta / val.unidades) : 0;
+      const prendasPorTransaccion = txCount > 0 ? Math.round((val.unidades / txCount) * 10) / 10 : 0;
 
       return {
         vendedor,
         ventaTotal: val.venta,
         unidades: val.unidades,
-        cuotaAsignada,
-        cumplimientoPct,
+        transacciones: txCount,
         participacionCarteraPct,
-        comisionEstimada,
-        viaticosZona,
+        ticketPromedio,
+        precioPromedioPrenda,
+        prendasPorTransaccion,
+        meses: val.meses,
       };
     })
     .sort((a, b) => b.ventaTotal - a.ventaTotal);
 
-  const comisionesTotales = asesores.reduce((a, b) => a + b.comisionEstimada, 0);
+  const totalTransacciones = allTransaccionesSet.size;
+  const ticketPromedio = totalTransacciones > 0 ? Math.round(totalVentaFuerza / totalTransacciones) : 0;
+  const precioPromedioPrenda = totalUnidades > 0 ? Math.round(totalVentaFuerza / totalUnidades) : 0;
   const pctExportaciones = totalVentaFuerza > 0 ? Math.round((ventaExportaciones / totalVentaFuerza) * 1000) / 10 : 0;
 
   const distribucionCanales = Array.from(canalDistMap.entries()).map(([canal, venta]) => ({
@@ -1790,14 +1818,25 @@ export function calcularDashboard4FuerzaVentas(
 
   const matrizVendedorMes = asesores.slice(0, 10).map((a) => ({
     vendedor: a.vendedor,
-    meses: asesorDataMap.get(a.vendedor)?.meses || new Array(12).fill(0),
+    meses: a.meses,
+  }));
+
+  const MESES_NOMBRES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const evolucionMensualEquipo = MESES_NOMBRES.map((mesNombre, idx) => ({
+    mesNum: idx + 1,
+    mesNombre,
+    venta: mesVentasArray[idx] || 0,
+    unidades: mesUnidadesArray[idx] || 0,
   }));
 
   return {
     kpis: {
       totalVentaFuerza,
+      totalUnidades,
+      totalTransacciones,
       totalAsesores: asesores.length,
-      comisionesTotales,
+      ticketPromedio,
+      precioPromedioPrenda,
       ventaNacional,
       ventaExportaciones,
       pctExportaciones,
@@ -1805,6 +1844,7 @@ export function calcularDashboard4FuerzaVentas(
     asesores,
     distribucionCanales,
     matrizVendedorMes,
+    evolucionMensualEquipo,
   };
 }
 
