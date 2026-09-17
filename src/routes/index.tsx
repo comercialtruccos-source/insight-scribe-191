@@ -21,15 +21,15 @@ import { Users, ShieldCheck, KeyRound, ChevronDown, CheckCircle2 } from "lucide-
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Acceso Corporativo | Trucco´s BI" },
+      { title: "Acceso Corporativo | Trucco´s Jeans BI" },
       {
         name: "description",
-        content: "Plataforma interna de inteligencia comercial y analítica de ventas.",
+        content: "Plataforma de Business Intelligence y Analítica Comercial - Trucco´s Jeans.",
       },
-      { property: "og:title", content: "Acceso Corporativo | Trucco´s BI" },
+      { property: "og:title", content: "Acceso Corporativo | Trucco´s Jeans BI" },
       {
         property: "og:description",
-        content: "Plataforma interna de inteligencia comercial y analítica de ventas.",
+        content: "Plataforma de Business Intelligence y Analítica Comercial - Trucco´s Jeans.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -177,7 +177,7 @@ function LoginPage() {
             T
           </div>
           <h1 className="text-2xl font-bold font-display tracking-tight text-foreground">
-            Trucco´s BI de Ventas
+            Trucco´s Jeans BI
           </h1>
           <p className="text-xs text-muted-foreground font-medium flex items-center justify-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
@@ -332,7 +332,7 @@ function LoginPage() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground">
-          Trucco´s BI • Sistema confidencial de uso exclusivo interno
+          Trucco´s Jeans BI • Sistema confidencial de uso exclusivo interno
         </p>
       </div>
     </main>

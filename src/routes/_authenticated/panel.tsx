@@ -272,6 +272,12 @@ function BadgeYoYUnidades({
 }
 
 export const Route = createFileRoute("/_authenticated/panel")({
+  head: () => ({
+    meta: [
+      { title: "Panel Principal | Trucco´s Jeans BI" },
+      { property: "og:title", content: "Panel Principal | Trucco´s Jeans BI" },
+    ],
+  }),
   component: Panel,
   errorComponent: ({ error }) => (
     <div role="alert" className="p-10 text-destructive">
@@ -1099,7 +1105,7 @@ function Panel() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <p className="font-display text-lg font-bold tracking-tight text-foreground">Trucco´s BI</p>
+                <p className="font-display text-lg font-bold tracking-tight text-foreground">Trucco´s Jeans BI</p>
                 <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                   Analytics
                 </Badge>

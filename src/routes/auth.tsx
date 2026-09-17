@@ -20,16 +20,16 @@ import { Users, ShieldCheck, KeyRound, ChevronDown, CheckCircle2 } from "lucide-
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Acceso | Trucco´s BI de Ventas" },
+      { title: "Acceso | Trucco´s Jeans BI" },
       {
         name: "description",
         content:
           "Inicia sesión para cargar tu histórico de ventas y explorar los indicadores de tu empresa.",
       },
-      { property: "og:title", content: "Acceso | Trucco´s BI de Ventas" },
+      { property: "og:title", content: "Acceso | Trucco´s Jeans BI" },
       {
         property: "og:description",
-        content: "Panel de Business Intelligence de ventas para tu empresa.",
+        content: "Panel de Business Intelligence de ventas para Trucco´s Jeans.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -177,7 +177,7 @@ function AuthPage() {
             T
           </div>
           <h1 className="text-2xl font-bold font-display tracking-tight text-foreground">
-            Trucco´s BI de Ventas
+            Trucco´s Jeans BI
           </h1>
           <p className="text-xs text-muted-foreground font-medium flex items-center justify-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
