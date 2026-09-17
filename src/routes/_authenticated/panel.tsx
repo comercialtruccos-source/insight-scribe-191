@@ -108,6 +108,8 @@ import {
   Eye,
   Lock,
   Sparkles,
+  X,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vendedores-dialog";
@@ -4616,12 +4618,26 @@ function Panel() {
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-base font-semibold flex items-center gap-2">
-                        <Percent className="h-4 w-4 text-purple-500" />
-                        Estructura Pareto / Clasificación ABC
-                      </CardTitle>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <CardTitle className="text-base font-semibold flex items-center gap-2">
+                          <Percent className="h-4 w-4 text-purple-500" />
+                          Estructura Pareto / Clasificación ABC
+                        </CardTitle>
+                        {filtroAbcRef !== "todos" && (
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] cursor-pointer hover:bg-muted font-bold flex items-center gap-1 border border-primary/30"
+                            onClick={() => {
+                              setFiltroAbcRef("todos");
+                              setPaginaRef(1);
+                            }}
+                          >
+                            Filtrando: Clase {filtroAbcRef} <X className="h-3 w-3" />
+                          </Badge>
+                        )}
+                      </div>
                       <CardDescription>
-                        Segmentación estratégica del catálogo para optimizar inventarios y compras
+                        Segmentación estratégica del catálogo. <span className="text-xs text-primary/80 font-medium">Haz clic en cualquier bloque para filtrar los productos</span>
                       </CardDescription>
                     </div>
                     <InfoGrafica
@@ -4633,61 +4649,108 @@ function Panel() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3.5">
-                  {(d6?.clasificacionABCResumen || []).map((item) => (
-                    <div
-                      key={item.clase}
-                      className={`p-3 rounded-lg border transition-all ${
-                        item.clase === "A"
-                          ? "bg-emerald-500/10 border-emerald-500/30"
-                          : item.clase === "B"
-                          ? "bg-amber-500/10 border-amber-500/30"
-                          : "bg-slate-500/10 border-slate-500/20"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            className={
-                              item.clase === "A"
-                                ? "bg-emerald-600 text-white font-bold"
-                                : item.clase === "B"
-                                ? "bg-amber-600 text-white font-bold"
-                                : "bg-slate-600 text-white font-bold"
-                            }
-                          >
-                            Clase {item.clase}
-                          </Badge>
-                          <span className="text-xs font-semibold text-foreground">
-                            {item.clase === "A"
-                              ? "Alto Impacto (Motor de Ingresos)"
+                  {(d6?.clasificacionABCResumen || []).map((item) => {
+                    const isSelected = filtroAbcRef === item.clase;
+                    const isDimmed = filtroAbcRef !== "todos" && !isSelected;
+
+                    return (
+                      <div
+                        key={item.clase}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          const nuevoFiltro = isSelected ? "todos" : item.clase;
+                          setFiltroAbcRef(nuevoFiltro);
+                          setPaginaRef(1);
+                          const el = document.getElementById("tabla-maestro-referencias");
+                          if (el) {
+                            el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            const nuevoFiltro = isSelected ? "todos" : item.clase;
+                            setFiltroAbcRef(nuevoFiltro);
+                            setPaginaRef(1);
+                          }
+                        }}
+                        className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer select-none relative ${
+                          isDimmed
+                            ? "opacity-50 hover:opacity-100 bg-muted/20 border-border/40 hover:scale-[1.01]"
+                            : isSelected
+                            ? item.clase === "A"
+                              ? "bg-emerald-500/20 border-emerald-500 shadow-md ring-2 ring-emerald-500 ring-offset-2 dark:ring-offset-slate-950 scale-[1.01]"
                               : item.clase === "B"
-                              ? "Rotación Regular (Catálogo Activo)"
-                              : "Cola Larga (Revisión de Inventario)"}
+                              ? "bg-amber-500/20 border-amber-500 shadow-md ring-2 ring-amber-500 ring-offset-2 dark:ring-offset-slate-950 scale-[1.01]"
+                              : "bg-slate-500/20 border-slate-400 shadow-md ring-2 ring-slate-400 ring-offset-2 dark:ring-offset-slate-950 scale-[1.01]"
+                            : item.clase === "A"
+                            ? "bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-500/60 hover:shadow-sm hover:scale-[1.01]"
+                            : item.clase === "B"
+                            ? "bg-amber-500/10 border-amber-500/30 hover:border-amber-500/60 hover:shadow-sm hover:scale-[1.01]"
+                            : "bg-slate-500/10 border-slate-500/20 hover:border-slate-500/50 hover:shadow-sm hover:scale-[1.01]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge
+                              className={
+                                item.clase === "A"
+                                  ? "bg-emerald-600 text-white font-bold"
+                                  : item.clase === "B"
+                                  ? "bg-amber-600 text-white font-bold"
+                                  : "bg-slate-600 text-white font-bold"
+                              }
+                            >
+                              Clase {item.clase}
+                            </Badge>
+                            <span className="text-xs font-semibold text-foreground">
+                              {item.clase === "A"
+                                ? "Alto Impacto (Motor de Ingresos)"
+                                : item.clase === "B"
+                                ? "Rotación Regular (Catálogo Activo)"
+                                : "Cola Larga (Revisión de Inventario)"}
+                            </span>
+                            {isSelected && (
+                              <Badge variant="outline" className="text-[10px] bg-background/90 font-bold border-primary text-primary flex items-center gap-1 shadow-xs">
+                                <Check className="h-3 w-3 text-primary" /> Filtro Activo
+                              </Badge>
+                            )}
+                          </div>
+                          <span className="text-xs font-bold font-mono text-foreground">
+                            {item.porcentajeVenta}% Venta
                           </span>
                         </div>
-                        <span className="text-xs font-bold font-mono text-foreground">
-                          {item.porcentajeVenta}% Venta
-                        </span>
+                        <p className="text-[11px] text-muted-foreground mb-2">
+                          {item.descripcion}
+                        </p>
+                        <div className="grid grid-cols-3 gap-2 text-center text-xs bg-background/60 rounded p-1.5 border border-border/40">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">SKUs</p>
+                            <p className="font-bold text-foreground font-mono">{item.referenciasCount} ({item.referenciasPct}%)</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Facturación</p>
+                            <p className="font-bold text-foreground font-mono">{formatoCOP(item.ventaTotal)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Prendas</p>
+                            <p className="font-bold text-foreground font-mono">{item.unidadesTotal.toLocaleString("es-CO")}</p>
+                          </div>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground pt-1.5 border-t border-border/30">
+                          <span>
+                            {isSelected
+                              ? "✓ Mostrando referencias de esta clase en la tabla"
+                              : "👆 Haz clic para filtrar la lista de productos"}
+                          </span>
+                          <span className="font-medium text-primary hover:underline">
+                            {isSelected ? "Quitar filtro ✕" : "Ver productos →"}
+                          </span>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-muted-foreground mb-2">
-                        {item.descripcion}
-                      </p>
-                      <div className="grid grid-cols-3 gap-2 text-center text-xs bg-background/60 rounded p-1.5 border border-border/40">
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">SKUs</p>
-                          <p className="font-bold text-foreground font-mono">{item.referenciasCount} ({item.referenciasPct}%)</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Facturación</p>
-                          <p className="font-bold text-foreground font-mono">{formatoCOP(item.ventaTotal)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Prendas</p>
-                          <p className="font-bold text-foreground font-mono">{item.unidadesTotal.toLocaleString("es-CO")}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </CardContent>
               </Card>
             </div>
@@ -4846,14 +4909,42 @@ function Panel() {
             </div>
 
             {/* SECCIÓN 4: Maestro y Explorador Completo de Referencias */}
-            <Card>
+            <Card id="tabla-maestro-referencias" className="scroll-mt-6">
               <CardHeader className="pb-3">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <FileSpreadsheet className="h-4 w-4 text-primary" />
-                      Maestro Interactivo de Referencias del Catálogo
-                    </CardTitle>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CardTitle className="text-base font-semibold flex items-center gap-2">
+                        <FileSpreadsheet className="h-4 w-4 text-primary" />
+                        Maestro Interactivo de Referencias del Catálogo
+                      </CardTitle>
+                      {filtroAbcRef !== "todos" && (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-xs px-2.5 py-0.5 font-semibold flex items-center gap-1.5 border",
+                            filtroAbcRef === "A"
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                              : filtroAbcRef === "B"
+                              ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                              : "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30"
+                          )}
+                        >
+                          <span>Filtro Pareto: <strong>Clase {filtroAbcRef}</strong></span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFiltroAbcRef("todos");
+                              setPaginaRef(1);
+                            }}
+                            className="hover:bg-foreground/10 rounded p-0.5 ml-0.5 cursor-pointer"
+                            title="Quitar filtro de clase ABC"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      )}
+                    </div>
                     <CardDescription>
                       Mostrando {referenciasFiltradas.length.toLocaleString("es-CO")} referencias filtradas de {(d6?.todasReferencias?.length ?? 0).toLocaleString("es-CO")} en catálogo
                     </CardDescription>
