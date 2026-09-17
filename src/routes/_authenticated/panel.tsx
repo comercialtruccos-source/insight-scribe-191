@@ -200,7 +200,7 @@ function BadgeYoY({
 }) {
   if (anterior === undefined || anterior === null || (anterior === 0 && actual === 0)) {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground/80 bg-muted/40 px-1.5 py-0.5 rounded border border-border/40">
+      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground/80 bg-muted/50 px-2 py-0.5 rounded-full border border-border/40">
         Sin datos año ant.
       </span>
     );
@@ -233,17 +233,17 @@ function BadgeYoY({
     <div className="flex items-center gap-1.5 flex-wrap text-xs">
       <span
         className={cn(
-          "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-semibold text-[11px]",
+          "inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full font-bold text-[10px] shadow-2xs font-mono",
           esBueno
-            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-            : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
+            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+            : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30"
         )}
       >
-        {esPositivo ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+        {esPositivo ? <ArrowUpRight className="h-3 w-3 stroke-[2.5]" /> : <ArrowDownRight className="h-3 w-3 stroke-[2.5]" />}
         {pct > 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`}
       </span>
-      <span className="text-[11px] text-muted-foreground font-normal">
-        ({valorAnteriorFormateado} {label})
+      <span className="text-[11px] text-muted-foreground font-medium">
+        vs. {valorAnteriorFormateado} <span className="opacity-75">({label})</span>
       </span>
     </div>
   );
@@ -1096,17 +1096,17 @@ function Panel() {
 
   return (
     <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950/80 font-sans">
-      {/* Header Superior */}
-      <header className="sticky top-0 z-30 border-b border-border/70 bg-background/85 backdrop-blur-xl shadow-2xs">
+      {/* Header Superior con Glassmorphism & Branding Moderno */}
+      <header className="sticky top-0 z-30 border-b border-border/70 bg-background/80 backdrop-blur-2xl shadow-2xs">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-indigo-700 text-white font-bold text-lg shadow-sm shadow-indigo-500/25 shrink-0">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-700 to-purple-800 text-white font-black text-lg shadow-md shadow-indigo-500/20 ring-1 ring-white/20 shrink-0">
               T
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <p className="font-display text-lg font-bold tracking-tight text-foreground">Trucco´s Jeans BI</p>
-                <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                <Badge variant="secondary" className="text-[10px] py-0.5 px-2 font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25 rounded-full">
                   Analytics
                 </Badge>
               </div>
@@ -1115,13 +1115,13 @@ function Panel() {
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             {rangoTotal?.fechaMin && rangoTotal?.fechaMax && (
-              <Badge variant="outline" className="hidden md:inline-flex bg-primary/10 border-primary/20 text-primary font-mono text-xs">
-                <Calendar className="mr-1.5 h-3 w-3" />
+              <Badge variant="outline" className="hidden md:inline-flex bg-primary/10 border-primary/20 text-primary font-mono text-xs px-2.5 py-1 rounded-full">
+                <Calendar className="mr-1.5 h-3.5 w-3.5" />
                 Rango: {rangoTotal.fechaMin} al {rangoTotal.fechaMax}
               </Badge>
             )}
             {cFetching && (
-              <Badge variant="secondary" className="animate-pulse bg-primary/15 border-primary/30 text-primary font-medium text-xs">
+              <Badge variant="secondary" className="animate-pulse bg-primary/15 border-primary/30 text-primary font-medium text-xs rounded-full">
                 <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
                 Actualizando...
               </Badge>
@@ -1133,7 +1133,7 @@ function Panel() {
                 variant="outline"
                 size="sm"
                 onClick={() => setModalPermisosAbierto(true)}
-                className="h-8 text-xs font-semibold border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 gap-1.5 shadow-2xs"
+                className="h-8 text-xs font-semibold rounded-xl border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 gap-1.5 shadow-2xs transition-all"
               >
                 <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                 <span className="hidden md:inline">Administrar Vendedores</span>
@@ -1150,7 +1150,7 @@ function Panel() {
                   setPermisoVersion((v) => v + 1);
                   toast.info("Vista de administrador restaurada");
                 }}
-                className="h-8 text-xs font-semibold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 gap-1.5"
+                className="h-8 text-xs font-semibold rounded-xl bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 gap-1.5"
                 title="Haga clic para volver a la vista total de administrador"
               >
                 <Eye className="h-3.5 w-3.5 animate-pulse text-amber-600 dark:text-amber-400" />
@@ -1162,7 +1162,7 @@ function Panel() {
             {!esAdmin && !simulacionActual && (
               <Badge
                 variant="secondary"
-                className="hidden sm:inline-flex bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-xs gap-1"
+                className="hidden sm:inline-flex bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-xs gap-1 rounded-full px-2.5 py-1"
               >
                 <UserCheck className="h-3 w-3" />
                 {vendedoresDisponibles.length === 1
@@ -1171,20 +1171,24 @@ function Panel() {
               </Badge>
             )}
 
-            <Badge variant="outline" className="hidden sm:inline-flex bg-muted/40 font-mono text-xs">
+            <Badge variant="outline" className="hidden sm:inline-flex items-center gap-1.5 bg-card/80 border-border/80 font-mono text-xs px-2.5 py-1 rounded-full shadow-2xs">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
               {(resumen?.totalVentas ?? 0).toLocaleString("es-CO")} registros
             </Badge>
-            <Button variant="ghost" size="sm" onClick={salir} className="h-8 text-xs font-medium hover:bg-muted/80">
+            <Button variant="ghost" size="sm" onClick={salir} className="h-8 text-xs font-medium rounded-xl hover:bg-muted/80">
               Cerrar sesión
             </Button>
           </div>
         </div>
 
-        {/* Barra de Filtros Globales (Slicers) */}
-        <div className="border-t border-border/50 bg-background/60 backdrop-blur-md px-4 py-2 sm:px-6">
+        {/* Barra de Filtros Globales (Slicers) con Glassmorphism */}
+        <div className="border-t border-border/50 bg-card/50 backdrop-blur-xl px-4 py-2.5 sm:px-6 shadow-2xs">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1 flex items-center gap-1">
-              <Clock className="h-3 w-3 text-primary" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1 flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-primary" />
               Periodo:
             </span>
 
@@ -1221,10 +1225,10 @@ function Panel() {
                 }
               }}
             >
-              <SelectTrigger className="h-8 w-[190px] text-xs font-medium bg-background border-primary/40 text-foreground">
+              <SelectTrigger className="h-8 w-[190px] text-xs font-medium rounded-xl bg-background/90 border-primary/40 text-foreground shadow-2xs hover:border-primary transition-all">
                 <SelectValue placeholder="Rango Temporal" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl border-border/80 shadow-lg">
                 <SelectItem value="mesActual">📆 Mes Actual (carga rápida)</SelectItem>
                 <SelectItem value="todo">🌐 Todo el Histórico Completo</SelectItem>
                 <SelectItem value="anio">🗓️ Por Año y Mes</SelectItem>
@@ -1236,20 +1240,20 @@ function Panel() {
 
             {/* Campos de Fecha Personalizada */}
             {tipoRango === "personalizado" && (
-              <div className="flex items-center gap-1.5 bg-background border border-primary/40 rounded-md px-2 py-0.5">
+              <div className="flex items-center gap-1.5 bg-background/90 border border-primary/40 rounded-xl px-2.5 py-0.5 shadow-2xs">
                 <span className="text-[11px] text-muted-foreground font-medium">Desde:</span>
                 <Input
                   type="date"
                   value={fechaDesde}
                   onChange={(e) => setFechaDesde(e.target.value)}
-                  className="h-6 text-xs border-0 p-0 w-28 bg-transparent focus-visible:ring-0"
+                  className="h-6 text-xs border-0 p-0 w-28 bg-transparent focus-visible:ring-0 font-mono"
                 />
                 <span className="text-[11px] text-muted-foreground font-medium ml-1">Hasta:</span>
                 <Input
                   type="date"
                   value={fechaHasta}
                   onChange={(e) => setFechaHasta(e.target.value)}
-                  className="h-6 text-xs border-0 p-0 w-28 bg-transparent focus-visible:ring-0"
+                  className="h-6 text-xs border-0 p-0 w-28 bg-transparent focus-visible:ring-0 font-mono"
                 />
               </div>
             )}
@@ -1265,10 +1269,10 @@ function Panel() {
                   }
                 }}
               >
-                <SelectTrigger className="h-8 w-[125px] text-xs bg-background">
+                <SelectTrigger className="h-8 w-[125px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs hover:border-primary/50 transition-all font-medium">
                   <SelectValue placeholder="Año" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-border/80 shadow-lg">
                   <SelectItem value="todos">Todos los Años</SelectItem>
                   {(catalogos?.anios || []).map((a) => (
                     <SelectItem key={a} value={String(a)}>
@@ -1282,10 +1286,10 @@ function Panel() {
             {/* Mes */}
             {(tipoRango === "anio" || anio !== "todos") && (
               <Select value={mes} onValueChange={setMes}>
-                <SelectTrigger className="h-8 w-[115px] text-xs bg-background">
+                <SelectTrigger className="h-8 w-[115px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs hover:border-primary/50 transition-all font-medium">
                   <SelectValue placeholder="Mes" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-border/80 shadow-lg">
                   <SelectItem value="todos">Todos los Meses</SelectItem>
                   {MESES.map((m) => (
                     <SelectItem key={m.num} value={String(m.num)}>
@@ -1306,10 +1310,10 @@ function Panel() {
                   value={filtroCanalDigital}
                   onValueChange={(v: "todos" | "tienda_virtual" | "redes_sociales") => setFiltroCanalDigital(v)}
                 >
-                  <SelectTrigger className="h-8 w-[205px] text-xs bg-background border-indigo-500/60 text-indigo-700 dark:text-indigo-300 font-semibold shadow-xs">
+                  <SelectTrigger className="h-8 w-[205px] text-xs bg-background/90 rounded-xl border-indigo-500/60 text-indigo-700 dark:text-indigo-300 font-semibold shadow-2xs hover:border-indigo-500 transition-all">
                     <SelectValue placeholder="Canal Digital" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-border/80 shadow-lg">
                     <SelectItem value="todos">🌐 Todo el Ecosistema Digital</SelectItem>
                     <SelectItem value="tienda_virtual">🛒 Tienda Virtual (Shopify / Web)</SelectItem>
                     <SelectItem value="redes_sociales">📱 Redes Sociales (WhatsApp)</SelectItem>
@@ -1318,10 +1322,10 @@ function Panel() {
 
                 {/* Marca */}
                 <Select value={marcaId} onValueChange={setMarcaId}>
-                  <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
+                  <SelectTrigger className="h-8 w-[130px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs hover:border-primary/50 transition-all font-medium">
                     <SelectValue placeholder="Marca" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
+                  <SelectContent className="max-h-72 overflow-y-auto rounded-xl border-border/80 shadow-lg">
                     <SelectItem value="todos">Todas las Marcas</SelectItem>
                     {marcasDisponibles.map((m) => (
                       <SelectItem key={m.id} value={String(m.id)}>
@@ -1333,10 +1337,10 @@ function Panel() {
 
                 {/* Ciudad (Compradores Digitales) */}
                 <Select value={ciudadId} onValueChange={setCiudadId}>
-                  <SelectTrigger className={`h-8 w-[140px] text-xs bg-background ${ciudadId !== "todos" ? "border-emerald-500 font-semibold text-emerald-700 dark:text-emerald-300" : ""}`}>
+                  <SelectTrigger className={`h-8 w-[140px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs hover:border-primary/50 transition-all font-medium ${ciudadId !== "todos" ? "border-emerald-500 font-semibold text-emerald-700 dark:text-emerald-300" : ""}`}>
                     <SelectValue placeholder="Ciudad Destino" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
+                  <SelectContent className="max-h-72 overflow-y-auto rounded-xl border-border/80 shadow-lg">
                     <SelectItem value="todos">Todas las Ciudades</SelectItem>
                     {ciudadesDisponibles.map((c) => (
                       <SelectItem key={c.id} value={String(c.id)}>
@@ -1346,7 +1350,7 @@ function Panel() {
                   </SelectContent>
                 </Select>
 
-                <Badge variant="outline" className="hidden lg:inline-flex bg-indigo-500/10 text-indigo-600 border-indigo-500/30 text-xs font-semibold py-1 px-2.5 items-center gap-1.5 ml-auto">
+                <Badge variant="outline" className="hidden lg:inline-flex bg-indigo-500/10 text-indigo-600 border-indigo-500/30 text-xs font-semibold py-1 px-3 rounded-full items-center gap-1.5 ml-auto shadow-2xs">
                   <Globe className="h-3.5 w-3.5" />
                   Modo Enfoque Digital
                 </Badge>
@@ -1355,10 +1359,10 @@ function Panel() {
               <>
                 {/* Canal Físico/General */}
                 <Select value={canalId} onValueChange={setCanalId} disabled={!esAdmin && canalesDisponibles.length === 1}>
-                  <SelectTrigger className="h-8 w-[140px] text-xs bg-background">
+                  <SelectTrigger className="h-8 w-[140px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs hover:border-primary/50 transition-all font-medium">
                     <SelectValue placeholder="Canal" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
+                  <SelectContent className="max-h-72 overflow-y-auto rounded-xl border-border/80 shadow-lg">
                     {(esAdmin || canalesDisponibles.length > 1) && (
                       <SelectItem value="todos">Todos los Canales</SelectItem>
                     )}
@@ -1372,10 +1376,10 @@ function Panel() {
 
                 {/* Marca */}
                 <Select value={marcaId} onValueChange={setMarcaId}>
-                  <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
+                  <SelectTrigger className="h-8 w-[130px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs hover:border-primary/50 transition-all font-medium">
                     <SelectValue placeholder="Marca" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
+                  <SelectContent className="max-h-72 overflow-y-auto rounded-xl border-border/80 shadow-lg">
                     <SelectItem value="todos">Todas las Marcas</SelectItem>
                     {marcasDisponibles.map((m) => (
                       <SelectItem key={m.id} value={String(m.id)}>
@@ -1387,10 +1391,10 @@ function Panel() {
 
                 {/* Vendedor */}
                 <Select value={vendedorId} onValueChange={setVendedorId}>
-                  <SelectTrigger className="h-8 min-w-[150px] max-w-[200px] text-xs bg-background">
+                  <SelectTrigger className="h-8 min-w-[150px] max-w-[200px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs hover:border-primary/50 transition-all font-medium">
                     <SelectValue placeholder="Vendedor" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
+                  <SelectContent className="max-h-72 overflow-y-auto rounded-xl border-border/80 shadow-lg">
                     <SelectItem value="todos">
                       {esAdmin
                         ? "Todos los Vendedores"
@@ -1408,10 +1412,10 @@ function Panel() {
 
                 {/* Zona */}
                 <Select value={zonaId} onValueChange={setZonaId}>
-                  <SelectTrigger className="h-8 w-[130px] text-xs bg-background">
+                  <SelectTrigger className="h-8 w-[130px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs hover:border-primary/50 transition-all font-medium">
                     <SelectValue placeholder="Zona" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
+                  <SelectContent className="max-h-72 overflow-y-auto rounded-xl border-border/80 shadow-lg">
                     <SelectItem value="todos">Todas las Zonas</SelectItem>
                     {zonasDisponibles.map((z) => (
                       <SelectItem key={z.id} value={String(z.id)}>
@@ -1423,10 +1427,10 @@ function Panel() {
 
                 {/* Ciudad */}
                 <Select value={ciudadId} onValueChange={setCiudadId}>
-                  <SelectTrigger className={`h-8 w-[140px] text-xs bg-background ${ciudadId !== "todos" ? "border-emerald-500 font-semibold text-emerald-700 dark:text-emerald-300" : ""}`}>
+                  <SelectTrigger className={`h-8 w-[140px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs hover:border-primary/50 transition-all font-medium ${ciudadId !== "todos" ? "border-emerald-500 font-semibold text-emerald-700 dark:text-emerald-300" : ""}`}>
                     <SelectValue placeholder="Ciudad" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto">
+                  <SelectContent className="max-h-72 overflow-y-auto rounded-xl border-border/80 shadow-lg">
                     <SelectItem value="todos">Todas las Ciudades</SelectItem>
                     {ciudadesDisponibles.map((c) => (
                       <SelectItem key={c.id} value={String(c.id)}>
@@ -1447,16 +1451,16 @@ function Panel() {
               size="sm"
               onClick={() => setCompararAnioAnterior((prev) => !prev)}
               className={cn(
-                "h-8 px-3 text-xs font-semibold transition-all duration-200 shadow-xs",
+                "h-8 px-3 text-xs font-bold rounded-xl transition-all duration-200 shadow-2xs",
                 compararAnioAnterior
-                  ? "bg-amber-600 hover:bg-amber-700 text-white border-amber-600 ring-2 ring-amber-500/20"
-                  : "bg-background text-foreground hover:bg-muted/80 border-amber-500/40 text-amber-700 dark:text-amber-400 hover:border-amber-500"
+                  ? "bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white border-amber-600 ring-2 ring-amber-500/25 shadow-amber-500/20"
+                  : "bg-background/90 text-amber-800 dark:text-amber-300 hover:bg-amber-500/10 border-amber-500/40 hover:border-amber-500"
               )}
             >
               <History className="mr-1.5 h-3.5 w-3.5" />
               <span>Vs. Año Anterior (YoY)</span>
               {compararAnioAnterior && (
-                <span className="ml-1.5 px-1.5 py-0.2 bg-white/20 text-white rounded text-[10px] font-bold">
+                <span className="ml-1.5 px-1.5 py-0.2 bg-white/25 text-white rounded-full text-[9px] font-black">
                   ON
                 </span>
               )}
@@ -1468,11 +1472,11 @@ function Panel() {
               variant="default"
               size="sm"
               onClick={() => setMentorOpen(true)}
-              className="h-8 px-3 text-xs font-semibold gap-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-primary hover:from-purple-700 hover:to-indigo-700 text-white shadow-xs border border-purple-400/30 transition-all duration-200"
+              className="h-8 px-3.5 text-xs font-bold gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 text-white shadow-md shadow-indigo-500/20 border border-purple-400/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
             >
               <Sparkles className="h-3.5 w-3.5 text-amber-300 animate-pulse" />
               <span>Mentor Comercial</span>
-              <span className="hidden lg:inline px-1 py-0.2 bg-white/20 text-white rounded text-[10px] font-bold">
+              <span className="hidden lg:inline px-1.5 py-0.2 bg-white/20 text-white rounded-full text-[9px] font-black">
                 IA
               </span>
             </Button>
@@ -1481,7 +1485,7 @@ function Panel() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground border-rose-500/30 hover:bg-rose-500/10"
+                className="h-8 px-3 text-xs font-semibold rounded-xl text-rose-600 dark:text-rose-400 hover:text-rose-700 border-rose-500/30 hover:bg-rose-500/10 hover:border-rose-500/50 shadow-2xs transition-all"
                 onClick={limpiarFiltros}
               >
                 <FilterX className="mr-1 h-3.5 w-3.5 text-rose-500" />
@@ -1606,45 +1610,45 @@ function Panel() {
               </div>
 
               {/* Tabs enfocados para Vendedor (sin Digital ni Marketplaces) */}
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-7 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-7 h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1">
                 <TabsTrigger
                   value="d4"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                   4. Fuerza Ventas
                 </TabsTrigger>
                 <TabsTrigger
                   value="d1"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                   1. Cumplimiento
                 </TabsTrigger>
                 <TabsTrigger
                   value="d2"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-emerald-500/10 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                   2. Run Rate
                 </TabsTrigger>
                 <TabsTrigger
                   value="referencias"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
                   6. Referencias
                 </TabsTrigger>
                 <TabsTrigger
                   value="multianual"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                   Multianual
                 </TabsTrigger>
                 <TabsTrigger
                   value="explorador"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-teal-500/10 data-[state=active]:text-teal-600 dark:data-[state=active]:text-teal-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                   Detalle
@@ -1652,7 +1656,7 @@ function Panel() {
                 {esAdmin && (
                   <TabsTrigger
                     value="carga"
-                    className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
+                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200"
                   >
                     <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
                     Cargar
@@ -1663,9 +1667,9 @@ function Panel() {
           ) : (zonaId !== "todos" || ciudadId !== "todos") ? (
             <div className="space-y-3">
               {/* Barra de Enfoque Exclusivo Territorial / Regional */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-blue-500/10 dark:bg-blue-950/40 rounded-xl border border-blue-500/30 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-blue-500/10 dark:bg-blue-950/40 rounded-2xl border border-blue-500/30 shadow-xs">
                 <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-lg bg-blue-600 text-white font-bold shadow-xs shrink-0">
+                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-600 text-white font-bold shadow-xs shrink-0">
                     <MapPin className="h-5 w-5" />
                   </div>
                   <div>
@@ -1673,7 +1677,7 @@ function Panel() {
                       <span className="font-bold text-sm text-foreground font-display">
                         Modo Enfoque Territorial — {zonaSeleccionadaNombre ? `Zona: ${zonaSeleccionadaNombre}` : `Ciudad: ${ciudadSeleccionadaNombre}`}
                       </span>
-                      <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/40 font-semibold text-[11px]">
+                      <Badge variant="outline" className="bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/40 font-bold text-[11px] rounded-full px-2.5">
                         ✨ Enfoque Territorial Activo
                       </Badge>
                     </div>
@@ -1686,7 +1690,7 @@ function Panel() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 text-xs font-semibold border-blue-500/40 hover:bg-blue-500/15 text-blue-700 dark:text-blue-300 hover:text-blue-950 dark:hover:text-white flex items-center gap-1.5 shrink-0 bg-background/80"
+                  className="h-8 text-xs font-semibold rounded-xl border-blue-500/40 hover:bg-blue-500/15 text-blue-700 dark:text-blue-300 hover:text-blue-950 dark:hover:text-white flex items-center gap-1.5 shrink-0 bg-background/80"
                   onClick={() => {
                     setZonaId("todos");
                     setCiudadId("todos");
@@ -1698,45 +1702,45 @@ function Panel() {
               </div>
 
               {/* Tabs enfocados para Región (sin Digital ni Marketplaces) */}
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-7 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-7 h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1">
                 <TabsTrigger
                   value="d1"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                   1. Cumplimiento
                 </TabsTrigger>
                 <TabsTrigger
                   value="d2"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-emerald-500/10 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                   2. Run Rate
                 </TabsTrigger>
                 <TabsTrigger
                   value="d4"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                   4. Fuerza Ventas
                 </TabsTrigger>
                 <TabsTrigger
                   value="referencias"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
                   6. Referencias
                 </TabsTrigger>
                 <TabsTrigger
                   value="multianual"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                   Multianual
                 </TabsTrigger>
                 <TabsTrigger
                   value="explorador"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-teal-500/10 data-[state=active]:text-teal-600 dark:data-[state=active]:text-teal-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                   Detalle
@@ -1744,7 +1748,7 @@ function Panel() {
                 {esAdmin && (
                   <TabsTrigger
                     value="carga"
-                    className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
+                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200"
                   >
                     <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
                     Cargar
@@ -1753,24 +1757,24 @@ function Panel() {
               </TabsList>
             </div>
           ) : (
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-8 lg:grid-cols-9 h-auto p-1.5 bg-card/85 backdrop-blur-md rounded-2xl border border-border/70 shadow-2xs gap-1">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-8 lg:grid-cols-9 h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1">
               <TabsTrigger
                 value="multianual"
-                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                 Multianual
               </TabsTrigger>
               <TabsTrigger
                 value="d1"
-                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                 1. Cumplimiento
               </TabsTrigger>
               <TabsTrigger
                 value="d2"
-                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-emerald-500/10 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                 2. Run Rate
@@ -1778,7 +1782,7 @@ function Panel() {
               {puedeVerDigital && (
                 <TabsTrigger
                   value="d3"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-indigo-500/10 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-700 dark:data-[state=active]:text-indigo-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Globe className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
                   3. Digital
@@ -1786,7 +1790,7 @@ function Panel() {
               )}
               <TabsTrigger
                 value="d4"
-                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                 4. Fuerza Ventas
@@ -1794,7 +1798,7 @@ function Panel() {
               {puedeVerMarketplaces && (
                 <TabsTrigger
                   value="d5"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-pink-500/10 data-[state=active]:text-pink-600 dark:data-[state=active]:text-pink-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-pink-500/15 data-[state=active]:text-pink-700 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <ShoppingBag className="h-3.5 w-3.5 text-pink-500 shrink-0" />
                   5. Marketplaces
@@ -1802,14 +1806,14 @@ function Panel() {
               )}
               <TabsTrigger
                 value="referencias"
-                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-600 dark:data-[state=active]:text-cyan-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
                 6. Referencias
               </TabsTrigger>
               <TabsTrigger
                 value="explorador"
-                className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-teal-500/10 data-[state=active]:text-teal-600 dark:data-[state=active]:text-teal-400 data-[state=active]:shadow-2xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                 Detalle
@@ -1817,7 +1821,7 @@ function Panel() {
               {esAdmin && (
                 <TabsTrigger
                   value="carga"
-                  className="flex items-center gap-1.5 py-2 px-2 text-xs font-semibold rounded-xl data-[state=active]:bg-slate-500/10 data-[state=active]:text-slate-700 dark:data-[state=active]:text-slate-300 data-[state=active]:shadow-2xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
                   Cargar
@@ -5509,12 +5513,12 @@ function CardKpi({
   badgeYoY?: React.ReactNode | undefined;
 }) {
   return (
-    <Card className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 backdrop-blur-xs shadow-2xs hover:shadow-md hover:border-primary/40 transition-all duration-300">
-      {/* Top accent highlight */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      <CardContent className="p-4 sm:p-4.5 flex flex-col justify-between h-full">
+    <Card className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/95 backdrop-blur-md shadow-2xs hover:shadow-lg hover:border-primary/40 transition-all duration-300 glass-card-hover">
+      {/* Top accent glowing gradient beam on hover */}
+      <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full space-y-3">
         <div>
-          <div className="flex items-start justify-between gap-1.5 min-h-[2.2rem]">
+          <div className="flex items-start justify-between gap-2 min-h-[2.2rem]">
             <p
               className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground leading-snug line-clamp-2"
               title={titulo}
@@ -5522,15 +5526,15 @@ function CardKpi({
               {titulo}
             </p>
             {icono && (
-              <div className="grid h-7 w-7 sm:h-8 sm:w-8 place-items-center rounded-xl bg-muted/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary group-hover:scale-105 transition-all duration-200 shrink-0">
+              <div className="grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-xl bg-muted/60 text-muted-foreground group-hover:bg-primary/15 group-hover:text-primary group-hover:scale-110 transition-all duration-200 shrink-0 shadow-2xs">
                 {icono}
               </div>
             )}
           </div>
-          <div className="flex flex-wrap items-baseline gap-1.5 mt-2">
+          <div className="flex flex-wrap items-baseline gap-2 mt-2">
             <p
               className={cn(
-                "font-bold font-display tracking-tight text-foreground tabular-nums leading-tight break-all sm:break-normal",
+                "font-extrabold font-display tracking-tight text-foreground tabular-nums leading-tight break-all sm:break-normal",
                 getKpiValueFontSize(cargando ? "—" : valor)
               )}
               title={cargando ? undefined : valor}
@@ -5538,20 +5542,20 @@ function CardKpi({
               {cargando ? "—" : valor}
             </p>
             {badgeSemaforo !== undefined && (
-              <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border shadow-2xs shrink-0 ${colorSemaforo(badgeSemaforo)}`}>
+              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border shadow-2xs shrink-0 ${colorSemaforo(badgeSemaforo)}`}>
                 {badgeSemaforo >= 100 ? "Meta Cumplida" : badgeSemaforo >= 90 ? "Alerta" : "Crítico"}
               </span>
             )}
           </div>
         </div>
         {badgeYoY && !cargando && (
-          <div className="mt-2.5">
+          <div className="pt-0.5">
             {badgeYoY}
           </div>
         )}
         {subtexto && (
           <p
-            className="mt-2.5 text-[11px] sm:text-xs text-muted-foreground font-medium flex items-center gap-1 line-clamp-2 leading-snug"
+            className="text-[11px] text-muted-foreground font-medium flex items-center gap-1 line-clamp-2 leading-snug border-t border-border/40 pt-2"
             title={subtexto}
           >
             {subtexto}

@@ -114,43 +114,43 @@ export function MentorComercialDrawer({
         className="w-full sm:max-w-2xl lg:max-w-3xl p-0 flex flex-col h-full bg-background border-l border-border/80 shadow-2xl"
       >
         {/* Header con información del Asesor y Puntuación */}
-        <div className="p-5 border-b border-border/60 bg-muted/20 flex flex-col gap-3">
+        <div className="p-5 border-b border-border/60 bg-gradient-to-b from-primary/10 via-muted/20 to-transparent flex flex-col gap-3.5">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-sm">
-                <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+            <div className="flex items-center gap-3">
+              <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-primary flex items-center justify-center text-white shadow-md shadow-indigo-500/25 ring-2 ring-white/20 shrink-0">
+                <Sparkles className="h-5 w-5 text-amber-300 animate-pulse" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <SheetTitle className="text-lg font-bold tracking-tight font-display">
+                  <SheetTitle className="text-lg font-black tracking-tight font-display text-foreground">
                     Copiloto & Mentor Comercial
                   </SheetTitle>
-                  <Badge variant="outline" className={`font-semibold text-xs ${colorSalud}`}>
+                  <Badge variant="outline" className={`font-bold text-xs rounded-full px-2.5 py-0.5 shadow-2xs ${colorSalud}`}>
                     {diagnostico.kpis.saludComercial} ({diagnostico.kpis.puntuacionRendimiento}/100)
                   </Badge>
                 </div>
-                <SheetDescription className="text-xs text-muted-foreground">
+                <SheetDescription className="text-xs text-muted-foreground mt-0.5">
                   Estrategias inteligentes de ventas, combos y optimización de cartera.
                 </SheetDescription>
               </div>
             </div>
 
-            <Badge variant="secondary" className="font-mono text-[11px] bg-background border border-border/60">
+            <Badge variant="secondary" className="font-mono text-[11px] font-bold bg-background/80 border border-border/60 rounded-full px-2.5 py-0.5 shadow-2xs">
               {diagnostico.periodoNombre}
             </Badge>
           </div>
 
           {/* Selector de Asesor para Directivos */}
           {esDirectivo && vendedoresDisponibles.length > 0 && onCambiarVendedor && (
-            <div className="flex items-center gap-2 pt-1 border-t border-border/40">
-              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+            <div className="flex items-center gap-2 pt-2 border-t border-border/40">
+              <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                 <UserCheck className="h-3.5 w-3.5 text-primary" />
                 Coaching para Asesor:
               </span>
               <select
                 value={vendedorSeleccionadoId}
                 onChange={(e) => onCambiarVendedor(e.target.value)}
-                className="text-xs bg-background border border-border/80 rounded-md px-2 py-1 font-medium focus:ring-1 focus:ring-primary focus:outline-none"
+                className="text-xs bg-background/90 border border-border/80 rounded-xl px-2.5 py-1 font-semibold focus:ring-2 focus:ring-primary/30 focus:outline-none shadow-2xs"
               >
                 <option value="todos">Todos los Asesores (Consolidado)</option>
                 {vendedoresDisponibles.map((v) => (
@@ -163,10 +163,10 @@ export function MentorComercialDrawer({
           )}
 
           {/* Mensaje motivacional / Diagnóstico inicial */}
-          <div className="bg-primary/5 border border-primary/15 rounded-lg p-2.5 text-xs text-foreground/90 flex items-start gap-2">
+          <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 rounded-2xl p-3 text-xs text-foreground/90 flex items-start gap-2.5 shadow-2xs">
             <Zap className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-            <p>
-              <strong className="text-primary font-semibold">{diagnostico.asesorNombre}: </strong>
+            <p className="leading-relaxed">
+              <strong className="text-primary font-bold">{diagnostico.asesorNombre}: </strong>
               {diagnostico.kpis.mensajeMotivacional}
             </p>
           </div>
@@ -174,25 +174,25 @@ export function MentorComercialDrawer({
 
         {/* Pestañas de Navegación del Mentor */}
         <Tabs value={tabActiva} onValueChange={setTabActiva} className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-5 pt-3 border-b border-border/60 bg-muted/10">
-            <TabsList className="grid grid-cols-5 w-full h-9 bg-muted/60 p-0.5">
-              <TabsTrigger value="diagnostico" className="text-xs gap-1 data-[state=active]:bg-background">
+          <div className="px-5 pt-3 pb-2 border-b border-border/60 bg-muted/15">
+            <TabsList className="grid grid-cols-5 w-full h-9 bg-card/80 p-1 rounded-xl border border-border/60 shadow-2xs">
+              <TabsTrigger value="diagnostico" className="text-xs font-bold gap-1 rounded-lg data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-xs transition-all">
                 <TrendingUp className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Diagnóstico</span>
               </TabsTrigger>
-              <TabsTrigger value="combos" className="text-xs gap-1 data-[state=active]:bg-background">
+              <TabsTrigger value="combos" className="text-xs font-bold gap-1 rounded-lg data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-xs transition-all">
                 <Package className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Combos</span>
               </TabsTrigger>
-              <TabsTrigger value="zonas" className="text-xs gap-1 data-[state=active]:bg-background">
+              <TabsTrigger value="zonas" className="text-xs font-bold gap-1 rounded-lg data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-xs transition-all">
                 <MapPin className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Zonas</span>
               </TabsTrigger>
-              <TabsTrigger value="abc" className="text-xs gap-1 data-[state=active]:bg-background">
+              <TabsTrigger value="abc" className="text-xs font-bold gap-1 rounded-lg data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-xs transition-all">
                 <Layers className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Mix ABC</span>
               </TabsTrigger>
-              <TabsTrigger value="guiones" className="text-xs gap-1 data-[state=active]:bg-background">
+              <TabsTrigger value="guiones" className="text-xs font-bold gap-1 rounded-lg data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-xs transition-all">
                 <MessageSquare className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Guiones</span>
               </TabsTrigger>

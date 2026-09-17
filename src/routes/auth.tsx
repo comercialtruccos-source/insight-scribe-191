@@ -172,42 +172,42 @@ function AuthPage() {
     <main className="grid min-h-screen place-items-center bg-slate-50/60 dark:bg-slate-950/80 px-4 py-12 font-sans">
       <div className="w-full max-w-md space-y-6">
         {/* Logo y Encabezado */}
-        <div className="text-center space-y-2">
-          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-indigo-700 text-white font-bold text-xl shadow-md shadow-indigo-500/25">
+        <div className="text-center space-y-2.5">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-700 to-purple-800 text-white font-black text-2xl shadow-lg shadow-indigo-500/25 ring-2 ring-white/20">
             T
           </div>
-          <h1 className="text-2xl font-bold font-display tracking-tight text-foreground">
+          <h1 className="text-2xl font-black font-display tracking-tight text-foreground">
             Trucco´s Jeans BI
           </h1>
           <p className="text-xs text-muted-foreground font-medium flex items-center justify-center gap-1.5">
-            <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
+            <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
             Plataforma de Inteligencia Comercial y Analítica
           </p>
         </div>
 
-        <Card className="border-border/70 bg-card shadow-sm rounded-2xl overflow-hidden">
+        <Card className="border-border/80 bg-card/95 backdrop-blur-xl shadow-xl rounded-3xl overflow-hidden glass-card-hover">
           <CardHeader className="pb-4 border-b border-border/40 bg-muted/20">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="font-display text-lg">
+                <CardTitle className="font-display text-lg font-bold">
                   {modo === "login" ? "Ingreso de Usuario" : "Crear Cuenta de Acceso"}
                 </CardTitle>
                 <CardDescription className="text-xs mt-0.5">
                   Acceso directo sin validación de email externo para correos corporativos.
                 </CardDescription>
               </div>
-              <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 border-primary/20 text-primary">
-                v1.2
+              <Badge variant="outline" className="text-[10px] font-mono font-bold bg-primary/10 border-primary/20 text-primary rounded-full px-2.5">
+                v1.3
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4 p-6">
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-[11px] text-emerald-700 dark:text-emerald-300 font-medium flex items-center gap-2">
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-[11px] text-emerald-700 dark:text-emerald-300 font-medium flex items-center gap-2 shadow-2xs">
               <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
               <span>Acceso directo activo: No requiere confirmación de email en Cloud.</span>
             </div>
 
-            <Button variant="outline" className="w-full h-9 text-xs font-semibold" onClick={conGoogle}>
+            <Button variant="outline" className="w-full h-9 text-xs font-semibold rounded-xl border-border/80 shadow-2xs hover:bg-muted/80" onClick={conGoogle}>
               Continuar con Google
             </Button>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -216,13 +216,13 @@ function AuthPage() {
             </div>
 
             {errorMsg && (
-              <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+              <div className="rounded-2xl border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive font-medium shadow-2xs">
                 {errorMsg}
               </div>
             )}
 
             {infoMsg && (
-              <div className="rounded-xl border border-primary/50 bg-primary/10 p-3 text-xs text-primary font-medium">
+              <div className="rounded-2xl border border-primary/50 bg-primary/10 p-3 text-xs text-primary font-medium shadow-2xs">
                 {infoMsg}
               </div>
             )}
@@ -237,7 +237,7 @@ function AuthPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="ej. mayorca@truccos.com o melisagomez@truccos.com"
-                  className="h-9 text-xs"
+                  className="h-9 text-xs rounded-xl border-border/80 bg-background/80 shadow-2xs"
                 />
               </div>
               <div className="space-y-1.5">
@@ -249,14 +249,14 @@ function AuthPage() {
                   id="password"
                   type="password"
                   required
-                  minLength={6}
+                  minLength={4}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="h-9 text-xs"
+                  className="h-9 text-xs rounded-xl border-border/80 bg-background/80 shadow-2xs"
                 />
               </div>
-              <Button type="submit" className="w-full h-9 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm" disabled={cargando}>
+              <Button type="submit" className="w-full h-9 text-xs font-bold rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-700 hover:to-purple-800 text-white shadow-md shadow-indigo-500/20" disabled={cargando}>
                 {cargando ? "Validando credenciales..." : modo === "login" ? "Ingresar al Panel" : "Registrarme"}
               </Button>
             </form>
@@ -276,7 +276,7 @@ function AuthPage() {
               </button>
 
               {mostrarAccesosRapidos && (
-                <div className="mt-2.5 max-h-48 overflow-y-auto space-y-1.5 p-2 rounded-xl bg-muted/40 border border-border/50 text-xs">
+                <div className="mt-2.5 max-h-52 overflow-y-auto space-y-1.5 p-2 rounded-2xl bg-muted/40 border border-border/50 text-xs">
                   <p className="text-[11px] text-muted-foreground mb-1 font-medium">
                     Haz clic en tu usuario para rellenar tus datos (Clave: <code>QWE123</code>):
                   </p>
@@ -284,22 +284,22 @@ function AuthPage() {
                     <div
                       key={u.email}
                       onClick={() => seleccionarUsuarioRapido(u)}
-                      className="flex items-center justify-between p-2 rounded-lg bg-card hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-border/40 cursor-pointer transition-colors"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-card hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-border/40 cursor-pointer transition-all shadow-2xs hover:scale-[1.01]"
                     >
                       <div className="flex items-center gap-2">
                         {u.rol === "admin" ? (
-                          <ShieldCheck className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                          <ShieldCheck className="h-4 w-4 text-purple-600 shrink-0" />
                         ) : (
-                          <Users className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                          <Users className="h-4 w-4 text-indigo-600 shrink-0" />
                         )}
                         <div>
-                          <p className="font-semibold text-[11px] text-foreground">{u.nombre}</p>
-                          <p className="text-[10px] text-muted-foreground">{u.email}</p>
+                          <p className="font-bold text-[11px] text-foreground">{u.nombre}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono">{u.email}</p>
                         </div>
                       </div>
                       <Badge
                         variant="outline"
-                        className={`text-[9px] py-0 px-1.5 ${
+                        className={`text-[9px] py-0.5 px-2 rounded-full font-bold ${
                           u.rol === "admin"
                             ? "bg-purple-500/10 text-purple-600 border-purple-500/30"
                             : "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"

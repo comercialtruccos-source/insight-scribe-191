@@ -5,20 +5,14 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design system definition.
- *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
- *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ * Modern Design System for Trucco´s Jeans BI
+ * Inspired by modern Linear / Stripe / Apple BI dashboards:
+ * Crisp typography, refined OKLCH palettes, soft micro-elevations,
+ * glassmorphism, and high-contrast data visualization colors.
  */
 
 @theme inline {
+  --radius-xs: calc(var(--radius) - 6px);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -26,6 +20,7 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -63,73 +58,80 @@
 
 :root {
   --radius: 0.875rem;
-  --background: oklch(0.985 0.004 255);
-  --foreground: oklch(0.135 0.04 265);
+  /* Light theme: Crisp slate background with soft indigo & zinc undertones */
+  --background: oklch(0.985 0.005 255);
+  --foreground: oklch(0.14 0.04 265);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.135 0.04 265);
+  --card-foreground: oklch(0.14 0.04 265);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.135 0.04 265);
-  --primary: oklch(0.38 0.22 265);
+  --popover-foreground: oklch(0.14 0.04 265);
+  --primary: oklch(0.44 0.22 265);
   --primary-foreground: oklch(0.99 0.002 247);
-  --secondary: oklch(0.96 0.008 250);
-  --secondary-foreground: oklch(0.25 0.04 265);
-  --muted: oklch(0.96 0.008 250);
-  --muted-foreground: oklch(0.5 0.035 260);
-  --accent: oklch(0.95 0.012 260);
+  --secondary: oklch(0.96 0.01 255);
+  --secondary-foreground: oklch(0.22 0.04 265);
+  --muted: oklch(0.96 0.008 255);
+  --muted-foreground: oklch(0.48 0.035 260);
+  --accent: oklch(0.95 0.015 265);
   --accent-foreground: oklch(0.2 0.04 265);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.915 0.01 255);
-  --input: oklch(0.915 0.01 255);
-  --ring: oklch(0.48 0.22 265);
-  --chart-1: oklch(0.55 0.24 265);
-  --chart-2: oklch(0.68 0.17 165);
-  --chart-3: oklch(0.75 0.18 75);
-  --chart-4: oklch(0.65 0.24 320);
-  --chart-5: oklch(0.68 0.22 25);
-  --sidebar: oklch(0.985 0.004 255);
-  --sidebar-foreground: oklch(0.135 0.04 265);
-  --sidebar-primary: oklch(0.38 0.22 265);
+  --destructive: oklch(0.58 0.24 25);
+  --destructive-foreground: oklch(0.99 0.002 247);
+  --border: oklch(0.91 0.012 255);
+  --input: oklch(0.91 0.012 255);
+  --ring: oklch(0.44 0.22 265);
+
+  /* Modern BI Data Palette */
+  --chart-1: oklch(0.48 0.22 265); /* Indigo */
+  --chart-2: oklch(0.65 0.19 160); /* Emerald */
+  --chart-3: oklch(0.72 0.18 70);  /* Amber / Gold */
+  --chart-4: oklch(0.62 0.22 315); /* Purple / Fuchsia */
+  --chart-5: oklch(0.66 0.18 215); /* Sky / Cyan */
+
+  --sidebar: oklch(0.985 0.005 255);
+  --sidebar-foreground: oklch(0.14 0.04 265);
+  --sidebar-primary: oklch(0.44 0.22 265);
   --sidebar-primary-foreground: oklch(0.99 0.002 247);
-  --sidebar-accent: oklch(0.95 0.012 260);
+  --sidebar-accent: oklch(0.95 0.015 265);
   --sidebar-accent-foreground: oklch(0.2 0.04 265);
-  --sidebar-border: oklch(0.915 0.01 255);
-  --sidebar-ring: oklch(0.48 0.22 265);
+  --sidebar-border: oklch(0.91 0.012 255);
+  --sidebar-ring: oklch(0.44 0.22 265);
 }
 
 .dark {
+  /* Dark theme: Deep midnight obsidian with subtle luminous neon accents */
   --background: oklch(0.12 0.025 265);
   --foreground: oklch(0.985 0.005 247);
-  --card: oklch(0.17 0.03 265);
+  --card: oklch(0.16 0.03 265);
   --card-foreground: oklch(0.985 0.005 247);
-  --popover: oklch(0.17 0.03 265);
+  --popover: oklch(0.16 0.03 265);
   --popover-foreground: oklch(0.985 0.005 247);
-  --primary: oklch(0.65 0.2 265);
-  --primary-foreground: oklch(0.12 0.025 265);
-  --secondary: oklch(0.24 0.03 260);
+  --primary: oklch(0.68 0.19 265);
+  --primary-foreground: oklch(0.11 0.02 265);
+  --secondary: oklch(0.23 0.03 260);
   --secondary-foreground: oklch(0.985 0.005 247);
-  --muted: oklch(0.22 0.025 260);
+  --muted: oklch(0.21 0.025 260);
   --muted-foreground: oklch(0.68 0.03 255);
-  --accent: oklch(0.24 0.03 260);
+  --accent: oklch(0.24 0.035 260);
   --accent-foreground: oklch(0.985 0.005 247);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.65 0.2 265);
-  --chart-1: oklch(0.65 0.22 265);
-  --chart-2: oklch(0.72 0.17 165);
-  --chart-3: oklch(0.78 0.18 75);
-  --chart-4: oklch(0.7 0.24 320);
-  --chart-5: oklch(0.72 0.22 25);
-  --sidebar: oklch(0.17 0.03 265);
+  --destructive: oklch(0.68 0.2 25);
+  --destructive-foreground: oklch(0.99 0.002 247);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.68 0.19 265);
+
+  --chart-1: oklch(0.68 0.2 265);
+  --chart-2: oklch(0.72 0.18 160);
+  --chart-3: oklch(0.78 0.18 70);
+  --chart-4: oklch(0.72 0.22 315);
+  --chart-5: oklch(0.74 0.18 215);
+
+  --sidebar: oklch(0.16 0.03 265);
   --sidebar-foreground: oklch(0.985 0.005 247);
-  --sidebar-primary: oklch(0.65 0.2 265);
-  --sidebar-primary-foreground: oklch(0.12 0.025 265);
-  --sidebar-accent: oklch(0.24 0.03 260);
+  --sidebar-primary: oklch(0.68 0.19 265);
+  --sidebar-primary-foreground: oklch(0.11 0.02 265);
+  --sidebar-accent: oklch(0.24 0.035 260);
   --sidebar-accent-foreground: oklch(0.985 0.005 247);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.65 0.2 265);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.68 0.19 265);
 }
 
 @layer base {
@@ -143,6 +145,10 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background-image: 
+      radial-gradient(at 50% 0%, oklch(0.55 0.15 265 / 4%) 0px, transparent 60%),
+      radial-gradient(at 100% 0%, oklch(0.6 0.15 210 / 3%) 0px, transparent 50%);
+    background-attachment: fixed;
   }
 
   /* Custom subtle scrollbar */
@@ -163,4 +169,29 @@
   ::-webkit-scrollbar-thumb:hover {
     background: oklch(0.5 0.03 260 / 50%);
   }
+}
+
+/* Custom Glassmorphic and Modern Dashboard Utility Classes */
+.glass-panel {
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+}
+
+.glass-card-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -10px oklch(0.2 0.05 265 / 10%), 0 4px 10px -4px oklch(0.2 0.05 265 / 5%);
+}
+
+.recharts-custom-tooltip {
+  background: color-mix(in srgb, var(--card) 95%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px -5px oklch(0 0 0 / 12%);
+  padding: 0.65rem 0.85rem;
 }
