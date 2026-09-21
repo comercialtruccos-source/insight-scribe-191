@@ -114,6 +114,7 @@ import {
 import { toast } from "sonner";
 import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vendedores-dialog";
 import { MentorComercialDrawer } from "@/components/mentor/MentorComercialDrawer";
+import { SankeyFlujoComercial } from "@/components/sankey/SankeyFlujoComercial";
 import { calcularDiagnosticoMentor } from "@/lib/mentor-comercial";
 import {
   obtenerPermisoUsuario,
@@ -2220,6 +2221,16 @@ function Panel() {
               </CardContent>
             </Card>
 
+            {/* Diagrama de Flujo / Sankey: Arquitectura de Ingresos */}
+            <SankeyFlujoComercial
+              rawVentas={rawVentas || []}
+              catalogos={catalogos}
+              d3={d3}
+              d6={d6}
+              presetInicial="comercial"
+              mostrarSelectorPresets={true}
+            />
+
             {/* Fila 2: Aporte por Vendedor & Distribución Geográfica por Zonas */}
             {/* ========================================================================= */}
             {/* SECCIÓN DE UBICACIONES: ZONAS Y CIUDADES DE VENTAS (FILTRO INTERACTIVO) */}
@@ -3641,6 +3652,16 @@ function Panel() {
               </Card>
             </div>
 
+            {/* Diagrama de Sankey: Demanda y Tráfico Digital */}
+            <SankeyFlujoComercial
+              rawVentas={rawVentas || []}
+              catalogos={catalogos}
+              d3={d3}
+              presetInicial="digital"
+              tituloPersonalizado="Flujo de Demanda Digital: Plataformas ➔ Recaudo Online ➔ Categorías"
+              subtituloPersonalizado="Trazabilidad del valor generado en Shopify Web y WhatsApp Social Selling hacia cada línea de producto"
+            />
+
             {/* Fila 3: Top Ciudades y Tabla Comparativa de Canales */}
             <div className="grid gap-6 lg:grid-cols-3">
               <Card className="lg:col-span-1">
@@ -4754,6 +4775,16 @@ function Panel() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Diagrama de Sankey: Trazabilidad de Pareto ABC a Líneas de Colección */}
+            <SankeyFlujoComercial
+              rawVentas={rawVentas || []}
+              catalogos={catalogos}
+              d6={d6}
+              presetInicial="pareto"
+              tituloPersonalizado="Flujo de Portafolio y Pareto ABC: Clases ABC ➔ Catálogo ➔ Líneas"
+              subtituloPersonalizado="Muestra cómo las referencias de Clase A, B y C se distribuyen a lo largo de las distintas líneas y categorías de producto"
+            />
 
             {/* SECCIÓN 3: Curva de Tallas, Colores y Alertas de Calidad / Devoluciones */}
             <div className="grid gap-6 lg:grid-cols-3">
