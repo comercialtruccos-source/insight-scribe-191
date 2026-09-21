@@ -7,7 +7,6 @@ import {
   generarSankeyFlujoComercial,
   generarSankeyFlujoTerritorial,
   generarSankeyFlujoCascada,
-  generarSankeyFlujoPareto,
   generarSankeyFlujoDigital,
 } from "@/lib/sankey-calc";
 import { FilaFactVentas, CatalogoItem } from "@/lib/ventas-api";
@@ -39,7 +38,7 @@ interface SankeyFlujoComercialProps {
   };
   d3?: any;
   d6?: any;
-  presetInicial?: "comercial" | "territorial" | "cascada" | "pareto" | "digital";
+  presetInicial?: "comercial" | "territorial" | "cascada" | "digital";
   tituloPersonalizado?: string;
   subtituloPersonalizado?: string;
   mostrarSelectorPresets?: boolean;
@@ -74,7 +73,7 @@ export function SankeyFlujoComercial({
   mostrarSelectorPresets = true,
   className = "",
 }: SankeyFlujoComercialProps) {
-  const [preset, setPreset] = useState<"comercial" | "territorial" | "cascada" | "pareto" | "digital">(presetInicial);
+  const [preset, setPreset] = useState<"comercial" | "territorial" | "cascada" | "digital">(presetInicial);
   const [hoveredLink, setHoveredLink] = useState<SankeyLink | null>(null);
   const [hoveredNode, setHoveredNode] = useState<SankeyNode | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -101,15 +100,13 @@ export function SankeyFlujoComercial({
         return generarSankeyFlujoTerritorial(rawVentas, catalogos);
       case "cascada":
         return generarSankeyFlujoCascada(rawVentas, catalogos);
-      case "pareto":
-        return generarSankeyFlujoPareto(d6, catalogos);
       case "digital":
         return generarSankeyFlujoDigital(d3, rawVentas);
       case "comercial":
       default:
         return generarSankeyFlujoComercial(rawVentas, catalogos);
     }
-  }, [preset, rawVentas, catalogos, d3, d6]);
+  }, [preset, rawVentas, catalogos, d3]);
 
   const height = isExpanded ? 580 : containerWidth < 640 ? 380 : 440;
 
@@ -251,18 +248,6 @@ export function SankeyFlujoComercial({
             >
               <DollarSign className="h-3 w-3" />
               Cascada / Devoluciones vs Neta
-            </button>
-            <button
-              type="button"
-              onClick={() => setPreset("pareto")}
-              className={`text-xs px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 ${
-                preset === "pareto"
-                  ? "bg-purple-600 text-white border-purple-600 font-bold shadow-xs"
-                  : "bg-muted/40 hover:bg-muted text-muted-foreground border-border/40"
-              }`}
-            >
-              <Package className="h-3 w-3" />
-              Pareto ABC ➔ Líneas
             </button>
             {d3 && (
               <button
