@@ -4776,16 +4776,6 @@ function Panel() {
               </Card>
             </div>
 
-            {/* Diagrama de Sankey: Trazabilidad de Pareto ABC a Líneas de Colección */}
-            <SankeyFlujoComercial
-              rawVentas={rawVentas || []}
-              catalogos={catalogos}
-              d6={d6}
-              presetInicial="pareto"
-              tituloPersonalizado="Flujo de Portafolio y Pareto ABC: Clases ABC ➔ Catálogo ➔ Líneas"
-              subtituloPersonalizado="Muestra cómo las referencias de Clase A, B y C se distribuyen a lo largo de las distintas líneas y categorías de producto"
-            />
-
             {/* SECCIÓN 3: Curva de Tallas, Colores y Alertas de Calidad / Devoluciones */}
             <div className="grid gap-6 lg:grid-cols-3">
               {/* Curva de Tallas */}
