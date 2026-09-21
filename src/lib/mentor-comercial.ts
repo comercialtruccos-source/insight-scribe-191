@@ -1,5 +1,5 @@
 import { FilaFactVentas, FiltrosBI, CatalogosDisponibles } from "./ventas-api";
-import { ResumenInventarioReal, ReferenciaStockAgrupada } from "./inventario-api";
+import { ResumenInventarioReal, ReferenciaStockAgrupada, buscarStockEnResumen } from "./inventario-api";
 
 export interface ComboEstrategico {
   id: string;
@@ -134,22 +134,8 @@ export function calcularDiagnosticoMentor(
   const zonaMap = new Map<number, string>((catalogos?.zonas || []).map((z) => [z.id, z.nombre]));
 
   // Helper para buscar información de inventario real por SKU / Referencia
-  const buscarStockRef = (skuOrRef: string): ReferenciaStockAgrupada | undefined => {
-    if (!resumenInventario || !resumenInventario.mapaPorReferencia) return undefined;
-    const clean = (skuOrRef || "").trim().toUpperCase();
-    if (!clean) return undefined;
-
-    // 1. Coincidencia exacta
-    if (resumenInventario.mapaPorReferencia.has(clean)) {
-      return resumenInventario.mapaPorReferencia.get(clean);
-    }
-    // 2. Coincidencia por subcadena / prefijo
-    for (const [refKey, itemStock] of resumenInventario.mapaPorReferencia.entries()) {
-      if (clean.includes(refKey) || refKey.includes(clean)) {
-        return itemStock;
-      }
-    }
-    return undefined;
+  const buscarStockRef = (skuOrRef: string): ReferenciaStockAgrupada => {
+    return buscarStockEnResumen(resumenInventario, skuOrRef);
   };
 
   // Identificar el Asesor Comercial
@@ -312,28 +298,26 @@ export function calcularDiagnosticoMentor(
     const stockInfo = buscarStockRef(r.sku);
     let recomendacion = recomendacionDefecto;
 
-    if (stockInfo) {
-      if (stockInfo.estadoStock === "agotado") {
-        recomendacion = `⚠️ Sin stock en bodega. Programar pedido a producción o sugerir sustituto.`;
-      } else if (stockInfo.estadoStock === "stock_bajo") {
-        recomendacion = `⚡ Quedan solo ${stockInfo.saldoTotal} unds en bodega (${stockInfo.bodegas.join(", ")}). Priorizar clientes premium.`;
-      } else if (stockInfo.estadoStock === "disponible_alto") {
-        recomendacion = `🟢 ${stockInfo.saldoTotal} unds disponibles en bodega (${stockInfo.bodegas.join(", ")}). Despacho 24h garantizado.`;
-      }
+    if (stockInfo.saldoTotal >= 50) {
+      recomendacion = `🟢 ${stockInfo.saldoTotal} unds disponibles en bodega (${stockInfo.bodegas.join(", ") || "Bodega"}). Despacho 24h garantizado.`;
+    } else if (stockInfo.saldoTotal > 0) {
+      recomendacion = `⚡ Quedan ${stockInfo.saldoTotal} unds en bodega (${stockInfo.bodegas.join(", ") || "Bodega"}). Priorizar clientes premium.`;
+    } else {
+      recomendacion = `⚪ 0 unds en bodega. Programar reposición a producción o sugerir sustituto.`;
     }
 
     return {
       sku: r.sku,
-      nombre: stockInfo?.descripcion || r.nombre,
+      nombre: stockInfo.descripcion || r.nombre,
       linea: r.linea,
       unidades: r.unidades,
       valor: r.venta,
-      precioPromedio: r.unidades > 0 ? Math.round(r.venta / r.unidades) : stockInfo?.pvm || 0,
+      precioPromedio: r.unidades > 0 ? Math.round(r.venta / r.unidades) : stockInfo.pvm || 0,
       recomendacion,
-      stockDisponible: stockInfo?.saldoTotal,
-      imageUrl: stockInfo?.image_url || null,
-      estadoStock: stockInfo?.estadoStock,
-      bodega: stockInfo?.bodegas.join(", "),
+      stockDisponible: stockInfo.saldoTotal,
+      imageUrl: stockInfo.image_url || null,
+      estadoStock: stockInfo.estadoStock,
+      bodega: stockInfo.bodegas.length > 0 ? stockInfo.bodegas.join(", ") : "Bodega",
     };
   };
 
@@ -382,45 +366,45 @@ export function calcularDiagnosticoMentor(
     const stockStar1 = buscarStockRef(star1.sku);
     const stockComp1 = buscarStockRef(comp1.sku);
 
-    const precioStar1 = star1.unidades > 0 ? Math.round(star1.venta / star1.unidades) : stockStar1?.pvm || 65000;
-    const precioComp1 = comp1.unidades > 0 ? Math.round(comp1.venta / comp1.unidades) : stockComp1?.pvm || 45000;
+    const precioStar1 = star1.unidades > 0 ? Math.round(star1.venta / star1.unidades) : stockStar1.pvm || 65000;
+    const precioComp1 = comp1.unidades > 0 ? Math.round(comp1.venta / comp1.unidades) : stockComp1.pvm || 45000;
     const suma1 = precioStar1 + precioComp1;
     const combo1Precio = Math.round(suma1 * 0.92);
 
     combos.push({
       id: "combo-1-estrella-cross",
-      titulo: `Combo Dúo Comercial: ${stockStar1?.descripcion || star1.nombre} + ${stockComp1?.descripcion || comp1.nombre}`,
+      titulo: `Combo Dúo Comercial: ${stockStar1.descripcion || star1.nombre} + ${stockComp1.descripcion || comp1.nombre}`,
       descripcion: `Combina tu prenda líder de alta rotación con un complemento directo para asegurar ${formatoMoneda(combo1Precio)} por conjunto.`,
       productoPrincipal: {
         sku: star1.sku,
-        nombre: stockStar1?.descripcion || star1.nombre,
+        nombre: stockStar1.descripcion || star1.nombre,
         linea: star1.linea,
         precio: precioStar1,
         clase: "A",
         unidades: star1.unidades,
-        stockDisponible: stockStar1?.saldoTotal,
-        estadoStock: stockStar1?.estadoStock,
-        imageUrl: stockStar1?.image_url,
-        bodega: stockStar1?.bodegas.join(", "),
+        stockDisponible: stockStar1.saldoTotal,
+        estadoStock: stockStar1.estadoStock,
+        imageUrl: stockStar1.image_url,
+        bodega: stockStar1.bodegas.length > 0 ? stockStar1.bodegas.join(", ") : "Bodega",
       },
       productoComplemento: {
         sku: comp1.sku,
-        nombre: stockComp1?.descripcion || comp1.nombre,
+        nombre: stockComp1.descripcion || comp1.nombre,
         linea: comp1.linea,
         precio: precioComp1,
         clase: refsB.length > 0 ? "B" : "A",
         unidades: comp1.unidades,
-        stockDisponible: stockComp1?.saldoTotal,
-        estadoStock: stockComp1?.estadoStock,
-        imageUrl: stockComp1?.image_url,
-        bodega: stockComp1?.bodegas.join(", "),
+        stockDisponible: stockComp1.saldoTotal,
+        estadoStock: stockComp1.estadoStock,
+        imageUrl: stockComp1.image_url,
+        bodega: stockComp1.bodegas.length > 0 ? stockComp1.bodegas.join(", ") : "Bodega",
       },
       descuentoSugeridoPct: 8,
       precioSumaRegular: suma1,
       precioComboSugerido: combo1Precio,
       incrementoTicketEstimadoPct: 28,
       beneficioComercial: "Eleva el valor del pedido en un 28% y aumenta la rotación de la segunda prenda.",
-      argumentoVenta: `Estimado cliente, por la compra de la referencia estrella ${star1.sku}, llévate la referencia ${comp1.sku} con un beneficio exclusivo del 8% por curva completa.${stockStar1?.saldoTotal ? ` (Disponibilidad inmediata: ${stockStar1.saldoTotal} unds en ${stockStar1.bodegas.join(", ")})` : ""}`,
+      argumentoVenta: `Estimado cliente, por la compra de la referencia estrella ${star1.sku}, llévate la referencia ${comp1.sku} con un beneficio exclusivo del 8% por curva completa.${stockStar1.saldoTotal > 0 ? ` (Disponibilidad inmediata: ${stockStar1.saldoTotal} unds en ${stockStar1.bodegas.join(", ")})` : ""}`,
       origenEstrategia: "cross_selling",
     });
 
@@ -442,19 +426,19 @@ export function calcularDiagnosticoMentor(
 
       combos.push({
         id: "combo-2-desbloqueo-bodega",
-        titulo: `Pack Desbloqueo Bodega (3x ${stockStar2?.descripcion || star2.nombre} + 3x ${itemAltoStock.descripcion})`,
-        descripcion: `Combo estratégico para colocar ${itemAltoStock.saldoTotal} unidades disponibles en ${itemAltoStock.bodegas.join(", ")} apalancándose en tu bestseller.`,
+        titulo: `Pack Desbloqueo Bodega (3x ${stockStar2.descripcion || star2.nombre} + 3x ${itemAltoStock.descripcion})`,
+        descripcion: `Combo estratégico para colocar ${itemAltoStock.saldoTotal} unidades disponibles en ${itemAltoStock.bodegas.join(", ") || "Bodega"} apalancándose en tu bestseller.`,
         productoPrincipal: {
           sku: star2.sku,
-          nombre: stockStar2?.descripcion || star2.nombre,
+          nombre: stockStar2.descripcion || star2.nombre,
           linea: star2.linea,
           precio: pStar2,
           clase: "A",
           unidades: star2.unidades,
-          stockDisponible: stockStar2?.saldoTotal,
-          estadoStock: stockStar2?.estadoStock,
-          imageUrl: stockStar2?.image_url,
-          bodega: stockStar2?.bodegas.join(", "),
+          stockDisponible: stockStar2.saldoTotal,
+          estadoStock: stockStar2.estadoStock,
+          imageUrl: stockStar2.image_url,
+          bodega: stockStar2.bodegas.length > 0 ? stockStar2.bodegas.join(", ") : "Bodega",
         },
         productoComplemento: {
           sku: itemAltoStock.referencia,
@@ -466,14 +450,14 @@ export function calcularDiagnosticoMentor(
           stockDisponible: itemAltoStock.saldoTotal,
           estadoStock: itemAltoStock.estadoStock,
           imageUrl: itemAltoStock.image_url,
-          bodega: itemAltoStock.bodegas.join(", "),
+          bodega: itemAltoStock.bodegas.length > 0 ? itemAltoStock.bodegas.join(", ") : "Bodega",
         },
         descuentoSugeridoPct: 15,
         precioSumaRegular: suma2,
         precioComboSugerido: combo2Precio,
         incrementoTicketEstimadoPct: 45,
         beneficioComercial: `Despeja ${itemAltoStock.saldoTotal} prendas en bodega asegurando ${formatoMoneda(combo2Precio)} por paquete mayorista.`,
-        argumentoVenta: `Oportunidad especial de inventario: Llévate 3 unidades de nuestro bestseller ${star2.sku} + 3 unidades de ${itemAltoStock.referencia} con un 15% de descuento directo y entrega inmediata desde ${itemAltoStock.bodegas.join(", ")}.`,
+        argumentoVenta: `Oportunidad especial de inventario: Llévate 3 unidades de nuestro bestseller ${star2.sku} + 3 unidades de ${itemAltoStock.referencia} con un 15% de descuento directo y entrega inmediata desde ${itemAltoStock.bodegas.join(", ") || "Bodega"}.`,
         origenEstrategia: "desbloqueo_inventario",
       });
     } else if (refsC.length > 0 || refsB.length > 1) {
@@ -482,38 +466,38 @@ export function calcularDiagnosticoMentor(
       const comp2 = refsC[0] || refsB[1] || refsB[0];
       const stockStar2 = buscarStockRef(star2.sku);
       const stockComp2 = buscarStockRef(comp2.sku);
-      const pStar2 = star2.unidades > 0 ? Math.round(star2.venta / star2.unidades) : 70000;
-      const pComp2 = comp2.unidades > 0 ? Math.round(comp2.venta / comp2.unidades) : 40000;
+      const pStar2 = star2.unidades > 0 ? Math.round(star2.venta / star2.unidades) : stockStar2.pvm || 70000;
+      const pComp2 = comp2.unidades > 0 ? Math.round(comp2.venta / comp2.unidades) : stockComp2.pvm || 40000;
       const suma2 = pStar2 * 3 + pComp2 * 3; // Paquete de 6 prendas
       const combo2Precio = Math.round(suma2 * 0.88);
 
       combos.push({
         id: "combo-2-pack-volumen",
-        titulo: `Pack Mayorista Surtido (3x ${stockStar2?.descripcion || star2.nombre} + 3x ${stockComp2?.descripcion || comp2.nombre})`,
+        titulo: `Pack Mayorista Surtido (3x ${stockStar2.descripcion || star2.nombre} + 3x ${stockComp2.descripcion || comp2.nombre})`,
         descripcion: "Estrategia para colocar volumen y rotar inventario complementario en pedidos de boutique.",
         productoPrincipal: {
           sku: star2.sku,
-          nombre: stockStar2?.descripcion || star2.nombre,
+          nombre: stockStar2.descripcion || star2.nombre,
           linea: star2.linea,
           precio: pStar2,
           clase: "A",
           unidades: star2.unidades,
-          stockDisponible: stockStar2?.saldoTotal,
-          estadoStock: stockStar2?.estadoStock,
-          imageUrl: stockStar2?.image_url,
-          bodega: stockStar2?.bodegas.join(", "),
+          stockDisponible: stockStar2.saldoTotal,
+          estadoStock: stockStar2.estadoStock,
+          imageUrl: stockStar2.image_url,
+          bodega: stockStar2.bodegas.length > 0 ? stockStar2.bodegas.join(", ") : "Bodega",
         },
         productoComplemento: {
           sku: comp2.sku,
-          nombre: stockComp2?.descripcion || comp2.nombre,
+          nombre: stockComp2.descripcion || comp2.nombre,
           linea: comp2.linea,
           precio: pComp2,
           clase: "C",
           unidades: comp2.unidades,
-          stockDisponible: stockComp2?.saldoTotal,
-          estadoStock: stockComp2?.estadoStock,
-          imageUrl: stockComp2?.image_url,
-          bodega: stockComp2?.bodegas.join(", "),
+          stockDisponible: stockComp2.saldoTotal,
+          estadoStock: stockComp2.estadoStock,
+          imageUrl: stockComp2.image_url,
+          bodega: stockComp2.bodegas.length > 0 ? stockComp2.bodegas.join(", ") : "Bodega",
         },
         descuentoSugeridoPct: 12,
         precioSumaRegular: suma2,
@@ -531,38 +515,38 @@ export function calcularDiagnosticoMentor(
       const starA2 = refsA[1];
       const stockA1 = buscarStockRef(starA1.sku);
       const stockA2 = buscarStockRef(starA2.sku);
-      const pA1 = starA1.unidades > 0 ? Math.round(starA1.venta / starA1.unidades) : stockA1?.pvm || 65000;
-      const pA2 = starA2.unidades > 0 ? Math.round(starA2.venta / starA2.unidades) : stockA2?.pvm || 68000;
+      const pA1 = starA1.unidades > 0 ? Math.round(starA1.venta / starA1.unidades) : stockA1.pvm || 65000;
+      const pA2 = starA2.unidades > 0 ? Math.round(starA2.venta / starA2.unidades) : stockA2.pvm || 68000;
       const suma3 = pA1 + pA2;
       const combo3Precio = Math.round(suma3 * 0.95);
 
       combos.push({
         id: "combo-3-top-bestsellers",
-        titulo: `Dúo Best-Sellers Trucco's: ${starA1.sku} + ${starA2.sku}`,
+        titulo: `Dúo Best-Sellers Trucco's: ${stockA1.descripcion || starA1.sku} + ${stockA2.descripcion || starA2.sku}`,
         descripcion: "Las 2 prendas más vendidas del catálogo en una sola oferta imperdible.",
         productoPrincipal: {
           sku: starA1.sku,
-          nombre: stockA1?.descripcion || starA1.nombre,
+          nombre: stockA1.descripcion || starA1.nombre,
           linea: starA1.linea,
           precio: pA1,
           clase: "A",
           unidades: starA1.unidades,
-          stockDisponible: stockA1?.saldoTotal,
-          estadoStock: stockA1?.estadoStock,
-          imageUrl: stockA1?.image_url,
-          bodega: stockA1?.bodegas.join(", "),
+          stockDisponible: stockA1.saldoTotal,
+          estadoStock: stockA1.estadoStock,
+          imageUrl: stockA1.image_url,
+          bodega: stockA1.bodegas.length > 0 ? stockA1.bodegas.join(", ") : "Bodega",
         },
         productoComplemento: {
           sku: starA2.sku,
-          nombre: stockA2?.descripcion || starA2.nombre,
+          nombre: stockA2.descripcion || starA2.nombre,
           linea: starA2.linea,
           precio: pA2,
           clase: "A",
           unidades: starA2.unidades,
-          stockDisponible: stockA2?.saldoTotal,
-          estadoStock: stockA2?.estadoStock,
-          imageUrl: stockA2?.image_url,
-          bodega: stockA2?.bodegas.join(", "),
+          stockDisponible: stockA2.saldoTotal,
+          estadoStock: stockA2.estadoStock,
+          imageUrl: stockA2.image_url,
+          bodega: stockA2.bodegas.length > 0 ? stockA2.bodegas.join(", ") : "Bodega",
         },
         descuentoSugeridoPct: 5,
         precioSumaRegular: suma3,

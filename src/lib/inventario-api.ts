@@ -54,24 +54,43 @@ export interface ResumenInventarioReal {
   alertasSobrestock: ReferenciaStockAgrupada[];
   alertasStockBajo: ReferenciaStockAgrupada[];
   mapaPorReferencia: Map<string, ReferenciaStockAgrupada>;
+  mapaPorSku: Map<string, ReferenciaStockAgrupada>;
 }
 
 /**
- * Obtiene todas las filas de inventario real desde la base de datos de Supabase.
+ * Obtiene todas las filas de inventario real desde la base de datos de Supabase usando paginación.
  */
 export async function obtenerInventarioRaw(): Promise<FilaInventarioReal[]> {
   try {
-    const { data, error } = await inventorySupabase
-      .from("inventory")
-      .select("*")
-      .limit(10000);
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    const allRows: FilaInventarioReal[] = [];
 
-    if (error) {
-      console.error("[Inventario API] Error al obtener inventario:", error);
-      return [];
+    while (true) {
+      const { data, error } = await inventorySupabase
+        .from("inventory")
+        .select("*")
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) {
+        console.error("[Inventario API] Error al obtener inventario paginado:", error);
+        break;
+      }
+
+      if (!data || data.length === 0) {
+        break;
+      }
+
+      allRows.push(...(data as FilaInventarioReal[]));
+
+      if (data.length < PAGE_SIZE) {
+        break;
+      }
+
+      from += PAGE_SIZE;
     }
 
-    return (data || []) as FilaInventarioReal[];
+    return allRows;
   } catch (err) {
     console.error("[Inventario API] Excepción al consultar inventario:", err);
     return [];
@@ -88,10 +107,14 @@ export function procesarInventarioReal(filas: FilaInventarioReal[]): ResumenInve
 
   const bodegasSet = new Set<string>();
   const refMap = new Map<string, ReferenciaStockAgrupada>();
+  const skuToRefMap = new Map<string, string>();
 
   for (const f of filas) {
     const ref = (f.referencia || "").trim().toUpperCase();
-    if (!ref) continue;
+    const sku = (f.sku || "").trim().toUpperCase();
+    if (!ref && !sku) continue;
+
+    const refFinal = ref || sku;
 
     const saldo = Number(f.saldo) || 0;
     const pvm = Number(f.pvm) || 0;
@@ -105,9 +128,13 @@ export function procesarInventarioReal(filas: FilaInventarioReal[]): ResumenInve
     totalValorPvp += saldo * pvp;
     if (bodega) bodegasSet.add(bodega);
 
-    const actual = refMap.get(ref) || {
-      referencia: ref,
-      descripcion: (f.descripcion || ref).trim(),
+    if (sku) {
+      skuToRefMap.set(sku, refFinal);
+    }
+
+    const actual = refMap.get(refFinal) || {
+      referencia: refFinal,
+      descripcion: (f.descripcion || refFinal).trim(),
       saldoTotal: 0,
       pvm,
       pvp,
@@ -143,7 +170,7 @@ export function procesarInventarioReal(filas: FilaInventarioReal[]): ResumenInve
       actual.tallas.push({ talla, saldo });
     }
 
-    refMap.set(ref, actual);
+    refMap.set(refFinal, actual);
   }
 
   // Clasificar estado de stock
@@ -167,6 +194,14 @@ export function procesarInventarioReal(filas: FilaInventarioReal[]): ResumenInve
     listaReferencias.map((r) => [r.referencia.toUpperCase(), r])
   );
 
+  const mapaPorSku = new Map<string, ReferenciaStockAgrupada>();
+  for (const [skuKey, refKey] of skuToRefMap.entries()) {
+    const item = mapaPorReferencia.get(refKey);
+    if (item) {
+      mapaPorSku.set(skuKey, item);
+    }
+  }
+
   return {
     totalPrendas,
     totalValorPvm,
@@ -178,7 +213,78 @@ export function procesarInventarioReal(filas: FilaInventarioReal[]): ResumenInve
     alertasSobrestock,
     alertasStockBajo,
     mapaPorReferencia,
+    mapaPorSku,
   };
+}
+
+/**
+ * Busca de forma inteligente y exhaustiva el stock de un SKU o Referencia.
+ * Siempre retorna un objeto con stock y disponibilidad (0 si no tiene stock físico).
+ */
+export function buscarStockEnResumen(
+  resumen: ResumenInventarioReal | undefined,
+  skuOrRef: string
+): ReferenciaStockAgrupada {
+  const clean = (skuOrRef || "").trim().toUpperCase();
+
+  const fallbackSinStock: ReferenciaStockAgrupada = {
+    referencia: clean || "REF",
+    descripcion: "",
+    saldoTotal: 0,
+    pvm: 0,
+    pvp: 0,
+    image_url: null,
+    bodegas: [],
+    variantesCount: 0,
+    colores: [],
+    tallas: [],
+    estadoStock: "agotado",
+  };
+
+  if (!resumen || !clean) {
+    return fallbackSinStock;
+  }
+
+  // 1. Coincidencia exacta por SKU
+  if (resumen.mapaPorSku?.has(clean)) {
+    return resumen.mapaPorSku.get(clean)!;
+  }
+
+  // 2. Coincidencia exacta por Referencia
+  if (resumen.mapaPorReferencia?.has(clean)) {
+    return resumen.mapaPorReferencia.get(clean)!;
+  }
+
+  // 3. Coincidencia por Prefijo (el SKU empieza con la Referencia, ej: P22036872U08 -> P22036872)
+  let mejorMatchPrefijo: ReferenciaStockAgrupada | undefined = undefined;
+  let longitudMax = 0;
+
+  for (const [refKey, item] of resumen.mapaPorReferencia.entries()) {
+    if (clean.startsWith(refKey) && refKey.length > longitudMax) {
+      mejorMatchPrefijo = item;
+      longitudMax = refKey.length;
+    }
+  }
+
+  if (mejorMatchPrefijo) {
+    return mejorMatchPrefijo;
+  }
+
+  // 4. Coincidencia por Subcadena
+  for (const [refKey, item] of resumen.mapaPorReferencia.entries()) {
+    if (clean.includes(refKey) || refKey.includes(clean)) {
+      return item;
+    }
+  }
+
+  // 5. Coincidencia en mapa de SKUs por subcadena
+  for (const [skuKey, item] of (resumen.mapaPorSku || new Map()).entries()) {
+    if (clean.includes(skuKey) || skuKey.includes(clean)) {
+      return item;
+    }
+  }
+
+  return fallbackSinStock;
 }
 
 /**

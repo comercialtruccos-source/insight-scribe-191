@@ -459,20 +459,21 @@ export function MentorComercialDrawer({
                               <p className="font-mono text-muted-foreground text-[11px] mt-0.5">
                                 Precio: {formatoCOP(combo.productoPrincipal.precio)}
                               </p>
-                              {combo.productoPrincipal.stockDisponible !== undefined ? (
-                                <Badge
-                                  variant="outline"
-                                  className={`text-[9px] font-bold mt-1 px-1.5 py-0 ${
-                                    combo.productoPrincipal.stockDisponible >= 20
-                                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                                      : combo.productoPrincipal.stockDisponible > 0
-                                      ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
-                                      : "bg-rose-500/10 text-rose-600 border-rose-500/30"
-                                  }`}
-                                >
-                                  🟢 Stock: {combo.productoPrincipal.stockDisponible} unds {combo.productoPrincipal.bodega ? `(${combo.productoPrincipal.bodega})` : ""}
-                                </Badge>
-                              ) : null}
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] font-bold mt-1 px-1.5 py-0 ${
+                                  (combo.productoPrincipal.stockDisponible || 0) >= 20
+                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                    : (combo.productoPrincipal.stockDisponible || 0) > 0
+                                    ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                                    : "bg-slate-500/10 text-slate-500 border-slate-500/30"
+                                }`}
+                              >
+                                {(combo.productoPrincipal.stockDisponible || 0) >= 20 ? "🟢" : (combo.productoPrincipal.stockDisponible || 0) > 0 ? "🟡" : "⚪"} Stock:{" "}
+                                {(combo.productoPrincipal.stockDisponible || 0) > 0
+                                  ? `${combo.productoPrincipal.stockDisponible} unds ${combo.productoPrincipal.bodega ? `(${combo.productoPrincipal.bodega})` : ""}`
+                                  : "0 unds en bodega (Bajo pedido)"}
+                              </Badge>
                             </div>
                           </div>
 
@@ -498,20 +499,21 @@ export function MentorComercialDrawer({
                               <p className="font-mono text-muted-foreground text-[11px] mt-0.5">
                                 Precio: {formatoCOP(combo.productoComplemento.precio)}
                               </p>
-                              {combo.productoComplemento.stockDisponible !== undefined ? (
-                                <Badge
-                                  variant="outline"
-                                  className={`text-[9px] font-bold mt-1 px-1.5 py-0 ${
-                                    combo.productoComplemento.stockDisponible >= 20
-                                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                                      : combo.productoComplemento.stockDisponible > 0
-                                      ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
-                                      : "bg-rose-500/10 text-rose-600 border-rose-500/30"
-                                  }`}
-                                >
-                                  🟢 Stock: {combo.productoComplemento.stockDisponible} unds {combo.productoComplemento.bodega ? `(${combo.productoComplemento.bodega})` : ""}
-                                </Badge>
-                              ) : null}
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] font-bold mt-1 px-1.5 py-0 ${
+                                  (combo.productoComplemento.stockDisponible || 0) >= 20
+                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                    : (combo.productoComplemento.stockDisponible || 0) > 0
+                                    ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                                    : "bg-slate-500/10 text-slate-500 border-slate-500/30"
+                                }`}
+                              >
+                                {(combo.productoComplemento.stockDisponible || 0) >= 20 ? "🟢" : (combo.productoComplemento.stockDisponible || 0) > 0 ? "🟡" : "⚪"} Stock:{" "}
+                                {(combo.productoComplemento.stockDisponible || 0) > 0
+                                  ? `${combo.productoComplemento.stockDisponible} unds ${combo.productoComplemento.bodega ? `(${combo.productoComplemento.bodega})` : ""}`
+                                  : "0 unds en bodega (Bajo pedido)"}
+                              </Badge>
                             </div>
                           </div>
                         </div>
