@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import {
   Sparkles,
   TrendingUp,
@@ -31,6 +32,12 @@ import {
   DollarSign,
   UserCheck,
   ExternalLink,
+  Boxes,
+  Search,
+  Warehouse,
+  ImageIcon,
+  Flame,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -40,9 +47,11 @@ import {
   EstrategiaABCItem,
   GuionComercial,
 } from "@/lib/mentor-comercial";
+import { ResumenInventarioReal, ReferenciaStockAgrupada } from "@/lib/inventario-api";
 
 interface MentorComercialDrawerProps {
   diagnostico: DiagnosticoMentor;
+  resumenInventario?: ResumenInventarioReal;
   esDirectivo?: boolean;
   vendedoresDisponibles?: { id: number; nombre: string }[];
   vendedorSeleccionadoId?: string;
@@ -62,6 +71,7 @@ function formatoCOP(val: number): string {
 
 export function MentorComercialDrawer({
   diagnostico,
+  resumenInventario,
   esDirectivo = false,
   vendedoresDisponibles = [],
   vendedorSeleccionadoId = "todos",
@@ -72,6 +82,11 @@ export function MentorComercialDrawer({
 }: MentorComercialDrawerProps) {
   const [tabActiva, setTabActiva] = useState<string>("diagnostico");
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
+
+  // Estados para el explorador de Inventario Real
+  const [busquedaInv, setBusquedaInv] = useState("");
+  const [bodegaSeleccionada, setBodegaSeleccionada] = useState("todas");
+  const [filtroTipoStock, setFiltroTipoStock] = useState<"todos" | "sobrestock" | "stock_bajo" | "con_foto">("todos");
 
   const copiarTexto = (texto: string, id: string, titulo: string) => {
     navigator.clipboard.writeText(texto);
@@ -88,6 +103,43 @@ export function MentorComercialDrawer({
     const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(mensaje)}`;
     window.open(url, "_blank");
   };
+
+  const generarOfertaWhatsAppInventario = (item: ReferenciaStockAgrupada) => {
+    const tallasStr = item.tallas.map((t) => `${t.talla} (${t.saldo})`).join(", ");
+    const coloresStr = item.colores.map((c) => c.color).join(", ");
+    const bodegasStr = item.bodegas.join(", ");
+
+    const mensaje = `¡Hola [Nombre Cliente]! 👋 Te saluda el equipo de Trucco's Jeans.\n\nTe comparto disponibilidad inmediata en bodega de nuestra referencia:\n✨ *${item.referencia} - ${item.descripcion}*\n\n📦 *Stock Disponible:* ${item.saldoTotal} unidades (${bodegasStr})\n🎨 *Colores:* ${coloresStr}\n📏 *Tallas disponibles:* ${tallasStr}\n💵 *Precio Mayorista:* ${formatoCOP(item.pvm)} (PVP Sugerido: ${formatoCOP(item.pvp)})\n\n¿Te aparto una curva completa para despacho hoy mismo? 👖✨`;
+
+    abrirWhatsAppWeb(mensaje);
+  };
+
+  // Lista de referencias de inventario filtradas
+  const referenciasInventarioFiltradas = useMemo(() => {
+    if (!resumenInventario || !resumenInventario.mapaPorReferencia) return [];
+    let items = Array.from(resumenInventario.mapaPorReferencia.values());
+
+    if (bodegaSeleccionada !== "todas") {
+      items = items.filter((it) => it.bodegas.includes(bodegaSeleccionada));
+    }
+
+    if (busquedaInv.trim()) {
+      const q = busquedaInv.trim().toLowerCase();
+      items = items.filter(
+        (it) => it.referencia.toLowerCase().includes(q) || it.descripcion.toLowerCase().includes(q)
+      );
+    }
+
+    if (filtroTipoStock === "sobrestock") {
+      items = items.filter((it) => it.saldoTotal >= 50);
+    } else if (filtroTipoStock === "stock_bajo") {
+      items = items.filter((it) => it.saldoTotal > 0 && it.saldoTotal <= 10);
+    } else if (filtroTipoStock === "con_foto") {
+      items = items.filter((it) => Boolean(it.image_url));
+    }
+
+    return items;
+  }, [resumenInventario, bodegaSeleccionada, busquedaInv, filtroTipoStock]);
 
   const colorSalud = useMemo(() => {
     switch (diagnostico.kpis.saludComercial) {
@@ -130,14 +182,22 @@ export function MentorComercialDrawer({
                   </Badge>
                 </div>
                 <SheetDescription className="text-xs text-muted-foreground mt-0.5">
-                  Estrategias inteligentes de ventas, combos y optimización de cartera.
+                  Estrategias inteligentes de ventas, combos, stock en bodega y optimización de cartera.
                 </SheetDescription>
               </div>
             </div>
 
-            <Badge variant="secondary" className="font-mono text-[11px] font-bold bg-background/80 border border-border/60 rounded-full px-2.5 py-0.5 shadow-2xs">
-              {diagnostico.periodoNombre}
-            </Badge>
+            <div className="flex items-center gap-1.5">
+              {resumenInventario && (
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />
+                  Stock Live
+                </Badge>
+              )}
+              <Badge variant="secondary" className="font-mono text-[11px] font-bold bg-background/80 border border-border/60 rounded-full px-2.5 py-0.5 shadow-2xs">
+                {diagnostico.periodoNombre}
+              </Badge>
+            </div>
           </div>
 
           {/* Selector de Asesor para Directivos */}
@@ -172,10 +232,10 @@ export function MentorComercialDrawer({
           </div>
         </div>
 
-        {/* Pestañas de Navegación del Mentor */}
+        {/* Pestañas de Navegación del Mentor (6 Pestañas) */}
         <Tabs value={tabActiva} onValueChange={setTabActiva} className="flex-1 flex flex-col overflow-hidden">
           <div className="px-5 pt-3 pb-2 border-b border-border/60 bg-muted/15">
-            <TabsList className="grid grid-cols-5 w-full h-9 bg-card/80 p-1 rounded-xl border border-border/60 shadow-2xs">
+            <TabsList className="grid grid-cols-6 w-full h-9 bg-card/80 p-1 rounded-xl border border-border/60 shadow-2xs">
               <TabsTrigger value="diagnostico" className="text-xs font-bold gap-1 rounded-lg data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-xs transition-all">
                 <TrendingUp className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Diagnóstico</span>
@@ -183,6 +243,10 @@ export function MentorComercialDrawer({
               <TabsTrigger value="combos" className="text-xs font-bold gap-1 rounded-lg data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-xs transition-all">
                 <Package className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Combos</span>
+              </TabsTrigger>
+              <TabsTrigger value="inventario" className="text-xs font-bold gap-1 rounded-lg data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-xs transition-all">
+                <Boxes className="h-3.5 w-3.5 text-emerald-500" />
+                <span className="hidden sm:inline">Inventario</span>
               </TabsTrigger>
               <TabsTrigger value="zonas" className="text-xs font-bold gap-1 rounded-lg data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-xs transition-all">
                 <MapPin className="h-3.5 w-3.5" />
@@ -329,13 +393,13 @@ export function MentorComercialDrawer({
             </TabsContent>
 
             {/* ========================================================================= */}
-            {/* TAB 2: COMBOS GANADORES & UPSELLING */}
+            {/* TAB 2: COMBOS GANADORES & UPSELLING (CON STOCK REAL & FOTOS) */}
             {/* ========================================================================= */}
             <TabsContent value="combos" className="space-y-4 m-0">
               <div>
-                <h3 className="text-sm font-bold text-foreground">Combos Estratégicos Recomendados</h3>
+                <h3 className="text-sm font-bold text-foreground">Combos Estratégicos con Inventario Real</h3>
                 <p className="text-xs text-muted-foreground">
-                  Paquetes calculados automáticamente cruzando tus productos de mayor demanda con complementos ideales.
+                  Paquetes calculados automáticamente cruzando tus prendas de alta demanda con disponibilidad física en bodega.
                 </p>
               </div>
 
@@ -350,10 +414,17 @@ export function MentorComercialDrawer({
                       <CardHeader className="p-4 bg-muted/20 border-b border-border/40 pb-3">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <CardTitle className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                              <Sparkles className="h-4 w-4 text-amber-500" />
-                              {combo.titulo}
-                            </CardTitle>
+                            <div className="flex items-center gap-2">
+                              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                                <Sparkles className="h-4 w-4 text-amber-500" />
+                                {combo.titulo}
+                              </CardTitle>
+                              {combo.origenEstrategia === "desbloqueo_inventario" && (
+                                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-bold">
+                                  <Flame className="h-3 w-3 mr-0.5" /> Desbloqueo Bodega
+                                </Badge>
+                              )}
+                            </div>
                             <CardDescription className="text-xs mt-0.5">
                               {combo.descripcion}
                             </CardDescription>
@@ -364,28 +435,84 @@ export function MentorComercialDrawer({
                         </div>
                       </CardHeader>
                       <CardContent className="p-4 space-y-3">
-                        {/* Productos del Combo */}
-                        <div className="grid sm:grid-cols-2 gap-2">
-                          <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 text-xs">
-                            <div className="flex items-center justify-between text-muted-foreground text-[11px] mb-1">
-                              <span className="font-semibold text-primary">Prenda Principal (Clase {combo.productoPrincipal.clase})</span>
-                              <span>SKU: {combo.productoPrincipal.sku}</span>
+                        {/* Productos del Combo con Fotos y Stock */}
+                        <div className="grid sm:grid-cols-2 gap-2.5">
+                          {/* Producto Principal */}
+                          <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 text-xs flex gap-2.5 items-start">
+                            {combo.productoPrincipal.imageUrl ? (
+                              <img
+                                src={combo.productoPrincipal.imageUrl}
+                                alt={combo.productoPrincipal.nombre}
+                                className="h-14 w-14 rounded-md object-cover border border-border/60 shrink-0 bg-background"
+                              />
+                            ) : (
+                              <div className="h-14 w-14 rounded-md bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
+                                <Package className="h-6 w-6" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between text-muted-foreground text-[11px] mb-0.5">
+                                <span className="font-semibold text-primary">Líder (Clase {combo.productoPrincipal.clase})</span>
+                                <span className="font-mono font-bold">{combo.productoPrincipal.sku}</span>
+                              </div>
+                              <p className="font-bold text-foreground text-xs truncate">{combo.productoPrincipal.nombre}</p>
+                              <p className="font-mono text-muted-foreground text-[11px] mt-0.5">
+                                Precio: {formatoCOP(combo.productoPrincipal.precio)}
+                              </p>
+                              {combo.productoPrincipal.stockDisponible !== undefined ? (
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[9px] font-bold mt-1 px-1.5 py-0 ${
+                                    combo.productoPrincipal.stockDisponible >= 20
+                                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                      : combo.productoPrincipal.stockDisponible > 0
+                                      ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                                      : "bg-rose-500/10 text-rose-600 border-rose-500/30"
+                                  }`}
+                                >
+                                  🟢 Stock: {combo.productoPrincipal.stockDisponible} unds {combo.productoPrincipal.bodega ? `(${combo.productoPrincipal.bodega})` : ""}
+                                </Badge>
+                              ) : null}
                             </div>
-                            <p className="font-bold text-foreground">{combo.productoPrincipal.nombre}</p>
-                            <p className="font-mono text-muted-foreground mt-0.5">
-                              Precio Regular: {formatoCOP(combo.productoPrincipal.precio)}
-                            </p>
                           </div>
 
-                          <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 text-xs">
-                            <div className="flex items-center justify-between text-muted-foreground text-[11px] mb-1">
-                              <span className="font-semibold text-indigo-500">Prenda Complemento (Clase {combo.productoComplemento.clase})</span>
-                              <span>SKU: {combo.productoComplemento.sku}</span>
+                          {/* Producto Complemento */}
+                          <div className="p-2.5 rounded-lg border border-border/60 bg-muted/10 text-xs flex gap-2.5 items-start">
+                            {combo.productoComplemento.imageUrl ? (
+                              <img
+                                src={combo.productoComplemento.imageUrl}
+                                alt={combo.productoComplemento.nombre}
+                                className="h-14 w-14 rounded-md object-cover border border-border/60 shrink-0 bg-background"
+                              />
+                            ) : (
+                              <div className="h-14 w-14 rounded-md bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0 text-indigo-500">
+                                <Package className="h-6 w-6" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between text-muted-foreground text-[11px] mb-0.5">
+                                <span className="font-semibold text-indigo-500">Complemento (Clase {combo.productoComplemento.clase})</span>
+                                <span className="font-mono font-bold">{combo.productoComplemento.sku}</span>
+                              </div>
+                              <p className="font-bold text-foreground text-xs truncate">{combo.productoComplemento.nombre}</p>
+                              <p className="font-mono text-muted-foreground text-[11px] mt-0.5">
+                                Precio: {formatoCOP(combo.productoComplemento.precio)}
+                              </p>
+                              {combo.productoComplemento.stockDisponible !== undefined ? (
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[9px] font-bold mt-1 px-1.5 py-0 ${
+                                    combo.productoComplemento.stockDisponible >= 20
+                                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                      : combo.productoComplemento.stockDisponible > 0
+                                      ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                                      : "bg-rose-500/10 text-rose-600 border-rose-500/30"
+                                  }`}
+                                >
+                                  🟢 Stock: {combo.productoComplemento.stockDisponible} unds {combo.productoComplemento.bodega ? `(${combo.productoComplemento.bodega})` : ""}
+                                </Badge>
+                              ) : null}
                             </div>
-                            <p className="font-bold text-foreground">{combo.productoComplemento.nombre}</p>
-                            <p className="font-mono text-muted-foreground mt-0.5">
-                              Precio Regular: {formatoCOP(combo.productoComplemento.precio)}
-                            </p>
                           </div>
                         </div>
 
@@ -452,7 +579,229 @@ export function MentorComercialDrawer({
             </TabsContent>
 
             {/* ========================================================================= */}
-            {/* TAB 3: PLAN ESTRATÉGICO POR ZONAS */}
+            {/* TAB 3: INVENTARIO REAL EN BODEGA (NUEVA PESTAÑA CONECTADA A SUPABASE) */}
+            {/* ========================================================================= */}
+            <TabsContent value="inventario" className="space-y-4 m-0">
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                    <Boxes className="h-4 w-4 text-emerald-500" />
+                    Inventario Físico en Tiempo Real
+                  </h3>
+                  {resumenInventario && (
+                    <Badge variant="outline" className="text-[10px] font-mono font-bold">
+                      {resumenInventario.totalSkus.toLocaleString("es-CO")} SKUs Sincronizados
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Consulta de existencias físicas en bodegas, valorización y generación de ofertas instantáneas para WhatsApp.
+                </p>
+              </div>
+
+              {/* KPIs Globales de Inventario */}
+              {resumenInventario && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="p-2.5 rounded-xl border border-border/80 bg-card/60 shadow-2xs">
+                    <p className="text-[10px] text-muted-foreground font-medium">Total Prendas</p>
+                    <p className="text-base font-black font-mono text-foreground mt-0.5">
+                      {resumenInventario.totalPrendas.toLocaleString("es-CO")} unds
+                    </p>
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">Disponibles</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-border/80 bg-card/60 shadow-2xs">
+                    <p className="text-[10px] text-muted-foreground font-medium">Referencias Únicas</p>
+                    <p className="text-base font-black font-mono text-foreground mt-0.5">
+                      {resumenInventario.totalReferencias}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{resumenInventario.bodegas.length} bodegas</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-border/80 bg-card/60 shadow-2xs">
+                    <p className="text-[10px] text-muted-foreground font-medium">Valor Bodega (PVM)</p>
+                    <p className="text-base font-black font-mono text-foreground mt-0.5">
+                      {formatoCOP(resumenInventario.totalValorPvm)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Mayorista</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl border border-border/80 bg-card/60 shadow-2xs">
+                    <p className="text-[10px] text-muted-foreground font-medium">Valor Sugerido (PVP)</p>
+                    <p className="text-base font-black font-mono text-foreground mt-0.5">
+                      {formatoCOP(resumenInventario.totalValorPvp)}
+                    </p>
+                    <p className="text-[10px] text-indigo-500 font-semibold mt-0.5">Público</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Barra de Búsqueda y Filtros de Bodega */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por referencia o descripción..."
+                    value={busquedaInv}
+                    onChange={(e) => setBusquedaInv(e.target.value)}
+                    className="pl-8 text-xs h-8 bg-background border-border/80 rounded-xl"
+                  />
+                </div>
+
+                {resumenInventario && resumenInventario.bodegas.length > 0 && (
+                  <select
+                    value={bodegaSeleccionada}
+                    onChange={(e) => setBodegaSeleccionada(e.target.value)}
+                    className="text-xs bg-background border border-border/80 rounded-xl px-2.5 h-8 font-semibold focus:ring-2 focus:ring-primary/30 focus:outline-none"
+                  >
+                    <option value="todas">Todas las Bodegas</option>
+                    {resumenInventario.bodegas.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Filtros Rápidos (Pills) */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Button
+                  size="sm"
+                  variant={filtroTipoStock === "todos" ? "default" : "outline"}
+                  className="h-6 text-[11px] px-2.5 rounded-full"
+                  onClick={() => setFiltroTipoStock("todos")}
+                >
+                  Todas ({resumenInventario?.totalReferencias || 0})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filtroTipoStock === "sobrestock" ? "default" : "outline"}
+                  className="h-6 text-[11px] px-2.5 rounded-full gap-1"
+                  onClick={() => setFiltroTipoStock("sobrestock")}
+                >
+                  <Flame className="h-3 w-3 text-amber-500" />
+                  Mayor Stock (+50 unds)
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filtroTipoStock === "stock_bajo" ? "default" : "outline"}
+                  className="h-6 text-[11px] px-2.5 rounded-full gap-1"
+                  onClick={() => setFiltroTipoStock("stock_bajo")}
+                >
+                  <AlertTriangle className="h-3 w-3 text-rose-500" />
+                  Stock Crítico (1-10 unds)
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filtroTipoStock === "con_foto" ? "default" : "outline"}
+                  className="h-6 text-[11px] px-2.5 rounded-full gap-1"
+                  onClick={() => setFiltroTipoStock("con_foto")}
+                >
+                  <ImageIcon className="h-3 w-3 text-blue-500" />
+                  Con Foto
+                </Button>
+              </div>
+
+              {/* Lista de Referencias de Inventario */}
+              <div className="space-y-2.5">
+                {referenciasInventarioFiltradas.length === 0 ? (
+                  <div className="text-center py-10 text-muted-foreground text-xs border border-dashed rounded-xl p-6">
+                    No se encontraron referencias con los filtros seleccionados.
+                  </div>
+                ) : (
+                  referenciasInventarioFiltradas.slice(0, 30).map((item) => (
+                    <Card key={item.referencia} className="border border-border/70 shadow-2xs hover:border-border transition-colors overflow-hidden">
+                      <CardContent className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          {item.image_url ? (
+                            <img
+                              src={item.image_url}
+                              alt={item.descripcion}
+                              className="h-16 w-16 rounded-xl object-cover border border-border/60 shrink-0 bg-background shadow-2xs"
+                            />
+                          ) : (
+                            <div className="h-16 w-16 rounded-xl bg-muted/40 border border-border/60 flex flex-col items-center justify-center shrink-0 text-muted-foreground">
+                              <Package className="h-6 w-6 opacity-60" />
+                              <span className="text-[9px] mt-0.5 font-medium">Sin foto</span>
+                            </div>
+                          )}
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono font-black text-xs text-primary">{item.referencia}</span>
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] font-bold px-2 py-0 ${
+                                  item.saldoTotal >= 50
+                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                    : item.saldoTotal >= 10
+                                    ? "bg-blue-500/10 text-blue-600 border-blue-500/30"
+                                    : item.saldoTotal > 0
+                                    ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                                    : "bg-rose-500/10 text-rose-600 border-rose-500/30"
+                                }`}
+                              >
+                                {item.saldoTotal} unds en bodega
+                              </Badge>
+                              {item.bodegas.map((b) => (
+                                <Badge key={b} variant="secondary" className="text-[9px] px-1.5 py-0">
+                                  {b}
+                                </Badge>
+                              ))}
+                            </div>
+
+                            <p className="font-semibold text-xs text-foreground mt-0.5 line-clamp-1">{item.descripcion}</p>
+
+                            <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
+                              <span>
+                                PVM: <strong className="text-foreground font-mono">{formatoCOP(item.pvm)}</strong>
+                              </span>
+                              <span>
+                                PVP: <strong className="text-foreground font-mono">{formatoCOP(item.pvp)}</strong>
+                              </span>
+                              <span>{item.variantesCount} SKUs/Tallas</span>
+                            </div>
+
+                            {/* Tallas disponibles */}
+                            {item.tallas.length > 0 && (
+                              <div className="flex items-center gap-1 flex-wrap mt-1.5">
+                                <span className="text-[10px] text-muted-foreground font-semibold">Tallas:</span>
+                                {item.tallas.slice(0, 8).map((t) => (
+                                  <span
+                                    key={t.talla}
+                                    className="text-[10px] font-mono px-1 py-0.2 bg-muted rounded border border-border/40 text-foreground"
+                                  >
+                                    {t.talla}:{t.saldo}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Botón Acción Oferta WhatsApp */}
+                        <div className="flex items-center justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/40">
+                          <Button
+                            size="sm"
+                            className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs font-semibold"
+                            onClick={() => generarOfertaWhatsAppInventario(item)}
+                          >
+                            <Share2 className="h-3.5 w-3.5" />
+                            Ofertar WhatsApp
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+                {referenciasInventarioFiltradas.length > 30 && (
+                  <p className="text-center text-xs text-muted-foreground pt-2">
+                    Mostrando las primeras 30 de {referenciasInventarioFiltradas.length} referencias. Usa el buscador para filtrar.
+                  </p>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* ========================================================================= */}
+            {/* TAB 4: PLAN ESTRATÉGICO POR ZONAS */}
             {/* ========================================================================= */}
             <TabsContent value="zonas" className="space-y-4 m-0">
               <div>
@@ -540,7 +889,7 @@ export function MentorComercialDrawer({
             </TabsContent>
 
             {/* ========================================================================= */}
-            {/* TAB 4: MIX DE PORTAFOLIO ABC */}
+            {/* TAB 5: MIX DE PORTAFOLIO ABC (CON STOCK REAL & FOTOS) */}
             {/* ========================================================================= */}
             <TabsContent value="abc" className="space-y-4 m-0">
               <div>
@@ -586,17 +935,44 @@ export function MentorComercialDrawer({
                       {cat.itemsDestacados.length > 0 && (
                         <div className="space-y-1.5">
                           <p className="text-[11px] font-semibold text-muted-foreground uppercase">
-                            Referencias Destacadas:
+                            Referencias Destacadas & Stock:
                           </p>
                           <div className="divide-y divide-border/40 border border-border/60 rounded-lg overflow-hidden">
                             {cat.itemsDestacados.map((item, itIdx) => (
-                              <div key={itIdx} className="p-2.5 bg-background flex items-center justify-between gap-2 text-xs">
-                                <div>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-mono font-bold text-primary">{item.sku}</span>
-                                    <span className="text-foreground font-medium truncate max-w-[200px]">{item.nombre}</span>
+                              <div key={itIdx} className="p-2.5 bg-background flex items-center justify-between gap-2.5 text-xs">
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  {item.imageUrl ? (
+                                    <img
+                                      src={item.imageUrl}
+                                      alt={item.nombre}
+                                      className="h-10 w-10 rounded-md object-cover border border-border/60 shrink-0 bg-background"
+                                    />
+                                  ) : (
+                                    <div className="h-10 w-10 rounded-md bg-muted/40 border border-border/60 flex items-center justify-center shrink-0 text-muted-foreground">
+                                      <Package className="h-4 w-4" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-mono font-bold text-primary">{item.sku}</span>
+                                      <span className="text-foreground font-medium truncate max-w-[200px]">{item.nombre}</span>
+                                      {item.stockDisponible !== undefined && (
+                                        <Badge
+                                          variant="outline"
+                                          className={`text-[9px] px-1.5 py-0 font-bold ${
+                                            item.stockDisponible >= 20
+                                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                              : item.stockDisponible > 0
+                                              ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                                              : "bg-rose-500/10 text-rose-600 border-rose-500/30"
+                                          }`}
+                                        >
+                                          {item.stockDisponible} unds
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">{item.recomendacion}</p>
                                   </div>
-                                  <p className="text-[11px] text-muted-foreground mt-0.5">{item.recomendacion}</p>
                                 </div>
                                 <div className="text-right font-mono shrink-0">
                                   <p className="font-bold">{formatoCOP(item.valor)}</p>

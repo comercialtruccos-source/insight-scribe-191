@@ -116,6 +116,7 @@ import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vende
 import { MentorComercialDrawer } from "@/components/mentor/MentorComercialDrawer";
 import { SankeyFlujoComercial } from "@/components/sankey/SankeyFlujoComercial";
 import { calcularDiagnosticoMentor } from "@/lib/mentor-comercial";
+import { useInventarioReal } from "@/lib/inventario-api";
 import {
   obtenerPermisoUsuario,
   obtenerSimulacionAdmin,
@@ -619,6 +620,9 @@ function Panel() {
     staleTime: 60 * 1000,
   });
 
+  // Inventario Real desde la API externa de Supabase
+  const { data: resumenInventario } = useInventarioReal();
+
   const etiquetaPeriodoAnterior = useMemo(() => {
     if (filtrosYoY?.fecha_desde && filtrosYoY?.fecha_hasta) {
       return `${filtrosYoY.fecha_desde} al ${filtrosYoY.fecha_hasta}`;
@@ -672,9 +676,10 @@ function Panel() {
       filtros,
       catalogos,
       compararAnioAnterior ? rawVentasYoY : undefined,
-      undefined
+      undefined,
+      resumenInventario
     );
-  }, [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]);
+  }, [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY, resumenInventario]);
 
   const vendedorSeleccionadoNombre = useMemo(() => {
     if (vendedorId === "todos") return null;
@@ -5533,6 +5538,7 @@ function Panel() {
         open={mentorOpen}
         onOpenChange={setMentorOpen}
         diagnostico={diagnosticoMentor}
+        resumenInventario={resumenInventario}
         esDirectivo={esAdmin}
         vendedoresDisponibles={catalogos?.vendedores || []}
         vendedorSeleccionadoId={vendedorId}
