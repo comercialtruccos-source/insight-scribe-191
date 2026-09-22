@@ -900,6 +900,14 @@ export function obtenerFiltrosAnioAnterior(filtros: FiltrosBI, aniosCatalogo?: n
   };
 }
 
+export function esDevolucionTransaccion(transaccion?: string | null, valor?: number | null): boolean {
+  if (!transaccion) return (Number(valor) || 0) < 0;
+  const t = transaccion.toUpperCase().trim();
+  if (t.includes("NOTA CREDITO") || t.includes("DEVOLUCION")) return true;
+  if (t.includes("SALIDA") || t.includes("DESPACHO") || t.includes("TRASLADO")) return false;
+  return (Number(valor) || 0) < 0;
+}
+
 export function calcularDashboard1Cumplimiento(
   data: FilaFactVentas[],
   filtros: FiltrosBI,
@@ -976,7 +984,7 @@ export function calcularDashboard1Cumplimiento(
     currP.venta += v;
     totalVentas += v;
 
-    if (v < 0) {
+    if (esDevolucionTransaccion(r.transaccion, v)) {
       currP.dev += Math.abs(v);
       totalDevoluciones += Math.abs(v);
     }
@@ -1073,7 +1081,7 @@ export function calcularDashboard1Cumplimiento(
       const v = Number(r.valor ?? 0);
       const cant = Math.round(Number(r.cantidad ?? 0));
       totalVentasAnterior += v;
-      if (v < 0) totalDevolucionesAnterior += Math.abs(v);
+      if (esDevolucionTransaccion(r.transaccion, v)) totalDevolucionesAnterior += Math.abs(v);
       totalUnidadesAnterior += cant;
 
       if (r.transaccion) transaccionesAntSet.add(String(r.transaccion));
@@ -2685,11 +2693,12 @@ export function calcularDashboard6Referencias(
     const talla = (r.talla || "").trim().toUpperCase();
     const color = (r.color || "").trim().toUpperCase();
 
+    const esDev = esDevolucionTransaccion(r.transaccion, v);
     totalVentaNeta += v;
     if (v > 0) totalVentaBruta += v;
-    if (v < 0) totalDevoluciones += Math.abs(v);
+    if (esDev) totalDevoluciones += Math.abs(v);
     if (cant > 0) totalUnidades += cant;
-    if (cant < 0) totalUnidadesDevueltas += Math.abs(cant);
+    if (cant < 0 && esDev) totalUnidadesDevueltas += Math.abs(cant);
 
     let currRef = refMap.get(sku);
     if (!currRef) {
@@ -2712,7 +2721,7 @@ export function calcularDashboard6Referencias(
     currRef.ventaNeta += v;
     currRef.costoTotal += costo;
     if (v > 0) currRef.ventaBruta += v;
-    if (v < 0) {
+    if (esDev) {
       currRef.devoluciones += Math.abs(v);
       currRef.unidadesDevueltas += Math.abs(cant);
     }
@@ -2761,9 +2770,10 @@ export function calcularDashboard6Referencias(
       const rawSku = (r.sku || r.prenda_hgi || "").trim();
       const sku = rawSku || "REF-DESCONOCIDA";
 
+      const esDevAnt = esDevolucionTransaccion(r.transaccion, v);
       totalVentaNetaAnterior += v;
       if (v > 0) totalVentaBrutaAnterior += v;
-      if (v < 0) totalDevolucionesAnterior += Math.abs(v);
+      if (esDevAnt) totalDevolucionesAnterior += Math.abs(v);
       if (cant > 0) totalUnidadesAnterior += cant;
 
       const prevR = refAntMap.get(sku) || { ventaNeta: 0, unidades: 0 };

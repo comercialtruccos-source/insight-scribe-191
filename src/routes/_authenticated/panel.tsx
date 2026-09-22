@@ -105,6 +105,9 @@ import {
   Info,
   ShieldCheck,
   UserCheck,
+  User,
+  Briefcase,
+  Building2,
   Eye,
   Lock,
   Sparkles,
@@ -595,13 +598,14 @@ function Panel() {
     setFiltroCanalDigital("todos");
   };
 
-  // Modo Comparativa vs Año Anterior (YoY) - Activación On-Demand
+  // Modo Comparativa vs Año Anterior (YoY) - Activación On-Demand para Admin, Activo por Defecto para Vendedores
   const [compararAnioAnterior, setCompararAnioAnterior] = useState<boolean>(false);
+  const habilitarYoY = esAdmin ? compararAnioAnterior : true;
 
   const filtrosYoY = useMemo(() => {
-    if (!compararAnioAnterior) return null;
+    if (!habilitarYoY) return null;
     return obtenerFiltrosAnioAnterior(filtros, catalogos?.anios);
-  }, [compararAnioAnterior, filtros, catalogos?.anios]);
+  }, [habilitarYoY, filtros, catalogos?.anios]);
 
   // Carga unificada de ventas para todos los dashboards
   const { data: rawVentas, isLoading: cVentas, isFetching: cFetching } = useQuery({
@@ -612,11 +616,11 @@ function Panel() {
     enabled: tipoRango !== "mesActual" || rangoTotal !== undefined,
   });
 
-  // Carga on-demand de ventas del año anterior (sólo si se activa el botón)
+  // Carga on-demand de ventas del año anterior (automática para vendedores, configurable para admin)
   const { data: rawVentasYoY, isLoading: cYoYLoading } = useQuery({
     queryKey: ["bi-fact-ventas-yoy", filtrosYoY],
     queryFn: () => (filtrosYoY ? obtenerVentasRaw(filtrosYoY) : Promise.resolve([])),
-    enabled: Boolean(compararAnioAnterior && filtrosYoY),
+    enabled: Boolean(habilitarYoY && filtrosYoY),
     staleTime: 60 * 1000,
   });
 
@@ -637,22 +641,22 @@ function Panel() {
     return "Mismo periodo del año anterior";
   }, [filtrosYoY]);
 
-  const cMultianual = cVentas || (compararAnioAnterior && cYoYLoading);
-  const cD1 = cVentas || (compararAnioAnterior && cYoYLoading);
-  const cD2 = cVentas || (compararAnioAnterior && cYoYLoading);
-  const cD3 = cVentas || (compararAnioAnterior && cYoYLoading);
-  const cD4 = cVentas || (compararAnioAnterior && cYoYLoading);
-  const cD5 = cVentas || (compararAnioAnterior && cYoYLoading);
-  const cD6 = cVentas || (compararAnioAnterior && cYoYLoading);
+  const cMultianual = cVentas || (habilitarYoY && cYoYLoading);
+  const cD1 = cVentas || (habilitarYoY && cYoYLoading);
+  const cD2 = cVentas || (habilitarYoY && cYoYLoading);
+  const cD3 = cVentas || (habilitarYoY && cYoYLoading);
+  const cD4 = cVentas || (habilitarYoY && cYoYLoading);
+  const cD5 = cVentas || (habilitarYoY && cYoYLoading);
+  const cD6 = cVentas || (habilitarYoY && cYoYLoading);
 
   const dMultianual = useMemo(
     () =>
       calcularHistoricoMultianual(
         rawVentas || [],
         filtros,
-        compararAnioAnterior ? rawVentasYoY : undefined
+        habilitarYoY ? rawVentasYoY : undefined
       ),
-    [rawVentas, filtros, compararAnioAnterior, rawVentasYoY]
+    [rawVentas, filtros, habilitarYoY, rawVentasYoY]
   );
   const d1 = useMemo(
     () =>
@@ -665,21 +669,69 @@ function Panel() {
         undefined,
         undefined,
         undefined,
-        compararAnioAnterior ? rawVentasYoY : undefined
+        habilitarYoY ? rawVentasYoY : undefined
       ),
-    [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]
+    [rawVentas, filtros, catalogos, habilitarYoY, rawVentasYoY]
   );
+
+  // Métricas y comparativas individuales por cada comercial asignado a la cuenta del vendedor
+  const comparativaComercialesAsociados = useMemo(() => {
+    if (esAdmin || !vendedoresDisponibles || vendedoresDisponibles.length <= 1 || !rawVentas) {
+      return [];
+    }
+
+    const totalVentaGlobal = d1?.kpis.ventaYTD || 0;
+
+    return vendedoresDisponibles.map((v) => {
+      const vId = v.id;
+      const matchV = (r: FilaFactVentas) => Number(r.vendedor_id) === vId || Number(r.vendedor2_id) === vId;
+      
+      const vData = rawVentas.filter(matchV);
+      const vDataYoY = (rawVentasYoY || []).filter(matchV);
+      
+      const d1Sub = calcularDashboard1Cumplimiento(
+        vData,
+        { ...filtros, vendedor_id: vId, vendedor_ids: undefined },
+        catalogos,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        vDataYoY
+      );
+
+      const aportePct = totalVentaGlobal > 0 ? Math.round((d1Sub.kpis.ventaYTD / totalVentaGlobal) * 1000) / 10 : 0;
+
+      return {
+        id: vId,
+        nombre: v.nombre,
+        d1: d1Sub,
+        kpis: d1Sub.kpis,
+        meses: d1Sub.meses,
+        aportePct,
+        ventaActual: d1Sub.kpis.ventaYTD,
+        ventaAnterior: d1Sub.kpis.ventaAnteriorTotal,
+        crecimientoYoYPct: d1Sub.kpis.crecimientoYoYPct,
+        unidades: d1Sub.kpis.volumenUnidades,
+        unidadesAnterior: d1Sub.kpis.unidadesAnteriorTotal,
+        ticketPromedio: d1Sub.kpis.ticketPromedio,
+        ticketPromedioAnterior: d1Sub.kpis.ticketPromedioAnterior,
+        tasaDevolucionPct: d1Sub.kpis.tasaDevolucionGlobalPct,
+      };
+    }).sort((a, b) => b.ventaActual - a.ventaActual);
+  }, [esAdmin, vendedoresDisponibles, rawVentas, rawVentasYoY, d1?.kpis.ventaYTD, filtros, catalogos]);
 
   const diagnosticoMentor = useMemo(() => {
     return calcularDiagnosticoMentor(
       rawVentas || [],
       filtros,
       catalogos,
-      compararAnioAnterior ? rawVentasYoY : undefined,
+      habilitarYoY ? rawVentasYoY : undefined,
       undefined,
       resumenInventario
     );
-  }, [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY, resumenInventario]);
+  }, [rawVentas, filtros, catalogos, habilitarYoY, rawVentasYoY, resumenInventario]);
 
   const vendedorSeleccionadoNombre = useMemo(() => {
     if (vendedorId === "todos") return null;
@@ -2103,16 +2155,80 @@ function Panel() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
               <div>
                 <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
-                  Dashboard 1: Cumplimiento, Participación y Análisis de Ventas
+                  {esAdmin
+                    ? "Dashboard 1: Cumplimiento, Participación y Análisis de Ventas"
+                    : "Dashboard 1: Facturación Real y Crecimiento Interanual"}
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Evolución cronológica de ventas vs presupuesto (PPTO), ranking de vendedores, top referencias, distribución geográfica y mix de líneas/canales.
+                  {esAdmin
+                    ? "Evolución cronológica de ventas vs presupuesto (PPTO), ranking de vendedores, top referencias, distribución geográfica y mix de líneas/canales."
+                    : "Comparativa de facturación real actual frente al año anterior, métricas de asesores comerciales asociados y desempeño por producto/zona."}
                 </p>
               </div>
               <Badge variant="outline" className={`font-semibold ${colorSemaforo(d1?.kpis.cumplimientoGlobalPct ?? 0)}`}>
-                {anio === "todos" ? "Histórico Completo" : `Año ${anio}`} • Cumplimiento: {d1?.kpis.cumplimientoGlobalPct ?? 0}%
+                {anio === "todos" ? "Histórico Completo" : `Año ${anio}`} • {esAdmin ? `Cumplimiento: ${d1?.kpis.cumplimientoGlobalPct ?? 0}%` : `Crecimiento YoY: ${d1?.kpis.crecimientoYoYPct ?? 0}%`}
               </Badge>
             </div>
+
+            {/* Sub-vendedor Switcher para Comerciales con Múltiples Asesores Asignados */}
+            {!esAdmin && comparativaComercialesAsociados.length > 1 && (
+              <div className="bg-muted/40 border border-border/80 rounded-xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      Comerciales Asignados a tu Cuenta
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                        {comparativaComercialesAsociados.length} Asesores
+                      </Badge>
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Selecciona un asesor específico o consulta la vista global consolidada.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+                  <Button
+                    size="sm"
+                    variant={vendedorId === "todos" ? "default" : "outline"}
+                    onClick={() => setVendedorId("todos")}
+                    className={cn(
+                      "text-xs h-7.5 px-3 rounded-lg font-medium transition-all shrink-0",
+                      vendedorId === "todos" ? "shadow-xs font-semibold" : "hover:bg-background"
+                    )}
+                  >
+                    🌟 Vista Global (Consolidado)
+                  </Button>
+                  {comparativaComercialesAsociados.map((sub) => {
+                    const isSelected = String(vendedorId) === String(sub.id);
+                    return (
+                      <Button
+                        key={sub.id}
+                        size="sm"
+                        variant={isSelected ? "default" : "outline"}
+                        onClick={() => setVendedorId(String(sub.id))}
+                        className={cn(
+                          "text-xs h-7.5 px-3 rounded-lg font-medium transition-all shrink-0 flex items-center gap-1.5",
+                          isSelected ? "shadow-xs font-semibold" : "hover:bg-background"
+                        )}
+                      >
+                        <User className="h-3 w-3 opacity-70" />
+                        <span>{sub.nombre}</span>
+                        <span className={cn(
+                          "text-[10px] px-1 py-0.2 rounded font-semibold",
+                          isSelected ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                        )}>
+                          {sub.aportePct}%
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* 6 Tarjetas KPI Ejecutivas */}
             <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
@@ -2122,16 +2238,16 @@ function Panel() {
                 subtexto={`Bruta: ${formatoCOP(d1?.kpis.ventaBrutaTotal ?? 0)}`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD1}
-                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
+                badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
               />
               <CardKpi
-                titulo="Cumplimiento PPTO"
-                valor={`${d1?.kpis.cumplimientoGlobalPct ?? 0}%`}
-                subtexto={`Meta: ${formatoCOP(d1?.kpis.pptoYTD ?? 0)}`}
+                titulo={esAdmin ? "Cumplimiento PPTO" : "Facturación Año Ant."}
+                valor={esAdmin ? `${d1?.kpis.cumplimientoGlobalPct ?? 0}%` : formatoCOP(d1?.kpis.ventaAnteriorTotal ?? 0)}
+                subtexto={esAdmin ? `Meta: ${formatoCOP(d1?.kpis.pptoYTD ?? 0)}` : `Crecimiento: ${d1?.kpis.crecimientoYoYPct ?? 0}%`}
                 icono={<Percent className="h-5 w-5 text-blue-500" />}
                 cargando={cD1}
-                badgeSemaforo={d1?.kpis.cumplimientoGlobalPct}
-                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d1?.kpis.cumplimientoGlobalPct} anterior={d1?.kpis.cumplimientoAnteriorPct} tipo="pct" label="cumpl. año ant." /> : undefined}
+                badgeSemaforo={esAdmin ? d1?.kpis.cumplimientoGlobalPct : undefined}
+                badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
               />
               <CardKpi
                 titulo="Volumen Unidades"
@@ -2139,7 +2255,7 @@ function Panel() {
                 subtexto="Prendas comercializadas"
                 icono={<Package className="h-5 w-5 text-indigo-500" />}
                 cargando={cD1}
-                badgeYoY={compararAnioAnterior ? <BadgeYoYUnidades actual={d1?.kpis.volumenUnidades} anterior={d1?.kpis.unidadesAnteriorTotal} /> : undefined}
+                badgeYoY={habilitarYoY ? <BadgeYoYUnidades actual={d1?.kpis.volumenUnidades} anterior={d1?.kpis.unidadesAnteriorTotal} /> : undefined}
               />
               <CardKpi
                 titulo="Tasa Devolución"
@@ -2147,7 +2263,7 @@ function Panel() {
                 subtexto={`Total: ${formatoCOP(d1?.kpis.devolucionesTotal ?? 0)}`}
                 icono={<ArrowDownRight className="h-5 w-5 text-rose-500" />}
                 cargando={cD1}
-                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d1?.kpis.tasaDevolucionGlobalPct} anterior={d1?.kpis.tasaDevolucionAnteriorPct} tipo="pct" invertido={true} label="tasa año ant." /> : undefined}
+                badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.tasaDevolucionGlobalPct} anterior={d1?.kpis.tasaDevolucionAnteriorPct} tipo="pct" invertido={true} label="tasa año ant." /> : undefined}
               />
               <CardKpi
                 titulo="Ticket Promedio"
@@ -2155,7 +2271,7 @@ function Panel() {
                 subtexto={`${(d1?.kpis.totalTransacciones ?? 0).toLocaleString("es-CO")} transacciones`}
                 icono={<Receipt className="h-5 w-5 text-amber-500" />}
                 cargando={cD1}
-                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d1?.kpis.ticketPromedio} anterior={d1?.kpis.ticketPromedioAnterior} /> : undefined}
+                badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ticketPromedio} anterior={d1?.kpis.ticketPromedioAnterior} /> : undefined}
               />
               <CardKpi
                 titulo="Precio Prom. / Prenda"
@@ -2163,28 +2279,38 @@ function Panel() {
                 subtexto="Por unidad vendida"
                 icono={<Tag className="h-5 w-5 text-cyan-500" />}
                 cargando={cD1}
-                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d1?.kpis.precioPromedioPrenda} anterior={d1?.kpis.precioPromedioPrendaAnterior} /> : undefined}
+                badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.precioPromedioPrenda} anterior={d1?.kpis.precioPromedioPrendaAnterior} /> : undefined}
               />
             </div>
 
-            {/* Gráfico Mixto: Evolución Cronológica de Ventas vs Presupuesto */}
+            {/* Gráfico Mixto: Evolución Cronológica de Ventas vs Presupuesto / Facturación vs Año Anterior */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <CardTitle className="text-base font-semibold">
-                      {anio === "todos" ? "Evolución Cronológica Completa de Ventas (Todos los Periodos)" : `Venta Real vs. Presupuesto Mensual (${anio})`}
+                      {esAdmin
+                        ? (anio === "todos" ? "Evolución Cronológica Completa de Ventas (Todos los Periodos)" : `Venta Real vs. Presupuesto Mensual (${anio})`)
+                        : `Facturación Real vs. Año Anterior ${vendedorSeleccionadoNombre ? `(${vendedorSeleccionadoNombre})` : (comparativaComercialesAsociados.length > 1 ? "(Consolidado Global)" : "")}`}
                     </CardTitle>
                     <CardDescription>
-                      {d1?.meses.length ?? 0} periodos registrados en el análisis {compararAnioAnterior && "• Superposición de Venta Año Anterior activada"}
+                      {esAdmin
+                        ? `${d1?.meses.length ?? 0} periodos registrados en el análisis ${compararAnioAnterior ? "• Superposición de Venta Año Anterior activada" : ""}`
+                        : `Comparativa mensual de facturación real actual frente al año anterior con tasa de variación interanual (% YoY) • ${anio === "todos" ? "Histórico completo" : `Año ${anio}`}`}
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
                     <InfoGrafica
-                      titulo="Venta Real vs. Presupuesto (PPTO)"
-                      descripcion="Compara la ejecución real de ventas monetarias frente a la cuota presupuestada para cada mes, mostrando el % de cumplimiento relativo."
-                      metrica="Barras azules: Venta real ($). Barras grises: Presupuesto ($). Línea verde: % de cumplimiento meta. Línea ámbar punteada: Venta Año Anterior."
-                      interpretacion="Permite evaluar qué meses superaron la meta comercial (verde) y en cuáles existió brecha presupuestal para ajustar tácticas de venta."
+                      titulo={esAdmin ? "Venta Real vs. Presupuesto (PPTO)" : "Facturación Real vs. Facturación Año Anterior"}
+                      descripcion={esAdmin
+                        ? "Compara la ejecución real de ventas monetarias frente a la cuota presupuestada para cada mes, mostrando el % de cumplimiento relativo."
+                        : "Compara la facturación neta mensual actual contra la del mismo periodo en el año anterior para medir el crecimiento interanual real."}
+                      metrica={esAdmin
+                        ? "Barras azules: Venta real ($). Barras grises: Presupuesto ($). Línea verde: % de cumplimiento meta. Línea ámbar punteada: Venta Año Anterior."
+                        : "Barras azules: Facturación Real Actual ($). Barras ámbar: Facturación Año Anterior ($). Línea verde: % Crecimiento Interanual (YoY)."}
+                      interpretacion={esAdmin
+                        ? "Permite evaluar qué meses superaron la meta comercial (verde) y en cuáles existió brecha presupuestal para ajustar tácticas de venta."
+                        : "Permite identificar rápidamente qué meses tuvieron crecimiento positivo frente al año anterior y la magnitud de la variación."}
                     />
                     <Badge variant="outline">
                       {anio === "todos" ? "Todo el Histórico" : `Año ${anio}`}
@@ -2205,26 +2331,242 @@ function Panel() {
                         <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
                         <Tooltip
                           formatter={(value: number, name: string) => {
+                            if (name === "crecimientoYoY" || name === "% Crecimiento YoY") return [`${Number(value).toFixed(1)}%`, "% Crecimiento YoY"];
                             if (name === "cumplimientoPct" || name === "% Cumplimiento") return [`${Number(value).toFixed(1)}%`, "% Cumplimiento"];
-                            if (name === "ventaAnterior" || name === "Venta Año Anterior ($)") return [formatoCOPFull(value), "Venta Año Anterior"];
-                            return [formatoCOPFull(value), name === "ventaReal" || name === "Venta Real ($)" ? "Venta Real" : "Presupuesto (PPTO)"];
+                            if (name === "ventaAnterior" || name === "Facturación Año Anterior ($)" || name === "Venta Año Anterior ($)") return [formatoCOPFull(value), "Facturación Año Anterior"];
+                            if (name === "ventaReal" || name === "Facturación Real Actual ($)" || name === "Facturación Real ($)" || name === "Venta Real ($)") return [formatoCOPFull(value), "Facturación Real"];
+                            if (name === "ppto" || name === "Presupuesto ($ PPTO)") return [formatoCOPFull(value), "Presupuesto (PPTO)"];
+                            return [formatoCOPFull(value), name];
                           }}
                         />
-                        <Legend
-                          formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ventaAnterior" ? "Venta Año Anterior ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
-                        />
-                        <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                        {compararAnioAnterior && (
-                          <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3.5, fill: "#f59e0b" }} />
+                        {esAdmin ? (
+                          <>
+                            <Legend
+                              formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ventaAnterior" ? "Venta Año Anterior ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
+                            />
+                            <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                            {compararAnioAnterior && (
+                              <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3.5, fill: "#f59e0b" }} />
+                            )}
+                            <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]} opacity={0.4} />
+                            <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
+                          </>
+                        ) : (
+                          <>
+                            <Legend
+                              formatter={(v) => (v === "ventaReal" ? "Facturación Real Actual ($)" : v === "ventaAnterior" ? "Facturación Año Anterior ($)" : "% Crecimiento YoY")}
+                            />
+                            <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                            <Bar yAxisId="left" dataKey="ventaAnterior" fill="#f59e0b" radius={[4, 4, 0, 0]} opacity={0.85} />
+                            <Line yAxisId="right" type="monotone" dataKey="crecimientoYoY" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
+                          </>
                         )}
-                        <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]} opacity={0.4} />
-                        <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* Panel de Vista Global de Comerciales Asociados al Vendedor */}
+            {!esAdmin && comparativaComercialesAsociados.length > 1 && (
+              <Card className="border-border/80 shadow-xs bg-linear-to-b from-card to-muted/20">
+                <CardHeader className="pb-3 border-b border-border/40">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                          <Users className="h-5 w-5" />
+                        </div>
+                        <CardTitle className="text-base font-semibold text-foreground">
+                          Vista Global de Comerciales Asociados ({comparativaComercialesAsociados.length} Asesores)
+                        </CardTitle>
+                      </div>
+                      <CardDescription className="text-xs">
+                        Métricas comparativas individuales y tasa de crecimiento frente al año anterior para cada código comercial asignado.
+                      </CardDescription>
+                    </div>
+                    {vendedorId !== "todos" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setVendedorId("todos")}
+                        className="text-xs h-8 text-primary font-medium"
+                      >
+                        ← Volver a Vista Global Consolidada
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-4">
+                  {/* Grid de Tarjetas Comparativas por Asesor */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {comparativaComercialesAsociados.map((sub) => {
+                      const isSelected = String(vendedorId) === String(sub.id);
+                      const isPositive = sub.crecimientoYoYPct >= 0;
+                      return (
+                        <div
+                          key={sub.id}
+                          onClick={() => setVendedorId(isSelected ? "todos" : String(sub.id))}
+                          className={cn(
+                            "p-3.5 rounded-xl border transition-all cursor-pointer relative group",
+                            isSelected
+                              ? "border-primary bg-primary/5 shadow-sm ring-2 ring-primary/20"
+                              : "border-border/70 hover:border-primary/50 hover:bg-muted/40 bg-card"
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-2.5">
+                            <div className="min-w-0">
+                              <h4 className="font-semibold text-xs text-foreground truncate group-hover:text-primary transition-colors flex items-center gap-1.5">
+                                <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                <span className="truncate">{sub.nombre}</span>
+                              </h4>
+                              <p className="text-[10px] text-muted-foreground font-mono">ID: {sub.id}</p>
+                            </div>
+                            <Badge
+                              variant={isSelected ? "default" : "secondary"}
+                              className="text-[10px] px-1.5 py-0 h-4.5 font-bold shrink-0"
+                            >
+                              {sub.aportePct}% aporte
+                            </Badge>
+                          </div>
+
+                          <div className="space-y-2 text-xs">
+                            <div>
+                              <div className="text-[10px] text-muted-foreground">Facturación Actual</div>
+                              <div className="font-bold text-sm text-foreground">{formatoCOPFull(sub.ventaActual)}</div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/50">
+                              <span className="text-muted-foreground">Año Anterior:</span>
+                              <span className="font-medium text-foreground">{formatoCOP(sub.ventaAnterior)}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-muted-foreground">Crecimiento YoY:</span>
+                              <span
+                                className={cn(
+                                  "font-bold flex items-center gap-0.5",
+                                  isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                                )}
+                              >
+                                {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                                {sub.crecimientoYoYPct > 0 ? "+" : ""}{sub.crecimientoYoYPct}%
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-muted-foreground">Unidades:</span>
+                              <span className="font-medium text-foreground">{sub.unidades.toLocaleString("es-CO")} unds</span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-muted-foreground">Devolución Real:</span>
+                              <span className={cn("font-medium", sub.tasaDevolucionPct > 5 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400")}>
+                                {sub.tasaDevolucionPct}%
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 pt-2 border-t border-border/50 flex items-center justify-between">
+                            <span className="text-[10px] text-primary font-medium group-hover:underline">
+                              {isSelected ? "✓ Filtrando este asesor" : "Clic para filtrar"}
+                            </span>
+                            {isSelected && <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-primary/10 text-primary border-primary/30">Activo</Badge>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Tabla Comparativa de Asesores */}
+                  <div className="border border-border/60 rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-muted/60 text-muted-foreground font-semibold border-b border-border/60">
+                          <tr>
+                            <th className="py-2.5 px-3">Comercial / Asesor</th>
+                            <th className="py-2.5 px-3 text-right">Fact. Actual ($)</th>
+                            <th className="py-2.5 px-3 text-right">Fact. Año Anterior ($)</th>
+                            <th className="py-2.5 px-3 text-right">% Crecimiento YoY</th>
+                            <th className="py-2.5 px-3 text-right">% Aporte</th>
+                            <th className="py-2.5 px-3 text-right">Prendas Vendidas</th>
+                            <th className="py-2.5 px-3 text-right">Ticket Prom.</th>
+                            <th className="py-2.5 px-3 text-right">Tasa Devolución</th>
+                            <th className="py-2.5 px-3 text-center">Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40">
+                          {comparativaComercialesAsociados.map((sub) => {
+                            const isSelected = String(vendedorId) === String(sub.id);
+                            const isPositive = sub.crecimientoYoYPct >= 0;
+                            return (
+                              <tr
+                                key={sub.id}
+                                className={cn(
+                                  "hover:bg-muted/40 transition-colors",
+                                  isSelected && "bg-primary/5 font-medium"
+                                )}
+                              >
+                                <td className="py-2.5 px-3">
+                                  <div className="font-semibold text-foreground flex items-center gap-1.5">
+                                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <span>{sub.nombre}</span>
+                                    {isSelected && <Badge className="text-[9px] px-1 py-0 h-3.5 bg-primary text-primary-foreground">Activo</Badge>}
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground font-mono">ID {sub.id}</span>
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-bold text-foreground font-mono">
+                                  {formatoCOPFull(sub.ventaActual)}
+                                </td>
+                                <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
+                                  {formatoCOP(sub.ventaAnterior)}
+                                </td>
+                                <td className="py-2.5 px-3 text-right">
+                                  <span
+                                    className={cn(
+                                      "inline-flex items-center gap-0.5 font-semibold font-mono",
+                                      isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                                    )}
+                                  >
+                                    {isPositive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+                                    {sub.crecimientoYoYPct > 0 ? "+" : ""}{sub.crecimientoYoYPct}%
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-semibold text-foreground font-mono">
+                                  {sub.aportePct}%
+                                </td>
+                                <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
+                                  {sub.unidades.toLocaleString("es-CO")} unds
+                                </td>
+                                <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
+                                  {formatoCOP(sub.ticketPromedio)}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono">
+                                  <span className={sub.tasaDevolucionPct > 5 ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-emerald-600 dark:text-emerald-400"}>
+                                    {sub.tasaDevolucionPct}%
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 text-center">
+                                  <Button
+                                    size="sm"
+                                    variant={isSelected ? "secondary" : "outline"}
+                                    onClick={() => setVendedorId(isSelected ? "todos" : String(sub.id))}
+                                    className="text-[11px] h-6 px-2"
+                                  >
+                                    {isSelected ? "Deseleccionar" : "Filtrar"}
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Diagrama de Flujo / Sankey: Arquitectura de Ingresos */}
             <SankeyFlujoComercial
