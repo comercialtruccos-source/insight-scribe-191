@@ -327,7 +327,7 @@ export async function fetchAllFactVentas<T = Record<string, unknown>>(
     }
   }
 
-  return deduplicarFilasVentas(rows.filter((r) => cumpleFiltros(r as Record<string, unknown>, filtros)));
+  return rows.filter((r) => cumpleFiltros(r as Record<string, unknown>, filtros));
 }
 
 export async function obtenerResumenCliente() {
