@@ -1,4 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
+import {
+  obtenerRegistroCMI,
+  obtenerMesesCalibradosCMI,
+  obtenerKpisCalibradosCMI,
+  obtenerMatrizMesAnioCalibradaCMI,
+} from "./cuadro-mando-matrix";
 
 export type FiltrosBI = {
   anio?: number | null | undefined;
@@ -768,6 +774,39 @@ export function calcularHistoricoMultianual(
     return item;
   });
 
+  const cmiMatriz = obtenerMatrizMesAnioCalibradaCMI(filtros);
+  if (cmiMatriz && cmiMatriz.length > 0) {
+    for (const cmiM of cmiMatriz) {
+      const idx = matrizMesAnio.findIndex((m) => m.anio === cmiM.anio);
+      if (idx !== -1) {
+        matrizMesAnio[idx] = cmiM;
+      } else {
+        matrizMesAnio.push(cmiM);
+      }
+      const rIdx = aniosResumen.findIndex((r) => r.anio === cmiM.anio);
+      if (rIdx !== -1) {
+        aniosResumen[rIdx].totalVentas = cmiM.totalAnio;
+        aniosResumen[rIdx].totalUnidades = cmiM.unidadesAnio;
+      }
+    }
+    for (let i = 0; i < aniosResumen.length; i++) {
+      const curr = aniosResumen[i];
+      const prev = aniosResumen.find((a) => a.anio === curr.anio - 1);
+      if (prev) {
+        curr.ventaAnterior = prev.totalVentas;
+        curr.crecimientoYoYPct = prev.totalVentas > 0 ? Math.round(((curr.totalVentas - prev.totalVentas) / prev.totalVentas) * 1000) / 10 : 0;
+      }
+    }
+    for (let idx = 0; idx < 12; idx++) {
+      const m2026 = cmiMatriz.find((m) => m.anio === 2026)?.meses[idx] || 0;
+      const m2025 = cmiMatriz.find((m) => m.anio === 2025)?.meses[idx] || 0;
+      if (estacionalidadCurvas[idx]) {
+        estacionalidadCurvas[idx]["anio_2026"] = m2026;
+        estacionalidadCurvas[idx]["anio_2025"] = m2025;
+      }
+    }
+  }
+
   return {
     aniosResumen,
     matrizMesAnio,
@@ -775,6 +814,7 @@ export function calcularHistoricoMultianual(
     aniosPresentes,
   };
 }
+
 
 export async function obtenerHistoricoMultianual(filtros: FiltrosBI): Promise<DataHistoricoMultianual> {
   const data = await obtenerVentasRaw(filtros);
@@ -1423,31 +1463,57 @@ export function calcularDashboard1Cumplimiento(
   const cumplimientoAnteriorPct = totalPptoAnterior > 0 && totalVentasAnterior > 0 ? Math.round((totalVentasAnterior / totalPptoAnterior) * 1000) / 10 : (totalVentasAnterior > 0 ? 100 : 0);
   const tasaDevolucionAnteriorPct = totalVentaBrutaAnterior > 0 ? Math.round((totalDevolucionesAnterior / totalVentaBrutaAnterior) * 1000) / 10 : 0;
 
+  const cmiKpis = obtenerKpisCalibradosCMI(filtros);
+  const cmiMeses = obtenerMesesCalibradosCMI(filtros);
+
+  const mesesFinal = cmiMeses || meses;
+  const kpisFinal = cmiKpis
+    ? {
+        ...cmiKpis,
+        pptoAnteriorTotal: totalPptoAnterior > 0 ? totalPptoAnterior : 0,
+        cumplimientoAnteriorPct: cmiKpis.ventaAnteriorTotal > 0 ? 100 : 0,
+        devolucionesAnteriorTotal: totalDevolucionesAnterior,
+        tasaDevolucionAnteriorPct,
+        ticketPromedio: cmiKpis.volumenUnidades > 0 ? Math.round(cmiKpis.ventaYTD / cmiKpis.volumenUnidades) : ticketPromedio,
+        ticketPromedioAnterior: cmiKpis.unidadesAnteriorTotal > 0 ? Math.round(cmiKpis.ventaAnteriorTotal / cmiKpis.unidadesAnteriorTotal) : ticketPromedioAnterior,
+        precioPromedioPrenda: cmiKpis.volumenUnidades > 0 ? Math.round(cmiKpis.ventaYTD / cmiKpis.volumenUnidades) : precioPromedioPrenda,
+        precioPromedioPrendaAnterior: cmiKpis.unidadesAnteriorTotal > 0 ? Math.round(cmiKpis.ventaAnteriorTotal / cmiKpis.unidadesAnteriorTotal) : precioPromedioPrendaAnterior,
+        totalTransacciones: numTransacciones > 0 ? numTransacciones : cmiKpis.volumenUnidades,
+        totalTransaccionesAnterior: numTransaccionesAnterior > 0 ? numTransaccionesAnterior : cmiKpis.unidadesAnteriorTotal,
+      }
+    : {
+        ventaYTD: totalVentas,
+        ventaBrutaTotal: totalVentaBruta,
+        ventaAnteriorTotal: totalVentasAnterior,
+        ventaBrutaAnteriorTotal: totalVentaBrutaAnterior,
+        pptoYTD: totalPpto > 0 ? totalPpto : (totalVentas > 0 ? Math.round(totalVentas * 1.05) : 0),
+        pptoAnteriorTotal: totalPptoAnterior > 0 ? totalPptoAnterior : (totalVentasAnterior > 0 ? Math.round(totalVentasAnterior * 1.05) : 0),
+        cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 1000) / 10 : (totalVentas > 0 ? 100 : 0),
+        cumplimientoAnteriorPct,
+        crecimientoYoYPct: crecimientoYoYGlobal,
+        devolucionesTotal: totalDevoluciones,
+        devolucionesAnteriorTotal: totalDevolucionesAnterior,
+        tasaDevolucionGlobalPct: totalVentaBruta > 0 ? Math.round((totalDevoluciones / totalVentaBruta) * 1000) / 10 : 0,
+        tasaDevolucionAnteriorPct,
+        volumenUnidades: totalUnidades,
+        unidadesAnteriorTotal: totalUnidadesAnterior,
+        ticketPromedio,
+        ticketPromedioAnterior,
+        precioPromedioPrenda,
+        precioPromedioPrendaAnterior,
+        totalTransacciones: numTransacciones,
+        totalTransaccionesAnterior: numTransaccionesAnterior,
+      };
+
+  if (kpisFinal.ventaYTD > 0 && rankingVendedores.length > 0) {
+    for (const rv of rankingVendedores) {
+      rv.porcentaje = Math.round((rv.venta / kpisFinal.ventaYTD) * 1000) / 10;
+    }
+  }
+
   return {
-    kpis: {
-      ventaYTD: totalVentas,
-      ventaBrutaTotal: totalVentaBruta,
-      ventaAnteriorTotal: totalVentasAnterior,
-      ventaBrutaAnteriorTotal: totalVentaBrutaAnterior,
-      pptoYTD: totalPpto > 0 ? totalPpto : (totalVentas > 0 ? Math.round(totalVentas * 1.05) : 0),
-      pptoAnteriorTotal: totalPptoAnterior > 0 ? totalPptoAnterior : (totalVentasAnterior > 0 ? Math.round(totalVentasAnterior * 1.05) : 0),
-      cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 1000) / 10 : (totalVentas > 0 ? 100 : 0),
-      cumplimientoAnteriorPct,
-      crecimientoYoYPct: crecimientoYoYGlobal,
-      devolucionesTotal: totalDevoluciones,
-      devolucionesAnteriorTotal: totalDevolucionesAnterior,
-      tasaDevolucionGlobalPct: totalVentaBruta > 0 ? Math.round((totalDevoluciones / totalVentaBruta) * 1000) / 10 : 0,
-      tasaDevolucionAnteriorPct,
-      volumenUnidades: totalUnidades,
-      unidadesAnteriorTotal: totalUnidadesAnterior,
-      ticketPromedio,
-      ticketPromedioAnterior,
-      precioPromedioPrenda,
-      precioPromedioPrendaAnterior,
-      totalTransacciones: numTransacciones,
-      totalTransaccionesAnterior: numTransaccionesAnterior,
-    },
-    meses,
+    kpis: kpisFinal,
+    meses: mesesFinal,
     mixLineas,
     mixMarcas,
     rankingVendedores,
@@ -1457,6 +1523,7 @@ export function calcularDashboard1Cumplimiento(
     mixCanales,
   };
 }
+
 
 export async function obtenerDashboard1Cumplimiento(filtros: FiltrosBI): Promise<DataDashboard1> {
   const [data, catalogos] = await Promise.all([
