@@ -731,6 +731,48 @@ function Panel() {
     }).sort((a, b) => b.ventaActual - a.ventaActual);
   }, [esAdmin, vendedoresDisponibles, rawVentas, rawVentasYoY, d1?.kpis.ventaYTD, filtros, catalogos]);
 
+  const nombreMesPuntual = useMemo(() => {
+    if (mes !== "todos") {
+      const m = MESES.find((item) => String(item.num) === String(mes));
+      return m ? m.nombre : `Mes ${mes}`;
+    }
+    if (tipoRango === "mesActual") {
+      return "Mes Actual";
+    }
+    return null;
+  }, [mes, tipoRango]);
+
+  const esMesPuntual = Boolean(nombreMesPuntual);
+
+  // Cuando se selecciona un mes puntual en la vista de comercial con varios vendedores asignados,
+  // la métrica principal de barras se discrimina por cada asesor asociado (con sus datos del mes puntual).
+  const datosGraficaPorVendedorMes = useMemo(() => {
+    if (esAdmin || !comparativaComercialesAsociados || comparativaComercialesAsociados.length <= 1 || !esMesPuntual) {
+      return null;
+    }
+
+    return comparativaComercialesAsociados.map((sub) => {
+      let nombreEje = sub.nombre;
+      if (nombreEje.length > 20) {
+        nombreEje = nombreEje.slice(0, 18) + "…";
+      }
+
+      return {
+        id: sub.id,
+        nombre: sub.nombre,
+        nombreEje,
+        ventaReal: sub.ventaActual,
+        ventaAnterior: sub.ventaAnterior,
+        crecimientoYoY: sub.crecimientoYoYPct,
+        aportePct: sub.aportePct,
+        unidades: sub.unidades,
+        unidadesAnterior: sub.unidadesAnterior,
+        tasaDevolucionPct: sub.tasaDevolucionPct,
+        ticketPromedio: sub.ticketPromedio,
+      };
+    });
+  }, [esAdmin, comparativaComercialesAsociados, esMesPuntual]);
+
   const diagnosticoMentor = useMemo(() => {
     return calcularDiagnosticoMentor(
       rawVentas || [],
@@ -2302,35 +2344,218 @@ function Panel() {
                     <CardTitle className="text-base font-semibold">
                       {esAdmin
                         ? (anio === "todos" ? "Evolución Cronológica Completa de Ventas (Todos los Periodos)" : `Venta Real vs. Presupuesto Mensual (${anio})`)
+                        : datosGraficaPorVendedorMes
+                        ? `Facturación Real por Vendedor vs. Año Anterior — ${nombreMesPuntual} ${anio !== "todos" ? anio : ""}`
                         : `Facturación Real vs. Año Anterior ${vendedorSeleccionadoNombre ? `(${vendedorSeleccionadoNombre})` : (comparativaComercialesAsociados.length > 1 ? "(Consolidado Global)" : "")}`}
                     </CardTitle>
                     <CardDescription>
                       {esAdmin
                         ? `${d1?.meses.length ?? 0} periodos registrados en el análisis ${compararAnioAnterior ? "• Superposición de Venta Año Anterior activada" : ""}`
+                        : datosGraficaPorVendedorMes
+                        ? `Comparativa de facturación real actual frente al año anterior discriminada por cada vendedor asignado • ${nombreMesPuntual} ${anio !== "todos" ? `de ${anio}` : ""}`
                         : `Comparativa mensual de facturación real actual frente al año anterior con tasa de variación interanual (% YoY) • ${anio === "todos" ? "Histórico completo" : `Año ${anio}`}`}
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {datosGraficaPorVendedorMes && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setMes("todos")}
+                        className="h-7 text-xs font-semibold rounded-lg border-blue-500/40 hover:bg-blue-500/15 text-blue-700 dark:text-blue-300 flex items-center gap-1 shrink-0 bg-background/80"
+                        title="Ver comparativa de todos los meses del año"
+                      >
+                        <Calendar className="h-3.5 w-3.5" />
+                        Ver Todo el Año
+                      </Button>
+                    )}
+                    {datosGraficaPorVendedorMes && vendedorId !== "todos" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setVendedorId("todos")}
+                        className="h-7 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 shrink-0"
+                        title="Restablecer a vista consolidada de todos los vendedores"
+                      >
+                        <FilterX className="h-3.5 w-3.5" />
+                        Ver Todos los Vendedores
+                      </Button>
+                    )}
                     <InfoGrafica
-                      titulo={esAdmin ? "Venta Real vs. Presupuesto (PPTO)" : "Facturación Real vs. Facturación Año Anterior"}
-                      descripcion={esAdmin
-                        ? "Compara la ejecución real de ventas monetarias frente a la cuota presupuestada para cada mes, mostrando el % de cumplimiento relativo."
-                        : "Compara la facturación neta mensual actual contra la del mismo periodo en el año anterior para medir el crecimiento interanual real."}
-                      metrica={esAdmin
-                        ? "Barras azules: Venta real ($). Barras grises: Presupuesto ($). Línea verde: % de cumplimiento meta. Línea ámbar punteada: Venta Año Anterior."
-                        : "Barras azules: Facturación Real Actual ($). Barras ámbar: Facturación Año Anterior ($). Línea verde: % Crecimiento Interanual (YoY)."}
-                      interpretacion={esAdmin
-                        ? "Permite evaluar qué meses superaron la meta comercial (verde) y en cuáles existió brecha presupuestal para ajustar tácticas de venta."
-                        : "Permite identificar rápidamente qué meses tuvieron crecimiento positivo frente al año anterior y la magnitud de la variación."}
+                      titulo={
+                        esAdmin
+                          ? "Venta Real vs. Presupuesto (PPTO)"
+                          : datosGraficaPorVendedorMes
+                          ? `Facturación por Vendedor vs. Año Anterior (${nombreMesPuntual})`
+                          : "Facturación Real vs. Facturación Año Anterior"
+                      }
+                      descripcion={
+                        esAdmin
+                          ? "Compara la ejecución real de ventas monetarias frente a la cuota presupuestada para cada mes, mostrando el % de cumplimiento relativo."
+                          : datosGraficaPorVendedorMes
+                          ? `Compara la facturación neta de cada comercial asociado en ${nombreMesPuntual} contra sus ventas del mismo mes en el año anterior.`
+                          : "Compara la facturación neta mensual actual contra la del mismo periodo en el año anterior para medir el crecimiento interanual real."
+                      }
+                      metrica={
+                        esAdmin
+                          ? "Barras azules: Venta real ($). Barras grises: Presupuesto ($). Línea verde: % de cumplimiento meta. Línea ámbar punteada: Venta Año Anterior."
+                          : "Barras azules: Facturación Real Actual ($). Barras ámbar: Facturación Año Anterior ($). Línea verde: % Crecimiento Interanual (YoY)."
+                      }
+                      interpretacion={
+                        esAdmin
+                          ? "Permite evaluar qué meses superaron la meta comercial (verde) y en cuáles existió brecha presupuestal para ajustar tácticas de venta."
+                          : datosGraficaPorVendedorMes
+                          ? "Permite comparar de un vistazo el aporte individual de cada asesor en el mes y quiénes presentan crecimiento o decrecimiento frente al año previo."
+                          : "Permite identificar rápidamente qué meses tuvieron crecimiento positivo frente al año anterior y la magnitud de la variación."
+                      }
                     />
                     <Badge variant="outline">
-                      {anio === "todos" ? "Todo el Histórico" : `Año ${anio}`}
+                      {datosGraficaPorVendedorMes ? `${nombreMesPuntual} ${anio !== "todos" ? anio : ""}` : (anio === "todos" ? "Todo el Histórico" : `Año ${anio}`)}
                     </Badge>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-2">
-                {!d1?.meses || d1.meses.length === 0 ? (
+                {datosGraficaPorVendedorMes ? (
+                  datosGraficaPorVendedorMes.length === 0 ? (
+                    <div className="h-[320px] grid place-items-center text-sm text-muted-foreground">
+                      Sin datos de vendedores para {nombreMesPuntual}
+                    </div>
+                  ) : (
+                    <div className="h-[340px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
+                          data={datosGraficaPorVendedorMes}
+                          margin={{ top: 15, right: 20, left: 10, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                          <XAxis
+                            dataKey="nombreEje"
+                            tick={{ fontSize: 11 }}
+                            interval={0}
+                            angle={-12}
+                            textAnchor="end"
+                            height={45}
+                          />
+                          <YAxis
+                            yAxisId="left"
+                            tickFormatter={(v) => formatoCOP(v)}
+                            tick={{ fontSize: 12 }}
+                            width={80}
+                          />
+                          <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            tickFormatter={(v) => `${v}%`}
+                            tick={{ fontSize: 12 }}
+                            width={50}
+                          />
+                          <Tooltip
+                            formatter={(value: any, name: string) => {
+                              if (name === "crecimientoYoY" || name === "% Crecimiento YoY") {
+                                const num = Number(value);
+                                return [`${num > 0 ? "+" : ""}${num.toFixed(1)}%`, "% Crecimiento YoY"];
+                              }
+                              if (name === "ventaAnterior" || name === "Facturación Año Anterior ($)") {
+                                return [formatoCOPFull(Number(value)), "Facturación Año Anterior"];
+                              }
+                              if (name === "ventaReal" || name === "Facturación Real Actual ($)") {
+                                return [formatoCOPFull(Number(value)), "Facturación Real Actual"];
+                              }
+                              return [formatoCOPFull(Number(value)), name];
+                            }}
+                            labelFormatter={(label: any, payload: any[]) => {
+                              const item = payload?.[0]?.payload;
+                              return item
+                                ? `${item.nombre} (${item.aportePct}% de aporte en ${nombreMesPuntual})`
+                                : label;
+                            }}
+                          />
+                          <Legend
+                            formatter={(v) =>
+                              v === "ventaReal"
+                                ? "Facturación Real Actual ($)"
+                                : v === "ventaAnterior"
+                                ? "Facturación Año Anterior ($)"
+                                : "% Crecimiento YoY"
+                            }
+                          />
+                          <Bar
+                            yAxisId="left"
+                            dataKey="ventaReal"
+                            name="Facturación Real Actual ($)"
+                            fill="#2563eb"
+                            radius={[4, 4, 0, 0]}
+                            cursor="pointer"
+                            onClick={(entry: any) => {
+                              const targetId = entry?.id || entry?.payload?.id;
+                              if (targetId) {
+                                setVendedorId(String(vendedorId) === String(targetId) ? "todos" : String(targetId));
+                              }
+                            }}
+                          >
+                            {datosGraficaPorVendedorMes.map((entry) => {
+                              const isSelected = String(vendedorId) === String(entry.id);
+                              const isAnySelected = vendedorId !== "todos";
+                              return (
+                                <Cell
+                                  key={`bar-real-${entry.id}`}
+                                  fill="#2563eb"
+                                  opacity={!isAnySelected || isSelected ? 1 : 0.4}
+                                />
+                              );
+                            })}
+                          </Bar>
+                          <Bar
+                            yAxisId="left"
+                            dataKey="ventaAnterior"
+                            name="Facturación Año Anterior ($)"
+                            fill="#f59e0b"
+                            radius={[4, 4, 0, 0]}
+                            cursor="pointer"
+                            onClick={(entry: any) => {
+                              const targetId = entry?.id || entry?.payload?.id;
+                              if (targetId) {
+                                setVendedorId(String(vendedorId) === String(targetId) ? "todos" : String(targetId));
+                              }
+                            }}
+                          >
+                            {datosGraficaPorVendedorMes.map((entry) => {
+                              const isSelected = String(vendedorId) === String(entry.id);
+                              const isAnySelected = vendedorId !== "todos";
+                              return (
+                                <Cell
+                                  key={`bar-ant-${entry.id}`}
+                                  fill="#f59e0b"
+                                  opacity={!isAnySelected || isSelected ? 0.85 : 0.35}
+                                />
+                              );
+                            })}
+                          </Bar>
+                          <Line
+                            yAxisId="right"
+                            type="monotone"
+                            dataKey="crecimientoYoY"
+                            name="% Crecimiento YoY"
+                            stroke="#10b981"
+                            strokeWidth={3}
+                            dot={{ r: 5, fill: "#10b981" }}
+                            activeDot={{ r: 7 }}
+                          >
+                            <LabelList
+                              dataKey="crecimientoYoY"
+                              position="top"
+                              formatter={(val: any) =>
+                                typeof val === "number" ? `${val > 0 ? "+" : ""}${val.toFixed(0)}%` : ""
+                              }
+                              style={{ fontSize: 10, fontWeight: 700, fill: "#10b981" }}
+                            />
+                          </Line>
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )
+                ) : !d1?.meses || d1.meses.length === 0 ? (
                   <div className="h-[320px] grid place-items-center text-sm text-muted-foreground">Sin datos para el periodo seleccionado</div>
                 ) : (
                   <div className="h-[340px] w-full">
@@ -2361,7 +2586,15 @@ function Panel() {
                           <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
                         </ComposedChart>
                       ) : (
-                        <ComposedChart data={d1.meses} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+                        <ComposedChart
+                          data={d1.meses}
+                          margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
+                          onClick={(state: any) => {
+                            if (state?.activePayload?.[0]?.payload?.mes) {
+                              setMes(String(state.activePayload[0].payload.mes));
+                            }
+                          }}
+                        >
                           <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                           <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
                           <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
