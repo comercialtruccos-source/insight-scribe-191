@@ -61,7 +61,7 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "JUAN DIEGO GIRALDO",
     email: "juandiegogiraldo@truccos.com",
     rol: "vendedor",
-    vendedorIds: [16, 12, 18, 34], // DIEGO GIRALDO-MEDELLIN, Diego Giraldo Correria, DIEGO GIRALDO RAPPAZ, DIEGO GIRALDO
+    vendedorIds: [16, 12, 18], // DIEGO GIRALDO-MEDELLIN, Diego Giraldo Correria, DIEGO GIRALDO RAPPAZ
     zona: "COSTA - PERIFERIA MEDELLIN",
     canal: "MAYORISTA NACIONAL",
     marca: "TRUCCOS-RAPPAZ",
@@ -188,6 +188,14 @@ export function obtenerTodosLosPermisosLocales(): PermisoUsuario[] {
     for (const initUser of USUARIOS_INICIALES_PRECONFIGURADOS) {
       if (!emailsGuardados.has(initUser.email.toLowerCase())) {
         guardados.push(initUser);
+        cambio = true;
+      }
+    }
+
+    // Limpieza de vendedores obsoletos/duplicados para Juan Diego Giraldo (remover ID 34 genérico)
+    for (const g of guardados) {
+      if (g.email.toLowerCase().includes("juandiegogiraldo") && g.vendedorIds?.includes(34)) {
+        g.vendedorIds = g.vendedorIds.filter((id) => id !== 34);
         cambio = true;
       }
     }
@@ -334,7 +342,12 @@ export function obtenerSimulacionAdmin(): PermisoUsuario | null {
   try {
     const data = sessionStorage.getItem(STORAGE_KEY_ADMIN_OVERRIDE);
     if (!data) return null;
-    return JSON.parse(data) as PermisoUsuario;
+    const permiso = JSON.parse(data) as PermisoUsuario;
+    if (permiso.email?.toLowerCase().includes("juandiegogiraldo") && permiso.vendedorIds?.includes(34)) {
+      permiso.vendedorIds = permiso.vendedorIds.filter((id) => id !== 34);
+      sessionStorage.setItem(STORAGE_KEY_ADMIN_OVERRIDE, JSON.stringify(permiso));
+    }
+    return permiso;
   } catch {
     return null;
   }
@@ -366,7 +379,12 @@ export function obtenerSesionActiva(): AuthUsuarioSession | null {
   try {
     const data = localStorage.getItem(STORAGE_KEY_AUTH_SESSION);
     if (!data) return null;
-    return JSON.parse(data) as AuthUsuarioSession;
+    const session = JSON.parse(data) as AuthUsuarioSession;
+    if (session.email?.toLowerCase().includes("juandiegogiraldo") && session.vendedorIds?.includes(34)) {
+      session.vendedorIds = session.vendedorIds.filter((id) => id !== 34);
+      localStorage.setItem(STORAGE_KEY_AUTH_SESSION, JSON.stringify(session));
+    }
+    return session;
   } catch {
     return null;
   }
