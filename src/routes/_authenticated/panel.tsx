@@ -2324,44 +2324,53 @@ function Panel() {
                 ) : (
                   <div className="h-[340px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={d1.meses} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
-                        <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
-                        <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
-                        <Tooltip
-                          formatter={(value: number, name: string) => {
-                            if (name === "crecimientoYoY" || name === "% Crecimiento YoY") return [`${Number(value).toFixed(1)}%`, "% Crecimiento YoY"];
-                            if (name === "cumplimientoPct" || name === "% Cumplimiento") return [`${Number(value).toFixed(1)}%`, "% Cumplimiento"];
-                            if (name === "ventaAnterior" || name === "Facturación Año Anterior ($)" || name === "Venta Año Anterior ($)") return [formatoCOPFull(value), "Facturación Año Anterior"];
-                            if (name === "ventaReal" || name === "Facturación Real Actual ($)" || name === "Facturación Real ($)" || name === "Venta Real ($)") return [formatoCOPFull(value), "Facturación Real"];
-                            if (name === "ppto" || name === "Presupuesto ($ PPTO)") return [formatoCOPFull(value), "Presupuesto (PPTO)"];
-                            return [formatoCOPFull(value), name];
-                          }}
-                        />
-                        {esAdmin ? (
-                          <>
-                            <Legend
-                              formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ventaAnterior" ? "Venta Año Anterior ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
-                            />
-                            <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                            {compararAnioAnterior && (
-                              <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3.5, fill: "#f59e0b" }} />
-                            )}
-                            <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]} opacity={0.4} />
-                            <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
-                          </>
-                        ) : (
-                          <>
-                            <Legend
-                              formatter={(v) => (v === "ventaReal" ? "Facturación Real Actual ($)" : v === "ventaAnterior" ? "Facturación Año Anterior ($)" : "% Crecimiento YoY")}
-                            />
-                            <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                            <Bar yAxisId="left" dataKey="ventaAnterior" fill="#f59e0b" radius={[4, 4, 0, 0]} opacity={0.85} />
-                            <Line yAxisId="right" type="monotone" dataKey="crecimientoYoY" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
-                          </>
-                        )}
-                      </ComposedChart>
+                      {esAdmin ? (
+                        <ComposedChart data={d1.meses} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                          <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
+                          <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
+                          <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
+                          <Tooltip
+                            formatter={(value: number, name: string) => {
+                              if (name === "cumplimientoPct" || name === "% Cumplimiento") return [`${Number(value).toFixed(1)}%`, "% Cumplimiento"];
+                              if (name === "ventaAnterior" || name === "Venta Año Anterior ($)") return [formatoCOPFull(value), "Venta Año Anterior"];
+                              if (name === "ventaReal" || name === "Venta Real ($)") return [formatoCOPFull(value), "Venta Real"];
+                              if (name === "ppto" || name === "Presupuesto ($ PPTO)") return [formatoCOPFull(value), "Presupuesto (PPTO)"];
+                              return [formatoCOPFull(value), name];
+                            }}
+                          />
+                          <Legend
+                            formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ventaAnterior" ? "Venta Año Anterior ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
+                          />
+                          <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                          {compararAnioAnterior && (
+                            <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3.5, fill: "#f59e0b" }} />
+                          )}
+                          <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]} opacity={0.4} />
+                          <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
+                        </ComposedChart>
+                      ) : (
+                        <ComposedChart data={d1.meses} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                          <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
+                          <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
+                          <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
+                          <Tooltip
+                            formatter={(value: number, name: string) => {
+                              if (name === "crecimientoYoY" || name === "% Crecimiento YoY") return [`${Number(value).toFixed(1)}%`, "% Crecimiento YoY"];
+                              if (name === "ventaAnterior" || name === "Facturación Año Anterior ($)") return [formatoCOPFull(value), "Facturación Año Anterior"];
+                              if (name === "ventaReal" || name === "Facturación Real Actual ($)") return [formatoCOPFull(value), "Facturación Real Actual"];
+                              return [formatoCOPFull(value), name];
+                            }}
+                          />
+                          <Legend
+                            formatter={(v) => (v === "ventaReal" ? "Facturación Real Actual ($)" : v === "ventaAnterior" ? "Facturación Año Anterior ($)" : "% Crecimiento YoY")}
+                          />
+                          <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                          <Bar yAxisId="left" dataKey="ventaAnterior" fill="#f59e0b" radius={[4, 4, 0, 0]} opacity={0.85} />
+                          <Line yAxisId="right" type="monotone" dataKey="crecimientoYoY" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
+                        </ComposedChart>
+                      )}
                     </ResponsiveContainer>
                   </div>
                 )}
