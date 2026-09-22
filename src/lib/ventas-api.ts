@@ -42,11 +42,62 @@ const invokeRpc = async (fn: string, args?: Record<string, unknown>) => {
 };
 
 /**
+ * Determina si una transacción corresponde a facturación real comercial (Facturas de venta, notas crédito y notas débito).
+ * Excluye movimientos logísticos de almacén (Salidas por despacho, traslados) y órdenes de preventa (Pedidos, cotizaciones).
+ */
+export function esTransaccionFacturacionReal(transaccion?: string | null): boolean {
+  if (!transaccion) return true;
+  const t = transaccion.toUpperCase().trim();
+  if (
+    t.includes("PEDIDO") ||
+    t.includes("SALIDA") ||
+    t.includes("DESPACHO") ||
+    t.includes("COTIZACION") ||
+    t.includes("TRASLADO") ||
+    t.includes("REMISION")
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Deduplica registros de ventas provocados por recargas o duplicidad en fact_ventas.
+ */
+export function deduplicarFilasVentas<T>(filas: T[]): T[] {
+  if (!Array.isArray(filas) || filas.length === 0) return [];
+  const map = new Map<string, T[]>();
+  for (const r of filas) {
+    const rec = r as Record<string, unknown>;
+    const sig = `${rec.fecha || ""}|${rec.sku || ""}|${rec.prenda_hgi || ""}|${rec.valor || 0}|${rec.cantidad || 0}|${rec.transaccion || ""}|${rec.ciudad_id || ""}|${rec.canal_id || ""}|${rec.marca_id || ""}|${rec.vendedor_id || ""}`;
+    if (!map.has(sig)) map.set(sig, []);
+    map.get(sig)!.push(r);
+  }
+  const result: T[] = [];
+  for (const arr of map.values()) {
+    const keepCount = Math.ceil(arr.length / 2);
+    for (let i = 0; i < keepCount; i++) {
+      result.push(arr[i]);
+    }
+  }
+  return result;
+}
+
+/**
  * Aplica de forma unificada todos los filtros (Fechas, Año, Mes, Canal, Marca, Vendedor 1/2, Zona) a cualquier query de fact_ventas.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or: any }>(query: T, filtros: FiltrosBI): T {
+export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or: any; not: any }>(query: T, filtros: FiltrosBI): T {
   let q = query;
+
+  // Filtrar para excluir órdenes de preventa y salidas logísticas
+  q = q
+    .not("transaccion", "ilike", "%PEDIDO%")
+    .not("transaccion", "ilike", "%SALIDA%")
+    .not("transaccion", "ilike", "%DESPACHO%")
+    .not("transaccion", "ilike", "%COTIZACION%")
+    .not("transaccion", "ilike", "%TRASLADO%")
+    .not("transaccion", "ilike", "%REMISION%");
 
   if (filtros.fecha_desde && filtros.fecha_hasta) {
     q = q.gte("fecha", filtros.fecha_desde).lte("fecha", filtros.fecha_hasta);
@@ -95,6 +146,9 @@ export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or:
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function cumpleFiltros(r: any, filtros: FiltrosBI): boolean {
+  if ("transaccion" in r && r.transaccion) {
+    if (!esTransaccionFacturacionReal(r.transaccion)) return false;
+  }
   if (filtros.fecha_desde && "fecha" in r && r.fecha) {
     if (String(r.fecha) < filtros.fecha_desde) return false;
   }
@@ -273,7 +327,7 @@ export async function fetchAllFactVentas<T = Record<string, unknown>>(
     }
   }
 
-  return rows.filter((r) => cumpleFiltros(r as Record<string, unknown>, filtros));
+  return deduplicarFilasVentas(rows.filter((r) => cumpleFiltros(r as Record<string, unknown>, filtros)));
 }
 
 export async function obtenerResumenCliente() {
