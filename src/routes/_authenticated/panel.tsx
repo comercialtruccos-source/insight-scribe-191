@@ -303,8 +303,15 @@ function Panel() {
   const [fechaDesde, setFechaDesde] = useState<string>("");
   const [fechaHasta, setFechaHasta] = useState<string>("");
 
-  // Control de Tab Activo
-  const [tabActivo, setTabActivo] = useState<string>("multianual");
+  // Control de Tab Activo (Por defecto "1. Cumplimiento" para comerciales para no repetir información)
+  const [tabActivo, setTabActivo] = useState<string>(() => {
+    const s = obtenerSesionActiva();
+    if (s) {
+      const p = obtenerPermisoUsuario(s.email, s.id);
+      if (p && p.rol === "admin") return "multianual";
+    }
+    return "d1";
+  });
 
   // Filtros globales
   const [anio, setAnio] = useState<string>("todos");
@@ -651,12 +658,14 @@ function Panel() {
 
   const dMultianual = useMemo(
     () =>
-      calcularHistoricoMultianual(
-        rawVentas || [],
-        filtros,
-        habilitarYoY ? rawVentasYoY : undefined
-      ),
-    [rawVentas, filtros, habilitarYoY, rawVentasYoY]
+      esAdmin && vendedorId === "todos"
+        ? calcularHistoricoMultianual(
+            rawVentas || [],
+            filtros,
+            habilitarYoY ? rawVentasYoY : undefined
+          )
+        : null,
+    [esAdmin, vendedorId, rawVentas, filtros, habilitarYoY, rawVentasYoY]
   );
   const d1 = useMemo(
     () =>
@@ -801,7 +810,9 @@ function Panel() {
 
   // Redirección inteligente si se filtra por vendedor o territorio o por falta de permisos en tabs protegidos
   useEffect(() => {
-    if (tabActivo === "carga" && !puedeVerCargar) {
+    if ((!esAdmin || vendedorId !== "todos") && tabActivo === "multianual") {
+      setTabActivo("d1");
+    } else if (tabActivo === "carga" && !puedeVerCargar) {
       setTabActivo("d4");
     } else if (tabActivo === "d3" && !puedeVerDigital) {
       setTabActivo("d4");
@@ -816,7 +827,7 @@ function Panel() {
         setTabActivo("d1");
       }
     }
-  }, [vendedorId, zonaId, ciudadId, tabActivo, puedeVerDigital, puedeVerMarketplaces, puedeVerCargar]);
+  }, [esAdmin, vendedorId, zonaId, ciudadId, tabActivo, puedeVerDigital, puedeVerMarketplaces, puedeVerCargar]);
 
   const ciudadesFiltradasD1 = useMemo(() => {
     if (!d1) return [];
@@ -1629,7 +1640,7 @@ function Panel() {
                 variant="outline"
                 size="sm"
                 className="h-8 text-xs font-semibold border-indigo-500/40 hover:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 hover:text-indigo-950 dark:hover:text-white flex items-center gap-1.5 shrink-0 bg-background/80"
-                onClick={() => setTabActivo("multianual")}
+                onClick={() => setTabActivo(esAdmin ? "multianual" : "d1")}
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Volver a Todos los Dashboards
@@ -1669,8 +1680,8 @@ function Panel() {
                 </Button>
               </div>
 
-              {/* Tabs enfocados para Vendedor (sin Digital ni Marketplaces) */}
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-7 h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1">
+              {/* Tabs enfocados para Vendedor (sin Digital, Marketplaces ni Multianual repetitivo) */}
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1">
                 <TabsTrigger
                   value="d4"
                   className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
@@ -1700,13 +1711,6 @@ function Panel() {
                   6. Referencias
                 </TabsTrigger>
                 <TabsTrigger
-                  value="multianual"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                  Multianual
-                </TabsTrigger>
-                <TabsTrigger
                   value="explorador"
                   className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
@@ -1723,6 +1727,7 @@ function Panel() {
                   </TabsTrigger>
                 )}
               </TabsList>
+
             </div>
           ) : (zonaId !== "todos" || ciudadId !== "todos") ? (
             <div className="space-y-3">
@@ -1791,13 +1796,15 @@ function Panel() {
                   <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
                   6. Referencias
                 </TabsTrigger>
-                <TabsTrigger
-                  value="multianual"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                  Multianual
-                </TabsTrigger>
+                {esAdmin && (
+                  <TabsTrigger
+                    value="multianual"
+                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  >
+                    <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                    Multianual
+                  </TabsTrigger>
+                )}
                 <TabsTrigger
                   value="explorador"
                   className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
@@ -1817,14 +1824,16 @@ function Panel() {
               </TabsList>
             </div>
           ) : (
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-8 lg:grid-cols-9 h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1">
-              <TabsTrigger
-                value="multianual"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
-              >
-                <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                Multianual
-              </TabsTrigger>
+            <TabsList className={`grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-7 ${esAdmin ? "lg:grid-cols-9" : "lg:grid-cols-8"} h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1`}>
+              {esAdmin && (
+                <TabsTrigger
+                  value="multianual"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
+                >
+                  <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                  Multianual
+                </TabsTrigger>
+              )}
               <TabsTrigger
                 value="d1"
                 className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
@@ -1891,8 +1900,9 @@ function Panel() {
           )}
 
           {/* ========================================================================= */}
-          {/* TAB MULTIANUAL: DIMENSIÓN DE TIEMPO Y COMPARATIVO HISTÓRICO */}
+          {/* TAB MULTIANUAL: DIMENSIÓN DE TIEMPO (SOLO ADMIN GLOBAL - OCULTO PARA COMERCIALES) */}
           {/* ========================================================================= */}
+          {esAdmin && vendedorId === "todos" && (
           <TabsContent value="multianual" className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
               <div>
@@ -2147,6 +2157,7 @@ function Panel() {
               </CardContent>
             </Card>
           </TabsContent>
+          )}
 
           {/* ========================================================================= */}
           {/* DASHBOARD 1: CUMPLIMIENTO Y CRECIMIENTO DE VENTAS (NIVEL DIRECTIVO) */}
