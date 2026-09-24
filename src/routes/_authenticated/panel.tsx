@@ -2297,7 +2297,7 @@ function Panel() {
               <CardKpi
                 titulo="Venta Neta Total"
                 valor={formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}
-                subtexto={`Bruta: ${formatoCOP(d1?.kpis.ventaBrutaTotal ?? 0)}`}
+                subtexto={`Bruta: ${formatoCOPFull(d1?.kpis.ventaBrutaTotal ?? 0)}`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD1}
                 badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
@@ -2321,7 +2321,7 @@ function Panel() {
               <CardKpi
                 titulo="Tasa Devolución"
                 valor={`${Number(d1?.kpis.tasaDevolucionGlobalPct ?? 0).toFixed(2)}%`}
-                subtexto={`Total: ${formatoCOP(d1?.kpis.devolucionesTotal ?? 0)}`}
+                subtexto={`Total: ${formatoCOPFull(d1?.kpis.devolucionesTotal ?? 0)}`}
                 icono={<ArrowDownRight className="h-5 w-5 text-rose-500" />}
                 cargando={cD1}
                 badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.tasaDevolucionGlobalPct} anterior={d1?.kpis.tasaDevolucionAnteriorPct} tipo="pct" invertido={true} label="tasa año ant." /> : undefined}
@@ -2331,8 +2331,8 @@ function Panel() {
                 valor={formatoCOPFull(d1?.kpis.pptoYTD ?? 0)}
                 subtexto={
                   (d1?.kpis.pptoYTD ?? 0) > 0
-                    ? `Ejecutado: ${formatoCOP(d1?.kpis.ventaYTD ?? 0)}`
-                    : `Venta: ${formatoCOP(d1?.kpis.ventaYTD ?? 0)} • Sin ppto`
+                    ? `Ejecutado: ${formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}`
+                    : `Venta: ${formatoCOPFull(d1?.kpis.ventaYTD ?? 0)} • Sin ppto`
                 }
                 icono={<Target className="h-5 w-5 text-purple-500" />}
                 cargando={cD1}
@@ -2766,7 +2766,7 @@ function Panel() {
                                     className="text-[10.5px] text-muted-foreground font-mono"
                                     title={`Venta Bruta: ${formatoCOPFull(sub.ventaBruta)}`}
                                   >
-                                    Bruta: {formatoCOP(sub.ventaBruta)}
+                                    Bruta: {formatoCOPFull(sub.ventaBruta)}
                                   </span>
                                 )}
                               </div>
@@ -2785,7 +2785,7 @@ function Panel() {
                                 </span>
                                 <div className="flex items-center gap-1.5 font-mono">
                                   <span className="font-semibold text-foreground">
-                                    {sub.ppto > 0 ? formatoCOP(sub.ppto) : "Sin ppto"}
+                                    {sub.ppto > 0 ? formatoCOPFull(sub.ppto) : "Sin ppto"}
                                   </span>
                                   {sub.ppto > 0 && (
                                     <span
@@ -2834,7 +2834,7 @@ function Panel() {
                                   Año Anterior:
                                 </span>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="font-semibold text-foreground font-mono">{formatoCOP(sub.ventaAnterior)}</span>
+                                  <span className="font-semibold text-foreground font-mono">{formatoCOPFull(sub.ventaAnterior)}</span>
                                   <span
                                     className={cn(
                                       "font-bold flex items-center text-[10.5px] font-mono",
@@ -2857,7 +2857,7 @@ function Panel() {
                                   {sub.unidades.toLocaleString("es-CO")} unds
                                   {sub.ticketPromedio > 0 && (
                                     <span className="text-muted-foreground/80 font-normal ml-1 text-[10px]">
-                                      (Ticket {formatoCOP(sub.ticketPromedio)})
+                                      (Ticket {formatoCOPFull(sub.ticketPromedio)})
                                     </span>
                                   )}
                                 </span>
@@ -2871,7 +2871,7 @@ function Panel() {
                                 </span>
                                 <div className="flex items-center gap-1.5 font-mono">
                                   <span className="font-semibold text-foreground">
-                                    {sub.devolucionesMonto > 0 ? formatoCOP(sub.devolucionesMonto) : "$0"}
+                                    {sub.devolucionesMonto > 0 ? formatoCOPFull(sub.devolucionesMonto) : "$ 0"}
                                   </span>
                                   <span
                                     className={cn(
@@ -2951,7 +2951,7 @@ function Panel() {
                                   {formatoCOPFull(sub.ventaActual)}
                                 </td>
                                 <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
-                                  {sub.ppto > 0 ? formatoCOP(sub.ppto) : "—"}
+                                  {sub.ppto > 0 ? formatoCOPFull(sub.ppto) : "—"}
                                 </td>
                                 <td className="py-2.5 px-3 text-right font-mono">
                                   {sub.ppto > 0 ? (
@@ -2978,7 +2978,7 @@ function Panel() {
                                   </span>
                                 </td>
                                 <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
-                                  {formatoCOP(sub.ventaAnterior)}
+                                  {formatoCOPFull(sub.ventaAnterior)}
                                 </td>
                                 <td className="py-2.5 px-3 text-right">
                                   <span
@@ -2998,7 +2998,7 @@ function Panel() {
                                   {sub.unidades.toLocaleString("es-CO")} unds
                                 </td>
                                 <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
-                                  {sub.devolucionesMonto > 0 ? formatoCOP(sub.devolucionesMonto) : "$0"}
+                                  {sub.devolucionesMonto > 0 ? formatoCOPFull(sub.devolucionesMonto) : "$ 0"}
                                 </td>
                                 <td className="py-2.5 px-3 text-right font-mono">
                                   <span
@@ -3840,8 +3840,8 @@ function Panel() {
                     {(d1?.meses || []).map((m, idx) => (
                       <tr key={m.periodo || idx} className="hover:bg-muted/30">
                         <td className="py-2 px-2.5 font-medium">{m.nombreMes}</td>
-                        <td className="py-2 px-2.5 text-right font-semibold">{formatoCOP(m.ventaReal)}</td>
-                        <td className="py-2 px-2.5 text-right text-muted-foreground">{formatoCOP(m.ppto)}</td>
+                        <td className="py-2 px-2.5 text-right font-semibold">{formatoCOPFull(m.ventaReal)}</td>
+                        <td className="py-2 px-2.5 text-right text-muted-foreground">{formatoCOPFull(m.ppto)}</td>
                         <td className="py-2 px-2.5 text-right">
                           <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${colorSemaforo(m.cumplimientoPct)}`}>
                             {Number(m.cumplimientoPct).toFixed(2)}%
