@@ -90,6 +90,7 @@ import {
   Layers,
   Globe,
   Award,
+  Target,
   ArrowUpRight,
   ArrowDownRight,
   ArrowLeft,
@@ -2283,8 +2284,8 @@ function Panel() {
               </div>
             )}
 
-            {/* 6 Tarjetas KPI Ejecutivas */}
-            <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
+            {/* 5 Tarjetas KPI Ejecutivas */}
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5">
               <CardKpi
                 titulo="Venta Neta Total"
                 valor={formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}
@@ -2294,12 +2295,11 @@ function Panel() {
                 badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
               />
               <CardKpi
-                titulo={esAdmin ? "Cumplimiento PPTO" : "Facturación Año Ant."}
-                valor={esAdmin ? `${d1?.kpis.cumplimientoGlobalPct ?? 0}%` : formatoCOP(d1?.kpis.ventaAnteriorTotal ?? 0)}
-                subtexto={esAdmin ? `Meta: ${formatoCOP(d1?.kpis.pptoYTD ?? 0)}` : `Crecimiento: ${d1?.kpis.crecimientoYoYPct ?? 0}%`}
-                icono={<Percent className="h-5 w-5 text-blue-500" />}
+                titulo="Facturación Año Ant."
+                valor={formatoCOPFull(d1?.kpis.ventaAnteriorTotal ?? 0)}
+                subtexto={`Crecimiento YoY: ${(d1?.kpis.crecimientoYoYPct ?? 0) > 0 ? "+" : ""}${d1?.kpis.crecimientoYoYPct ?? 0}%`}
+                icono={<History className="h-5 w-5 text-blue-500" />}
                 cargando={cD1}
-                badgeSemaforo={esAdmin ? d1?.kpis.cumplimientoGlobalPct : undefined}
                 badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
               />
               <CardKpi
@@ -2318,22 +2318,20 @@ function Panel() {
                 cargando={cD1}
                 badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.tasaDevolucionGlobalPct} anterior={d1?.kpis.tasaDevolucionAnteriorPct} tipo="pct" invertido={true} label="tasa año ant." /> : undefined}
               />
-              <CardKpi
-                titulo="Ticket Promedio"
-                valor={formatoCOP(d1?.kpis.ticketPromedio ?? 0)}
-                subtexto={`${(d1?.kpis.totalTransacciones ?? 0).toLocaleString("es-CO")} transacciones`}
-                icono={<Receipt className="h-5 w-5 text-amber-500" />}
-                cargando={cD1}
-                badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ticketPromedio} anterior={d1?.kpis.ticketPromedioAnterior} /> : undefined}
-              />
-              <CardKpi
-                titulo="Precio Prom. / Prenda"
-                valor={formatoCOP(d1?.kpis.precioPromedioPrenda ?? 0)}
-                subtexto="Por unidad vendida"
-                icono={<Tag className="h-5 w-5 text-cyan-500" />}
-                cargando={cD1}
-                badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.precioPromedioPrenda} anterior={d1?.kpis.precioPromedioPrendaAnterior} /> : undefined}
-              />
+              <div className="col-span-2 sm:col-span-1">
+                <CardKpi
+                  titulo={nombreMesPuntual ? `Presupuesto ${nombreMesPuntual}` : (mes !== "todos" ? "Presupuesto del Mes" : "Presupuesto del Periodo")}
+                  valor={formatoCOPFull(d1?.kpis.pptoYTD ?? 0)}
+                  subtexto={
+                    (d1?.kpis.pptoYTD ?? 0) > 0
+                      ? `Ejecutado: ${formatoCOP(d1?.kpis.ventaYTD ?? 0)} (${d1?.kpis.cumplimientoGlobalPct ?? 0}% cumplido)`
+                      : `Venta: ${formatoCOP(d1?.kpis.ventaYTD ?? 0)} • Sin presupuesto asignado`
+                  }
+                  icono={<Target className="h-5 w-5 text-purple-500" />}
+                  cargando={cD1}
+                  badgeCumplimientoPct={(d1?.kpis.pptoYTD ?? 0) > 0 ? d1?.kpis.cumplimientoGlobalPct : undefined}
+                />
+              </div>
             </div>
 
             {/* Gráfico Mixto: Evolución Cronológica de Ventas vs Presupuesto / Facturación vs Año Anterior */}
@@ -6216,6 +6214,7 @@ function CardKpi({
   cargando,
   badgeSemaforo,
   badgeYoY,
+  badgeCumplimientoPct,
 }: {
   titulo: string;
   valor: string;
@@ -6224,6 +6223,7 @@ function CardKpi({
   cargando?: boolean | undefined;
   badgeSemaforo?: number | undefined;
   badgeYoY?: React.ReactNode | undefined;
+  badgeCumplimientoPct?: number | undefined;
 }) {
   return (
     <Card className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/95 backdrop-blur-md shadow-2xs hover:shadow-lg hover:border-primary/40 transition-all duration-300 glass-card-hover">
@@ -6254,6 +6254,15 @@ function CardKpi({
             >
               {cargando ? "—" : valor}
             </p>
+            {badgeCumplimientoPct !== undefined && !cargando && (
+              <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full border shadow-2xs shrink-0 flex items-center gap-1 ${colorSemaforo(badgeCumplimientoPct)}`}>
+                <Target className="h-3 w-3 shrink-0" />
+                <span>{badgeCumplimientoPct}%</span>
+                <span className="opacity-80 text-[10px]">
+                  {badgeCumplimientoPct >= 100 ? "• Meta" : badgeCumplimientoPct >= 90 ? "• Alerta" : "• Crítico"}
+                </span>
+              </span>
+            )}
             {badgeSemaforo !== undefined && (
               <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border shadow-2xs shrink-0 ${colorSemaforo(badgeSemaforo)}`}>
                 {badgeSemaforo >= 100 ? "Meta Cumplida" : badgeSemaforo >= 90 ? "Alerta" : "Crítico"}
