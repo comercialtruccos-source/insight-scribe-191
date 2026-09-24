@@ -407,7 +407,7 @@ export function SankeyFlujoComercial({
                       >
                         {formatoCOP(node.value)}
                         {node.column !== 1 && (
-                          <tspan className="font-bold text-foreground"> • {node.pctTotal.toFixed(1)}%</tspan>
+                          <tspan className="font-bold text-foreground"> • {node.pctTotal.toFixed(2)}%</tspan>
                         )}
                       </text>
                     </g>
@@ -451,7 +451,7 @@ export function SankeyFlujoComercial({
                 <div className="space-y-0.5 text-[11px] text-slate-300 pt-1 border-t border-slate-800">
                   <p className="flex justify-between">
                     <span className="text-slate-400">% de la Venta Total:</span>
-                    <span className="font-bold text-emerald-400">{activeHoveredLinkObj.pctTotal.toFixed(1)}%</span>
+                    <span className="font-bold text-emerald-400">{activeHoveredLinkObj.pctTotal.toFixed(2)}%</span>
                   </p>
                   {activeHoveredLinkObj.units > 0 && (
                     <p className="flex justify-between">
@@ -481,7 +481,7 @@ export function SankeyFlujoComercial({
               {activeSankeyData.topSource?.name || "N/A"}
             </p>
             <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
-              {activeSankeyData.topSource?.pct.toFixed(1)}% del total
+              {activeSankeyData.topSource?.pct.toFixed(2)}% del total
             </p>
           </div>
 
@@ -491,7 +491,7 @@ export function SankeyFlujoComercial({
               {activeSankeyData.topDestination?.name || "N/A"}
             </p>
             <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">
-              {activeSankeyData.topDestination?.pct.toFixed(1)}% del total
+              {activeSankeyData.topDestination?.pct.toFixed(2)}% del total
             </p>
           </div>
 
@@ -506,7 +506,7 @@ export function SankeyFlujoComercial({
           <div className="hidden lg:block p-2 rounded-lg bg-background/60 border border-border/40">
             <p className="text-[10px] text-muted-foreground uppercase font-semibold">CONCENTRACIÓN TOP 3</p>
             <p className="font-bold font-mono text-sm text-amber-600 dark:text-amber-400">
-              {activeSankeyData.concentrationTop3?.toFixed(1) || "N/A"}%
+              {activeSankeyData.concentrationTop3?.toFixed(2) || "N/A"}%
             </p>
             <p className="text-[10px] text-muted-foreground">En 3 canales líderes</p>
           </div>

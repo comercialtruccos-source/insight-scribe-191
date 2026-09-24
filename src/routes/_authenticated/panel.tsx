@@ -218,7 +218,7 @@ function BadgeYoY({
     porcentaje !== undefined
       ? porcentaje
       : anterior !== 0
-      ? Math.round((((actual ?? 0) - anterior) / Math.abs(anterior)) * 1000) / 10
+      ? Math.round((((actual ?? 0) - anterior) / Math.abs(anterior)) * 10000) / 100
       : (actual ?? 0) > 0
       ? 100
       : 0;
@@ -233,7 +233,7 @@ function BadgeYoY({
   } else if (tipo === "unidades" || tipo === "entero") {
     valorAnteriorFormateado = `${formatoEntero(anterior)} ${tipo === "unidades" ? "uds" : ""}`.trim();
   } else if (tipo === "pct") {
-    valorAnteriorFormateado = `${Number(anterior.toFixed(2))}%`;
+    valorAnteriorFormateado = `${Number(anterior).toFixed(2)}%`;
   } else if (tipo === "ratio") {
     valorAnteriorFormateado = `${anterior.toFixed(2)}x`;
   }
@@ -249,7 +249,7 @@ function BadgeYoY({
         )}
       >
         {esPositivo ? <ArrowUpRight className="h-3 w-3 stroke-[2.5]" /> : <ArrowDownRight className="h-3 w-3 stroke-[2.5]" />}
-        {pct > 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`}
+        {pct > 0 ? `+${pct.toFixed(2)}%` : `${pct.toFixed(2)}%`}
       </span>
       <span className="text-[11px] text-muted-foreground font-medium">
         vs. {valorAnteriorFormateado} <span className="opacity-75">({label})</span>
@@ -712,7 +712,7 @@ function Panel() {
         vDataYoY
       );
 
-      const aportePct = totalVentaGlobal > 0 ? Math.round((d1Sub.kpis.ventaYTD / totalVentaGlobal) * 1000) / 10 : 0;
+      const aportePct = totalVentaGlobal !== 0 ? Math.round((d1Sub.kpis.ventaYTD / totalVentaGlobal) * 10000) / 100 : 0;
 
       return {
         id: vId,
@@ -2194,7 +2194,7 @@ function Panel() {
                           <td className="py-2.5 px-3 text-right font-sans font-semibold">
                             {yoy !== 0 ? (
                               <span className={yoy >= 0 ? "text-emerald-600" : "text-rose-600"}>
-                                {yoy > 0 ? "+" : ""}{yoy}%
+                                {yoy > 0 ? "+" : ""}{Number(yoy).toFixed(2)}%
                               </span>
                             ) : (
                               "—"
@@ -2228,7 +2228,7 @@ function Panel() {
                 </p>
               </div>
               <Badge variant="outline" className={`font-semibold ${colorSemaforo(d1?.kpis.cumplimientoGlobalPct ?? 0)}`}>
-                {anio === "todos" ? "Histórico Completo" : `Año ${anio}`} • {esAdmin ? `Cumplimiento: ${d1?.kpis.cumplimientoGlobalPct ?? 0}%` : `Crecimiento YoY: ${d1?.kpis.crecimientoYoYPct ?? 0}%`}
+                {anio === "todos" ? "Histórico Completo" : `Año ${anio}`} • {esAdmin ? `Cumplimiento: ${Number(d1?.kpis.cumplimientoGlobalPct ?? 0).toFixed(2)}%` : `Crecimiento YoY: ${(d1?.kpis.crecimientoYoYPct ?? 0) > 0 ? "+" : ""}${Number(d1?.kpis.crecimientoYoYPct ?? 0).toFixed(2)}%`}
               </Badge>
             </div>
 
@@ -2283,7 +2283,7 @@ function Panel() {
                           "text-[10px] px-1 py-0.2 rounded font-semibold",
                           isSelected ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
                         )}>
-                          {sub.aportePct}%
+                          {Number(sub.aportePct).toFixed(2)}%
                         </span>
                       </Button>
                     );
@@ -2305,7 +2305,7 @@ function Panel() {
               <CardKpi
                 titulo="Facturación Año Ant."
                 valor={formatoCOPFull(d1?.kpis.ventaAnteriorTotal ?? 0)}
-                subtexto={`Crecimiento YoY: ${(d1?.kpis.crecimientoYoYPct ?? 0) > 0 ? "+" : ""}${d1?.kpis.crecimientoYoYPct ?? 0}%`}
+                subtexto={`Crecimiento YoY: ${(d1?.kpis.crecimientoYoYPct ?? 0) > 0 ? "+" : ""}${Number(d1?.kpis.crecimientoYoYPct ?? 0).toFixed(2)}%`}
                 icono={<History className="h-5 w-5 text-blue-500" />}
                 cargando={cD1}
                 badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
@@ -2320,7 +2320,7 @@ function Panel() {
               />
               <CardKpi
                 titulo="Tasa Devolución"
-                valor={`${d1?.kpis.tasaDevolucionGlobalPct ?? 0}%`}
+                valor={`${Number(d1?.kpis.tasaDevolucionGlobalPct ?? 0).toFixed(2)}%`}
                 subtexto={`Total: ${formatoCOP(d1?.kpis.devolucionesTotal ?? 0)}`}
                 icono={<ArrowDownRight className="h-5 w-5 text-rose-500" />}
                 cargando={cD1}
@@ -2343,8 +2343,8 @@ function Panel() {
                 valor={formatoCOPFull(d1?.kpis.carteraTotal ?? 0)}
                 subtexto={
                   (d1?.kpis.carteraTotal ?? 0) > 0
-                    ? `Mora > 90d: ${formatoCOP(d1?.kpis.carteraMayor90Dias ?? 0)} (${d1?.kpis.carteraPct90Dias ?? 0}%)`
-                    : "Sin saldo de cartera registrado"
+                    ? `Mora > 90d: ${formatoCOPFull(d1?.kpis.carteraMayor90Dias ?? 0)} (${Number(d1?.kpis.carteraPct90Dias ?? 0).toFixed(2)}%)`
+                    : `Mora > 90d: ${formatoCOPFull(0)} (0.00%)`
                 }
                 icono={<CreditCard className="h-5 w-5 text-amber-500" />}
                 cargando={cD1}
@@ -2476,7 +2476,7 @@ function Panel() {
                             formatter={(value: any, name: string) => {
                               if (name === "crecimientoYoY" || name === "% Crecimiento YoY") {
                                 const num = Number(value);
-                                return [`${num > 0 ? "+" : ""}${num.toFixed(1)}%`, "% Crecimiento YoY"];
+                                return [`${num > 0 ? "+" : ""}${num.toFixed(2)}%`, "% Crecimiento YoY"];
                               }
                               if (name === "ventaAnterior" || name === "Facturación Año Anterior ($)") {
                                 return [formatoCOPFull(Number(value)), "Facturación Año Anterior"];
@@ -2489,7 +2489,7 @@ function Panel() {
                             labelFormatter={(label: any, payload: any[]) => {
                               const item = payload?.[0]?.payload;
                               return item
-                                ? `${item.nombre} (${item.aportePct}% de aporte en ${nombreMesPuntual})`
+                                ? `${item.nombre} (${Number(item.aportePct).toFixed(2)}% de aporte en ${nombreMesPuntual})`
                                 : label;
                             }}
                           />
@@ -2568,7 +2568,7 @@ function Panel() {
                               dataKey="crecimientoYoY"
                               position="top"
                               formatter={(val: any) =>
-                                typeof val === "number" ? `${val > 0 ? "+" : ""}${val.toFixed(0)}%` : ""
+                                typeof val === "number" ? `${val > 0 ? "+" : ""}${val.toFixed(2)}%` : ""
                               }
                               style={{ fontSize: 10, fontWeight: 700, fill: "#10b981" }}
                             />
@@ -2590,7 +2590,7 @@ function Panel() {
                           <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
                           <Tooltip
                             formatter={(value: number, name: string) => {
-                              if (name === "cumplimientoPct" || name === "% Cumplimiento") return [`${Number(value).toFixed(1)}%`, "% Cumplimiento"];
+                              if (name === "cumplimientoPct" || name === "% Cumplimiento") return [`${Number(value).toFixed(2)}%`, "% Cumplimiento"];
                               if (name === "ventaAnterior" || name === "Venta Año Anterior ($)") return [formatoCOPFull(value), "Venta Año Anterior"];
                               if (name === "ventaReal" || name === "Venta Real ($)") return [formatoCOPFull(value), "Venta Real"];
                               if (name === "ppto" || name === "Presupuesto ($ PPTO)") return [formatoCOPFull(value), "Presupuesto (PPTO)"];
@@ -2645,7 +2645,7 @@ function Panel() {
                           <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
                           <Tooltip
                             formatter={(value: number, name: string) => {
-                              if (name === "crecimientoYoY" || name === "% Crecimiento YoY") return [`${Number(value).toFixed(1)}%`, "% Crecimiento YoY"];
+                              if (name === "crecimientoYoY" || name === "% Crecimiento YoY") return [`${Number(value).toFixed(2)}%`, "% Crecimiento YoY"];
                               if (name === "ventaAnterior" || name === "Facturación Año Anterior ($)") return [formatoCOPFull(value), "Facturación Año Anterior"];
                               if (name === "ventaReal" || name === "Facturación Real Actual ($)") return [formatoCOPFull(value), "Facturación Real Actual"];
                               return [formatoCOPFull(value), name];
@@ -2749,9 +2749,9 @@ function Panel() {
                               </div>
                               <Badge
                                 variant={isSelected ? "default" : "secondary"}
-                                className="text-[10px] px-2 py-0.5 h-5 font-bold shrink-0 shadow-2xs"
+                                className="text-[10px] px-2 py-0.5 h-5 font-bold shrink-0 shadow-2xs font-mono"
                               >
-                                {sub.aportePct}% aporte
+                                {Number(sub.aportePct).toFixed(2)}% aporte
                               </Badge>
                             </div>
 
@@ -2794,7 +2794,7 @@ function Panel() {
                                         colorSemaforo(sub.cumplimientoPct)
                                       )}
                                     >
-                                      {sub.cumplimientoPct}%
+                                      {Number(sub.cumplimientoPct).toFixed(2)}%
                                     </span>
                                   )}
                                 </div>
@@ -2808,24 +2808,22 @@ function Panel() {
                                 </span>
                                 <div className="flex items-center gap-1.5 font-mono">
                                   <span className="font-semibold text-foreground">
-                                    {sub.carteraTotal > 0 ? formatoCOP(sub.carteraTotal) : "Al día"}
+                                    {formatoCOPFull(sub.carteraTotal)}
                                   </span>
-                                  {sub.carteraTotal > 0 && (
-                                    <span
-                                      className={cn(
-                                        "px-1.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-0.5",
-                                        sub.carteraPct90Dias <= 5
-                                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                          : sub.carteraPct90Dias <= 15
-                                          ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                                          : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                                      )}
-                                      title={sub.carteraMayor90Dias > 0 ? `Mora >90d: ${formatoCOPFull(sub.carteraMayor90Dias)}` : undefined}
-                                    >
-                                      <Clock className="h-2.5 w-2.5 shrink-0" />
-                                      {sub.carteraPct90Dias > 0 ? `${sub.carteraPct90Dias}%` : "0%"} &gt;90d
-                                    </span>
-                                  )}
+                                  <span
+                                    className={cn(
+                                      "px-1.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-0.5",
+                                      (sub.carteraPct90Dias || 0) <= 5
+                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                        : (sub.carteraPct90Dias || 0) <= 15
+                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                        : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                    )}
+                                    title={sub.carteraMayor90Dias > 0 ? `Mora >90d: ${formatoCOPFull(sub.carteraMayor90Dias)}` : undefined}
+                                  >
+                                    <Clock className="h-2.5 w-2.5 shrink-0" />
+                                    {Number(sub.carteraPct90Dias || 0).toFixed(2)}% &gt;90d
+                                  </span>
                                 </div>
                               </div>
 
@@ -2844,7 +2842,7 @@ function Panel() {
                                     )}
                                   >
                                     {isPositive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-                                    {sub.crecimientoYoYPct > 0 ? "+" : ""}{sub.crecimientoYoYPct}%
+                                    {sub.crecimientoYoYPct > 0 ? "+" : ""}{Number(sub.crecimientoYoYPct).toFixed(2)}%
                                   </span>
                                 </div>
                               </div>
@@ -2885,7 +2883,7 @@ function Panel() {
                                         : "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/30"
                                     )}
                                   >
-                                    {sub.tasaDevolucionPct}%
+                                    {Number(sub.tasaDevolucionPct).toFixed(2)}%
                                   </span>
                                 </div>
                               </div>
@@ -2958,28 +2956,26 @@ function Panel() {
                                 <td className="py-2.5 px-3 text-right font-mono">
                                   {sub.ppto > 0 ? (
                                     <span className={cn("px-1.5 py-0.5 rounded text-[10.5px] font-bold border", colorSemaforo(sub.cumplimientoPct))}>
-                                      {sub.cumplimientoPct}%
+                                      {Number(sub.cumplimientoPct).toFixed(2)}%
                                     </span>
                                   ) : "—"}
                                 </td>
                                 <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
-                                  {sub.carteraTotal > 0 ? formatoCOP(sub.carteraTotal) : "$0"}
+                                  {formatoCOPFull(sub.carteraTotal)}
                                 </td>
                                 <td className="py-2.5 px-3 text-right font-mono">
-                                  {sub.carteraTotal > 0 ? (
-                                    <span
-                                      className={cn(
-                                        "px-1.5 py-0.5 rounded text-[10.5px] font-bold border",
-                                        sub.carteraPct90Dias <= 5
-                                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                          : sub.carteraPct90Dias <= 15
-                                          ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                                          : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                                      )}
-                                    >
-                                      {sub.carteraPct90Dias > 0 ? `${sub.carteraPct90Dias}%` : "0%"}
-                                    </span>
-                                  ) : "0%"}
+                                  <span
+                                    className={cn(
+                                      "px-1.5 py-0.5 rounded text-[10.5px] font-bold border",
+                                      (sub.carteraPct90Dias || 0) <= 5
+                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                        : (sub.carteraPct90Dias || 0) <= 15
+                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                        : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                    )}
+                                  >
+                                    {Number(sub.carteraPct90Dias || 0).toFixed(2)}%
+                                  </span>
                                 </td>
                                 <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
                                   {formatoCOP(sub.ventaAnterior)}
@@ -2992,11 +2988,11 @@ function Panel() {
                                     )}
                                   >
                                     {isPositive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-                                    {sub.crecimientoYoYPct > 0 ? "+" : ""}{sub.crecimientoYoYPct}%
+                                    {sub.crecimientoYoYPct > 0 ? "+" : ""}{Number(sub.crecimientoYoYPct).toFixed(2)}%
                                   </span>
                                 </td>
                                 <td className="py-2.5 px-3 text-right font-semibold text-foreground font-mono">
-                                  {sub.aportePct}%
+                                  {Number(sub.aportePct).toFixed(2)}%
                                 </td>
                                 <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
                                   {sub.unidades.toLocaleString("es-CO")} unds
@@ -3015,7 +3011,7 @@ function Panel() {
                                         : "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/30"
                                     )}
                                   >
-                                    {sub.tasaDevolucionPct}%
+                                    {Number(sub.tasaDevolucionPct).toFixed(2)}%
                                   </span>
                                 </td>
                                 <td className="py-2.5 px-3 text-center">
@@ -3111,7 +3107,7 @@ function Panel() {
                         <SelectItem value="todas">Todas las Zonas (Nacional)</SelectItem>
                         {(d1?.distribucionZonas || []).map((z) => (
                           <SelectItem key={z.zona} value={z.zona}>
-                            {z.zona} ({z.porcentaje}%)
+                            {z.zona} ({Number(z.porcentaje).toFixed(2)}%)
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -3219,7 +3215,7 @@ function Panel() {
                               <YAxis type="category" dataKey="zona" width={110} tick={{ fontSize: 11 }} />
                               <Tooltip
                                 formatter={(v: number, name: string, item: any) => [
-                                  `${formatoCOPFull(v)} (${item.payload.porcentaje}% • ${item.payload.unidades.toLocaleString("es-CO")} unds)`,
+                                  `${formatoCOPFull(v)} (${Number(item.payload.porcentaje).toFixed(2)}% • ${item.payload.unidades.toLocaleString("es-CO")} unds)`,
                                   "Facturación",
                                 ]}
                               />
@@ -3270,7 +3266,7 @@ function Panel() {
                               style={{ backgroundColor: COLORES[idx % COLORES.length] }}
                             />
                             <span>{z.zona}</span>
-                            <span className="text-muted-foreground font-medium">({z.porcentaje}%)</span>
+                            <span className="text-muted-foreground font-medium">({Number(z.porcentaje).toFixed(2)}%)</span>
                           </button>
                         ))}
                       </div>
@@ -3330,7 +3326,7 @@ function Panel() {
                               <YAxis type="category" dataKey="ciudad" width={110} tick={{ fontSize: 11 }} />
                               <Tooltip
                                 formatter={(v: number, name: string, item: any) => [
-                                  `${formatoCOPFull(v)} (${item.payload.porcentaje}% • ${item.payload.unidades.toLocaleString("es-CO")} unds)`,
+                                  `${formatoCOPFull(v)} (${Number(item.payload.porcentaje).toFixed(2)}% • ${item.payload.unidades.toLocaleString("es-CO")} unds)`,
                                   `Ventas en ${item.payload.zona || ""} • Clic para filtrar`,
                                 ]}
                               />
@@ -3399,7 +3395,7 @@ function Panel() {
                               <div className="flex items-center gap-2">
                                 <span className="text-muted-foreground">{c.unidades.toLocaleString("es-CO")} unds</span>
                                 <span className="font-semibold text-foreground">{formatoCOP(c.venta)}</span>
-                                <span className="text-emerald-600 font-bold text-[11px]">({c.porcentaje}%)</span>
+                                <span className="text-emerald-600 font-bold text-[11px]">({Number(c.porcentaje).toFixed(2)}%)</span>
                               </div>
                             </div>
                           );
@@ -3480,7 +3476,7 @@ function Panel() {
                                 </td>
                                 <td className="py-2.5 px-3 text-right">
                                   <Badge variant="outline" className="font-semibold text-[11px] bg-primary/5">
-                                    {loc.porcentaje}%
+                                    {Number(loc.porcentaje).toFixed(2)}%
                                   </Badge>
                                 </td>
                               </tr>
@@ -3528,7 +3524,7 @@ function Panel() {
                             <span className="text-muted-foreground">{v.unidades.toLocaleString("es-CO")} unds</span>
                             <span className="font-bold text-foreground">{formatoCOPFull(v.venta)}</span>
                             <Badge variant="outline" className="font-bold bg-primary/10 text-primary border-primary/20 text-[11px] min-w-[50px] justify-center">
-                              {v.porcentaje}%
+                              {Number(v.porcentaje).toFixed(2)}%
                             </Badge>
                           </div>
                         </div>
@@ -3583,7 +3579,7 @@ function Panel() {
                                       <Percent className="h-3 w-3" /> Participación Total:
                                     </span>
                                     <span className="font-extrabold text-emerald-700 dark:text-emerald-300 text-sm">
-                                      {data.porcentaje}%
+                                      {Number(data.porcentaje).toFixed(2)}%
                                     </span>
                                   </div>
                                 </div>
@@ -3599,7 +3595,7 @@ function Panel() {
                           <LabelList
                             dataKey="porcentaje"
                             position="right"
-                            formatter={(v: number) => `${v}%`}
+                            formatter={(v: number) => `${Number(v).toFixed(2)}%`}
                             className="fill-foreground text-[11px] font-bold"
                           />
                         </Bar>
@@ -3662,7 +3658,7 @@ function Panel() {
                           </td>
                           <td className="py-2.5 px-3 text-right">
                             <Badge variant="outline" className="font-semibold text-[11px] bg-primary/5">
-                              {ref.porcentaje}%
+                              {Number(ref.porcentaje).toFixed(2)}%
                             </Badge>
                           </td>
                         </tr>
@@ -3724,7 +3720,7 @@ function Panel() {
                                       <Percent className="h-3 w-3" /> Participación Total:
                                     </span>
                                     <span className="font-extrabold text-violet-700 dark:text-violet-300 text-sm">
-                                      {data.porcentaje}%
+                                      {Number(data.porcentaje).toFixed(2)}%
                                     </span>
                                   </div>
                                 </div>
@@ -3740,7 +3736,7 @@ function Panel() {
                           <LabelList
                             dataKey="porcentaje"
                             position="right"
-                            formatter={(v: number) => `${v}%`}
+                            formatter={(v: number) => `${Number(v).toFixed(2)}%`}
                             className="fill-foreground text-[11px] font-bold"
                           />
                         </Bar>
@@ -3794,7 +3790,7 @@ function Panel() {
                                       <Percent className="h-3 w-3" /> Participación Total:
                                     </span>
                                     <span className="font-extrabold text-blue-700 dark:text-blue-300 text-sm">
-                                      {data.porcentaje}%
+                                      {Number(data.porcentaje).toFixed(2)}%
                                     </span>
                                   </div>
                                 </div>
@@ -3810,7 +3806,7 @@ function Panel() {
                           <LabelList
                             dataKey="porcentaje"
                             position="right"
-                            formatter={(v: number) => `${v}%`}
+                            formatter={(v: number) => `${Number(v).toFixed(2)}%`}
                             className="fill-foreground text-[11px] font-bold"
                           />
                         </Bar>
@@ -3848,7 +3844,7 @@ function Panel() {
                         <td className="py-2 px-2.5 text-right text-muted-foreground">{formatoCOP(m.ppto)}</td>
                         <td className="py-2 px-2.5 text-right">
                           <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${colorSemaforo(m.cumplimientoPct)}`}>
-                            {m.cumplimientoPct}%
+                            {Number(m.cumplimientoPct).toFixed(2)}%
                           </span>
                         </td>
                         <td className="py-2 px-2.5 text-right text-muted-foreground">{m.unidades.toLocaleString("es-CO")}</td>
@@ -3883,7 +3879,7 @@ function Panel() {
               <CardKpi
                 titulo="Facturación Acumulada Mes"
                 valor={formatoCOPFull(d2?.kpis.ventaAcumuladaMes ?? 0)}
-                subtexto={`Meta Mes: ${formatoCOP(d2?.kpis.pptoMes ?? 0)} (${d2?.kpis.cumplimientoMesPct ?? 0}%)`}
+                subtexto={`Meta Mes: ${formatoCOPFull(d2?.kpis.pptoMes ?? 0)} (${Number(d2?.kpis.cumplimientoMesPct ?? 0).toFixed(2)}%)`}
                 icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD2}
                 badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d2?.kpis.ventaAcumuladaMes} anterior={d2?.kpis.ventaAcumuladaAnterior} porcentaje={d2?.kpis.crecimientoYoYPct} /> : undefined}
@@ -3944,7 +3940,7 @@ function Panel() {
                             const vAcum = data.ventaAcumulada || 0;
                             const pptoAcum = data.pptoAcumulado || 0;
                             const vAnterior = data.ventaAcumuladaAnterior;
-                            const cumpl = pptoAcum > 0 ? ((vAcum / pptoAcum) * 100).toFixed(1) : "0.0";
+                            const cumpl = pptoAcum > 0 ? ((vAcum / pptoAcum) * 100).toFixed(2) : "0.00";
                             const supero = vAcum >= pptoAcum;
 
                             return (
@@ -4038,7 +4034,7 @@ function Panel() {
                             const data = payload[0].payload as PuntoDiario;
                             const vReal = data.ventaReal || 0;
                             const meta = data.metaDiaria || 0;
-                            const cumpl = meta > 0 ? ((vReal / meta) * 100).toFixed(1) : "0.0";
+                            const cumpl = meta > 0 ? ((vReal / meta) * 100).toFixed(2) : "0.00";
                             const superoMeta = vReal >= meta;
 
                             return (
@@ -4109,7 +4105,7 @@ function Panel() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30 font-semibold text-xs">
-                  Participación Digital: {d3?.kpis.pctVentaEmpresa ?? 0}%
+                  Participación Digital: {Number(d3?.kpis.pctVentaEmpresa ?? 0).toFixed(2)}%
                 </Badge>
                 <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-500/30 font-semibold text-xs">
                   ROAS Promedio: {d3?.kpis.roas ?? 0}x
@@ -4287,14 +4283,14 @@ function Panel() {
                       <p className="font-semibold text-blue-600">Tienda Virtual</p>
                       <p className="text-muted-foreground">{formatoCOP(d3?.kpis.ventaTiendaVirtual ?? 0)}</p>
                       <p className="font-mono text-[11px] text-blue-700">
-                        {d3?.kpis.ventaDigitalTotal ? ((d3.kpis.ventaTiendaVirtual / d3.kpis.ventaDigitalTotal) * 100).toFixed(1) : 0}%
+                        {d3?.kpis.ventaDigitalTotal ? ((d3.kpis.ventaTiendaVirtual / d3.kpis.ventaDigitalTotal) * 100).toFixed(2) : "0.00"}%
                       </p>
                     </div>
                     <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/20">
                       <p className="font-semibold text-emerald-600">Redes Sociales</p>
                       <p className="text-muted-foreground">{formatoCOP(d3?.kpis.ventaRedesSociales ?? 0)}</p>
                       <p className="font-mono text-[11px] text-emerald-700">
-                        {d3?.kpis.ventaDigitalTotal ? ((d3.kpis.ventaRedesSociales / d3.kpis.ventaDigitalTotal) * 100).toFixed(1) : 0}%
+                        {d3?.kpis.ventaDigitalTotal ? ((d3.kpis.ventaRedesSociales / d3.kpis.ventaDigitalTotal) * 100).toFixed(2) : "0.00"}%
                       </p>
                     </div>
                   </div>
@@ -4451,7 +4447,7 @@ function Panel() {
                         <YAxis type="category" dataKey="linea" tick={{ fontSize: 10 }} width={80} />
                         <Tooltip
                           formatter={(v: number, name: string, item: any) => [
-                            `${formatoCOPFull(v)} (${item?.payload?.porcentaje ?? 0}%)`,
+                            `${formatoCOPFull(v)} (${Number(item?.payload?.porcentaje ?? 0).toFixed(2)}%)`,
                             `Línea (${item?.payload?.unidades ?? 0} unds)`,
                           ]}
                         />
@@ -4459,7 +4455,7 @@ function Panel() {
                           <LabelList
                             dataKey="porcentaje"
                             position="right"
-                            formatter={(v: number) => `${v}%`}
+                            formatter={(v: number) => `${Number(v).toFixed(2)}%`}
                             className="fill-foreground text-[10px] font-bold"
                           />
                         </Bar>
@@ -4510,7 +4506,7 @@ function Panel() {
                         <YAxis type="category" dataKey="ciudad" tick={{ fontSize: 10 }} width={80} />
                         <Tooltip
                           formatter={(v: number, name: string, item: any) => [
-                            `${formatoCOPFull(v)} (${item?.payload?.porcentaje ?? 0}%)`,
+                            `${formatoCOPFull(v)} (${Number(item?.payload?.porcentaje ?? 0).toFixed(2)}%)`,
                             `Venta Ciudad (${item?.payload?.unidades ?? 0} unds)`,
                           ]}
                         />
@@ -4558,7 +4554,7 @@ function Panel() {
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono">
                               <Badge variant="outline" className="text-[10px] py-0 font-normal">
-                                {c.porcentaje}%
+                                {Number(c.porcentaje).toFixed(2)}%
                               </Badge>
                             </td>
                             <td className="py-2.5 px-3 text-right font-mono">
@@ -4584,7 +4580,7 @@ function Panel() {
                           </td>
                           <td className="py-2.5 px-3 text-right">
                             <Badge variant="default" className="text-[10px] py-0">
-                              100%
+                              100.00%
                             </Badge>
                           </td>
                           <td className="py-2.5 px-3 text-right">
@@ -4876,7 +4872,7 @@ function Panel() {
                                   )}
                                 >
                                   {(a.crecimientoYoYPct ?? 0) >= 0 ? "+" : ""}
-                                  {(a.crecimientoYoYPct ?? 0).toFixed(1)}%
+                                  {(a.crecimientoYoYPct ?? 0).toFixed(2)}%
                                 </span>
                               ) : (
                                 <span className="text-muted-foreground text-[11px]">-</span>
@@ -4891,7 +4887,7 @@ function Panel() {
                                   style={{ width: `${Math.min(100, a.participacionCarteraPct)}%` }}
                                 />
                               </div>
-                              <span className="font-semibold text-[11px] text-muted-foreground">{a.participacionCarteraPct}%</span>
+                              <span className="font-semibold text-[11px] text-muted-foreground">{Number(a.participacionCarteraPct).toFixed(2)}%</span>
                             </div>
                           </td>
                           <td className="py-3 px-3 text-right text-muted-foreground font-medium">{a.unidades.toLocaleString("es-CO")}</td>
@@ -5121,7 +5117,7 @@ function Panel() {
                 {d6?.kpis.concentracionParetoA && (
                   <Badge variant="outline" className="bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
                     <Percent className="mr-1 h-3 w-3" />
-                    Top {d6.kpis.concentracionParetoA.referenciasPct}% genera el {d6.kpis.concentracionParetoA.ventaPct}% de la venta
+                    Top {Number(d6.kpis.concentracionParetoA.referenciasPct).toFixed(2)}% genera el {Number(d6.kpis.concentracionParetoA.ventaPct).toFixed(2)}% de la venta
                   </Badge>
                 )}
                 <Button
@@ -5172,8 +5168,8 @@ function Panel() {
               />
               <CardKpi
                 titulo="Concentración Pareto"
-                valor={`${d6?.kpis.concentracionParetoA.ventaPct ?? 0}%`}
-                subtexto={`Generado por el ${d6?.kpis.concentracionParetoA.referenciasPct ?? 0}% de SKUs`}
+                valor={`${Number(d6?.kpis.concentracionParetoA.ventaPct ?? 0).toFixed(2)}%`}
+                subtexto={`Generado por el ${Number(d6?.kpis.concentracionParetoA.referenciasPct ?? 0).toFixed(2)}% de SKUs`}
                 icono={<Percent className="h-5 w-5 text-purple-500" />}
                 cargando={cD6}
               />
@@ -5182,7 +5178,7 @@ function Panel() {
                 valor={d6?.kpis.referenciaTopVentas?.sku ?? "N/A"}
                 subtexto={
                   d6?.kpis.referenciaTopVentas
-                    ? `${formatoCOP(d6.kpis.referenciaTopVentas.valor)} (${d6.kpis.referenciaTopVentas.porcentaje}% total)`
+                    ? `${formatoCOP(d6.kpis.referenciaTopVentas.valor)} (${Number(d6.kpis.referenciaTopVentas.porcentaje).toFixed(2)}% total)`
                     : "Sin datos"
                 }
                 icono={<Award className="h-5 w-5 text-pink-500" />}
@@ -5190,7 +5186,7 @@ function Panel() {
               />
               <CardKpi
                 titulo="Tasa Devolución"
-                valor={`${d6?.kpis.tasaDevolucionGlobal ?? 0}%`}
+                valor={`${Number(d6?.kpis.tasaDevolucionGlobal ?? 0).toFixed(2)}%`}
                 subtexto={`Total devs: ${formatoCOP(d6?.kpis.totalDevoluciones ?? 0)}`}
                 icono={<ArrowDownRight className="h-5 w-5 text-rose-500" />}
                 cargando={cD6}
@@ -5263,7 +5259,7 @@ function Panel() {
                                     Línea: <span className="font-semibold text-foreground">{data.linea}</span>
                                   </p>
                                   <p className="text-muted-foreground">
-                                    Participación: <span className="font-semibold text-foreground">{data.porcentajeVenta}%</span> • Clase <span className="font-bold text-primary">{data.clasificacionABC}</span>
+                                    Participación: <span className="font-semibold text-foreground">{Number(data.porcentajeVenta).toFixed(2)}%</span> • Clase <span className="font-bold text-primary">{data.clasificacionABC}</span>
                                   </p>
                                 </div>
                               );
@@ -5428,7 +5424,7 @@ function Panel() {
                                   <p className="font-bold text-foreground text-sm">{data.linea}</p>
                                   <div className="h-px bg-border my-1" />
                                   <p className="text-indigo-600 dark:text-indigo-400 font-semibold">
-                                    Venta Total: {formatoCOPFull(data.venta)} ({data.porcentaje}%)
+                                    Venta Total: {formatoCOPFull(data.venta)} ({Number(data.porcentaje).toFixed(2)}%)
                                   </p>
                                   <p className="text-emerald-600 dark:text-emerald-400 font-medium">
                                     Unidades: {Math.round(data.unidades).toLocaleString("es-CO")} prendas
@@ -5557,7 +5553,7 @@ function Panel() {
                             )}
                           </div>
                           <span className="text-xs font-bold font-mono text-foreground">
-                            {item.porcentajeVenta}% Venta
+                            {Number(item.porcentajeVenta).toFixed(2)}% Venta
                           </span>
                         </div>
                         <p className="text-[11px] text-muted-foreground mb-2">
@@ -5566,7 +5562,7 @@ function Panel() {
                         <div className="grid grid-cols-3 gap-2 text-center text-xs bg-background/60 rounded p-1.5 border border-border/40">
                           <div>
                             <p className="text-[10px] text-muted-foreground">SKUs</p>
-                            <p className="font-bold text-foreground font-mono">{item.referenciasCount} ({item.referenciasPct}%)</p>
+                            <p className="font-bold text-foreground font-mono">{item.referenciasCount} ({Number(item.referenciasPct).toFixed(2)}%)</p>
                           </div>
                           <div>
                             <p className="text-[10px] text-muted-foreground">Facturación</p>
@@ -5632,7 +5628,7 @@ function Panel() {
                               return (
                                 <div className="rounded border bg-popover p-2 shadow text-xs">
                                   <p className="font-bold">Talla: {d.talla}</p>
-                                  <p className="text-purple-600 font-semibold">{Math.round(d.unidades).toLocaleString("es-CO")} unds ({d.porcentaje}%)</p>
+                                  <p className="text-purple-600 font-semibold">{Math.round(d.unidades).toLocaleString("es-CO")} unds ({Number(d.porcentaje).toFixed(2)}%)</p>
                                 </div>
                               );
                             }
@@ -5682,7 +5678,7 @@ function Panel() {
                               return (
                                 <div className="rounded border bg-popover p-2 shadow text-xs">
                                   <p className="font-bold">Color: {d.color}</p>
-                                  <p className="text-pink-600 font-semibold">{Math.round(d.unidades).toLocaleString("es-CO")} unds ({d.porcentaje}%)</p>
+                                  <p className="text-pink-600 font-semibold">{Math.round(d.unidades).toLocaleString("es-CO")} unds ({Number(d.porcentaje).toFixed(2)}%)</p>
                                 </div>
                               );
                             }
@@ -5736,7 +5732,7 @@ function Panel() {
                               {formatoCOPFull(ref.devoluciones)}
                             </p>
                             <p className="text-[10px] text-muted-foreground">
-                              {ref.tasaDevolucion}% tasa dev.
+                              {Number(ref.tasaDevolucion).toFixed(2)}% tasa dev.
                             </p>
                           </div>
                         </div>
@@ -5971,7 +5967,7 @@ function Panel() {
                                       )}
                                     >
                                       {(ref.crecimientoYoYPct ?? 0) >= 0 ? "+" : ""}
-                                      {(ref.crecimientoYoYPct ?? 0).toFixed(1)}%
+                                      {(ref.crecimientoYoYPct ?? 0).toFixed(2)}%
                                     </span>
                                   ) : (
                                     <span className="text-muted-foreground text-[11px]">-</span>
@@ -5989,16 +5985,16 @@ function Panel() {
                                       style={{ width: `${Math.min(100, ref.porcentajeVenta * 10)}%` }}
                                     />
                                   </div>
-                                  <span className="font-mono font-medium">{ref.porcentajeVenta}%</span>
+                                  <span className="font-mono font-medium">{Number(ref.porcentajeVenta).toFixed(2)}%</span>
                                 </div>
                               </td>
                               <td className="py-2.5 px-3 text-right font-mono">
                                 {ref.tasaDevolucion > 0 ? (
                                   <span className="text-rose-600 dark:text-rose-400 font-medium">
-                                    {ref.tasaDevolucion}%
+                                    {Number(ref.tasaDevolucion).toFixed(2)}%
                                   </span>
                                 ) : (
-                                  <span className="text-muted-foreground">0%</span>
+                                  <span className="text-muted-foreground">0.00%</span>
                                 )}
                               </td>
                             </tr>
@@ -6489,7 +6485,7 @@ function CardKpi({
               ) : badgeCumplimientoPct !== undefined ? (
                 <span className={`px-2 py-0.5 text-[10.5px] font-bold rounded-full border shadow-2xs shrink-0 flex items-center gap-1 font-mono ${colorSemaforo(badgeCumplimientoPct)}`}>
                   <Target className="h-3 w-3 shrink-0" />
-                  <span>{badgeCumplimientoPct}%</span>
+                  <span>{Number(badgeCumplimientoPct).toFixed(2)}%</span>
                   <span className="opacity-80 text-[9.5px]">
                     {badgeCumplimientoPct >= 100 ? "• Meta" : badgeCumplimientoPct >= 90 ? "• Alerta" : "• Crítico"}
                   </span>
@@ -6504,7 +6500,7 @@ function CardKpi({
                     : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
                 )}>
                   <Clock className="h-3 w-3 shrink-0" />
-                  <span>{badgeCarteraPct}%</span>
+                  <span>{Number(badgeCarteraPct).toFixed(2)}%</span>
                   <span className="opacity-80 text-[9.5px]">
                     {badgeCarteraPct <= 5 ? "• Al día" : badgeCarteraPct <= 15 ? "• Alerta mora" : "• Mora crítica"}
                   </span>

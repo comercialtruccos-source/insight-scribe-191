@@ -10421,8 +10421,8 @@ export function obtenerMesesCalibradosCMI(
       ventaReal: m.v2026,
       ventaAnterior: m.v2025,
       ppto: m.ppto2026,
-      cumplimientoPct: m.cumplimientoPct,
-      crecimientoYoY: m.crecimientoYoYPct,
+      cumplimientoPct: m.ppto2026 > 0 && m.v2026 > 0 ? Math.round((m.v2026 / m.ppto2026) * 10000) / 100 : m.cumplimientoPct,
+      crecimientoYoY: m.v2025 > 0 ? Math.round(((m.v2026 - m.v2025) / m.v2025) * 10000) / 100 : m.crecimientoYoYPct,
       devolucionesMonto: Math.abs(m.dev2026),
       tasaDevolucionPct: m.v2026 > 0 ? Math.round((Math.abs(m.dev2026) / m.v2026) * 10000) / 100 : (m.tasaDevolucionPct || 0),
       unidades: m.u2026,
@@ -10487,8 +10487,8 @@ export function obtenerKpisCalibradosCMI(
       ventaBrutaTotal: ventaBruta,
       ventaAnteriorTotal: ventaAnt,
       pptoYTD: ppto,
-      cumplimientoGlobalPct: m.cumplimientoPct,
-      crecimientoYoYPct: m.crecimientoYoYPct,
+      cumplimientoGlobalPct: ppto > 0 && ventaReal > 0 ? Math.round((ventaReal / ppto) * 10000) / 100 : (m.cumplimientoPct || 0),
+      crecimientoYoYPct: ventaAnt > 0 ? Math.round(((ventaReal - ventaAnt) / ventaAnt) * 10000) / 100 : (m.crecimientoYoYPct || 0),
       devolucionesTotal: dev,
       tasaDevolucionGlobalPct: ventaReal > 0 ? Math.round((dev / ventaReal) * 10000) / 100 : (m.tasaDevolucionPct || 0),
       volumenUnidades: unds,
@@ -10541,10 +10541,10 @@ export function obtenerKpisCalibradosCMI(
   }, 0);
 
   const cumplimientoPct = totalPptoComparable > 0
-    ? Math.round((totalVenta2026 / totalPptoComparable) * 1000) / 10
+    ? Math.round((totalVenta2026 / totalPptoComparable) * 10000) / 100
     : 100;
   const crecimientoYoYPct = totalVentaAntComparable > 0
-    ? Math.round(((totalVenta2026 - totalVentaAntComparable) / totalVentaAntComparable) * 1000) / 10
+    ? Math.round(((totalVenta2026 - totalVentaAntComparable) / totalVentaAntComparable) * 10000) / 100
     : 0;
   const tasaDevPct = totalVenta2026 > 0
     ? Math.round((totalDev2026 / totalVenta2026) * 10000) / 100

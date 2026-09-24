@@ -328,7 +328,7 @@ export function calcularDiagnosticoMentor(
       porcentajeVenta: Math.round((refsA.reduce((sum, r) => sum + r.venta, 0) / totalVentaRefs) * 1000) / 10,
       totalSkus: refsA.length,
       porcentajeSkus: Math.round((refsA.length / totalRefsCount) * 1000) / 10,
-      diagnostico: `Tus ${refsA.length} productos estrella generan el ${Math.round((refsA.reduce((sum, r) => sum + r.venta, 0) / totalVentaRefs) * 100)}% de tus ingresos.`,
+      diagnostico: `Tus ${refsA.length} productos estrella generan el ${(Math.round((refsA.reduce((sum, r) => sum + r.venta, 0) / totalVentaRefs) * 10000) / 100).toFixed(2)}% de tus ingresos.`,
       estrategiaPrincipal: "Garantizar disponibilidad, ofrecer reposición programada cada 15 días y usar como producto gancho para abrir nuevos pedidos.",
       itemsDestacados: refsA.slice(0, 5).map((r) => mapItemDestacado(r, "A", "Producto Top: Mantener siempre en el pedido inicial de cada cliente.")),
     },
@@ -604,7 +604,7 @@ export function calcularDiagnosticoMentor(
         crecimientoPct: z.crecimientoPct,
         tipo: z.crecimientoPct < -15 ? "critica" : "oportunidad",
         diagnostico: z.crecimientoPct < 0
-          ? `Caída del ${Math.abs(z.crecimientoPct)}% frente al año anterior.`
+          ? `Caída del ${Math.abs(Number(z.crecimientoPct)).toFixed(2)}% frente al año anterior.`
           : "Facturación por debajo del potencial promedio del territorio.",
         accionRecomendada: "Llamada de reactivación a clientes que no compran hace 45+ días con catálogo de precios especiales.",
         ofertaSugerida: "Kit de reactivación: 10% de descuento en el primer pedido de la temporada + muestra comercial.",
@@ -719,7 +719,7 @@ export function calcularDiagnosticoMentor(
   if (zonaCaida) {
     alertasInmediatas.push({
       tipo: "urgent",
-      mensaje: `La zona ${zonaCaida.zona} presenta una caída del ${Math.abs(zonaCaida.crecimientoPct)}% frente al año anterior.`,
+      mensaje: `La zona ${zonaCaida.zona} presenta una caída del ${Math.abs(Number(zonaCaida.crecimientoPct)).toFixed(2)}% frente al año anterior.`,
       accion: "Enviar el guión de reactivación a los clientes de esta zona.",
     });
   }
@@ -727,7 +727,7 @@ export function calcularDiagnosticoMentor(
   if (crecimientoYoYPct > 10) {
     alertasInmediatas.push({
       tipo: "success",
-      mensaje: `¡Excelente ritmo! Crecimiento interanual del +${crecimientoYoYPct.toFixed(1)}%.`,
+      mensaje: `¡Excelente ritmo! Crecimiento interanual del +${crecimientoYoYPct.toFixed(2)}%.`,
       accion: "Mantener foco en reposición de referencias Clase A.",
     });
   }

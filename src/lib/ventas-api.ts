@@ -1248,10 +1248,10 @@ export function calcularDashboard1Cumplimiento(
       const d = periodoMap.get(String(mNum)) || { anio: filtros.anio!, mes: mNum, venta: 0, unidades: 0, dev: 0 };
       const ppto = d.venta > 0 ? metaBaseMensual : 0;
       const ventaBrutaMes = d.venta + d.dev;
-      const cumplimientoPct = ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 1000) / 10 : (d.venta > 0 ? 100 : 0);
+      const cumplimientoPct = ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 10000) / 100 : (d.venta > 0 ? 100 : 0);
       const vAnt = periodoAntMap.get(String(mNum))?.venta || 0;
       const uAnt = periodoAntMap.get(String(mNum))?.unidades || 0;
-      const yoy = vAnt > 0 ? Math.round(((d.venta - vAnt) / vAnt) * 1000) / 10 : 0;
+      const yoy = vAnt > 0 ? Math.round(((d.venta - vAnt) / vAnt) * 10000) / 100 : 0;
 
       return {
         anio: filtros.anio!,
@@ -1282,10 +1282,10 @@ export function calcularDashboard1Cumplimiento(
       const nombre = `${nombreMesStr} ${d.anio}`;
       const ppto = d.venta > 0 ? metaBasePeriodo : 0;
       const ventaBrutaMes = d.venta + d.dev;
-      const cumplimientoPct = ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 1000) / 10 : (d.venta > 0 ? 100 : 0);
+      const cumplimientoPct = ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 10000) / 100 : (d.venta > 0 ? 100 : 0);
       const vAnt = periodoAntMap.get(String(d.mes))?.venta || 0;
       const uAnt = periodoAntMap.get(String(d.mes))?.unidades || 0;
-      const yoy = vAnt > 0 ? Math.round(((d.venta - vAnt) / vAnt) * 1000) / 10 : 0;
+      const yoy = vAnt > 0 ? Math.round(((d.venta - vAnt) / vAnt) * 10000) / 100 : 0;
 
       return {
         anio: d.anio,
@@ -1310,14 +1310,14 @@ export function calcularDashboard1Cumplimiento(
       const lAnt = lineaAntMap.get(linea);
       const vAnt = lAnt?.venta || 0;
       const uAnt = lAnt?.unidades || 0;
-      const yoy = vAnt > 0 ? Math.round(((val.venta - vAnt) / vAnt) * 1000) / 10 : 0;
+      const yoy = vAnt > 0 ? Math.round(((val.venta - vAnt) / vAnt) * 10000) / 100 : 0;
       return {
         linea,
         venta: val.venta,
         ventaAnterior: vAnt,
         unidades: val.unidades,
         unidadesAnterior: uAnt,
-        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: yoy,
       };
     })
@@ -1326,12 +1326,12 @@ export function calcularDashboard1Cumplimiento(
   const mixMarcas = Array.from(marcaVentaMap.entries())
     .map(([marca, venta]) => {
       const vAnt = marcaAntMap.get(marca) || 0;
-      const yoy = vAnt > 0 ? Math.round(((venta - vAnt) / vAnt) * 1000) / 10 : 0;
+      const yoy = vAnt > 0 ? Math.round(((venta - vAnt) / vAnt) * 10000) / 100 : 0;
       return {
         marca,
         venta,
         ventaAnterior: vAnt,
-        porcentaje: totalVentas > 0 ? Math.round((venta / totalVentas) * 1000) / 10 : 0,
+        porcentaje: totalVentas > 0 ? Math.round((venta / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: yoy,
       };
     })
@@ -1342,7 +1342,7 @@ export function calcularDashboard1Cumplimiento(
       const vAnt = vendedorAntMap.get(vendedor);
       const vAntVal = vAnt?.venta || 0;
       const uAntVal = vAnt?.unidades || 0;
-      const yoy = vAntVal > 0 ? Math.round(((val.venta - vAntVal) / vAntVal) * 1000) / 10 : 0;
+      const yoy = vAntVal > 0 ? Math.round(((val.venta - vAntVal) / vAntVal) * 10000) / 100 : 0;
       return {
         id: val.id,
         vendedor,
@@ -1350,7 +1350,7 @@ export function calcularDashboard1Cumplimiento(
         ventaAnterior: vAntVal,
         unidades: val.unidades,
         unidadesAnterior: uAntVal,
-        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: yoy,
       };
     })
@@ -1361,7 +1361,7 @@ export function calcularDashboard1Cumplimiento(
       const rAnt = refAntMap.get(sku);
       const valAnt = rAnt?.valor || 0;
       const uAnt = rAnt?.unidades || 0;
-      const yoy = valAnt > 0 ? Math.round(((val.valor - valAnt) / valAnt) * 1000) / 10 : 0;
+      const yoy = valAnt > 0 ? Math.round(((val.valor - valAnt) / valAnt) * 10000) / 100 : 0;
       return {
         sku,
         producto: val.producto,
@@ -1371,7 +1371,7 @@ export function calcularDashboard1Cumplimiento(
         valor: val.valor,
         valorAnterior: valAnt,
         precioPromedio: val.unidades > 0 ? Math.round(val.valor / val.unidades) : 0,
-        porcentaje: totalVentas > 0 ? Math.round((val.valor / totalVentas) * 1000) / 10 : 0,
+        porcentaje: totalVentas > 0 ? Math.round((val.valor / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: yoy,
       };
     })
@@ -1383,14 +1383,14 @@ export function calcularDashboard1Cumplimiento(
       const zAnt = zonaAntMap.get(zona);
       const zAntVenta = zAnt?.venta || 0;
       const zAntUnidades = zAnt?.unidades || 0;
-      const zYoY = zAntVenta > 0 ? Math.round(((val.venta - zAntVenta) / zAntVenta) * 1000) / 10 : 0;
+      const zYoY = zAntVenta > 0 ? Math.round(((val.venta - zAntVenta) / zAntVenta) * 10000) / 100 : 0;
 
       const ciudadesList: CiudadEnZona[] = Array.from(val.ciudadesMap.entries())
         .map(([ciudad, cVal]) => {
           const cAnt = zAnt?.ciudadesMap.get(ciudad);
           const cAntVenta = cAnt?.venta || 0;
           const cAntUnidades = cAnt?.unidades || 0;
-          const cYoY = cAntVenta > 0 ? Math.round(((cVal.venta - cAntVenta) / cAntVenta) * 1000) / 10 : 0;
+          const cYoY = cAntVenta > 0 ? Math.round(((cVal.venta - cAntVenta) / cAntVenta) * 10000) / 100 : 0;
           return {
             id: cVal.id,
             ciudad,
@@ -1398,8 +1398,8 @@ export function calcularDashboard1Cumplimiento(
             ventaAnterior: cAntVenta,
             unidades: cVal.unidades,
             unidadesAnterior: cAntUnidades,
-            porcentaje: val.venta > 0 ? Math.round((cVal.venta / val.venta) * 1000) / 10 : 0,
-            porcentajeGlobal: totalVentas > 0 ? Math.round((cVal.venta / totalVentas) * 1000) / 10 : 0,
+            porcentaje: val.venta > 0 ? Math.round((cVal.venta / val.venta) * 10000) / 100 : 0,
+            porcentajeGlobal: totalVentas > 0 ? Math.round((cVal.venta / totalVentas) * 10000) / 100 : 0,
             crecimientoYoY: cYoY,
           };
         })
@@ -1412,7 +1412,7 @@ export function calcularDashboard1Cumplimiento(
         ventaAnterior: zAntVenta,
         unidades: val.unidades,
         unidadesAnterior: zAntUnidades,
-        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: zYoY,
         ciudades: ciudadesList,
       };
@@ -1425,7 +1425,7 @@ export function calcularDashboard1Cumplimiento(
       const cAnt = ciudadGlobalAntMap.get(ciudadKey);
       const cAntVenta = cAnt?.venta || 0;
       const cAntUnidades = cAnt?.unidades || 0;
-      const cYoY = cAntVenta > 0 ? Math.round(((c.venta - cAntVenta) / cAntVenta) * 1000) / 10 : 0;
+      const cYoY = cAntVenta > 0 ? Math.round(((c.venta - cAntVenta) / cAntVenta) * 10000) / 100 : 0;
       return {
         id: c.id,
         ciudad: c.ciudad,
@@ -1434,7 +1434,7 @@ export function calcularDashboard1Cumplimiento(
         ventaAnterior: cAntVenta,
         unidades: c.unidades,
         unidadesAnterior: cAntUnidades,
-        porcentaje: totalVentas > 0 ? Math.round((c.venta / totalVentas) * 1000) / 10 : 0,
+        porcentaje: totalVentas > 0 ? Math.round((c.venta / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: cYoY,
       };
     })
@@ -1445,14 +1445,14 @@ export function calcularDashboard1Cumplimiento(
       const cAnt = canalAntMap.get(canal);
       const cAntVenta = cAnt?.venta || 0;
       const cAntUnidades = cAnt?.unidades || 0;
-      const cYoY = cAntVenta > 0 ? Math.round(((val.venta - cAntVenta) / cAntVenta) * 1000) / 10 : 0;
+      const cYoY = cAntVenta > 0 ? Math.round(((val.venta - cAntVenta) / cAntVenta) * 10000) / 100 : 0;
       return {
         canal,
         venta: val.venta,
         ventaAnterior: cAntVenta,
         unidades: val.unidades,
         unidadesAnterior: cAntUnidades,
-        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 1000) / 10 : 0,
+        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: cYoY,
       };
     })
@@ -1468,8 +1468,8 @@ export function calcularDashboard1Cumplimiento(
   const ticketPromedioAnterior = numTransaccionesAnterior > 0 ? Math.round(totalVentasAnterior / numTransaccionesAnterior) : 0;
   const precioPromedioPrenda = totalUnidades > 0 ? Math.round(totalVentas / totalUnidades) : 0;
   const precioPromedioPrendaAnterior = totalUnidadesAnterior > 0 ? Math.round(totalVentasAnterior / totalUnidadesAnterior) : 0;
-  const crecimientoYoYGlobal = totalVentasAnterior > 0 ? Math.round(((totalVentas - totalVentasAnterior) / totalVentasAnterior) * 1000) / 10 : 0;
-  const cumplimientoAnteriorPct = totalPptoAnterior > 0 && totalVentasAnterior > 0 ? Math.round((totalVentasAnterior / totalPptoAnterior) * 1000) / 10 : (totalVentasAnterior > 0 ? 100 : 0);
+  const crecimientoYoYGlobal = totalVentasAnterior > 0 ? Math.round(((totalVentas - totalVentasAnterior) / totalVentasAnterior) * 10000) / 100 : 0;
+  const cumplimientoAnteriorPct = totalPptoAnterior > 0 && totalVentasAnterior > 0 ? Math.round((totalVentasAnterior / totalPptoAnterior) * 10000) / 100 : (totalVentasAnterior > 0 ? 100 : 0);
   const tasaDevolucionAnteriorPct = totalVentasAnterior > 0 ? Math.round((totalDevolucionesAnterior / totalVentasAnterior) * 10000) / 100 : 0;
 
   const cmiKpis = obtenerKpisCalibradosCMI(filtros);
@@ -1497,7 +1497,7 @@ export function calcularDashboard1Cumplimiento(
         ventaBrutaAnteriorTotal: totalVentaBrutaAnterior,
         pptoYTD: totalPpto > 0 ? totalPpto : (totalVentas > 0 ? Math.round(totalVentas * 1.05) : 0),
         pptoAnteriorTotal: totalPptoAnterior > 0 ? totalPptoAnterior : (totalVentasAnterior > 0 ? Math.round(totalVentasAnterior * 1.05) : 0),
-        cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 1000) / 10 : (totalVentas > 0 ? 100 : 0),
+        cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 10000) / 100 : (totalVentas > 0 ? 100 : 0),
         cumplimientoAnteriorPct,
         crecimientoYoYPct: crecimientoYoYGlobal,
         devolucionesTotal: totalDevoluciones,
@@ -1519,7 +1519,7 @@ export function calcularDashboard1Cumplimiento(
 
   if (kpisFinal.ventaYTD > 0 && rankingVendedores.length > 0) {
     for (const rv of rankingVendedores) {
-      rv.porcentaje = Math.round((rv.venta / kpisFinal.ventaYTD) * 1000) / 10;
+      rv.porcentaje = Math.round((rv.venta / kpisFinal.ventaYTD) * 10000) / 100;
     }
   }
 
