@@ -729,6 +729,13 @@ function Panel() {
         ticketPromedio: d1Sub.kpis.ticketPromedio,
         ticketPromedioAnterior: d1Sub.kpis.ticketPromedioAnterior,
         tasaDevolucionPct: d1Sub.kpis.tasaDevolucionGlobalPct,
+        ppto: d1Sub.kpis.pptoYTD ?? 0,
+        cumplimientoPct: d1Sub.kpis.cumplimientoGlobalPct ?? 0,
+        carteraTotal: d1Sub.kpis.carteraTotal ?? 0,
+        carteraMayor90Dias: d1Sub.kpis.carteraMayor90Dias ?? 0,
+        carteraPct90Dias: d1Sub.kpis.carteraPct90Dias ?? 0,
+        ventaBruta: d1Sub.kpis.ventaBrutaTotal ?? d1Sub.kpis.ventaYTD,
+        devolucionesMonto: d1Sub.kpis.devolucionesTotal ?? 0,
       };
     }).sort((a, b) => b.ventaActual - a.ventaActual);
   }, [esAdmin, vendedoresDisponibles, rawVentas, rawVentasYoY, d1?.kpis.ventaYTD, filtros, catalogos]);
@@ -2712,7 +2719,7 @@ function Panel() {
                 </CardHeader>
                 <CardContent className="pt-4 space-y-4">
                   {/* Grid de Tarjetas Comparativas por Asesor */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3.5">
                     {comparativaComercialesAsociados.map((sub) => {
                       const isSelected = String(vendedorId) === String(sub.id);
                       const isPositive = sub.crecimientoYoYPct >= 0;
@@ -2721,70 +2728,180 @@ function Panel() {
                           key={sub.id}
                           onClick={() => setVendedorId(isSelected ? "todos" : String(sub.id))}
                           className={cn(
-                            "p-3.5 rounded-xl border transition-all cursor-pointer relative group",
+                            "p-4 rounded-2xl border transition-all cursor-pointer relative group flex flex-col justify-between shadow-2xs hover:shadow-md",
                             isSelected
-                              ? "border-primary bg-primary/5 shadow-sm ring-2 ring-primary/20"
-                              : "border-border/70 hover:border-primary/50 hover:bg-muted/40 bg-card"
+                              ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20"
+                              : "border-border/70 hover:border-primary/50 hover:bg-muted/30 bg-card"
                           )}
                         >
-                          <div className="flex items-start justify-between gap-2 mb-2.5">
-                            <div className="min-w-0">
-                              <h4 className="font-semibold text-xs text-foreground truncate group-hover:text-primary transition-colors flex items-center gap-1.5">
-                                <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                <span className="truncate">{sub.nombre}</span>
-                              </h4>
-                              <p className="text-[10px] text-muted-foreground font-mono">ID: {sub.id}</p>
-                            </div>
-                            <Badge
-                              variant={isSelected ? "default" : "secondary"}
-                              className="text-[10px] px-1.5 py-0 h-4.5 font-bold shrink-0"
-                            >
-                              {sub.aportePct}% aporte
-                            </Badge>
-                          </div>
-
-                          <div className="space-y-2 text-xs">
-                            <div>
-                              <div className="text-[10px] text-muted-foreground">Facturación Actual</div>
-                              <div className="font-bold text-sm text-foreground">{formatoCOPFull(sub.ventaActual)}</div>
-                            </div>
-
-                            <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/50">
-                              <span className="text-muted-foreground">Año Anterior:</span>
-                              <span className="font-medium text-foreground">{formatoCOP(sub.ventaAnterior)}</span>
-                            </div>
-
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-muted-foreground">Crecimiento YoY:</span>
-                              <span
-                                className={cn(
-                                  "font-bold flex items-center gap-0.5",
-                                  isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-                                )}
+                          <div>
+                            {/* Cabecera: Nombre de Asesor, ID y % Aporte */}
+                            <div className="flex items-start justify-between gap-2 mb-3">
+                              <div className="min-w-0 flex-1">
+                                <h4
+                                  className="font-bold text-xs sm:text-sm text-foreground truncate group-hover:text-primary transition-colors flex items-center gap-1.5"
+                                  title={sub.nombre}
+                                >
+                                  <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                  <span className="truncate">{sub.nombre}</span>
+                                </h4>
+                                <p className="text-[10px] text-muted-foreground font-mono">ID Asesor: {sub.id}</p>
+                              </div>
+                              <Badge
+                                variant={isSelected ? "default" : "secondary"}
+                                className="text-[10px] px-2 py-0.5 h-5 font-bold shrink-0 shadow-2xs"
                               >
-                                {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                                {sub.crecimientoYoYPct > 0 ? "+" : ""}{sub.crecimientoYoYPct}%
-                              </span>
+                                {sub.aportePct}% aporte
+                              </Badge>
                             </div>
 
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-muted-foreground">Unidades:</span>
-                              <span className="font-medium text-foreground">{sub.unidades.toLocaleString("es-CO")} unds</span>
+                            {/* Facturación Neta Principal */}
+                            <div className="pb-2.5 border-b border-border/50">
+                              <div className="flex items-baseline justify-between gap-1 mb-0.5">
+                                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
+                                  Facturación Neta
+                                </span>
+                                {sub.ventaBruta > sub.ventaActual && (
+                                  <span
+                                    className="text-[10.5px] text-muted-foreground font-mono"
+                                    title={`Venta Bruta: ${formatoCOPFull(sub.ventaBruta)}`}
+                                  >
+                                    Bruta: {formatoCOP(sub.ventaBruta)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="font-extrabold text-base sm:text-lg text-foreground tracking-tight font-display">
+                                {formatoCOPFull(sub.ventaActual)}
+                              </div>
                             </div>
 
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-muted-foreground">Devolución Real:</span>
-                              <span className={cn("font-medium", sub.tasaDevolucionPct > 5 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400")}>
-                                {sub.tasaDevolucionPct}%
-                              </span>
+                            {/* Matriz de Métricas Clave del Dashboard de Inicio */}
+                            <div className="py-2.5 space-y-2 text-xs">
+                              {/* 1. Presupuesto y Cumplimiento de Meta */}
+                              <div className="flex items-center justify-between text-[11px] gap-1">
+                                <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+                                  <Target className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                                  Presupuesto:
+                                </span>
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className="font-semibold text-foreground">
+                                    {sub.ppto > 0 ? formatoCOP(sub.ppto) : "Sin ppto"}
+                                  </span>
+                                  {sub.ppto > 0 && (
+                                    <span
+                                      className={cn(
+                                        "px-1.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-0.5",
+                                        colorSemaforo(sub.cumplimientoPct)
+                                      )}
+                                    >
+                                      {sub.cumplimientoPct}%
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* 2. Cartera y % Mora > 90 Días */}
+                              <div className="flex items-center justify-between text-[11px] gap-1">
+                                <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+                                  <CreditCard className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                                  Cartera Total:
+                                </span>
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className="font-semibold text-foreground">
+                                    {sub.carteraTotal > 0 ? formatoCOP(sub.carteraTotal) : "Al día"}
+                                  </span>
+                                  {sub.carteraTotal > 0 && (
+                                    <span
+                                      className={cn(
+                                        "px-1.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-0.5",
+                                        sub.carteraPct90Dias <= 5
+                                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                          : sub.carteraPct90Dias <= 15
+                                          ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                          : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                      )}
+                                      title={sub.carteraMayor90Dias > 0 ? `Mora >90d: ${formatoCOPFull(sub.carteraMayor90Dias)}` : undefined}
+                                    >
+                                      <Clock className="h-2.5 w-2.5 shrink-0" />
+                                      {sub.carteraPct90Dias > 0 ? `${sub.carteraPct90Dias}%` : "0%"} &gt;90d
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* 3. Año Anterior y Crecimiento YoY */}
+                              <div className="flex items-center justify-between text-[11px] gap-1">
+                                <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+                                  <History className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                  Año Anterior:
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-foreground font-mono">{formatoCOP(sub.ventaAnterior)}</span>
+                                  <span
+                                    className={cn(
+                                      "font-bold flex items-center text-[10.5px] font-mono",
+                                      isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                                    )}
+                                  >
+                                    {isPositive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+                                    {sub.crecimientoYoYPct > 0 ? "+" : ""}{sub.crecimientoYoYPct}%
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 4. Unidades y Ticket Promedio */}
+                              <div className="flex items-center justify-between text-[11px] gap-1">
+                                <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+                                  <Package className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                                  Unidades:
+                                </span>
+                                <span className="font-semibold text-foreground font-mono">
+                                  {sub.unidades.toLocaleString("es-CO")} unds
+                                  {sub.ticketPromedio > 0 && (
+                                    <span className="text-muted-foreground/80 font-normal ml-1 text-[10px]">
+                                      (Ticket {formatoCOP(sub.ticketPromedio)})
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+
+                              {/* 5. Devoluciones ($ y %) */}
+                              <div className="flex items-center justify-between text-[11px] gap-1">
+                                <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+                                  <ArrowDownRight className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                                  Devoluciones:
+                                </span>
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className="font-semibold text-foreground">
+                                    {sub.devolucionesMonto > 0 ? formatoCOP(sub.devolucionesMonto) : "$0"}
+                                  </span>
+                                  <span
+                                    className={cn(
+                                      "text-[10px] font-bold px-1.5 py-0.2 rounded border",
+                                      sub.tasaDevolucionPct > 10
+                                        ? "text-rose-700 dark:text-rose-300 bg-rose-500/10 border-rose-500/30"
+                                        : sub.tasaDevolucionPct > 5
+                                        ? "text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/30"
+                                        : "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/30"
+                                    )}
+                                  >
+                                    {sub.tasaDevolucionPct}%
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
 
-                          <div className="mt-3 pt-2 border-t border-border/50 flex items-center justify-between">
-                            <span className="text-[10px] text-primary font-medium group-hover:underline">
-                              {isSelected ? "✓ Filtrando este asesor" : "Clic para filtrar"}
+                          {/* Footer con Acción */}
+                          <div className="mt-2 pt-2.5 border-t border-border/50 flex items-center justify-between">
+                            <span className="text-[11px] text-primary font-semibold group-hover:underline flex items-center gap-1">
+                              {isSelected ? "✓ Filtrando este asesor" : "Clic para filtrar este asesor"}
                             </span>
-                            {isSelected && <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-primary/10 text-primary border-primary/30">Activo</Badge>}
+                            {isSelected && (
+                              <Badge variant="outline" className="text-[9.5px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/30 font-bold">
+                                Activo
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       );
@@ -2792,19 +2909,23 @@ function Panel() {
                   </div>
 
                   {/* Tabla Comparativa de Asesores */}
-                  <div className="border border-border/60 rounded-lg overflow-hidden">
+                  <div className="border border-border/60 rounded-xl overflow-hidden shadow-2xs">
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs text-left">
                         <thead className="bg-muted/60 text-muted-foreground font-semibold border-b border-border/60">
                           <tr>
                             <th className="py-2.5 px-3">Comercial / Asesor</th>
-                            <th className="py-2.5 px-3 text-right">Fact. Actual ($)</th>
-                            <th className="py-2.5 px-3 text-right">Fact. Año Anterior ($)</th>
-                            <th className="py-2.5 px-3 text-right">% Crecimiento YoY</th>
+                            <th className="py-2.5 px-3 text-right">Fact. Neta ($)</th>
+                            <th className="py-2.5 px-3 text-right">Presupuesto ($)</th>
+                            <th className="py-2.5 px-3 text-right">% Cumpl.</th>
+                            <th className="py-2.5 px-3 text-right">Cartera ($)</th>
+                            <th className="py-2.5 px-3 text-right">% &gt;90d</th>
+                            <th className="py-2.5 px-3 text-right">Fact. Año Ant. ($)</th>
+                            <th className="py-2.5 px-3 text-right">% Crec. YoY</th>
                             <th className="py-2.5 px-3 text-right">% Aporte</th>
-                            <th className="py-2.5 px-3 text-right">Prendas Vendidas</th>
-                            <th className="py-2.5 px-3 text-right">Ticket Prom.</th>
-                            <th className="py-2.5 px-3 text-right">Tasa Devolución</th>
+                            <th className="py-2.5 px-3 text-right">Prendas</th>
+                            <th className="py-2.5 px-3 text-right">Devoluciones ($)</th>
+                            <th className="py-2.5 px-3 text-right">% Devolución</th>
                             <th className="py-2.5 px-3 text-center">Acción</th>
                           </tr>
                         </thead>
@@ -2831,6 +2952,35 @@ function Panel() {
                                 <td className="py-2.5 px-3 text-right font-bold text-foreground font-mono">
                                   {formatoCOPFull(sub.ventaActual)}
                                 </td>
+                                <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
+                                  {sub.ppto > 0 ? formatoCOP(sub.ppto) : "—"}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono">
+                                  {sub.ppto > 0 ? (
+                                    <span className={cn("px-1.5 py-0.5 rounded text-[10.5px] font-bold border", colorSemaforo(sub.cumplimientoPct))}>
+                                      {sub.cumplimientoPct}%
+                                    </span>
+                                  ) : "—"}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
+                                  {sub.carteraTotal > 0 ? formatoCOP(sub.carteraTotal) : "$0"}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono">
+                                  {sub.carteraTotal > 0 ? (
+                                    <span
+                                      className={cn(
+                                        "px-1.5 py-0.5 rounded text-[10.5px] font-bold border",
+                                        sub.carteraPct90Dias <= 5
+                                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                          : sub.carteraPct90Dias <= 15
+                                          ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                          : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                      )}
+                                    >
+                                      {sub.carteraPct90Dias > 0 ? `${sub.carteraPct90Dias}%` : "0%"}
+                                    </span>
+                                  ) : "0%"}
+                                </td>
                                 <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
                                   {formatoCOP(sub.ventaAnterior)}
                                 </td>
@@ -2852,10 +3002,19 @@ function Panel() {
                                   {sub.unidades.toLocaleString("es-CO")} unds
                                 </td>
                                 <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
-                                  {formatoCOP(sub.ticketPromedio)}
+                                  {sub.devolucionesMonto > 0 ? formatoCOP(sub.devolucionesMonto) : "$0"}
                                 </td>
                                 <td className="py-2.5 px-3 text-right font-mono">
-                                  <span className={sub.tasaDevolucionPct > 5 ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-emerald-600 dark:text-emerald-400"}>
+                                  <span
+                                    className={cn(
+                                      "px-1.5 py-0.5 rounded text-[10.5px] font-bold border",
+                                      sub.tasaDevolucionPct > 10
+                                        ? "text-rose-700 dark:text-rose-300 bg-rose-500/10 border-rose-500/30"
+                                        : sub.tasaDevolucionPct > 5
+                                        ? "text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/30"
+                                        : "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/30"
+                                    )}
+                                  >
                                     {sub.tasaDevolucionPct}%
                                   </span>
                                 </td>
