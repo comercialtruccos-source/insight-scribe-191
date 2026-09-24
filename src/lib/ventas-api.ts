@@ -908,6 +908,9 @@ export type CumplimientoMes = {
   tasaDevolucionPct: number;
   unidades: number;
   unidadesAnterior?: number;
+  cartera?: number;
+  carteraMayor90Dias?: number;
+  carteraPct90Dias?: number;
 };
 
 export type MixLinea = {
@@ -943,6 +946,9 @@ export type DataDashboard1 = {
     precioPromedioPrendaAnterior?: number;
     totalTransacciones: number;
     totalTransaccionesAnterior?: number;
+    carteraTotal?: number;
+    carteraMayor90Dias?: number;
+    carteraPct90Dias?: number;
   };
   meses: CumplimientoMes[];
   mixLineas: MixLinea[];
@@ -1503,6 +1509,9 @@ export function calcularDashboard1Cumplimiento(
         precioPromedioPrendaAnterior,
         totalTransacciones: numTransacciones,
         totalTransaccionesAnterior: numTransaccionesAnterior,
+        carteraTotal: 0,
+        carteraMayor90Dias: 0,
+        carteraPct90Dias: 0,
       };
 
   if (kpisFinal.ventaYTD > 0 && rankingVendedores.length > 0) {

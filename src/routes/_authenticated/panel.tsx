@@ -78,6 +78,7 @@ import {
   Users,
   Percent,
   Receipt,
+  CreditCard,
   Download,
   FilterX,
   UploadCloud,
@@ -2284,8 +2285,8 @@ function Panel() {
               </div>
             )}
 
-            {/* 5 Tarjetas KPI Ejecutivas */}
-            <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5">
+            {/* 6 Tarjetas KPI Ejecutivas con Dimensiones Homogéneas */}
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-6 items-stretch">
               <CardKpi
                 titulo="Venta Neta Total"
                 valor={formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}
@@ -2318,20 +2319,30 @@ function Panel() {
                 cargando={cD1}
                 badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.tasaDevolucionGlobalPct} anterior={d1?.kpis.tasaDevolucionAnteriorPct} tipo="pct" invertido={true} label="tasa año ant." /> : undefined}
               />
-              <div className="col-span-2 sm:col-span-1">
-                <CardKpi
-                  titulo={nombreMesPuntual ? `Presupuesto ${nombreMesPuntual}` : (mes !== "todos" ? "Presupuesto del Mes" : "Presupuesto del Periodo")}
-                  valor={formatoCOPFull(d1?.kpis.pptoYTD ?? 0)}
-                  subtexto={
-                    (d1?.kpis.pptoYTD ?? 0) > 0
-                      ? `Ejecutado: ${formatoCOP(d1?.kpis.ventaYTD ?? 0)} (${d1?.kpis.cumplimientoGlobalPct ?? 0}% cumplido)`
-                      : `Venta: ${formatoCOP(d1?.kpis.ventaYTD ?? 0)} • Sin presupuesto asignado`
-                  }
-                  icono={<Target className="h-5 w-5 text-purple-500" />}
-                  cargando={cD1}
-                  badgeCumplimientoPct={(d1?.kpis.pptoYTD ?? 0) > 0 ? d1?.kpis.cumplimientoGlobalPct : undefined}
-                />
-              </div>
+              <CardKpi
+                titulo={nombreMesPuntual ? `Presupuesto ${nombreMesPuntual}` : (mes !== "todos" ? "Presupuesto del Mes" : "Presupuesto del Periodo")}
+                valor={formatoCOPFull(d1?.kpis.pptoYTD ?? 0)}
+                subtexto={
+                  (d1?.kpis.pptoYTD ?? 0) > 0
+                    ? `Ejecutado: ${formatoCOP(d1?.kpis.ventaYTD ?? 0)}`
+                    : `Venta: ${formatoCOP(d1?.kpis.ventaYTD ?? 0)} • Sin ppto`
+                }
+                icono={<Target className="h-5 w-5 text-purple-500" />}
+                cargando={cD1}
+                badgeCumplimientoPct={(d1?.kpis.pptoYTD ?? 0) > 0 ? d1?.kpis.cumplimientoGlobalPct : undefined}
+              />
+              <CardKpi
+                titulo={nombreMesPuntual ? `Cartera ${nombreMesPuntual}` : (mes !== "todos" ? "Cartera del Mes" : "Cartera Actual")}
+                valor={formatoCOPFull(d1?.kpis.carteraTotal ?? 0)}
+                subtexto={
+                  (d1?.kpis.carteraTotal ?? 0) > 0
+                    ? `Mora > 90d: ${formatoCOP(d1?.kpis.carteraMayor90Dias ?? 0)} (${d1?.kpis.carteraPct90Dias ?? 0}%)`
+                    : "Sin saldo de cartera registrado"
+                }
+                icono={<CreditCard className="h-5 w-5 text-amber-500" />}
+                cargando={cD1}
+                badgeCarteraPct={d1?.kpis.carteraPct90Dias}
+              />
             </div>
 
             {/* Gráfico Mixto: Evolución Cronológica de Ventas vs Presupuesto / Facturación vs Año Anterior */}
@@ -6265,6 +6276,7 @@ function CardKpi({
   badgeSemaforo,
   badgeYoY,
   badgeCumplimientoPct,
+  badgeCarteraPct,
 }: {
   titulo: string;
   valor: string;
@@ -6274,14 +6286,16 @@ function CardKpi({
   badgeSemaforo?: number | undefined;
   badgeYoY?: React.ReactNode | undefined;
   badgeCumplimientoPct?: number | undefined;
+  badgeCarteraPct?: number | undefined;
 }) {
   return (
-    <Card className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/95 backdrop-blur-md shadow-2xs hover:shadow-lg hover:border-primary/40 transition-all duration-300 glass-card-hover">
+    <Card className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/95 backdrop-blur-md shadow-2xs hover:shadow-lg hover:border-primary/40 transition-all duration-300 glass-card-hover h-full flex flex-col justify-between">
       {/* Top accent glowing gradient beam on hover */}
       <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full space-y-3">
+      <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full space-y-2 flex-1">
         <div>
-          <div className="flex items-start justify-between gap-2 min-h-[2.2rem]">
+          {/* Header Zone: Min height locked for 100% vertical alignment */}
+          <div className="flex items-start justify-between gap-2 min-h-[2.4rem]">
             <p
               className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground leading-snug line-clamp-2"
               title={titulo}
@@ -6294,7 +6308,9 @@ function CardKpi({
               </div>
             )}
           </div>
-          <div className="flex flex-wrap items-baseline gap-2 mt-2">
+
+          {/* Value Zone */}
+          <div className="mt-1 min-h-[2.1rem] flex items-baseline">
             <p
               className={cn(
                 "font-extrabold font-display tracking-tight text-foreground tabular-nums leading-tight break-all sm:break-normal",
@@ -6304,35 +6320,58 @@ function CardKpi({
             >
               {cargando ? "—" : valor}
             </p>
-            {badgeCumplimientoPct !== undefined && !cargando && (
-              <span className={`px-2 py-0.5 text-[11px] font-bold rounded-full border shadow-2xs shrink-0 flex items-center gap-1 ${colorSemaforo(badgeCumplimientoPct)}`}>
-                <Target className="h-3 w-3 shrink-0" />
-                <span>{badgeCumplimientoPct}%</span>
-                <span className="opacity-80 text-[10px]">
-                  {badgeCumplimientoPct >= 100 ? "• Meta" : badgeCumplimientoPct >= 90 ? "• Alerta" : "• Crítico"}
+          </div>
+
+          {/* Badge / Indicator Zone: Always present with fixed min-height for uniform card sizing */}
+          <div className="min-h-[1.75rem] flex items-center my-1">
+            {!cargando && (
+              badgeYoY ? (
+                badgeYoY
+              ) : badgeCumplimientoPct !== undefined ? (
+                <span className={`px-2 py-0.5 text-[10.5px] font-bold rounded-full border shadow-2xs shrink-0 flex items-center gap-1 font-mono ${colorSemaforo(badgeCumplimientoPct)}`}>
+                  <Target className="h-3 w-3 shrink-0" />
+                  <span>{badgeCumplimientoPct}%</span>
+                  <span className="opacity-80 text-[9.5px]">
+                    {badgeCumplimientoPct >= 100 ? "• Meta" : badgeCumplimientoPct >= 90 ? "• Alerta" : "• Crítico"}
+                  </span>
                 </span>
-              </span>
-            )}
-            {badgeSemaforo !== undefined && (
-              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border shadow-2xs shrink-0 ${colorSemaforo(badgeSemaforo)}`}>
-                {badgeSemaforo >= 100 ? "Meta Cumplida" : badgeSemaforo >= 90 ? "Alerta" : "Crítico"}
-              </span>
+              ) : badgeCarteraPct !== undefined ? (
+                <span className={cn(
+                  "px-2 py-0.5 text-[10.5px] font-bold rounded-full border shadow-2xs shrink-0 flex items-center gap-1 font-mono",
+                  badgeCarteraPct <= 5
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                    : badgeCarteraPct <= 15
+                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                    : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                )}>
+                  <Clock className="h-3 w-3 shrink-0" />
+                  <span>{badgeCarteraPct}%</span>
+                  <span className="opacity-80 text-[9.5px]">
+                    {badgeCarteraPct <= 5 ? "• Al día" : badgeCarteraPct <= 15 ? "• Alerta mora" : "• Mora crítica"}
+                  </span>
+                </span>
+              ) : badgeSemaforo !== undefined ? (
+                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border shadow-2xs shrink-0 ${colorSemaforo(badgeSemaforo)}`}>
+                  {badgeSemaforo >= 100 ? "Meta Cumplida" : badgeSemaforo >= 90 ? "Alerta" : "Crítico"}
+                </span>
+              ) : null
             )}
           </div>
         </div>
-        {badgeYoY && !cargando && (
-          <div className="pt-0.5">
-            {badgeYoY}
-          </div>
-        )}
-        {subtexto && (
-          <p
-            className="text-[11px] text-muted-foreground font-medium flex items-center gap-1 line-clamp-2 leading-snug border-t border-border/40 pt-2"
-            title={subtexto}
-          >
-            {subtexto}
-          </p>
-        )}
+
+        {/* Footer Subtext Zone: Locked min-height and truncate to avoid pushing cards downwards */}
+        <div className="min-h-[1.85rem] flex items-center border-t border-border/40 pt-2 mt-auto">
+          {subtexto ? (
+            <p
+              className="text-[11px] text-muted-foreground font-medium truncate w-full"
+              title={subtexto}
+            >
+              {subtexto}
+            </p>
+          ) : (
+            <span className="text-[11px] text-muted-foreground/30">—</span>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
