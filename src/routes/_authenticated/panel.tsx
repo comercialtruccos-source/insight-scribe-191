@@ -2355,7 +2355,7 @@ function Panel() {
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {datosGraficaPorVendedorMes && (
+                    {mes !== "todos" && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -2408,7 +2408,13 @@ function Panel() {
                       }
                     />
                     <Badge variant="outline">
-                      {datosGraficaPorVendedorMes ? `${nombreMesPuntual} ${anio !== "todos" ? anio : ""}` : (anio === "todos" ? "Todo el Histórico" : `Año ${anio}`)}
+                      {datosGraficaPorVendedorMes
+                        ? `${nombreMesPuntual} ${anio !== "todos" ? anio : ""}`
+                        : mes !== "todos" && nombreMesPuntual
+                        ? `${nombreMesPuntual} ${anio !== "todos" ? anio : ""}`
+                        : anio === "todos"
+                        ? "Todo el Histórico"
+                        : `Año ${anio}`}
                     </Badge>
                   </div>
                 </div>
@@ -2576,11 +2582,33 @@ function Panel() {
                           <Legend
                             formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ventaAnterior" ? "Venta Año Anterior ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
                           />
-                          <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                          <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]}>
+                            {d1.meses.map((entry) => {
+                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
+                              return (
+                                <Cell
+                                  key={`bar-admin-real-${entry.mes}`}
+                                  fill="#2563eb"
+                                  opacity={isSelected ? 1 : 0.25}
+                                />
+                              );
+                            })}
+                          </Bar>
                           {compararAnioAnterior && (
                             <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3.5, fill: "#f59e0b" }} />
                           )}
-                          <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]} opacity={0.4} />
+                          <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]}>
+                            {d1.meses.map((entry) => {
+                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
+                              return (
+                                <Cell
+                                  key={`bar-admin-ppto-${entry.mes}`}
+                                  fill="#94a3b8"
+                                  opacity={isSelected ? 0.4 : 0.15}
+                                />
+                              );
+                            })}
+                          </Bar>
                           <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
                         </ComposedChart>
                       ) : (
@@ -2608,8 +2636,30 @@ function Panel() {
                           <Legend
                             formatter={(v) => (v === "ventaReal" ? "Facturación Real Actual ($)" : v === "ventaAnterior" ? "Facturación Año Anterior ($)" : "% Crecimiento YoY")}
                           />
-                          <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                          <Bar yAxisId="left" dataKey="ventaAnterior" fill="#f59e0b" radius={[4, 4, 0, 0]} opacity={0.85} />
+                          <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]}>
+                            {d1.meses.map((entry) => {
+                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
+                              return (
+                                <Cell
+                                  key={`bar-real-${entry.mes}`}
+                                  fill="#2563eb"
+                                  opacity={isSelected ? 1 : 0.25}
+                                />
+                              );
+                            })}
+                          </Bar>
+                          <Bar yAxisId="left" dataKey="ventaAnterior" fill="#f59e0b" radius={[4, 4, 0, 0]}>
+                            {d1.meses.map((entry) => {
+                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
+                              return (
+                                <Cell
+                                  key={`bar-ant-${entry.mes}`}
+                                  fill="#f59e0b"
+                                  opacity={isSelected ? 0.85 : 0.25}
+                                />
+                              );
+                            })}
+                          </Bar>
                           <Line yAxisId="right" type="monotone" dataKey="crecimientoYoY" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
                         </ComposedChart>
                       )}

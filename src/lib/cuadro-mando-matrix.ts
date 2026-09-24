@@ -8617,7 +8617,7 @@ export function obtenerKpisCalibradosCMI(
 
   // Vista anual / YTD
   if (es2025) {
-    const total2025 = entidad.meses2025.reduce((a, b) => a + b, 0);
+    const total2025 = entidad.meses.reduce((a, b) => a + (b.v2025 || 0), 0) || (entidad.meses2025 ? entidad.meses2025.reduce((a, b) => a + b, 0) : 0);
     const undsEst = entidad.acumulado.unds;
     return {
       ventaYTD: total2025,
@@ -8636,26 +8636,47 @@ export function obtenerKpisCalibradosCMI(
     };
   }
 
-  // 2026 YTD Acumulado
-  const ac = entidad.acumulado;
-  const devAbs = Math.abs(ac.dev);
-  const ventaBruta = ac.v2026 + devAbs;
-  const undsAnt = ac.v2025 > 0 && ac.unds > 0 && ac.v2026 > 0 ? Math.round(ac.v2025 / (ac.v2026 / ac.unds)) : 0;
+  // 2026 YTD Acumulado: Calculado dinámicamente sumando los meses para mantener sincronización exacta 1:1 con la gráfica
+  const mesesActivos = entidad.meses.filter((m) => (m.v2026 || 0) > 0);
+  const mesesParaCalculo = mesesActivos.length > 0 ? mesesActivos : entidad.meses;
+
+  const totalVenta2026 = entidad.meses.reduce((sum, m) => sum + (m.v2026 || 0), 0);
+  const totalDev2026 = entidad.meses.reduce((sum, m) => sum + Math.abs(m.dev2026 || 0), 0);
+  const totalVentaBruta = totalVenta2026 + totalDev2026;
+  const totalUnds2026 = entidad.meses.reduce((sum, m) => sum + (m.u2026 || 0), 0);
+
+  // Venta anterior y presupuesto comparables (para los meses transcurridos con venta en 2026)
+  const totalVentaAntComparable = mesesParaCalculo.reduce((sum, m) => sum + (m.v2025 || 0), 0);
+  const totalPptoComparable = mesesParaCalculo.reduce((sum, m) => sum + (m.ppto2026 || 0), 0);
+  const totalUndsAntComparable = mesesParaCalculo.reduce((sum, m) => {
+    const uAnt = m.v2025 > 0 && m.u2026 > 0 && m.v2026 > 0 ? Math.round(m.v2025 / (m.v2026 / m.u2026)) : 0;
+    return sum + uAnt;
+  }, 0);
+
+  const cumplimientoPct = totalPptoComparable > 0
+    ? Math.round((totalVenta2026 / totalPptoComparable) * 1000) / 10
+    : 100;
+  const crecimientoYoYPct = totalVentaAntComparable > 0
+    ? Math.round(((totalVenta2026 - totalVentaAntComparable) / totalVentaAntComparable) * 1000) / 10
+    : 0;
+  const tasaDevPct = totalVentaBruta > 0
+    ? Math.round((totalDev2026 / totalVentaBruta) * 1000) / 10
+    : 0;
 
   return {
-    ventaYTD: ac.v2026,
-    ventaBrutaTotal: ventaBruta,
-    ventaAnteriorTotal: ac.v2025,
-    pptoYTD: ac.ppto,
-    cumplimientoGlobalPct: ac.cumplimientoPct,
-    crecimientoYoYPct: ac.crecimientoYoYPct,
-    devolucionesTotal: devAbs,
-    tasaDevolucionGlobalPct: ac.tasaDevPct,
-    volumenUnidades: ac.unds,
-    unidadesAnteriorTotal: undsAnt,
-    ticketPromedio: ac.unds > 0 ? Math.round(ac.v2026 / ac.unds) : 0,
-    precioPromedioPrenda: ac.unds > 0 ? Math.round(ac.v2026 / ac.unds) : 0,
-    totalTransacciones: ac.unds,
+    ventaYTD: totalVenta2026,
+    ventaBrutaTotal: totalVentaBruta,
+    ventaAnteriorTotal: totalVentaAntComparable,
+    pptoYTD: totalPptoComparable,
+    cumplimientoGlobalPct: cumplimientoPct,
+    crecimientoYoYPct,
+    devolucionesTotal: totalDev2026,
+    tasaDevolucionGlobalPct: tasaDevPct,
+    volumenUnidades: totalUnds2026,
+    unidadesAnteriorTotal: totalUndsAntComparable,
+    ticketPromedio: totalUnds2026 > 0 ? Math.round(totalVenta2026 / totalUnds2026) : 0,
+    precioPromedioPrenda: totalUnds2026 > 0 ? Math.round(totalVenta2026 / totalUnds2026) : 0,
+    totalTransacciones: totalUnds2026,
   };
 }
 
