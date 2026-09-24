@@ -232,7 +232,7 @@ function BadgeYoY({
   } else if (tipo === "unidades" || tipo === "entero") {
     valorAnteriorFormateado = `${formatoEntero(anterior)} ${tipo === "unidades" ? "uds" : ""}`.trim();
   } else if (tipo === "pct") {
-    valorAnteriorFormateado = `${anterior.toFixed(1)}%`;
+    valorAnteriorFormateado = `${Number(anterior.toFixed(2))}%`;
   } else if (tipo === "ratio") {
     valorAnteriorFormateado = `${anterior.toFixed(2)}x`;
   }

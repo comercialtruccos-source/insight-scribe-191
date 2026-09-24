@@ -1255,7 +1255,7 @@ export function calcularDashboard1Cumplimiento(
         cumplimientoPct,
         crecimientoYoY: yoy,
         devolucionesMonto: d.dev,
-        tasaDevolucionPct: ventaBrutaMes > 0 ? Math.round((d.dev / ventaBrutaMes) * 1000) / 10 : 0,
+        tasaDevolucionPct: d.venta > 0 ? Math.round((d.dev / d.venta) * 10000) / 100 : 0,
         unidades: d.unidades,
         unidadesAnterior: uAnt,
       };
@@ -1289,7 +1289,7 @@ export function calcularDashboard1Cumplimiento(
         cumplimientoPct,
         crecimientoYoY: yoy,
         devolucionesMonto: d.dev,
-        tasaDevolucionPct: ventaBrutaMes > 0 ? Math.round((d.dev / ventaBrutaMes) * 1000) / 10 : 0,
+        tasaDevolucionPct: d.venta > 0 ? Math.round((d.dev / d.venta) * 10000) / 100 : 0,
         unidades: d.unidades,
         unidadesAnterior: uAnt,
       };
@@ -1461,7 +1461,7 @@ export function calcularDashboard1Cumplimiento(
   const precioPromedioPrendaAnterior = totalUnidadesAnterior > 0 ? Math.round(totalVentasAnterior / totalUnidadesAnterior) : 0;
   const crecimientoYoYGlobal = totalVentasAnterior > 0 ? Math.round(((totalVentas - totalVentasAnterior) / totalVentasAnterior) * 1000) / 10 : 0;
   const cumplimientoAnteriorPct = totalPptoAnterior > 0 && totalVentasAnterior > 0 ? Math.round((totalVentasAnterior / totalPptoAnterior) * 1000) / 10 : (totalVentasAnterior > 0 ? 100 : 0);
-  const tasaDevolucionAnteriorPct = totalVentaBrutaAnterior > 0 ? Math.round((totalDevolucionesAnterior / totalVentaBrutaAnterior) * 1000) / 10 : 0;
+  const tasaDevolucionAnteriorPct = totalVentasAnterior > 0 ? Math.round((totalDevolucionesAnterior / totalVentasAnterior) * 10000) / 100 : 0;
 
   const cmiKpis = obtenerKpisCalibradosCMI(filtros);
   const cmiMeses = obtenerMesesCalibradosCMI(filtros);
@@ -1493,7 +1493,7 @@ export function calcularDashboard1Cumplimiento(
         crecimientoYoYPct: crecimientoYoYGlobal,
         devolucionesTotal: totalDevoluciones,
         devolucionesAnteriorTotal: totalDevolucionesAnterior,
-        tasaDevolucionGlobalPct: totalVentaBruta > 0 ? Math.round((totalDevoluciones / totalVentaBruta) * 1000) / 10 : 0,
+        tasaDevolucionGlobalPct: totalVentas > 0 ? Math.round((totalDevoluciones / totalVentas) * 10000) / 100 : 0,
         tasaDevolucionAnteriorPct,
         volumenUnidades: totalUnidades,
         unidadesAnteriorTotal: totalUnidadesAnterior,
@@ -2903,7 +2903,7 @@ export function calcularDashboard6Referencias(
   }
 
   const crecimientoYoYPct = totalVentaNetaAnterior > 0 ? Math.round(((totalVentaNeta - totalVentaNetaAnterior) / totalVentaNetaAnterior) * 1000) / 10 : 0;
-  const tasaDevolucionAnterior = totalVentaBrutaAnterior > 0 ? Math.round((totalDevolucionesAnterior / totalVentaBrutaAnterior) * 1000) / 10 : 0;
+  const tasaDevolucionAnterior = totalVentaNetaAnterior > 0 ? Math.round((totalDevolucionesAnterior / totalVentaNetaAnterior) * 10000) / 100 : 0;
   const precioPromedioPonderadoAnterior = totalUnidadesAnterior > 0 ? Math.round(totalVentaNetaAnterior / totalUnidadesAnterior) : 0;
 
   // Ordenar por Venta Neta descendente para Pareto
@@ -2927,7 +2927,7 @@ export function calcularDashboard6Referencias(
     }
 
     const precioPromedio = r.unidades > 0 ? Math.round(r.ventaNeta / r.unidades) : 0;
-    const tasaDevolucion = r.ventaBruta > 0 ? Math.round((r.devoluciones / r.ventaBruta) * 1000) / 10 : 0;
+    const tasaDevolucion = r.ventaNeta > 0 ? Math.round((r.devoluciones / r.ventaNeta) * 10000) / 100 : 0;
     const margenBrutoEstimado =
       r.ventaNeta > 0 && r.costoTotal > 0
         ? Math.round(((r.ventaNeta - r.costoTotal) / r.ventaNeta) * 1000) / 10
@@ -3063,7 +3063,7 @@ export function calcularDashboard6Referencias(
   const refTopU = top15PorVolumen[0];
 
   const precioPromedioPonderado = totalUnidades > 0 ? Math.round(totalVentaNeta / totalUnidades) : 0;
-  const tasaDevolucionGlobal = totalVentaBruta > 0 ? Math.round((totalDevoluciones / totalVentaBruta) * 1000) / 10 : 0;
+  const tasaDevolucionGlobal = totalVentaNeta > 0 ? Math.round((totalDevoluciones / totalVentaNeta) * 10000) / 100 : 0;
 
   return {
     kpis: {

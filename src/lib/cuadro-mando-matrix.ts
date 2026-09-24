@@ -44,7 +44,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -1494203500,
       "cumplimientoPct": 108.6,
       "crecimientoYoYPct": 24.4,
-      "tasaDevPct": 13.6
+      "tasaDevPct": 15.73
     },
     "meses": [
       {
@@ -57,7 +57,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -97672648,
         "cumplimientoPct": 141,
         "crecimientoYoYPct": 162.5,
-        "tasaDevolucionPct": 16.4
+        "tasaDevolucionPct": 19.58
       },
       {
         "mes": 2,
@@ -69,7 +69,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -171415646,
         "cumplimientoPct": 104.4,
         "crecimientoYoYPct": 13.6,
-        "tasaDevolucionPct": 12
+        "tasaDevolucionPct": 13.59
       },
       {
         "mes": 3,
@@ -81,7 +81,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -248742902,
         "cumplimientoPct": 105.7,
         "crecimientoYoYPct": 13.5,
-        "tasaDevolucionPct": 13.6
+        "tasaDevolucionPct": 15.79
       },
       {
         "mes": 4,
@@ -93,7 +93,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -252653421,
         "cumplimientoPct": 114.9,
         "crecimientoYoYPct": 19.5,
-        "tasaDevolucionPct": 11.1
+        "tasaDevolucionPct": 12.46
       },
       {
         "mes": 5,
@@ -105,7 +105,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -314367986,
         "cumplimientoPct": 108.9,
         "crecimientoYoYPct": 24.8,
-        "tasaDevolucionPct": 16.5
+        "tasaDevolucionPct": 19.74
       },
       {
         "mes": 6,
@@ -117,7 +117,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -330625684,
         "cumplimientoPct": 97.8,
         "crecimientoYoYPct": 15.7,
-        "tasaDevolucionPct": 21.6
+        "tasaDevolucionPct": 27.55
       },
       {
         "mes": 7,
@@ -129,7 +129,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -78725213,
         "cumplimientoPct": 108.6,
         "crecimientoYoYPct": 43,
-        "tasaDevolucionPct": 5.5
+        "tasaDevolucionPct": 5.85
       },
       {
         "mes": 8,
@@ -141,7 +141,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -291575187,
         "cumplimientoPct": 55.6,
         "crecimientoYoYPct": -41.9,
-        "tasaDevolucionPct": 23.9
+        "tasaDevolucionPct": 31.38
       },
       {
         "mes": 9,
@@ -218,7 +218,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -50661863,
       "cumplimientoPct": 33.5,
       "crecimientoYoYPct": -46,
-      "tasaDevPct": 19.8
+      "tasaDevPct": 24.64
     },
     "meses": [
       {
@@ -231,7 +231,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -8151525,
         "cumplimientoPct": 14.8,
         "crecimientoYoYPct": -76.5,
-        "tasaDevolucionPct": 84.8
+        "tasaDevolucionPct": 559.17
       },
       {
         "mes": 2,
@@ -243,7 +243,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -9415544,
         "cumplimientoPct": 15,
         "crecimientoYoYPct": -76.2,
-        "tasaDevolucionPct": 31.3
+        "tasaDevolucionPct": 45.64
       },
       {
         "mes": 3,
@@ -255,7 +255,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2801303,
         "cumplimientoPct": 27.7,
         "crecimientoYoYPct": -53.1,
-        "tasaDevolucionPct": 5.8
+        "tasaDevolucionPct": 6.16
       },
       {
         "mes": 4,
@@ -267,7 +267,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -3084765,
         "cumplimientoPct": 18.4,
         "crecimientoYoYPct": -70.9,
-        "tasaDevolucionPct": 10.1
+        "tasaDevolucionPct": 11.25
       },
       {
         "mes": 5,
@@ -279,7 +279,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -9119243,
         "cumplimientoPct": 25.1,
         "crecimientoYoYPct": -60.2,
-        "tasaDevolucionPct": 46.6
+        "tasaDevolucionPct": 87.3
       },
       {
         "mes": 6,
@@ -303,7 +303,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -18089483,
         "cumplimientoPct": 40.9,
         "crecimientoYoYPct": -35,
-        "tasaDevolucionPct": 39.3
+        "tasaDevolucionPct": 64.64
       },
       {
         "mes": 8,
@@ -392,7 +392,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -86263504,
       "cumplimientoPct": 72.7,
       "crecimientoYoYPct": 39.7,
-      "tasaDevPct": 8.9
+      "tasaDevPct": 9.77
     },
     "meses": [
       {
@@ -405,7 +405,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -14195729,
         "cumplimientoPct": 78.7,
         "crecimientoYoYPct": 81.1,
-        "tasaDevolucionPct": 10
+        "tasaDevolucionPct": 11.13
       },
       {
         "mes": 2,
@@ -417,7 +417,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -13280292,
         "cumplimientoPct": 56.5,
         "crecimientoYoYPct": 20.1,
-        "tasaDevolucionPct": 11.6
+        "tasaDevolucionPct": 13.12
       },
       {
         "mes": 3,
@@ -429,7 +429,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -9874369,
         "cumplimientoPct": 89.5,
         "crecimientoYoYPct": 73.9,
-        "tasaDevolucionPct": 6.5
+        "tasaDevolucionPct": 6.97
       },
       {
         "mes": 4,
@@ -441,7 +441,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -10056458,
         "cumplimientoPct": 81,
         "crecimientoYoYPct": 67.6,
-        "tasaDevolucionPct": 8.7
+        "tasaDevolucionPct": 9.54
       },
       {
         "mes": 5,
@@ -453,7 +453,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -8827034,
         "cumplimientoPct": 53.2,
         "crecimientoYoYPct": 10,
-        "tasaDevolucionPct": 9.6
+        "tasaDevolucionPct": 10.6
       },
       {
         "mes": 6,
@@ -465,7 +465,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -5063144,
         "cumplimientoPct": 45.2,
         "crecimientoYoYPct": -3.8,
-        "tasaDevolucionPct": 5.6
+        "tasaDevolucionPct": 5.93
       },
       {
         "mes": 7,
@@ -477,7 +477,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -18537808,
         "cumplimientoPct": 41.5,
         "crecimientoYoYPct": -21.7,
-        "tasaDevolucionPct": 15.7
+        "tasaDevolucionPct": 18.65
       },
       {
         "mes": 8,
@@ -489,7 +489,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -765914,
         "cumplimientoPct": 13.2,
         "crecimientoYoYPct": -70.1,
-        "tasaDevolucionPct": 2.8
+        "tasaDevolucionPct": 2.85
       },
       {
         "mes": 9,
@@ -566,7 +566,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -14219689,
       "cumplimientoPct": 62.5,
       "crecimientoYoYPct": 562.1,
-      "tasaDevPct": 5
+      "tasaDevPct": 5.21
     },
     "meses": [
       {
@@ -579,7 +579,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2506759,
         "cumplimientoPct": 66.7,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 6.9
+        "tasaDevolucionPct": 7.36
       },
       {
         "mes": 2,
@@ -591,7 +591,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2223983,
         "cumplimientoPct": 61.5,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 6.7
+        "tasaDevolucionPct": 7.23
       },
       {
         "mes": 3,
@@ -603,7 +603,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1512928,
         "cumplimientoPct": 74.5,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 3.5
+        "tasaDevolucionPct": 3.65
       },
       {
         "mes": 4,
@@ -615,7 +615,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1547349,
         "cumplimientoPct": 42.3,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 5.3
+        "tasaDevolucionPct": 5.62
       },
       {
         "mes": 5,
@@ -627,7 +627,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2494329,
         "cumplimientoPct": 71.8,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 4.7
+        "tasaDevolucionPct": 4.96
       },
       {
         "mes": 6,
@@ -639,7 +639,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2007820,
         "cumplimientoPct": 50.6,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 4.7
+        "tasaDevolucionPct": 4.96
       },
       {
         "mes": 7,
@@ -651,7 +651,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1926521,
         "cumplimientoPct": 74.2,
         "crecimientoYoYPct": 17.2,
-        "tasaDevolucionPct": 3.8
+        "tasaDevolucionPct": 3.99
       },
       {
         "mes": 8,
@@ -663,7 +663,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1604104,
         "cumplimientoPct": 42.1,
         "crecimientoYoYPct": -41.3,
-        "tasaDevolucionPct": 6
+        "tasaDevolucionPct": 6.34
       },
       {
         "mes": 9,
@@ -740,7 +740,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -266907526,
       "cumplimientoPct": 82.1,
       "crecimientoYoYPct": -4.2,
-      "tasaDevPct": 23
+      "tasaDevPct": 29.82
     },
     "meses": [
       {
@@ -753,7 +753,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -35496000,
         "cumplimientoPct": 112.6,
         "crecimientoYoYPct": -6,
-        "tasaDevolucionPct": 41.7
+        "tasaDevolucionPct": 71.47
       },
       {
         "mes": 2,
@@ -765,7 +765,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -25410867,
         "cumplimientoPct": 85.7,
         "crecimientoYoYPct": 7.1,
-        "tasaDevolucionPct": 16.5
+        "tasaDevolucionPct": 19.69
       },
       {
         "mes": 3,
@@ -777,7 +777,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -24786081,
         "cumplimientoPct": 81.2,
         "crecimientoYoYPct": -5.3,
-        "tasaDevolucionPct": 14.1
+        "tasaDevolucionPct": 16.43
       },
       {
         "mes": 4,
@@ -789,7 +789,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -93087602,
         "cumplimientoPct": 63.7,
         "crecimientoYoYPct": -7.4,
-        "tasaDevolucionPct": 39.9
+        "tasaDevolucionPct": 66.37
       },
       {
         "mes": 5,
@@ -801,7 +801,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -30832394,
         "cumplimientoPct": 82.9,
         "crecimientoYoYPct": -5.5,
-        "tasaDevolucionPct": 16.9
+        "tasaDevolucionPct": 20.39
       },
       {
         "mes": 6,
@@ -914,7 +914,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -158766918,
       "cumplimientoPct": 106.5,
       "crecimientoYoYPct": 18.5,
-      "tasaDevPct": 26.6
+      "tasaDevPct": 36.22
     },
     "meses": [
       {
@@ -927,7 +927,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -13916900,
         "cumplimientoPct": 150.4,
         "crecimientoYoYPct": 105.8,
-        "tasaDevolucionPct": 35.7
+        "tasaDevolucionPct": 55.59
       },
       {
         "mes": 2,
@@ -939,7 +939,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -8230874,
         "cumplimientoPct": 126.6,
         "crecimientoYoYPct": 66,
-        "tasaDevolucionPct": 10.3
+        "tasaDevolucionPct": 11.44
       },
       {
         "mes": 3,
@@ -951,7 +951,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -11867381,
         "cumplimientoPct": 114.8,
         "crecimientoYoYPct": 19.1,
-        "tasaDevolucionPct": 12.8
+        "tasaDevolucionPct": 14.74
       },
       {
         "mes": 4,
@@ -963,7 +963,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -93087602,
         "cumplimientoPct": 90.9,
         "crecimientoYoYPct": 18.5,
-        "tasaDevolucionPct": 55.2
+        "tasaDevolucionPct": 123.27
       },
       {
         "mes": 5,
@@ -975,7 +975,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -9269497,
         "cumplimientoPct": 91.1,
         "crecimientoYoYPct": 11.9,
-        "tasaDevolucionPct": 12.9
+        "tasaDevolucionPct": 14.78
       },
       {
         "mes": 6,
@@ -987,7 +987,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -11390264,
         "cumplimientoPct": 134.9,
         "crecimientoYoYPct": 11.6,
-        "tasaDevolucionPct": 12.8
+        "tasaDevolucionPct": 14.62
       },
       {
         "mes": 7,
@@ -999,7 +999,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -11004400,
         "cumplimientoPct": 76.6,
         "crecimientoYoYPct": -21.8,
-        "tasaDevolucionPct": 19.7
+        "tasaDevolucionPct": 24.6
       },
       {
         "mes": 8,
@@ -1011,7 +1011,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1915800,
         "cumplimientoPct": 39.5,
         "crecimientoYoYPct": -44,
-        "tasaDevolucionPct": 5.8
+        "tasaDevolucionPct": 6.16
       },
       {
         "mes": 9,
@@ -1088,7 +1088,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -94287003,
       "cumplimientoPct": 118.2,
       "crecimientoYoYPct": 28.4,
-      "tasaDevPct": 19
+      "tasaDevPct": 23.49
     },
     "meses": [
       {
@@ -1101,7 +1101,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -10224800,
         "cumplimientoPct": 98.2,
         "crecimientoYoYPct": -55.5,
-        "tasaDevolucionPct": 43.1
+        "tasaDevolucionPct": 75.83
       },
       {
         "mes": 2,
@@ -1113,7 +1113,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -17179993,
         "cumplimientoPct": 121.7,
         "crecimientoYoYPct": 54.1,
-        "tasaDevolucionPct": 23.1
+        "tasaDevolucionPct": 30.1
       },
       {
         "mes": 3,
@@ -1125,7 +1125,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -12918700,
         "cumplimientoPct": 121.6,
         "crecimientoYoYPct": 16,
-        "tasaDevolucionPct": 15.5
+        "tasaDevolucionPct": 18.37
       },
       {
         "mes": 4,
@@ -1149,7 +1149,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -20003492,
         "cumplimientoPct": 126.1,
         "crecimientoYoYPct": 36.8,
-        "tasaDevolucionPct": 21.8
+        "tasaDevolucionPct": 27.94
       },
       {
         "mes": 6,
@@ -1161,7 +1161,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -17188487,
         "cumplimientoPct": 135,
         "crecimientoYoYPct": 59.3,
-        "tasaDevolucionPct": 21.1
+        "tasaDevolucionPct": 26.73
       },
       {
         "mes": 7,
@@ -1173,7 +1173,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -16771531,
         "cumplimientoPct": 124.3,
         "crecimientoYoYPct": 30.2,
-        "tasaDevolucionPct": 21.9
+        "tasaDevolucionPct": 28.03
       },
       {
         "mes": 8,
@@ -1185,7 +1185,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -7984600,
         "cumplimientoPct": 69,
         "crecimientoYoYPct": -10,
-        "tasaDevolucionPct": 15.1
+        "tasaDevolucionPct": 17.84
       },
       {
         "mes": 9,
@@ -1262,7 +1262,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -2499305,
       "cumplimientoPct": 13,
       "crecimientoYoYPct": 0,
-      "tasaDevPct": 5.4
+      "tasaDevPct": 5.67
     },
     "meses": [
       {
@@ -1323,7 +1323,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1559405,
         "cumplimientoPct": 29.8,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 8.4
+        "tasaDevolucionPct": 9.21
       },
       {
         "mes": 6,
@@ -1335,7 +1335,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -939900,
         "cumplimientoPct": 15.3,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 11.5
+        "tasaDevolucionPct": 12.94
       },
       {
         "mes": 7,
@@ -1359,7 +1359,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -943900,
         "cumplimientoPct": 30,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 4.6
+        "tasaDevolucionPct": 4.85
       },
       {
         "mes": 9,
@@ -1610,7 +1610,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -11354300,
       "cumplimientoPct": 0,
       "crecimientoYoYPct": -95.3,
-      "tasaDevPct": 50.5
+      "tasaDevPct": 101.85
     },
     "meses": [
       {
@@ -1623,7 +1623,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -11354300,
         "cumplimientoPct": 0,
         "crecimientoYoYPct": 889.5,
-        "tasaDevolucionPct": 50.5
+        "tasaDevolucionPct": 101.85
       },
       {
         "mes": 2,
@@ -1958,7 +1958,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -54280789,
       "cumplimientoPct": 64.8,
       "crecimientoYoYPct": -33.8,
-      "tasaDevPct": 11.1
+      "tasaDevPct": 12.52
     },
     "meses": [
       {
@@ -1971,7 +1971,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2775600,
         "cumplimientoPct": 27.7,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 27
+        "tasaDevolucionPct": 37
       },
       {
         "mes": 2,
@@ -1983,7 +1983,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -3781400,
         "cumplimientoPct": 46.6,
         "crecimientoYoYPct": -43.6,
-        "tasaDevolucionPct": 8.1
+        "tasaDevolucionPct": 8.79
       },
       {
         "mes": 3,
@@ -1995,7 +1995,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -3444300,
         "cumplimientoPct": 87.3,
         "crecimientoYoYPct": -40.5,
-        "tasaDevolucionPct": 3.3
+        "tasaDevolucionPct": 3.46
       },
       {
         "mes": 4,
@@ -2007,7 +2007,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -995300,
         "cumplimientoPct": 92.9,
         "crecimientoYoYPct": -10.8,
-        "tasaDevolucionPct": 0.8
+        "tasaDevolucionPct": 0.79
       },
       {
         "mes": 5,
@@ -2019,7 +2019,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -18920789,
         "cumplimientoPct": 66,
         "crecimientoYoYPct": -42.7,
-        "tasaDevolucionPct": 20.4
+        "tasaDevolucionPct": 25.65
       },
       {
         "mes": 6,
@@ -2031,7 +2031,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -24363400,
         "cumplimientoPct": 30.5,
         "crecimientoYoYPct": -48.3,
-        "tasaDevolucionPct": 46
+        "tasaDevolucionPct": 85.22
       },
       {
         "mes": 7,
@@ -2132,7 +2132,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -8607700,
       "cumplimientoPct": 0,
       "crecimientoYoYPct": 0,
-      "tasaDevPct": 13.2
+      "tasaDevPct": 15.24
     },
     "meses": [
       {
@@ -2205,7 +2205,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -4204500,
         "cumplimientoPct": 0,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 18.9
+        "tasaDevolucionPct": 23.29
       },
       {
         "mes": 7,
@@ -2217,7 +2217,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -4403200,
         "cumplimientoPct": 0,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 13.1
+        "tasaDevolucionPct": 15.02
       },
       {
         "mes": 8,
@@ -2229,7 +2229,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -98900,
         "cumplimientoPct": 0,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 1
+        "tasaDevolucionPct": 1.06
       },
       {
         "mes": 9,
@@ -2306,7 +2306,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -77898964,
       "cumplimientoPct": 98.3,
       "crecimientoYoYPct": 17.9,
-      "tasaDevPct": 6.5
+      "tasaDevPct": 7
     },
     "meses": [
       {
@@ -2319,7 +2319,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -13897000,
         "cumplimientoPct": 128.6,
         "crecimientoYoYPct": 444.8,
-        "tasaDevolucionPct": 19.1
+        "tasaDevolucionPct": 23.61
       },
       {
         "mes": 2,
@@ -2331,7 +2331,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -13236000,
         "cumplimientoPct": 106.6,
         "crecimientoYoYPct": -12.1,
-        "tasaDevolucionPct": 7.4
+        "tasaDevolucionPct": 7.95
       },
       {
         "mes": 3,
@@ -2343,7 +2343,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -10327900,
         "cumplimientoPct": 110.5,
         "crecimientoYoYPct": 51.9,
-        "tasaDevolucionPct": 4.6
+        "tasaDevolucionPct": 4.85
       },
       {
         "mes": 4,
@@ -2355,7 +2355,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -5585300,
         "cumplimientoPct": 93.7,
         "crecimientoYoYPct": -13.7,
-        "tasaDevolucionPct": 2.5
+        "tasaDevolucionPct": 2.61
       },
       {
         "mes": 5,
@@ -2367,7 +2367,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -12493900,
         "cumplimientoPct": 99.4,
         "crecimientoYoYPct": 40.2,
-        "tasaDevolucionPct": 6.2
+        "tasaDevolucionPct": 6.64
       },
       {
         "mes": 6,
@@ -2379,7 +2379,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -13908800,
         "cumplimientoPct": 63.7,
         "crecimientoYoYPct": 14.9,
-        "tasaDevolucionPct": 12.1
+        "tasaDevolucionPct": 13.76
       },
       {
         "mes": 7,
@@ -2391,7 +2391,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -8450064,
         "cumplimientoPct": 106.6,
         "crecimientoYoYPct": 28.6,
-        "tasaDevolucionPct": 4.7
+        "tasaDevolucionPct": 4.94
       },
       {
         "mes": 8,
@@ -2403,7 +2403,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -173769955,
         "cumplimientoPct": 92.7,
         "crecimientoYoYPct": -11.1,
-        "tasaDevolucionPct": 46.4
+        "tasaDevolucionPct": 86.72
       },
       {
         "mes": 9,
@@ -2480,7 +2480,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -20821100,
       "cumplimientoPct": 132.5,
       "crecimientoYoYPct": 114.7,
-      "tasaDevPct": 3.7
+      "tasaDevPct": 3.82
     },
     "meses": [
       {
@@ -2493,7 +2493,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2801800,
         "cumplimientoPct": 319.8,
         "crecimientoYoYPct": 1236.8,
-        "tasaDevolucionPct": 5
+        "tasaDevolucionPct": 5.26
       },
       {
         "mes": 2,
@@ -2505,7 +2505,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1961800,
         "cumplimientoPct": 187.1,
         "crecimientoYoYPct": 246.8,
-        "tasaDevolucionPct": 1.8
+        "tasaDevolucionPct": 1.84
       },
       {
         "mes": 3,
@@ -2517,7 +2517,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -3750000,
         "cumplimientoPct": 71.3,
         "crecimientoYoYPct": 38.9,
-        "tasaDevolucionPct": 7
+        "tasaDevolucionPct": 7.5
       },
       {
         "mes": 4,
@@ -2541,7 +2541,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -3432400,
         "cumplimientoPct": 63.6,
         "crecimientoYoYPct": 7.8,
-        "tasaDevolucionPct": 7.3
+        "tasaDevolucionPct": 7.84
       },
       {
         "mes": 6,
@@ -2553,7 +2553,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -4961200,
         "cumplimientoPct": 59.9,
         "crecimientoYoYPct": -22.8,
-        "tasaDevolucionPct": 12.5
+        "tasaDevolucionPct": 14.34
       },
       {
         "mes": 7,
@@ -2565,7 +2565,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2980000,
         "cumplimientoPct": 42,
         "crecimientoYoYPct": -28.6,
-        "tasaDevolucionPct": 10.8
+        "tasaDevolucionPct": 12.16
       },
       {
         "mes": 8,
@@ -2654,7 +2654,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -4315878,
       "cumplimientoPct": 93,
       "crecimientoYoYPct": 26.6,
-      "tasaDevPct": 2.4
+      "tasaDevPct": 2.51
     },
     "meses": [
       {
@@ -2679,7 +2679,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -210178,
         "cumplimientoPct": 69.7,
         "crecimientoYoYPct": 936.6,
-        "tasaDevolucionPct": 1.2
+        "tasaDevolucionPct": 1.18
       },
       {
         "mes": 3,
@@ -2691,7 +2691,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2963100,
         "cumplimientoPct": 86.2,
         "crecimientoYoYPct": 29.8,
-        "tasaDevolucionPct": 9.8
+        "tasaDevolucionPct": 10.89
       },
       {
         "mes": 4,
@@ -2715,7 +2715,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -414500,
         "cumplimientoPct": 75.7,
         "crecimientoYoYPct": 25.3,
-        "tasaDevolucionPct": 1.7
+        "tasaDevolucionPct": 1.77
       },
       {
         "mes": 6,
@@ -2828,7 +2828,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -20438166,
       "cumplimientoPct": 22.5,
       "crecimientoYoYPct": 0,
-      "tasaDevPct": 18.9
+      "tasaDevPct": 23.24
     },
     "meses": [
       {
@@ -2901,7 +2901,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -20438166,
         "cumplimientoPct": 43.9,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 45.9
+        "tasaDevolucionPct": 84.84
       },
       {
         "mes": 7,
@@ -3002,7 +3002,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -20572037,
       "cumplimientoPct": 49.8,
       "crecimientoYoYPct": -35.5,
-      "tasaDevPct": 10.9
+      "tasaDevPct": 12.17
     },
     "meses": [
       {
@@ -3027,7 +3027,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1214800,
         "cumplimientoPct": 73.9,
         "crecimientoYoYPct": -43.7,
-        "tasaDevolucionPct": 3.4
+        "tasaDevolucionPct": 3.51
       },
       {
         "mes": 3,
@@ -3039,7 +3039,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -3264692,
         "cumplimientoPct": 40,
         "crecimientoYoYPct": -54.1,
-        "tasaDevolucionPct": 12.4
+        "tasaDevolucionPct": 14.11
       },
       {
         "mes": 4,
@@ -3063,7 +3063,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -5079461,
         "cumplimientoPct": 63.7,
         "crecimientoYoYPct": -32,
-        "tasaDevolucionPct": 12.3
+        "tasaDevolucionPct": 14.04
       },
       {
         "mes": 6,
@@ -3075,7 +3075,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -5679200,
         "cumplimientoPct": 4.6,
         "crecimientoYoYPct": -80.5,
-        "tasaDevolucionPct": 72
+        "tasaDevolucionPct": 257.03
       },
       {
         "mes": 7,
@@ -3087,7 +3087,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -467500,
         "cumplimientoPct": 0.2,
         "crecimientoYoYPct": -99.4,
-        "tasaDevolucionPct": 84.8
+        "tasaDevolucionPct": 558.54
       },
       {
         "mes": 8,
@@ -3698,7 +3698,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -43038502,
       "cumplimientoPct": 102.1,
       "crecimientoYoYPct": 21.9,
-      "tasaDevPct": 5.2
+      "tasaDevPct": 5.46
     },
     "meses": [
       {
@@ -3711,7 +3711,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -3995700,
         "cumplimientoPct": 39.8,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 24.4
+        "tasaDevolucionPct": 32.2
       },
       {
         "mes": 2,
@@ -3723,7 +3723,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -4613400,
         "cumplimientoPct": 81.7,
         "crecimientoYoYPct": -23.6,
-        "tasaDevolucionPct": 5
+        "tasaDevolucionPct": 5.3
       },
       {
         "mes": 3,
@@ -3735,7 +3735,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -15514702,
         "cumplimientoPct": 68.6,
         "crecimientoYoYPct": 14.6,
-        "tasaDevolucionPct": 14.7
+        "tasaDevolucionPct": 17.19
       },
       {
         "mes": 4,
@@ -3747,7 +3747,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -4365900,
         "cumplimientoPct": 118.9,
         "crecimientoYoYPct": -3.7,
-        "tasaDevolucionPct": 2.3
+        "tasaDevolucionPct": 2.36
       },
       {
         "mes": 5,
@@ -3759,7 +3759,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -8538700,
         "cumplimientoPct": 144.1,
         "crecimientoYoYPct": 85.2,
-        "tasaDevolucionPct": 4.4
+        "tasaDevolucionPct": 4.59
       },
       {
         "mes": 6,
@@ -3771,7 +3771,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -4286800,
         "cumplimientoPct": 103,
         "crecimientoYoYPct": -2.4,
-        "tasaDevolucionPct": 3.7
+        "tasaDevolucionPct": 3.84
       },
       {
         "mes": 7,
@@ -3783,7 +3783,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1723300,
         "cumplimientoPct": 105.9,
         "crecimientoYoYPct": 111,
-        "tasaDevolucionPct": 1.5
+        "tasaDevolucionPct": 1.49
       },
       {
         "mes": 8,
@@ -3795,7 +3795,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -100838732,
         "cumplimientoPct": 108.1,
         "crecimientoYoYPct": -5.5,
-        "tasaDevolucionPct": 38.7
+        "tasaDevolucionPct": 63.24
       },
       {
         "mes": 9,
@@ -3872,7 +3872,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -527915216,
       "cumplimientoPct": 130,
       "crecimientoYoYPct": 31.6,
-      "tasaDevPct": 20.7
+      "tasaDevPct": 26.14
     },
     "meses": [
       {
@@ -3885,7 +3885,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -10713680,
         "cumplimientoPct": 242.8,
         "crecimientoYoYPct": 162.4,
-        "tasaDevolucionPct": 6.6
+        "tasaDevolucionPct": 7.02
       },
       {
         "mes": 2,
@@ -3897,7 +3897,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -112013856,
         "cumplimientoPct": 168.6,
         "crecimientoYoYPct": 67.1,
-        "tasaDevolucionPct": 23.6
+        "tasaDevolucionPct": 30.95
       },
       {
         "mes": 3,
@@ -3909,7 +3909,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -157845786,
         "cumplimientoPct": 170,
         "crecimientoYoYPct": 41.5,
-        "tasaDevolucionPct": 26
+        "tasaDevolucionPct": 35.07
       },
       {
         "mes": 4,
@@ -3921,7 +3921,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -100219785,
         "cumplimientoPct": 145.1,
         "crecimientoYoYPct": 22.7,
-        "tasaDevolucionPct": 18.1
+        "tasaDevolucionPct": 22.03
       },
       {
         "mes": 5,
@@ -3933,7 +3933,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -113653547,
         "cumplimientoPct": 42,
         "crecimientoYoYPct": -47.6,
-        "tasaDevolucionPct": 51
+        "tasaDevolucionPct": 104.25
       },
       {
         "mes": 6,
@@ -3945,7 +3945,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -16400648,
         "cumplimientoPct": 69.2,
         "crecimientoYoYPct": 4.9,
-        "tasaDevolucionPct": 9.8
+        "tasaDevolucionPct": 10.87
       },
       {
         "mes": 7,
@@ -3957,7 +3957,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -17067914,
         "cumplimientoPct": 154.4,
         "crecimientoYoYPct": 54.7,
-        "tasaDevolucionPct": 4.8
+        "tasaDevolucionPct": 5.02
       },
       {
         "mes": 8,
@@ -3969,7 +3969,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -132800,
         "cumplimientoPct": 68.1,
         "crecimientoYoYPct": -20.6,
-        "tasaDevolucionPct": 0.1
+        "tasaDevolucionPct": 0.07
       },
       {
         "mes": 9,
@@ -4220,7 +4220,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -205712769,
       "cumplimientoPct": 113.6,
       "crecimientoYoYPct": 17.2,
-      "tasaDevPct": 16.2
+      "tasaDevPct": 19.34
     },
     "meses": [
       {
@@ -4233,7 +4233,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -13500064,
         "cumplimientoPct": 278.4,
         "crecimientoYoYPct": 173.3,
-        "tasaDevolucionPct": 11.3
+        "tasaDevolucionPct": 12.8
       },
       {
         "mes": 2,
@@ -4245,7 +4245,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -4832463,
         "cumplimientoPct": 98.5,
         "crecimientoYoYPct": -13.5,
-        "tasaDevolucionPct": 3.7
+        "tasaDevolucionPct": 3.79
       },
       {
         "mes": 3,
@@ -4257,7 +4257,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -9383188,
         "cumplimientoPct": 108.7,
         "crecimientoYoYPct": -24.7,
-        "tasaDevolucionPct": 5.1
+        "tasaDevolucionPct": 5.41
       },
       {
         "mes": 4,
@@ -4269,7 +4269,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -5593248,
         "cumplimientoPct": 117.3,
         "crecimientoYoYPct": 5.3,
-        "tasaDevolucionPct": 2.5
+        "tasaDevolucionPct": 2.52
       },
       {
         "mes": 5,
@@ -4281,7 +4281,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -21998571,
         "cumplimientoPct": 78.2,
         "crecimientoYoYPct": 6.5,
-        "tasaDevolucionPct": 15.2
+        "tasaDevolucionPct": 17.97
       },
       {
         "mes": 6,
@@ -4293,7 +4293,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -144290778,
         "cumplimientoPct": 160.9,
         "crecimientoYoYPct": 221.6,
-        "tasaDevolucionPct": 40.6
+        "tasaDevolucionPct": 68.25
       },
       {
         "mes": 7,
@@ -4305,7 +4305,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -6114457,
         "cumplimientoPct": 76.8,
         "crecimientoYoYPct": 2,
-        "tasaDevolucionPct": 5.7
+        "tasaDevolucionPct": 6
       },
       {
         "mes": 8,
@@ -4317,7 +4317,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -449500,
         "cumplimientoPct": 52.4,
         "crecimientoYoYPct": -40.5,
-        "tasaDevolucionPct": 0.5
+        "tasaDevolucionPct": 0.48
       },
       {
         "mes": 9,
@@ -4394,7 +4394,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -11886110,
       "cumplimientoPct": 82.3,
       "crecimientoYoYPct": -8.8,
-      "tasaDevPct": 4.6
+      "tasaDevPct": 4.84
     },
     "meses": [
       {
@@ -4407,7 +4407,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2841600,
         "cumplimientoPct": -7.9,
         "crecimientoYoYPct": -115.1,
-        "tasaDevolucionPct": 150.1
+        "tasaDevolucionPct": 0
       },
       {
         "mes": 2,
@@ -4419,7 +4419,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -165800,
         "cumplimientoPct": 18.6,
         "crecimientoYoYPct": -85.7,
-        "tasaDevolucionPct": 2.1
+        "tasaDevolucionPct": 2.16
       },
       {
         "mes": 3,
@@ -4431,7 +4431,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -569300,
         "cumplimientoPct": 53.6,
         "crecimientoYoYPct": -49.8,
-        "tasaDevolucionPct": 2
+        "tasaDevolucionPct": 2.09
       },
       {
         "mes": 4,
@@ -4443,7 +4443,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -552724,
         "cumplimientoPct": 36.7,
         "crecimientoYoYPct": -24.7,
-        "tasaDevolucionPct": 2.4
+        "tasaDevolucionPct": 2.5
       },
       {
         "mes": 5,
@@ -4455,7 +4455,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1754904,
         "cumplimientoPct": 229.7,
         "crecimientoYoYPct": 77.2,
-        "tasaDevolucionPct": 1.5
+        "tasaDevolucionPct": 1.53
       },
       {
         "mes": 6,
@@ -4467,7 +4467,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -3839300,
         "cumplimientoPct": 146.2,
         "crecimientoYoYPct": 51.1,
-        "tasaDevolucionPct": 5.9
+        "tasaDevolucionPct": 6.27
       },
       {
         "mes": 7,
@@ -4479,7 +4479,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2162482,
         "cumplimientoPct": 32.1,
         "crecimientoYoYPct": -34.1,
-        "tasaDevolucionPct": 13.7
+        "tasaDevolucionPct": 15.91
       },
       {
         "mes": 8,
@@ -4491,7 +4491,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -72900,
         "cumplimientoPct": 17.9,
         "crecimientoYoYPct": -74.5,
-        "tasaDevolucionPct": 0.7
+        "tasaDevolucionPct": 0.71
       },
       {
         "mes": 9,
@@ -4568,7 +4568,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -68688657,
       "cumplimientoPct": 73.3,
       "crecimientoYoYPct": -9.2,
-      "tasaDevPct": 17
+      "tasaDevPct": 20.48
     },
     "meses": [
       {
@@ -4581,7 +4581,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -6062700,
         "cumplimientoPct": 17.6,
         "crecimientoYoYPct": -61.5,
-        "tasaDevolucionPct": 65
+        "tasaDevolucionPct": 185.54
       },
       {
         "mes": 2,
@@ -4593,7 +4593,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -573300,
         "cumplimientoPct": 80.6,
         "crecimientoYoYPct": 53.3,
-        "tasaDevolucionPct": 1.1
+        "tasaDevolucionPct": 1.13
       },
       {
         "mes": 3,
@@ -4605,7 +4605,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2146540,
         "cumplimientoPct": 62.6,
         "crecimientoYoYPct": 99.7,
-        "tasaDevolucionPct": 4.2
+        "tasaDevolucionPct": 4.4
       },
       {
         "mes": 4,
@@ -4617,7 +4617,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -3152400,
         "cumplimientoPct": 61,
         "crecimientoYoYPct": -9,
-        "tasaDevolucionPct": 5.3
+        "tasaDevolucionPct": 5.59
       },
       {
         "mes": 5,
@@ -4629,7 +4629,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -5493200,
         "cumplimientoPct": 163.1,
         "crecimientoYoYPct": 4.5,
-        "tasaDevolucionPct": 4.2
+        "tasaDevolucionPct": 4.4
       },
       {
         "mes": 6,
@@ -4641,7 +4641,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -50568417,
         "cumplimientoPct": 58.8,
         "crecimientoYoYPct": -56.5,
-        "tasaDevolucionPct": 57.2
+        "tasaDevolucionPct": 133.79
       },
       {
         "mes": 7,
@@ -4653,7 +4653,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -692100,
         "cumplimientoPct": 20.5,
         "crecimientoYoYPct": -61.8,
-        "tasaDevolucionPct": 4.9
+        "tasaDevolucionPct": 5.19
       },
       {
         "mes": 8,
@@ -4665,7 +4665,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2854700,
         "cumplimientoPct": 26.8,
         "crecimientoYoYPct": -82.4,
-        "tasaDevolucionPct": 10.8
+        "tasaDevolucionPct": 12.16
       },
       {
         "mes": 9,
@@ -4742,7 +4742,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -48225663,
       "cumplimientoPct": 33.5,
       "crecimientoYoYPct": -45.9,
-      "tasaDevPct": 19
+      "tasaDevPct": 23.42
     },
     "meses": [
       {
@@ -4755,7 +4755,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -7854825,
         "cumplimientoPct": 17.8,
         "crecimientoYoYPct": -71.7,
-        "tasaDevolucionPct": 81.7
+        "tasaDevolucionPct": 447.7
       },
       {
         "mes": 2,
@@ -4767,7 +4767,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -9415544,
         "cumplimientoPct": 15,
         "crecimientoYoYPct": -76.2,
-        "tasaDevolucionPct": 31.3
+        "tasaDevolucionPct": 45.64
       },
       {
         "mes": 3,
@@ -4779,7 +4779,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -661803,
         "cumplimientoPct": 27.7,
         "crecimientoYoYPct": -53.1,
-        "tasaDevolucionPct": 1.4
+        "tasaDevolucionPct": 1.46
       },
       {
         "mes": 4,
@@ -4791,7 +4791,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -3084765,
         "cumplimientoPct": 18.4,
         "crecimientoYoYPct": -70.9,
-        "tasaDevolucionPct": 10.1
+        "tasaDevolucionPct": 11.25
       },
       {
         "mes": 5,
@@ -4803,7 +4803,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -9119243,
         "cumplimientoPct": 25.1,
         "crecimientoYoYPct": -60.2,
-        "tasaDevolucionPct": 46.6
+        "tasaDevolucionPct": 87.3
       },
       {
         "mes": 6,
@@ -4827,7 +4827,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -18089483,
         "cumplimientoPct": 40.9,
         "crecimientoYoYPct": -35,
-        "tasaDevolucionPct": 39.3
+        "tasaDevolucionPct": 64.64
       },
       {
         "mes": 8,
@@ -4953,7 +4953,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2139500,
         "cumplimientoPct": 0,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 100
+        "tasaDevolucionPct": 0
       },
       {
         "mes": 4,
@@ -5090,7 +5090,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -2588000,
       "cumplimientoPct": 48.1,
       "crecimientoYoYPct": -45.1,
-      "tasaDevPct": 11.6
+      "tasaDevPct": 13.08
     },
     "meses": [
       {
@@ -5139,7 +5139,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2588000,
         "cumplimientoPct": 59,
         "crecimientoYoYPct": 12.1,
-        "tasaDevolucionPct": 34.6
+        "tasaDevolucionPct": 52.79
       },
       {
         "mes": 5,
@@ -5264,7 +5264,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -51665869,
       "cumplimientoPct": 93.5,
       "crecimientoYoYPct": 22.4,
-      "tasaDevPct": 9.8
+      "tasaDevPct": 10.83
     },
     "meses": [
       {
@@ -5277,7 +5277,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -9804046,
         "cumplimientoPct": 113.2,
         "crecimientoYoYPct": 54.9,
-        "tasaDevolucionPct": 11.3
+        "tasaDevolucionPct": 12.72
       },
       {
         "mes": 2,
@@ -5289,7 +5289,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -8785847,
         "cumplimientoPct": 68.9,
         "crecimientoYoYPct": -8.3,
-        "tasaDevolucionPct": 14.5
+        "tasaDevolucionPct": 16.95
       },
       {
         "mes": 3,
@@ -5301,7 +5301,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -7051391,
         "cumplimientoPct": 121.4,
         "crecimientoYoYPct": 62.6,
-        "tasaDevolucionPct": 8
+        "tasaDevolucionPct": 8.74
       },
       {
         "mes": 4,
@@ -5313,7 +5313,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -6019168,
         "cumplimientoPct": 112.3,
         "crecimientoYoYPct": 60.5,
-        "tasaDevolucionPct": 8.9
+        "tasaDevolucionPct": 9.81
       },
       {
         "mes": 5,
@@ -5325,7 +5325,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -6569962,
         "cumplimientoPct": 102.7,
         "crecimientoYoYPct": 33.8,
-        "tasaDevolucionPct": 8.9
+        "tasaDevolucionPct": 9.74
       },
       {
         "mes": 6,
@@ -5337,7 +5337,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -4270774,
         "cumplimientoPct": 85.3,
         "crecimientoYoYPct": 8.3,
-        "tasaDevolucionPct": 5.9
+        "tasaDevolucionPct": 6.31
       },
       {
         "mes": 7,
@@ -5349,7 +5349,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -9164681,
         "cumplimientoPct": 70.5,
         "crecimientoYoYPct": -14.1,
-        "tasaDevolucionPct": 11.4
+        "tasaDevolucionPct": 12.91
       },
       {
         "mes": 8,
@@ -5361,7 +5361,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -442445,
         "cumplimientoPct": 25.8,
         "crecimientoYoYPct": -66,
-        "tasaDevolucionPct": 2
+        "tasaDevolucionPct": 2.01
       },
       {
         "mes": 9,
@@ -5438,7 +5438,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -12887764,
       "cumplimientoPct": 99.6,
       "crecimientoYoYPct": 26.1,
-      "tasaDevPct": 9.6
+      "tasaDevPct": 10.65
     },
     "meses": [
       {
@@ -5451,7 +5451,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1679042,
         "cumplimientoPct": 94.9,
         "crecimientoYoYPct": 2.3,
-        "tasaDevolucionPct": 9.8
+        "tasaDevolucionPct": 10.92
       },
       {
         "mes": 2,
@@ -5463,7 +5463,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2270462,
         "cumplimientoPct": 100.5,
         "crecimientoYoYPct": 19.6,
-        "tasaDevolucionPct": 11.2
+        "tasaDevolucionPct": 12.61
       },
       {
         "mes": 3,
@@ -5475,7 +5475,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1310050,
         "cumplimientoPct": 122,
         "crecimientoYoYPct": 42,
-        "tasaDevolucionPct": 6.4
+        "tasaDevolucionPct": 6.79
       },
       {
         "mes": 4,
@@ -5487,7 +5487,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2489941,
         "cumplimientoPct": 127.1,
         "crecimientoYoYPct": 20.2,
-        "tasaDevolucionPct": 13.1
+        "tasaDevolucionPct": 15.06
       },
       {
         "mes": 5,
@@ -5499,7 +5499,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2136172,
         "cumplimientoPct": 100.6,
         "crecimientoYoYPct": 30.1,
-        "tasaDevolucionPct": 11.9
+        "tasaDevolucionPct": 13.57
       },
       {
         "mes": 6,
@@ -5511,7 +5511,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -792370,
         "cumplimientoPct": 92.9,
         "crecimientoYoYPct": 35.1,
-        "tasaDevolucionPct": 4.3
+        "tasaDevolucionPct": 4.51
       },
       {
         "mes": 7,
@@ -5523,7 +5523,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2209727,
         "cumplimientoPct": 77,
         "crecimientoYoYPct": 37.7,
-        "tasaDevolucionPct": 10.7
+        "tasaDevolucionPct": 11.97
       },
       {
         "mes": 8,
@@ -5535,7 +5535,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -160420,
         "cumplimientoPct": 25.1,
         "crecimientoYoYPct": -69.4,
-        "tasaDevolucionPct": 3.1
+        "tasaDevolucionPct": 3.15
       },
       {
         "mes": 9,
@@ -5612,7 +5612,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -120900,
       "cumplimientoPct": 1.9,
       "crecimientoYoYPct": -97.7,
-      "tasaDevPct": 5.7
+      "tasaDevPct": 6.07
     },
     "meses": [
       {
@@ -5673,7 +5673,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -120900,
         "cumplimientoPct": 0.3,
         "crecimientoYoYPct": -99.7,
-        "tasaDevolucionPct": 72.9
+        "tasaDevolucionPct": 269.27
       },
       {
         "mes": 6,
@@ -5786,7 +5786,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -205882,
       "cumplimientoPct": 44,
       "crecimientoYoYPct": -46.1,
-      "tasaDevPct": 2.1
+      "tasaDevPct": 2.11
     },
     "meses": [
       {
@@ -6393,7 +6393,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -7163400,
         "cumplimientoPct": 0,
         "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 100
+        "tasaDevolucionPct": 0
       },
       {
         "mes": 8,
@@ -6830,7 +6830,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -10232160,
       "cumplimientoPct": 376.3,
       "crecimientoYoYPct": 46.4,
-      "tasaDevPct": 14.2
+      "tasaDevPct": 16.52
     },
     "meses": [
       {
@@ -6843,7 +6843,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -474500,
         "cumplimientoPct": 454.7,
         "crecimientoYoYPct": 46.2,
-        "tasaDevolucionPct": 13.5
+        "tasaDevolucionPct": 15.67
       },
       {
         "mes": 2,
@@ -6855,7 +6855,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2231760,
         "cumplimientoPct": 228.6,
         "crecimientoYoYPct": 158.4,
-        "tasaDevolucionPct": 30
+        "tasaDevolucionPct": 42.94
       },
       {
         "mes": 3,
@@ -6867,7 +6867,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2297800,
         "cumplimientoPct": 273,
         "crecimientoYoYPct": 269.6,
-        "tasaDevolucionPct": 23.1
+        "tasaDevolucionPct": 30.01
       },
       {
         "mes": 4,
@@ -6879,7 +6879,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -644300,
         "cumplimientoPct": 273.4,
         "crecimientoYoYPct": 160.7,
-        "tasaDevolucionPct": 6.6
+        "tasaDevolucionPct": 7.09
       },
       {
         "mes": 5,
@@ -6891,7 +6891,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1264700,
         "cumplimientoPct": 514.3,
         "crecimientoYoYPct": 2,
-        "tasaDevolucionPct": 8.2
+        "tasaDevolucionPct": 8.93
       },
       {
         "mes": 6,
@@ -6903,7 +6903,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1409500,
         "cumplimientoPct": 454.5,
         "crecimientoYoYPct": 144.6,
-        "tasaDevolucionPct": 11.8
+        "tasaDevolucionPct": 13.43
       },
       {
         "mes": 7,
@@ -6915,7 +6915,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -1909600,
         "cumplimientoPct": 528,
         "crecimientoYoYPct": -14.9,
-        "tasaDevolucionPct": 13.4
+        "tasaDevolucionPct": 15.5
       },
       {
         "mes": 8,
@@ -6927,7 +6927,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -217600,
         "cumplimientoPct": 122.6,
         "crecimientoYoYPct": -69.5,
-        "tasaDevolucionPct": 5.3
+        "tasaDevolucionPct": 5.64
       },
       {
         "mes": 9,
@@ -7004,7 +7004,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -136119858,
       "cumplimientoPct": 304.3,
       "crecimientoYoYPct": 481.1,
-      "tasaDevPct": 9.2
+      "tasaDevPct": 10.11
     },
     "meses": [
       {
@@ -7017,7 +7017,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -170720,
         "cumplimientoPct": 292,
         "crecimientoYoYPct": 2128.2,
-        "tasaDevolucionPct": 0.3
+        "tasaDevolucionPct": 0.33
       },
       {
         "mes": 2,
@@ -7041,7 +7041,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -417191,
         "cumplimientoPct": 268.8,
         "crecimientoYoYPct": 216.4,
-        "tasaDevolucionPct": 0.2
+        "tasaDevolucionPct": 0.21
       },
       {
         "mes": 4,
@@ -7053,7 +7053,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -33897000,
         "cumplimientoPct": 275.2,
         "crecimientoYoYPct": 213.6,
-        "tasaDevolucionPct": 12.1
+        "tasaDevolucionPct": 13.8
       },
       {
         "mes": 5,
@@ -7065,7 +7065,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -89829720,
         "cumplimientoPct": 355.9,
         "crecimientoYoYPct": 15299.5,
-        "tasaDevolucionPct": 25.4
+        "tasaDevolucionPct": 34.11
       },
       {
         "mes": 6,
@@ -7077,7 +7077,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -6074040,
         "cumplimientoPct": 384.4,
         "crecimientoYoYPct": 1708.6,
-        "tasaDevolucionPct": 2.5
+        "tasaDevolucionPct": 2.55
       },
       {
         "mes": 7,
@@ -7089,7 +7089,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -4835865,
         "cumplimientoPct": 370.3,
         "crecimientoYoYPct": 642.1,
-        "tasaDevolucionPct": 2
+        "tasaDevolucionPct": 2.08
       },
       {
         "mes": 8,
@@ -7178,7 +7178,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -14180068,
       "cumplimientoPct": 53.6,
       "crecimientoYoYPct": -62,
-      "tasaDevPct": 9.3
+      "tasaDevPct": 10.29
     },
     "meses": [
       {
@@ -7191,7 +7191,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -76900,
         "cumplimientoPct": 11.7,
         "crecimientoYoYPct": -86.3,
-        "tasaDevolucionPct": 5.9
+        "tasaDevolucionPct": 6.32
       },
       {
         "mes": 2,
@@ -7203,7 +7203,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -274700,
         "cumplimientoPct": 6.5,
         "crecimientoYoYPct": -84,
-        "tasaDevolucionPct": 10.7
+        "tasaDevolucionPct": 11.92
       },
       {
         "mes": 3,
@@ -7215,7 +7215,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -12032322,
         "cumplimientoPct": 16.2,
         "crecimientoYoYPct": -55.9,
-        "tasaDevolucionPct": 62.9
+        "tasaDevolucionPct": 169.24
       },
       {
         "mes": 4,
@@ -7227,7 +7227,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -309862,
         "cumplimientoPct": 8.2,
         "crecimientoYoYPct": -85.9,
-        "tasaDevolucionPct": 6.8
+        "tasaDevolucionPct": 7.32
       },
       {
         "mes": 5,
@@ -7239,7 +7239,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -661200,
         "cumplimientoPct": 249.4,
         "crecimientoYoYPct": -1.9,
-        "tasaDevolucionPct": 0.6
+        "tasaDevolucionPct": 0.62
       },
       {
         "mes": 6,
@@ -7251,7 +7251,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -682284,
         "cumplimientoPct": 24.9,
         "crecimientoYoYPct": -94.4,
-        "tasaDevolucionPct": 7.1
+        "tasaDevolucionPct": 7.59
       },
       {
         "mes": 7,
@@ -7263,7 +7263,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -142800,
         "cumplimientoPct": 18.1,
         "crecimientoYoYPct": -69.2,
-        "tasaDevolucionPct": 2.1
+        "tasaDevolucionPct": 2.16
       },
       {
         "mes": 8,
@@ -7352,7 +7352,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -777025,
       "cumplimientoPct": 0,
       "crecimientoYoYPct": 19.6,
-      "tasaDevPct": 3.5
+      "tasaDevPct": 3.59
     },
     "meses": [
       {
@@ -7389,7 +7389,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -230622,
         "cumplimientoPct": 0,
         "crecimientoYoYPct": -31.5,
-        "tasaDevolucionPct": 7.3
+        "tasaDevolucionPct": 7.85
       },
       {
         "mes": 4,
@@ -7401,7 +7401,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -112931,
         "cumplimientoPct": 0,
         "crecimientoYoYPct": 435.9,
-        "tasaDevolucionPct": 2.6
+        "tasaDevolucionPct": 2.64
       },
       {
         "mes": 5,
@@ -7413,7 +7413,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -196900,
         "cumplimientoPct": 0,
         "crecimientoYoYPct": 63.4,
-        "tasaDevolucionPct": 3.4
+        "tasaDevolucionPct": 3.55
       },
       {
         "mes": 6,
@@ -7425,7 +7425,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -236572,
         "cumplimientoPct": 0,
         "crecimientoYoYPct": 158.1,
-        "tasaDevolucionPct": 4.9
+        "tasaDevolucionPct": 5.16
       },
       {
         "mes": 7,
@@ -7700,7 +7700,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -1631905892,
       "cumplimientoPct": 103.1,
       "crecimientoYoYPct": 22.4,
-      "tasaDevPct": 13.3
+      "tasaDevPct": 15.38
     },
     "meses": [
       {
@@ -7713,7 +7713,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -120019902,
         "cumplimientoPct": 150.8,
         "crecimientoYoYPct": 134.4,
-        "tasaDevolucionPct": 16
+        "tasaDevolucionPct": 19.12
       },
       {
         "mes": 2,
@@ -7725,7 +7725,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -191887499,
         "cumplimientoPct": 97.3,
         "crecimientoYoYPct": 7.8,
-        "tasaDevolucionPct": 12.2
+        "tasaDevolucionPct": 13.88
       },
       {
         "mes": 3,
@@ -7737,7 +7737,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -260136268,
         "cumplimientoPct": 100.7,
         "crecimientoYoYPct": 12.4,
-        "tasaDevolucionPct": 12.8
+        "tasaDevolucionPct": 14.74
       },
       {
         "mes": 4,
@@ -7749,7 +7749,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -264360226,
         "cumplimientoPct": 104.3,
         "crecimientoYoYPct": 16.7,
-        "tasaDevolucionPct": 10.9
+        "tasaDevolucionPct": 12.21
       },
       {
         "mes": 5,
@@ -7761,7 +7761,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -332511163,
         "cumplimientoPct": 101.2,
         "crecimientoYoYPct": 26.1,
-        "tasaDevolucionPct": 16
+        "tasaDevolucionPct": 19.09
       },
       {
         "mes": 6,
@@ -7773,7 +7773,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -340988544,
         "cumplimientoPct": 97.2,
         "crecimientoYoYPct": 21.4,
-        "tasaDevolucionPct": 19.6
+        "tasaDevolucionPct": 24.31
       },
       {
         "mes": 7,
@@ -7785,7 +7785,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -133890312,
         "cumplimientoPct": 104.6,
         "crecimientoYoYPct": 36.7,
-        "tasaDevolucionPct": 8.1
+        "tasaDevolucionPct": 8.77
       },
       {
         "mes": 8,
@@ -7797,7 +7797,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -293107015,
         "cumplimientoPct": 50.3,
         "crecimientoYoYPct": -42.3,
-        "tasaDevolucionPct": 22.9
+        "tasaDevolucionPct": 29.66
       },
       {
         "mes": 9,
@@ -7874,7 +7874,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -103035942,
       "cumplimientoPct": 105.9,
       "crecimientoYoYPct": 37.2,
-      "tasaDevPct": 5.3
+      "tasaDevPct": 5.63
     },
     "meses": [
       {
@@ -7887,7 +7887,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -16698800,
         "cumplimientoPct": 163.2,
         "crecimientoYoYPct": 533.5,
-        "tasaDevolucionPct": 12.8
+        "tasaDevolucionPct": 14.63
       },
       {
         "mes": 2,
@@ -7899,7 +7899,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -15407978,
         "cumplimientoPct": 121.8,
         "crecimientoYoYPct": 31,
-        "tasaDevolucionPct": 5
+        "tasaDevolucionPct": 5.3
       },
       {
         "mes": 3,
@@ -7911,7 +7911,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -17041000,
         "cumplimientoPct": 98.6,
         "crecimientoYoYPct": 47.2,
-        "tasaDevolucionPct": 5.5
+        "tasaDevolucionPct": 5.87
       },
       {
         "mes": 4,
@@ -7923,7 +7923,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -7247300,
         "cumplimientoPct": 137.6,
         "crecimientoYoYPct": 39.5,
-        "tasaDevolucionPct": 1.5
+        "tasaDevolucionPct": 1.51
       },
       {
         "mes": 5,
@@ -7935,7 +7935,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -16340800,
         "cumplimientoPct": 88.3,
         "crecimientoYoYPct": 32,
-        "tasaDevolucionPct": 6
+        "tasaDevolucionPct": 6.4
       },
       {
         "mes": 6,
@@ -7947,7 +7947,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -18870000,
         "cumplimientoPct": 59.7,
         "crecimientoYoYPct": -19.1,
-        "tasaDevolucionPct": 11.5
+        "tasaDevolucionPct": 13.03
       },
       {
         "mes": 7,
@@ -7959,7 +7959,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -11430064,
         "cumplimientoPct": 104.1,
         "crecimientoYoYPct": 41.6,
-        "tasaDevolucionPct": 4.3
+        "tasaDevolucionPct": 4.48
       },
       {
         "mes": 8,
@@ -7971,7 +7971,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -173769955,
         "cumplimientoPct": 66.6,
         "crecimientoYoYPct": -29.7,
-        "tasaDevolucionPct": 44.1
+        "tasaDevolucionPct": 78.96
       },
       {
         "mes": 9,
@@ -8048,7 +8048,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -80574767,
       "cumplimientoPct": 76.8,
       "crecimientoYoYPct": -9.1,
-      "tasaDevPct": 12.2
+      "tasaDevPct": 13.87
     },
     "meses": [
       {
@@ -8061,7 +8061,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -8904300,
         "cumplimientoPct": 7.6,
         "crecimientoYoYPct": -84.3,
-        "tasaDevolucionPct": 79.3
+        "tasaDevolucionPct": 384
       },
       {
         "mes": 2,
@@ -8073,7 +8073,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -739100,
         "cumplimientoPct": 56.1,
         "crecimientoYoYPct": -32.5,
-        "tasaDevolucionPct": 1.2
+        "tasaDevolucionPct": 1.26
       },
       {
         "mes": 3,
@@ -8085,7 +8085,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2715840,
         "cumplimientoPct": 59.1,
         "crecimientoYoYPct": -3.4,
-        "tasaDevolucionPct": 3.4
+        "tasaDevolucionPct": 3.57
       },
       {
         "mes": 4,
@@ -8097,7 +8097,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -3705124,
         "cumplimientoPct": 51.4,
         "crecimientoYoYPct": -14,
-        "tasaDevolucionPct": 4.5
+        "tasaDevolucionPct": 4.72
       },
       {
         "mes": 5,
@@ -8109,7 +8109,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -7248104,
         "cumplimientoPct": 189.3,
         "crecimientoYoYPct": 30,
-        "tasaDevolucionPct": 2.9
+        "tasaDevolucionPct": 3.03
       },
       {
         "mes": 6,
@@ -8121,7 +8121,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -54407717,
         "cumplimientoPct": 93.3,
         "crecimientoYoYPct": -22.3,
-        "tasaDevolucionPct": 35.5
+        "tasaDevolucionPct": 54.96
       },
       {
         "mes": 7,
@@ -8133,7 +8133,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2854582,
         "cumplimientoPct": 25.1,
         "crecimientoYoYPct": -51.5,
-        "tasaDevolucionPct": 9.6
+        "tasaDevolucionPct": 10.6
       },
       {
         "mes": 8,
@@ -8145,7 +8145,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "dev2026": -2927600,
         "cumplimientoPct": 23.3,
         "crecimientoYoYPct": -80.6,
-        "tasaDevolucionPct": 8
+        "tasaDevolucionPct": 8.69
       },
       {
         "mes": 9,
@@ -8222,7 +8222,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       "dev": -41010203,
       "cumplimientoPct": 34.2,
       "crecimientoYoYPct": 2,
-      "tasaDevPct": 13.3
+      "tasaDevPct": 15.34
     },
     "meses": [
       {
@@ -8547,7 +8547,7 @@ export function obtenerMesesCalibradosCMI(
       cumplimientoPct: m.cumplimientoPct,
       crecimientoYoY: m.crecimientoYoYPct,
       devolucionesMonto: Math.abs(m.dev2026),
-      tasaDevolucionPct: m.tasaDevolucionPct,
+      tasaDevolucionPct: m.v2026 > 0 ? Math.round((Math.abs(m.dev2026) / m.v2026) * 10000) / 100 : (m.tasaDevolucionPct || 0),
       unidades: m.u2026,
       unidadesAnterior: m.v2025 > 0 && m.u2026 > 0 && m.v2026 > 0 ? Math.round(m.v2025 / (m.v2026 / m.u2026)) : 0,
     };
@@ -8606,7 +8606,7 @@ export function obtenerKpisCalibradosCMI(
       cumplimientoGlobalPct: m.cumplimientoPct,
       crecimientoYoYPct: m.crecimientoYoYPct,
       devolucionesTotal: dev,
-      tasaDevolucionGlobalPct: m.tasaDevolucionPct,
+      tasaDevolucionGlobalPct: ventaReal > 0 ? Math.round((dev / ventaReal) * 10000) / 100 : (m.tasaDevolucionPct || 0),
       volumenUnidades: unds,
       unidadesAnteriorTotal: undsAnt,
       ticketPromedio: unds > 0 ? Math.round(ventaReal / unds) : 0,
@@ -8659,8 +8659,8 @@ export function obtenerKpisCalibradosCMI(
   const crecimientoYoYPct = totalVentaAntComparable > 0
     ? Math.round(((totalVenta2026 - totalVentaAntComparable) / totalVentaAntComparable) * 1000) / 10
     : 0;
-  const tasaDevPct = totalVentaBruta > 0
-    ? Math.round((totalDev2026 / totalVentaBruta) * 1000) / 10
+  const tasaDevPct = totalVenta2026 > 0
+    ? Math.round((totalDev2026 / totalVenta2026) * 10000) / 100
     : 0;
 
   return {
