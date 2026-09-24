@@ -530,12 +530,15 @@ const sanitizeCatalogo = (data: unknown[] | null | undefined): CatalogoItem[] =>
       const nombre = String(record["nombre"] || "").trim();
       const lower = nombre.toLowerCase();
       // Excluir registros vacíos, no comerciales o inválidos como publicidad
+      // Excluir vendedor inexistente JOHN FREDY SANCHEZ (ID 25)
       if (
         id > 0 &&
         nombre.length > 0 &&
         !map.has(id) &&
         !lower.includes("publicidad") &&
-        !lower.includes("publicada")
+        !lower.includes("publicada") &&
+        id !== 25 &&
+        lower !== "john fredy sanchez"
       ) {
         map.set(id, nombre);
       }
