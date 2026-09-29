@@ -29,6 +29,7 @@ import {
   COLUMNAS_DIMENSION,
 } from "@/lib/parse-ventas";
 import { cn } from "@/lib/utils";
+import { VisorPedidosDespachos } from "@/components/pedidos/VisorPedidosDespachos";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -1766,7 +1767,7 @@ function Panel() {
                   className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
-                  Detalle
+                  7. Pedidos vs Despachos
                 </TabsTrigger>
                 {esAdmin && (
                   <TabsTrigger
@@ -1861,7 +1862,7 @@ function Panel() {
                   className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
-                  Detalle
+                  Pedidos vs Despachos
                 </TabsTrigger>
                 {esAdmin && (
                   <TabsTrigger
@@ -1936,7 +1937,7 @@ function Panel() {
                 className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
-                Detalle
+                7. Pedidos vs Despachos
               </TabsTrigger>
               {esAdmin && (
                 <TabsTrigger
@@ -6038,107 +6039,14 @@ function Panel() {
           </TabsContent>
 
           {/* ========================================================================= */}
-          {/* TAB 7: EXPLORADOR DE TRANSACCIONES */}
+          {/* TAB 7: PEDIDOS VS DESPACHOS (ESTILO HGI) */}
           {/* ========================================================================= */}
           <TabsContent value="explorador" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle className="text-base font-semibold">Explorador de Transacciones y Ventas</CardTitle>
-                    <CardDescription>
-                      {(transaccionesDetalle?.total ?? 0).toLocaleString("es-CO")} transacciones encontradas
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="relative w-full sm:w-[260px]">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar SKU, producto o transacción..."
-                        value={busquedaDetalle}
-                        onChange={(e) => {
-                          setBusquedaDetalle(e.target.value);
-                          setPaginaDetalle(0);
-                        }}
-                        className="pl-9 h-9 text-xs"
-                      />
-                    </div>
-                    <Button variant="outline" size="sm" onClick={exportarCSV} className="h-9 text-xs">
-                      <Download className="mr-1.5 h-3.5 w-3.5" />
-                      Exportar CSV
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="overflow-x-auto">
-                {cDetalle ? (
-                  <div className="py-12 text-center text-sm text-muted-foreground">Consultando base de datos...</div>
-                ) : !transaccionesDetalle?.filas || transaccionesDetalle.filas.length === 0 ? (
-                  <div className="py-12 text-center text-sm text-muted-foreground">No se encontraron registros con los filtros seleccionados.</div>
-                ) : (
-                  <table className="w-full text-left text-xs">
-                    <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
-                      <tr>
-                        <th className="py-2.5 px-3">Transacción</th>
-                        <th className="py-2.5 px-3">Fecha</th>
-                        <th className="py-2.5 px-3">Vendedor</th>
-                        <th className="py-2.5 px-3">Canal</th>
-                        <th className="py-2.5 px-3">Marca</th>
-                        <th className="py-2.5 px-3">SKU</th>
-                        <th className="py-2.5 px-3">Producto</th>
-                        <th className="py-2.5 px-3">Talla/Color</th>
-                        <th className="py-2.5 px-3 text-right">Cant.</th>
-                        <th className="py-2.5 px-3 text-right">Venta ($)</th>
-                        <th className="py-2.5 px-3 text-right">Costo ($)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40 font-normal">
-                      {transaccionesDetalle.filas.map((f) => (
-                        <tr key={f.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="py-2 px-3 font-mono text-primary">{f.transaccion || "—"}</td>
-                          <td className="py-2 px-3 text-muted-foreground whitespace-nowrap">{f.fecha || "—"}</td>
-                          <td className="py-2 px-3">{f.vendedor || "—"}</td>
-                          <td className="py-2 px-3">{f.canal || "—"}</td>
-                          <td className="py-2 px-3">{f.marca || "—"}</td>
-                          <td className="py-2 px-3 font-mono">{f.sku || "—"}</td>
-                          <td className="py-2 px-3 font-medium text-foreground max-w-[200px] truncate">{f.producto || "—"}</td>
-                          <td className="py-2 px-3 text-muted-foreground">{f.talla || ""}{f.color ? ` / ${f.color}` : ""}</td>
-                          <td className="py-2 px-3 text-right font-medium">{f.cantidad ?? 0}</td>
-                          <td className="py-2 px-3 text-right font-semibold">{formatoCOPFull(f.valor ?? 0)}</td>
-                          <td className="py-2 px-3 text-right text-muted-foreground">{formatoCOPFull(f.costo_total ?? 0)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-
-                <div className="flex items-center justify-between border-t border-border/60 pt-4 mt-2">
-                  <p className="text-xs text-muted-foreground">
-                    Página {paginaDetalle + 1} de {Math.max(1, Math.ceil((transaccionesDetalle?.total ?? 0) / 25))}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={paginaDetalle === 0}
-                      onClick={() => setPaginaDetalle((p) => Math.max(0, p - 1))}
-                      className="h-8 text-xs"
-                    >
-                      Anterior
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={(paginaDetalle + 1) * 25 >= (transaccionesDetalle?.total ?? 0)}
-                      onClick={() => setPaginaDetalle((p) => p + 1)}
-                      className="h-8 text-xs"
-                    >
-                      Siguiente
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <VisorPedidosDespachos
+              vendedorIdFiltro={vendedorId !== "todos" ? Number(vendedorId) : "todos"}
+              vendedorIdsPermitidos={vendedorIdsPermitidos}
+              esAdmin={esAdmin}
+            />
           </TabsContent>
 
           {/* ========================================================================= */}

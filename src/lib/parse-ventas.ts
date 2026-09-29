@@ -724,6 +724,22 @@ export function normalizarFila(
       out[campo] = parseMonth(val);
     } else if (campo === "anio") {
       out[campo] = parseYear(val);
+    } else if (campo === "tr") {
+      const textVal = toText(val);
+      if (textVal && (
+        textVal.toUpperCase().includes("PEDIDO") || 
+        textVal.toUpperCase().includes("DESPACHO") || 
+        textVal.toUpperCase().includes("SALIDA") ||
+        textVal.toUpperCase().includes("FACTURA") ||
+        textVal.toUpperCase().includes("NOTA")
+      )) {
+        // Columna AD en HGI contiene el tipo de transacción comercial / logística
+        if (!out["transaccion"] || typeof out["transaccion"] === "number" || !isNaN(Number(out["transaccion"]))) {
+          out["transaccion"] = textVal;
+        }
+      } else {
+        out["tr"] = toNumber(val);
+      }
     } else if ((NUMERICOS as readonly string[]).includes(campo)) {
       out[campo] = toNumber(val);
     } else {

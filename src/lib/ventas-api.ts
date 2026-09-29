@@ -3248,3 +3248,360 @@ export async function obtenerTransaccionesDetalle(
   return { filas, total: count ?? 0 };
 }
 
+// =========================================================================
+// VISOR DE DATOS: PEDIDOS VS. DESPACHOS (PLANTILLA HGI)
+// =========================================================================
+
+export type FiltrosPedidosDespachos = {
+  fecha_desde?: string | null;
+  fecha_hasta?: string | null;
+  vendedor_id?: number | null;
+  vendedor_ids?: number[] | null;
+  tercero_busqueda?: string | null;
+  producto_busqueda?: string | null;
+  solo_pendientes?: boolean;
+};
+
+export type ItemProductoPedidoDespacho = {
+  producto: string;
+  descripcion?: string | null;
+  sku?: string | null;
+  color?: string | null;
+  talla?: string | null;
+  pedidosCantidad: number;
+  pedidosValor: number;
+  despachosCantidad: number;
+  despachosValor: number;
+  totalGeneralCantidad: number;
+  totalGeneralValor: number;
+  esPendiente: boolean;
+};
+
+export type GrupoTerceroPedidoDespacho = {
+  terceroId: number | string;
+  terceroNombre: string;
+  terceroCodigo?: string | null;
+  pedidosCantidad: number;
+  pedidosValor: number;
+  despachosCantidad: number;
+  despachosValor: number;
+  totalGeneralCantidad: number;
+  totalGeneralValor: number;
+  esPendiente: boolean;
+  productos: ItemProductoPedidoDespacho[];
+};
+
+export type GrupoVendedorPedidoDespacho = {
+  vendedorId: number | string;
+  vendedorNombre: string;
+  pedidosCantidad: number;
+  pedidosValor: number;
+  despachosCantidad: number;
+  despachosValor: number;
+  totalGeneralCantidad: number;
+  totalGeneralValor: number;
+  esPendiente: boolean;
+  terceros: GrupoTerceroPedidoDespacho[];
+};
+
+export type ResumenKpisPedidosDespachos = {
+  totalPedidosCantidad: number;
+  totalPedidosValor: number;
+  totalDespachosCantidad: number;
+  totalDespachosValor: number;
+  totalPendienteCantidad: number;
+  totalPendienteValor: number;
+  nivelServicioPct: number;
+  totalClientesConPendientes: number;
+  totalRegistros: number;
+};
+
+export type ResultadoPedidosDespachos = {
+  vendedores: GrupoVendedorPedidoDespacho[];
+  kpis: ResumenKpisPedidosDespachos;
+};
+
+export async function obtenerPedidosVsDespachos(
+  filtros: FiltrosPedidosDespachos
+): Promise<ResultadoPedidosDespachos> {
+  const fechaDesde = filtros.fecha_desde || "2026-07-01";
+  const fechaHasta = filtros.fecha_hasta || "2026-12-31";
+
+  const [vendsRes, tercsRes] = await Promise.all([
+    supabase.from("dim_vendedor").select("id, nombre"),
+    supabase.from("dim_tercero").select("id, codigo, nombre"),
+  ]);
+
+  const vMap = new Map<number, string>((vendsRes.data || []).map((v) => [v.id, v.nombre]));
+  const tMap = new Map<number, { nombre: string; codigo?: string | null }>(
+    (tercsRes.data || []).map((t) => [t.id, { nombre: t.nombre || t.codigo || `Tercero #${t.id}`, codigo: t.codigo }])
+  );
+
+  // Consulta por lotes para fact_ventas
+  const CHUNK_SIZE = 1000;
+  const MAX_ROWS = 25000;
+  const rawRows: Record<string, unknown>[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore && rawRows.length < MAX_ROWS) {
+    let q = supabase
+      .from("fact_ventas")
+      .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
+      .in("transaccion", ["PEDIDOS", "SALIDA POR DESPACHO"])
+      .gte("fecha", fechaDesde)
+      .lte("fecha", fechaHasta);
+
+    if (filtros.vendedor_id) {
+      q = q.or(`vendedor_id.eq.${filtros.vendedor_id},vendedor2_id.eq.${filtros.vendedor_id}`);
+    } else if (filtros.vendedor_ids && filtros.vendedor_ids.length > 0) {
+      const listStr = filtros.vendedor_ids.join(",");
+      q = q.or(`vendedor_id.in.(${listStr}),vendedor2_id.in.(${listStr})`);
+    }
+
+    const { data, error } = await q.range(offset, offset + CHUNK_SIZE - 1);
+
+    if (error || !data || data.length === 0) {
+      hasMore = false;
+      break;
+    }
+
+    for (const r of data) {
+      rawRows.push(r as Record<string, unknown>);
+    }
+
+    if (data.length < CHUNK_SIZE) {
+      hasMore = false;
+    } else {
+      offset += CHUNK_SIZE;
+    }
+  }
+
+  // Agrupación jerárquica: Vendedor -> Tercero -> Producto
+  const vendedoresMap = new Map<
+    string,
+    {
+      vendedorId: number | string;
+      vendedorNombre: string;
+      tercerosMap: Map<
+        string,
+        {
+          terceroId: number | string;
+          terceroNombre: string;
+          terceroCodigo?: string | null;
+          productosMap: Map<string, ItemProductoPedidoDespacho>;
+        }
+      >;
+    }
+  >();
+
+  const tBusq = filtros.tercero_busqueda?.trim().toLowerCase() || null;
+  const pBusq = filtros.producto_busqueda?.trim().toLowerCase() || null;
+
+  for (const r of rawRows) {
+    const vId = Number(r.vendedor_id) || Number(r.vendedor2_id) || 0;
+    const vNombre = (vId ? vMap.get(vId) : null) || "VENDEDOR GENERAL";
+
+    const tId = Number(r.tercero_id) || 0;
+    const tInfo = tId ? tMap.get(tId) : null;
+    const tNombre = tInfo?.nombre || (tInfo?.codigo ? tInfo.codigo : "CONSUMIDOR FINAL");
+    const tCodigo = tInfo?.codigo || null;
+
+    if (tBusq && !tNombre.toLowerCase().includes(tBusq) && !(tCodigo && tCodigo.toLowerCase().includes(tBusq))) {
+      continue;
+    }
+
+    const prodCodigo = String(r.producto_c || r.sku || r.producto || "SIN_CODIGO").trim();
+    const prodDesc = (r.producto ? String(r.producto) : null) || (r.prenda_hgi ? String(r.prenda_hgi) : null);
+
+    if (pBusq && !prodCodigo.toLowerCase().includes(pBusq) && !(prodDesc && prodDesc.toLowerCase().includes(pBusq))) {
+      continue;
+    }
+
+    if (!vendedoresMap.has(vNombre)) {
+      vendedoresMap.set(vNombre, {
+        vendedorId: vId || vNombre,
+        vendedorNombre: vNombre,
+        tercerosMap: new Map(),
+      });
+    }
+
+    const vend = vendedoresMap.get(vNombre)!;
+    if (!vend.tercerosMap.has(tNombre)) {
+      vend.tercerosMap.set(tNombre, {
+        terceroId: tId || tNombre,
+        terceroNombre: tNombre,
+        terceroCodigo: tCodigo,
+        productosMap: new Map(),
+      });
+    }
+
+    const terc = vend.tercerosMap.get(tNombre)!;
+    if (!terc.productosMap.has(prodCodigo)) {
+      terc.productosMap.set(prodCodigo, {
+        producto: prodCodigo,
+        descripcion: prodDesc,
+        sku: r.sku ? String(r.sku) : null,
+        color: r.color ? String(r.color) : null,
+        talla: r.talla ? String(r.talla) : null,
+        pedidosCantidad: 0,
+        pedidosValor: 0,
+        despachosCantidad: 0,
+        despachosValor: 0,
+        totalGeneralCantidad: 0,
+        totalGeneralValor: 0,
+        esPendiente: false,
+      });
+    }
+
+    const prod = terc.productosMap.get(prodCodigo)!;
+    const cant = Number(r.cantidad || 0);
+    const val = Number(r.valor || 0);
+    const trans = String(r.transaccion || "").toUpperCase();
+
+    if (trans.includes("PEDIDO")) {
+      prod.pedidosCantidad += cant;
+      prod.pedidosValor += val;
+    } else {
+      // SALIDA POR DESPACHO o DESPACHO
+      prod.despachosCantidad += cant;
+      prod.despachosValor += val;
+    }
+  }
+
+  // Estructurar resultado y calcular balances
+  let globalPedidosCant = 0;
+  let globalPedidosVal = 0;
+  let globalDespachosCant = 0;
+  let globalDespachosVal = 0;
+  let globalPendienteCant = 0;
+  let globalPendienteVal = 0;
+  let globalClientesConPendientes = 0;
+
+  const vendedoresResultado: GrupoVendedorPedidoDespacho[] = [];
+
+  for (const vData of vendedoresMap.values()) {
+    let vPedCant = 0;
+    let vPedVal = 0;
+    let vDespCant = 0;
+    let vDespVal = 0;
+    let vTotCant = 0;
+    let vTotVal = 0;
+
+    const tercerosResultado: GrupoTerceroPedidoDespacho[] = [];
+
+    for (const tData of vData.tercerosMap.values()) {
+      let tPedCant = 0;
+      let tPedVal = 0;
+      let tDespCant = 0;
+      let tDespVal = 0;
+
+      const prodsList: ItemProductoPedidoDespacho[] = [];
+
+      for (const p of tData.productosMap.values()) {
+        p.totalGeneralCantidad = p.pedidosCantidad + p.despachosCantidad;
+        p.totalGeneralValor = p.pedidosValor + p.despachosValor;
+        p.esPendiente = p.totalGeneralCantidad > 0;
+
+        if (filtros.solo_pendientes && !p.esPendiente) {
+          continue;
+        }
+
+        prodsList.push(p);
+
+        tPedCant += p.pedidosCantidad;
+        tPedVal += p.pedidosValor;
+        tDespCant += p.despachosCantidad;
+        tDespVal += p.despachosValor;
+      }
+
+      if (filtros.solo_pendientes && prodsList.length === 0) {
+        continue;
+      }
+
+      // Ordenar productos por mayor cantidad pendiente o mayor pedido
+      prodsList.sort((a, b) => b.totalGeneralCantidad - a.totalGeneralCantidad || b.pedidosCantidad - a.pedidosCantidad);
+
+      const tTotalCant = tPedCant + tDespCant;
+      const tTotalVal = tPedVal + tDespVal;
+      const tEsPendiente = tTotalCant > 0;
+
+      if (tEsPendiente) {
+        globalClientesConPendientes++;
+      }
+
+      tercerosResultado.push({
+        terceroId: tData.terceroId,
+        terceroNombre: tData.terceroNombre,
+        terceroCodigo: tData.terceroCodigo,
+        pedidosCantidad: tPedCant,
+        pedidosValor: tPedVal,
+        despachosCantidad: tDespCant,
+        despachosValor: tDespVal,
+        totalGeneralCantidad: tTotalCant,
+        totalGeneralValor: tTotalVal,
+        esPendiente: tEsPendiente,
+        productos: prodsList,
+      });
+
+      vPedCant += tPedCant;
+      vPedVal += tPedVal;
+      vDespCant += tDespCant;
+      vDespVal += tDespVal;
+      vTotCant += tTotalCant;
+      vTotVal += tTotalVal;
+    }
+
+    if (filtros.solo_pendientes && tercerosResultado.length === 0) {
+      continue;
+    }
+
+    // Ordenar clientes por mayor cantidad pendiente
+    tercerosResultado.sort(
+      (a, b) => b.totalGeneralCantidad - a.totalGeneralCantidad || b.pedidosCantidad - a.pedidosCantidad
+    );
+
+    vendedoresResultado.push({
+      vendedorId: vData.vendedorId,
+      vendedorNombre: vData.vendedorNombre,
+      pedidosCantidad: vPedCant,
+      pedidosValor: vPedVal,
+      despachosCantidad: vDespCant,
+      despachosValor: vDespVal,
+      totalGeneralCantidad: vTotCant,
+      totalGeneralValor: vTotVal,
+      esPendiente: vTotCant > 0,
+      terceros: tercerosResultado,
+    });
+
+    globalPedidosCant += vPedCant;
+    globalPedidosVal += vPedVal;
+    globalDespachosCant += Math.abs(vDespCant);
+    globalDespachosVal += Math.abs(vDespVal);
+    globalPendienteCant += Math.max(0, vTotCant);
+    globalPendienteVal += Math.max(0, vTotVal);
+  }
+
+  // Ordenar vendedores
+  vendedoresResultado.sort((a, b) => a.vendedorNombre.localeCompare(b.vendedorNombre));
+
+  const nivelServicio =
+    globalPedidosCant > 0 ? (globalDespachosCant / globalPedidosCant) * 100 : 100;
+
+  return {
+    vendedores: vendedoresResultado,
+    kpis: {
+      totalPedidosCantidad: globalPedidosCant,
+      totalPedidosValor: globalPedidosVal,
+      totalDespachosCantidad: globalDespachosCant,
+      totalDespachosValor: globalDespachosVal,
+      totalPendienteCantidad: globalPendienteCant,
+      totalPendienteValor: globalPendienteVal,
+      nivelServicioPct: Number(nivelServicio.toFixed(2)),
+      totalClientesConPendientes: globalClientesConPendientes,
+      totalRegistros: rawRows.length,
+    },
+  };
+}
+
+
