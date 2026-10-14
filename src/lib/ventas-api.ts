@@ -1459,7 +1459,7 @@ export function calcularDashboard1Cumplimiento(
               porcentaje: val.venta > 0 ? Math.round((rVal.valor / val.venta) * 10000) / 100 : 0,
             }))
             .sort((a, b) => b.valor - a.valor)
-            .slice(0, 20)
+            .slice(0, 60)
         : [];
 
       return {

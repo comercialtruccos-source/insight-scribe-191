@@ -943,7 +943,9 @@ function Panel() {
     if (!d1) return [];
     let refs: typeof d1.topReferencias = [];
     if (zonaUbicacionD1 === "todas") {
-      refs = d1.topReferencias || [];
+      refs = ordenRefZonaD1 === "unidades"
+        ? (d1.topReferenciasPorUnidades || d1.topReferencias || [])
+        : (d1.topReferencias || []);
     } else {
       const zonaObj = d1.distribucionZonas?.find((z) => z.zona === zonaUbicacionD1);
       refs = zonaObj?.referencias || [];
