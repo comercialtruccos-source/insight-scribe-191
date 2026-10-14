@@ -333,10 +333,11 @@ function Panel() {
   const [filtroCanalDigital, setFiltroCanalDigital] = useState<"todos" | "tienda_virtual" | "redes_sociales">("todos");
   const [busquedaSkuD3, setBusquedaSkuD3] = useState<string>("");
 
-  // Explorador de ubicaciones (Zonas y Ciudades) en Dashboard 1
+  // Explorador de ubicaciones (Zonas, Ciudades y Referencias) en Dashboard 1
   const [zonaUbicacionD1, setZonaUbicacionD1] = useState<string>("todas");
   const [busquedaCiudadD1, setBusquedaCiudadD1] = useState<string>("");
-  const [vistaUbicacionesD1, setVistaUbicacionesD1] = useState<"mapa" | "graficas" | "tabla">("mapa");
+  const [vistaUbicacionesD1, setVistaUbicacionesD1] = useState<"graficas" | "tabla" | "mapa">("graficas");
+  const [ordenRefZonaD1, setOrdenRefZonaD1] = useState<"valor" | "unidades">("valor");
 
   // Toggle de ordenamiento para Top SKUs en Dashboard 1 (Facturación vs Unidades)
   const [ordenTopSkusD1, setOrdenTopSkusD1] = useState<"valor" | "unidades">("valor");
@@ -937,6 +938,22 @@ function Panel() {
 
     return list;
   }, [d1, zonaUbicacionD1, busquedaCiudadD1]);
+
+  const referenciasZonaD1 = useMemo(() => {
+    if (!d1) return [];
+    let refs: typeof d1.topReferencias = [];
+    if (zonaUbicacionD1 === "todas") {
+      refs = d1.topReferencias || [];
+    } else {
+      const zonaObj = d1.distribucionZonas?.find((z) => z.zona === zonaUbicacionD1);
+      refs = zonaObj?.referencias || [];
+    }
+    if (ordenRefZonaD1 === "unidades") {
+      return [...refs].sort((a, b) => b.unidades - a.unidades);
+    }
+    return [...refs].sort((a, b) => b.valor - a.valor);
+  }, [d1, zonaUbicacionD1, ordenRefZonaD1]);
+
   const d2 = useMemo(
     () => calcularDashboard2RunRate(rawVentas || [], filtros, compararAnioAnterior ? rawVentasYoY : undefined),
     [rawVentas, filtros, compararAnioAnterior, rawVentasYoY]
@@ -3226,9 +3243,11 @@ function Panel() {
                     onSelectZona={(zId, _zNom) => {
                       setZonaId(zId ? String(zId) : "todos");
                     }}
+                    vendedorNombre={vendedorSeleccionadoNombre}
                   />
                 ) : vistaUbicacionesD1 === "graficas" ? (
-                  <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="space-y-6">
+                    <div className="grid gap-6 lg:grid-cols-2">
                     {/* Gráfico 1: Zonas Comerciales / Departamentos */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -3458,7 +3477,121 @@ function Panel() {
                       </div>
                     </div>
                   </div>
-                ) : (
+
+                  {/* Sección 3: Referencias y Prendas Vendidas en la Zona Seleccionada */}
+                  <div className="mt-6 pt-5 border-t border-border/60 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                            <span>3. Referencias y Prendas Vendidas</span>
+                            <Badge variant="outline" className="text-[11px] font-bold bg-primary/5 text-primary">
+                              {zonaUbicacionD1 === "todas" ? "Todas las Zonas" : `Zona: ${zonaUbicacionD1}`}
+                            </Badge>
+                          </span>
+                          <InfoGrafica
+                            titulo="Referencias Vendidas por Zona"
+                            descripcion="Muestra el detalle de las prendas y referencias específicas vendidas en la zona seleccionada, permitiendo ver qué producto tiene mayor demanda territorial."
+                            metrica="Facturación ($) y unidades vendidas por referencia en la zona."
+                            interpretacion="Permite al asesor y a la dirección comercial conocer la rotación de producto por territorio y enfocar el surtido según la preferencia local."
+                          />
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {vendedorSeleccionadoNombre
+                            ? `Prendas y referencias vendidas por ${vendedorSeleccionadoNombre} en ${
+                                zonaUbicacionD1 === "todas" ? "todas sus zonas de venta" : `la zona ${zonaUbicacionD1}`
+                              }`
+                            : `Ranking de referencias con ventas en ${
+                                zonaUbicacionD1 === "todas" ? "todas las zonas del país" : `la zona ${zonaUbicacionD1}`
+                              }`}
+                        </p>
+                      </div>
+
+                      {/* Controles de ordenamiento: Por Valor vs Por Unidades */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex rounded-md bg-muted p-0.5 border border-border/50 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => setOrdenRefZonaD1("valor")}
+                            className={cn(
+                              "px-2.5 py-1 rounded font-medium transition-colors",
+                              ordenRefZonaD1 === "valor"
+                                ? "bg-background shadow-xs text-foreground font-semibold"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            Por Facturación ($)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setOrdenRefZonaD1("unidades")}
+                            className={cn(
+                              "px-2.5 py-1 rounded font-medium transition-colors",
+                              ordenRefZonaD1 === "unidades"
+                                ? "bg-background shadow-xs text-foreground font-semibold"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            Por Unidades
+                          </button>
+                        </div>
+                        <Badge variant="secondary" className="text-[11px]">
+                          {referenciasZonaD1.length} Referencias
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {referenciasZonaD1.length === 0 ? (
+                      <div className="p-8 text-center text-sm text-muted-foreground border border-dashed rounded-xl bg-muted/10">
+                        No se registran ventas de referencias para {zonaUbicacionD1 === "todas" ? "esta selección" : `la zona ${zonaUbicacionD1}`}
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/50 max-h-[340px]">
+                        <table className="w-full text-xs text-left">
+                          <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0">
+                            <tr>
+                              <th className="py-2.5 px-3">#</th>
+                              <th className="py-2.5 px-3">SKU / Ref</th>
+                              <th className="py-2.5 px-3">Nombre del Producto</th>
+                              <th className="py-2.5 px-3">Línea</th>
+                              <th className="py-2.5 px-3 text-right">Unidades</th>
+                              <th className="py-2.5 px-3 text-right">Precio Prom.</th>
+                              <th className="py-2.5 px-3 text-right">Facturación Neta</th>
+                              <th className="py-2.5 px-3 text-right">% en Zona</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/40">
+                            {referenciasZonaD1.map((ref, idx) => (
+                              <tr key={`${ref.sku}-${idx}`} className="hover:bg-muted/30 transition-colors">
+                                <td className="py-2.5 px-3 font-bold text-muted-foreground">
+                                  {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
+                                </td>
+                                <td className="py-2.5 px-3 font-mono font-medium text-foreground">{ref.sku}</td>
+                                <td className="py-2.5 px-3 font-semibold text-foreground">{ref.producto}</td>
+                                <td className="py-2.5 px-3 text-muted-foreground">{ref.linea}</td>
+                                <td className="py-2.5 px-3 text-right font-medium">
+                                  {ref.unidades.toLocaleString("es-CO")}
+                                </td>
+                                <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
+                                  {formatoCOP(ref.precioPromedio)}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                                  {formatoCOPFull(ref.valor)}
+                                </td>
+                                <td className="py-2.5 px-3 text-right">
+                                  <Badge variant="outline" className="font-semibold text-[11px] bg-primary/5">
+                                    {Number(ref.porcentaje).toFixed(2)}%
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
                   /* Modo Tabla Territorial con Clic Interactivo */
                   <div className="overflow-x-auto max-h-[380px]">
                     <table className="w-full text-xs text-left">

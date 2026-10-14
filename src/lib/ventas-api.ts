@@ -891,6 +891,7 @@ export type ZonaAporte = {
   porcentaje: number;
   crecimientoYoY?: number;
   ciudades: CiudadEnZona[];
+  referencias?: ReferenciaTop[];
 };
 
 export type CanalAporte = {
@@ -1059,7 +1060,16 @@ export function calcularDashboard1Cumplimiento(
   const marcaVentaMap = new Map<string, number>();
   const vendedorVentaMap = new Map<string, { id: number | null; venta: number; unidades: number }>();
   const refVentaMap = new Map<string, { producto: string; linea: string; unidades: number; valor: number }>();
-  const zonaVentaMap = new Map<string, { id: number | null; venta: number; unidades: number; ciudadesMap: Map<string, { id: number | null; venta: number; unidades: number }> }>();
+  const zonaVentaMap = new Map<
+    string,
+    {
+      id: number | null;
+      venta: number;
+      unidades: number;
+      ciudadesMap: Map<string, { id: number | null; venta: number; unidades: number }>;
+      referenciasMap: Map<string, { sku: string; producto: string; linea: string; unidades: number; valor: number }>;
+    }
+  >();
   const ciudadGlobalMap = new Map<string, { id: number | null; ciudad: string; zona: string; venta: number; unidades: number }>();
   const canalVentaMap = new Map<string, { venta: number; unidades: number }>();
   const transaccionesSet = new Set<string>();
@@ -1138,11 +1148,30 @@ export function calcularDashboard1Cumplimiento(
     const cNom = (cId && ciudadMap.get(cId)) || "General / Sin Ciudad";
 
     if (!zonaVentaMap.has(zNom)) {
-      zonaVentaMap.set(zNom, { id: zId, venta: 0, unidades: 0, ciudadesMap: new Map() });
+      zonaVentaMap.set(zNom, {
+        id: zId,
+        venta: 0,
+        unidades: 0,
+        ciudadesMap: new Map(),
+        referenciasMap: new Map(),
+      });
     }
     const currZ = zonaVentaMap.get(zNom)!;
     currZ.venta += v;
     currZ.unidades += cant;
+
+    if (!currZ.referenciasMap.has(baseRef)) {
+      currZ.referenciasMap.set(baseRef, {
+        sku: baseRef,
+        producto: prodNom,
+        linea: lNom,
+        unidades: 0,
+        valor: 0,
+      });
+    }
+    const currZR = currZ.referenciasMap.get(baseRef)!;
+    currZR.unidades += cant;
+    currZR.valor += v;
 
     if (!currZ.ciudadesMap.has(cNom)) {
       currZ.ciudadesMap.set(cNom, { id: cId, venta: 0, unidades: 0 });
@@ -1418,6 +1447,21 @@ export function calcularDashboard1Cumplimiento(
         })
         .sort((a, b) => b.venta - a.venta);
 
+      const referenciasList: ReferenciaTop[] = val.referenciasMap
+        ? Array.from(val.referenciasMap.values())
+            .map((rVal) => ({
+              sku: rVal.sku,
+              producto: rVal.producto,
+              linea: rVal.linea,
+              unidades: rVal.unidades,
+              valor: rVal.valor,
+              precioPromedio: rVal.unidades > 0 ? Math.round(rVal.valor / rVal.unidades) : 0,
+              porcentaje: val.venta > 0 ? Math.round((rVal.valor / val.venta) * 10000) / 100 : 0,
+            }))
+            .sort((a, b) => b.valor - a.valor)
+            .slice(0, 20)
+        : [];
+
       return {
         id: val.id,
         zona,
@@ -1428,6 +1472,7 @@ export function calcularDashboard1Cumplimiento(
         porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: zYoY,
         ciudades: ciudadesList,
+        referencias: referenciasList,
       };
     })
     .sort((a, b) => b.venta - a.venta);
