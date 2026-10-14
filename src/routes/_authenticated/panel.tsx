@@ -336,7 +336,7 @@ function Panel() {
   // Explorador de ubicaciones (Zonas, Ciudades y Referencias) en Dashboard 1
   const [zonaUbicacionD1, setZonaUbicacionD1] = useState<string>("todas");
   const [busquedaCiudadD1, setBusquedaCiudadD1] = useState<string>("");
-  const [vistaUbicacionesD1, setVistaUbicacionesD1] = useState<"graficas" | "tabla" | "mapa">("graficas");
+  const [vistaUbicacionesD1, setVistaUbicacionesD1] = useState<"graficas" | "tabla" | "mapa">("mapa");
   const [ordenRefZonaD1, setOrdenRefZonaD1] = useState<"valor" | "unidades">("valor");
 
   // Toggle de ordenamiento para Top SKUs en Dashboard 1 (Facturación vs Unidades)

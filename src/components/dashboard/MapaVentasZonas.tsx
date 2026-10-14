@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { ZonaAporte, CatalogoItem } from "@/lib/ventas-api";
 import { formatoCOP, formatoCOPFull } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -6,16 +6,26 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  WORLD_LAND_PATH,
+  KEY_COUNTRIES_PATHS,
+  PUNTOS_GEOGRAFICOS,
+  buscarPuntoGeografico,
+  PuntoGeografico,
+} from "./world-geo-paths";
+import {
+  Globe2,
   MapPin,
-  TrendingUp,
   Search,
   Filter,
   Package,
   Building2,
-  CheckCircle2,
-  Sparkles,
-  Layers,
+  Compass,
   ArrowUpRight,
+  Maximize2,
+  RotateCcw,
+  Plane,
+  Layers,
+  Sparkles,
 } from "lucide-react";
 
 interface MapaVentasZonasProps {
@@ -38,6 +48,20 @@ export function MapaVentasZonas({
 }: MapaVentasZonasProps) {
   const [busqueda, setBusqueda] = useState<string>("");
   const [ordenRefs, setOrdenRefs] = useState<"valor" | "unidades">("valor");
+  const [modoVista, setModoVista] = useState<"mundo" | "americas" | "colombia">("mundo");
+  const [hoverPunto, setHoverPunto] = useState<{
+    nombre: string;
+    bandera: string;
+    pais: string;
+    tipo: string;
+    venta: number;
+    unidades: number;
+    porcentaje: number;
+    ciudadesCount: number;
+    refsCount: number;
+    x: number;
+    y: number;
+  } | null>(null);
 
   // Zonas activas con ventas ordenadas por facturación descendente
   const zonasOrdenadas = useMemo(() => {
@@ -88,9 +112,433 @@ export function MapaVentasZonas({
     return [...zonaActiva.ciudades].sort((a, b) => b.venta - a.venta)[0];
   }, [zonaActiva]);
 
+  // Mapear cada zona activa a un punto geográfico en el Mapa Mundi
+  const puntosMapeados = useMemo(() => {
+    const ColombiaMatrix = { cx: 292.0, cy: 235.0 };
+
+    return zonasOrdenadas.map((z, idx) => {
+      const punto = buscarPuntoGeografico(z.zona);
+      let cx = 292.0;
+      let cy = 235.0;
+      let bandera = "🇨🇴";
+      let pais = "Colombia";
+      let tipo: "nacional" | "internacional" = "nacional";
+      let countryCode = "COL";
+
+      if (punto) {
+        cx = punto.cx;
+        cy = punto.cy;
+        bandera = punto.bandera;
+        pais = punto.pais;
+        tipo = punto.tipo;
+        if (punto.id === "mexico") countryCode = "MEX";
+        else if (punto.id === "usa") countryCode = "USA";
+        else if (punto.id === "ecuador") countryCode = "ECU";
+        else if (punto.id === "peru") countryCode = "PER";
+        else if (punto.id === "costa_rica") countryCode = "CRI";
+        else if (punto.id === "panama") countryCode = "PAN";
+        else if (punto.id === "espana") countryCode = "ESP";
+        else if (punto.id === "chile") countryCode = "CHL";
+        else if (punto.id === "guatemala") countryCode = "GTM";
+      } else {
+        // Asignación dispersa controlada para zonas sin punto exacto
+        const hash = z.zona.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        cx = 286.0 + (hash % 12);
+        cy = 222.0 + (hash % 24);
+      }
+
+      // Tamaño de la burbuja según porcentaje
+      const pct = Math.max(0, Math.min(100, z.porcentaje || 0));
+      const r = Math.min(13, Math.max(4.5, Math.sqrt(pct) * 3.6));
+
+      return {
+        zonaData: z,
+        nombre: z.zona,
+        cx,
+        cy,
+        r,
+        bandera,
+        pais,
+        tipo,
+        countryCode,
+        esLider: idx === 0,
+        isSelected: zonaActiva?.zona === z.zona,
+        venta: z.venta,
+        unidades: z.unidades,
+        porcentaje: z.porcentaje,
+        ciudadesCount: z.ciudades?.length || 0,
+        refsCount: z.referencias?.length || 0,
+      };
+    });
+  }, [zonasOrdenadas, zonaActiva]);
+
+  // Rutas de exportación curvas desde Colombia hacia destinos internacionales
+  const rutasExportacion = useMemo(() => {
+    const colX = 292.0;
+    const colY = 235.0;
+    const internacionales = puntosMapeados.filter((p) => p.tipo === "internacional");
+
+    return internacionales.map((dest) => {
+      // Punto de control para curva cuadrática de Bézier
+      const midX = (colX + dest.cx) / 2;
+      const midY = Math.min(colY, dest.cy) - 25;
+      const pathD = `M ${colX} ${colY} Q ${midX} ${midY} ${dest.cx} ${dest.cy}`;
+      return {
+        id: `ruta-col-${dest.nombre}`,
+        destNombre: dest.nombre,
+        bandera: dest.bandera,
+        pathD,
+        venta: dest.venta,
+      };
+    });
+  }, [puntosMapeados]);
+
+  // Países destacados en el mapa
+  const paisesDestacados = useMemo(() => {
+    const set = new Set<string>();
+    puntosMapeados.forEach((p) => {
+      if (p.countryCode && KEY_COUNTRIES_PATHS[p.countryCode]) {
+        set.add(p.countryCode);
+      }
+    });
+    // Colombia siempre resaltada como matriz
+    set.add("COL");
+    return Array.from(set);
+  }, [puntosMapeados]);
+
+  // ViewBox dinámico según el modo de vista seleccionado
+  const viewBoxActual = useMemo(() => {
+    if (modoVista === "colombia") {
+      // Zoom centrado en Colombia y departamentos
+      return "272 208 40 48";
+    }
+    if (modoVista === "americas") {
+      // Vista ampliada de América y rutas de exportación
+      return "140 70 340 320";
+    }
+    // Vista Mundial Global Completa
+    return "0 0 1000 500";
+  }, [modoVista]);
+
   return (
     <div className="space-y-4">
-      {/* TARJETA SUPERIOR: RESUMEN TERRITORIAL DEL ASESOR / VENDEDOR */}
+      {/* ============================================================== */}
+      {/* 1. MAPA MUNDI INTERACTIVO: COBERTURA GLOBAL Y REGIONAL         */}
+      {/* ============================================================== */}
+      <Card className="border border-border/80 shadow-md bg-card overflow-hidden">
+        <CardHeader className="pb-3 border-b border-border/60 bg-muted/20">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Globe2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-extrabold tracking-tight text-foreground flex items-center gap-2">
+                    <span>Mapa Mundi de Ventas y Cobertura Territorial</span>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-bold"
+                    >
+                      Interactivo
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground">
+                    {vendedorNombre
+                      ? `Visualización geográfica de los mercados y zonas atendidas por ${vendedorNombre}`
+                      : "Distribución geográfica de facturación nacional y rutas internacionales de exportación"}
+                  </CardDescription>
+                </div>
+              </div>
+            </div>
+
+            {/* Selector de Perspectiva Cartográfica */}
+            <div className="flex items-center gap-1.5 bg-muted/80 p-1 rounded-xl border border-border/60 text-xs">
+              <button
+                type="button"
+                onClick={() => setModoVista("mundo")}
+                className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                  modoVista === "mundo"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>🌐</span>
+                <span>Mundo Completo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setModoVista("americas")}
+                className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                  modoVista === "americas"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>🌎</span>
+                <span>Américas & Rutas</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setModoVista("colombia")}
+                className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                  modoVista === "colombia"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>🇨🇴</span>
+                <span>Enfoque Colombia</span>
+              </button>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-3 sm:p-4">
+          <div className="relative w-full aspect-[2/1] min-h-[300px] max-h-[500px] rounded-2xl overflow-hidden border border-border/70 bg-[#0f172a] shadow-inner select-none">
+            {/* SVG del Mapa Mundi */}
+            <svg
+              viewBox={viewBoxActual}
+              className="w-full h-full transition-all duration-700 ease-out cursor-grab"
+              preserveAspectRatio="xMidYMid meet"
+            >
+              <defs>
+                {/* Degradado oceánico de alta definición */}
+                <linearGradient id="oceanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#091122" />
+                  <stop offset="50%" stopColor="#0b172e" />
+                  <stop offset="100%" stopColor="#0f172a" />
+                </linearGradient>
+
+                {/* Filtro de brillo para nodos líderes */}
+                <filter id="glowFilter" x="-40%" y="-40%" width="180%" height="180%">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
+
+              {/* Fondo oceánico */}
+              <rect width="1000" height="500" fill="url(#oceanGrad)" />
+
+              {/* Cuadrícula cartográfica de meridianos y paralelos */}
+              <g opacity="0.12" stroke="#38bdf8" strokeWidth="0.5" strokeDasharray="2 3">
+                <line x1="0" y1="125" x2="1000" y2="125" />
+                <line x1="0" y1="250" x2="1000" y2="250" strokeWidth="0.8" />
+                <line x1="0" y1="375" x2="1000" y2="375" />
+                <line x1="250" y1="0" x2="250" y2="500" />
+                <line x1="500" y1="0" x2="500" y2="500" strokeWidth="0.8" />
+                <line x1="750" y1="0" x2="750" y2="500" />
+              </g>
+
+              {/* CONTINENTES DEL MUNDO (Base Cartográfica Vectorial Real) */}
+              <path
+                d={WORLD_LAND_PATH}
+                fill="#1e293b"
+                stroke="#334155"
+                strokeWidth={modoVista === "colombia" ? "0.15" : "0.6"}
+                className="transition-colors duration-300"
+              />
+
+              {/* PAÍSES CON VENTAS ACTIVAS ILUMINADOS */}
+              {paisesDestacados.map((cCode) => {
+                const cInfo = KEY_COUNTRIES_PATHS[cCode];
+                if (!cInfo) return null;
+                const esCol = cCode === "COL";
+
+                return (
+                  <path
+                    key={`country-${cCode}`}
+                    d={cInfo.path}
+                    fill={esCol ? "rgba(16, 185, 129, 0.22)" : "rgba(14, 165, 233, 0.22)"}
+                    stroke={esCol ? "#10b981" : "#38bdf8"}
+                    strokeWidth={modoVista === "colombia" ? "0.2" : "0.9"}
+                    className="transition-all duration-300 hover:fill-opacity-50 cursor-pointer"
+                  />
+                );
+              })}
+
+              {/* RUTAS COMERCIALES DE EXPORTACIÓN (Curvas Animadas desde Colombia HQ) */}
+              {rutasExportacion.map((ruta) => (
+                <g key={ruta.id} className="transition-opacity">
+                  <path
+                    d={ruta.pathD}
+                    fill="none"
+                    stroke="#38bdf8"
+                    strokeWidth={modoVista === "colombia" ? "0.3" : "1.6"}
+                    strokeDasharray={modoVista === "colombia" ? "1 1" : "4 4"}
+                    opacity="0.85"
+                  />
+                </g>
+              ))}
+
+              {/* PUNTOS Y BALIZAS GEOGRÁFICAS INTERACTIVAS */}
+              {puntosMapeados.map((p) => {
+                const colorFondo = p.tipo === "internacional" ? "#0ea5e9" : "#10b981";
+                const colorGlow = p.tipo === "internacional" ? "rgba(14, 165, 233, 0.4)" : "rgba(16, 185, 129, 0.4)";
+                const escalaAjuste = modoVista === "colombia" ? 0.35 : 1;
+                const radioFinal = p.r * escalaAjuste;
+
+                return (
+                  <g
+                    key={`punto-${p.nombre}`}
+                    className="cursor-pointer group"
+                    onClick={() => {
+                      setZonaActivaNombre(p.nombre);
+                      if (p.zonaData.id && onSelectZona) {
+                        onSelectZona(p.zonaData.id, p.nombre);
+                      }
+                    }}
+                    onMouseEnter={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setHoverPunto({
+                        nombre: p.nombre,
+                        bandera: p.bandera,
+                        pais: p.pais,
+                        tipo: p.tipo,
+                        venta: p.venta,
+                        unidades: p.unidades,
+                        porcentaje: p.porcentaje,
+                        ciudadesCount: p.ciudadesCount,
+                        refsCount: p.refsCount,
+                        x: p.cx,
+                        y: p.cy,
+                      });
+                    }}
+                    onMouseLeave={() => setHoverPunto(null)}
+                  >
+                    {/* Anillo exterior pulsante */}
+                    <circle
+                      cx={p.cx}
+                      cy={p.cy}
+                      r={radioFinal * 1.9}
+                      fill={colorFondo}
+                      opacity={p.isSelected ? "0.45" : "0.25"}
+                      className="animate-ping"
+                      style={{ transformOrigin: `${p.cx}px ${p.cy}px` }}
+                    />
+
+                    {/* Halo de resplandor */}
+                    <circle
+                      cx={p.cx}
+                      cy={p.cy}
+                      r={radioFinal * 1.4}
+                      fill={colorGlow}
+                    />
+
+                    {/* Núcleo del punto de ventas */}
+                    <circle
+                      cx={p.cx}
+                      cy={p.cy}
+                      r={radioFinal}
+                      fill={p.isSelected ? "#ffffff" : colorFondo}
+                      stroke={p.isSelected ? colorFondo : "#ffffff"}
+                      strokeWidth={modoVista === "colombia" ? "0.3" : "1.8"}
+                      filter={p.esLider ? "url(#glowFilter)" : undefined}
+                      className="transition-transform duration-200 group-hover:scale-125"
+                      style={{ transformOrigin: `${p.cx}px ${p.cy}px` }}
+                    />
+
+                    {/* Etiqueta de texto con bandera y nombre de la zona */}
+                    {modoVista !== "colombia" && (
+                      <text
+                        x={p.cx + radioFinal + 3}
+                        y={p.cy + 3}
+                        fill="#ffffff"
+                        fontSize={p.esLider || p.isSelected ? "9.5" : "8"}
+                        fontWeight={p.esLider || p.isSelected ? "bold" : "600"}
+                        className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] pointer-events-none"
+                      >
+                        {p.bandera} {p.nombre}
+                      </text>
+                    )}
+
+                    {modoVista === "colombia" && (
+                      <text
+                        x={p.cx}
+                        y={p.cy - radioFinal - 1}
+                        fill="#ffffff"
+                        textAnchor="middle"
+                        fontSize="2.4"
+                        fontWeight="bold"
+                        className="drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)] pointer-events-none"
+                      >
+                        {p.nombre}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+
+            {/* Tooltip flotante al pasar el mouse por encima de un marcador */}
+            {hoverPunto && (
+              <div
+                className="absolute z-20 pointer-events-none p-2.5 rounded-xl bg-slate-900/95 text-white border border-slate-700/80 shadow-xl backdrop-blur-md text-xs min-w-[190px]"
+                style={{
+                  top: "12px",
+                  right: "12px",
+                }}
+              >
+                <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-800">
+                  <span className="text-base">{hoverPunto.bandera}</span>
+                  <div>
+                    <span className="font-extrabold text-foreground text-xs block text-white leading-tight">
+                      {hoverPunto.nombre}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {hoverPunto.tipo === "internacional" ? `Mercado ${hoverPunto.pais}` : "Departamento de Colombia"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10.5px] text-slate-400">Facturación:</span>
+                    <span className="font-mono font-bold text-emerald-400 text-xs">
+                      {formatoCOPFull(hoverPunto.venta)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10.5px] text-slate-400">Participación:</span>
+                    <span className="font-bold text-sky-400 text-[11px]">
+                      {hoverPunto.porcentaje.toFixed(1)}% del total
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10.5px] text-slate-400">Volumen:</span>
+                    <span className="text-[11px] text-slate-200">
+                      {hoverPunto.unidades.toLocaleString("es-CO")} prendas
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-slate-800">
+                    <span>{hoverPunto.ciudadesCount} municipios</span>
+                    <span>{hoverPunto.refsCount} referencias</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Controles flotantes en la esquina inferior izquierda del mapa */}
+            <div className="absolute bottom-2.5 left-2.5 z-10 flex items-center gap-2 bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/60 text-[10px] text-white">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-xs" />
+                <span className="font-semibold">Sede Matriz / Colombia</span>
+              </div>
+              <span className="text-slate-600">•</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shadow-xs" />
+                <span className="font-semibold">Exportaciones</span>
+              </div>
+              <span className="text-slate-600">•</span>
+              <span className="text-slate-400">Haz clic en un punto para inspeccionarlo</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ============================================================== */}
+      {/* 2. TARJETAS DE RESUMEN TERRITORIAL DEL ASESOR / VENDEDOR       */}
+      {/* ============================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="p-3.5 rounded-2xl bg-card border border-border/70 shadow-xs">
           <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
@@ -109,7 +557,7 @@ export function MapaVentasZonas({
             Zonas con Ventas Activas
           </span>
           <span className="text-base font-extrabold text-sky-600 dark:text-sky-400 font-mono block mt-0.5">
-            {zonasOrdenadas.length} Regiones / Departamentos
+            {zonasOrdenadas.length} Regiones / Mercados
           </span>
           <span className="text-[11px] text-muted-foreground font-medium">
             Presencia comercial registrada
@@ -141,9 +589,11 @@ export function MapaVentasZonas({
         </div>
       </div>
 
-      {/* CUERPO PRINCIPAL: SELECTOR DE ZONAS + DETALLE DE CIUDADES Y REFERENCIAS */}
+      {/* ============================================================== */}
+      {/* 3. DOS COLUMNAS DE DETALLE: ZONAS + MUNICIPIOS Y REFERENCIAS   */}
+      {/* ============================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* COLUMNA IZQUIERDA: LISTA Y RANKING DE ZONAS DEL VENDEDOR (COL 5) */}
+        {/* COLUMNA IZQUIERDA: LISTA Y RANKING DE ZONAS (COL 5) */}
         <div className="lg:col-span-5 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
@@ -280,7 +730,7 @@ export function MapaVentasZonas({
                       </h4>
                       <p className="text-[11px] text-muted-foreground">
                         {vendedorNombre
-                          ? `Ventas realizadas por ${vendedorNombre} en esta zona`
+                          ? `Detalle comercial de municipios y referencias vendidas por ${vendedorNombre}`
                           : "Detalle comercial de municipios y referencias vendidas"}
                       </p>
                     </div>
@@ -441,7 +891,7 @@ export function MapaVentasZonas({
             </div>
           ) : (
             <div className="p-12 text-center text-xs text-muted-foreground border border-dashed rounded-2xl bg-muted/10">
-              Selecciona una zona a la izquierda para inspeccionar sus municipios y las referencias vendidas.
+              Selecciona una zona en el mapa o a la izquierda para inspeccionar sus municipios y referencias vendidas.
             </div>
           )}
         </div>
