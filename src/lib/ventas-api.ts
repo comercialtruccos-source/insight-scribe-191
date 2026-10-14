@@ -32,6 +32,8 @@ export type CatalogosDisponibles = {
   lineas: CatalogoItem[];
   zonas: CatalogoItem[];
   ciudades: CatalogoItem[];
+  correrias: CatalogoItem[];
+  paises: CatalogoItem[];
 };
 
 export type RangoFechasInfo = {
@@ -551,7 +553,7 @@ const sanitizeCatalogo = (data: unknown[] | null | undefined): CatalogoItem[] =>
 
 /** Obtiene catálogos y TODOS los años presentes dinámicamente en el documento */
 export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
-  const [vendRes, canalRes, marcaRes, lineaRes, zonaRes, zonaColRes, ciudadRes, fechaMinRes, fechaMaxRes] =
+  const [vendRes, canalRes, marcaRes, lineaRes, zonaRes, zonaColRes, ciudadRes, correriaRes, paisRes, fechaMinRes, fechaMaxRes] =
     await Promise.all([
       supabase.from("dim_vendedor").select("id, nombre").not("nombre", "is", null).order("nombre").limit(2000),
       supabase.from("dim_canal").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
@@ -560,6 +562,8 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
       supabase.from("dim_zona").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
       supabase.from("dim_zona_colombia").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
       supabase.from("dim_ciudad").select("id, nombre").not("nombre", "is", null).order("nombre").limit(1000),
+      supabase.from("dim_correria").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
+      supabase.from("dim_pais").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
       supabase.from("fact_ventas").select("fecha, anio, anio_col").not("fecha", "is", null).order("fecha", { ascending: true }).limit(1),
       supabase.from("fact_ventas").select("fecha, anio, anio_col").not("fecha", "is", null).order("fecha", { ascending: false }).limit(1),
     ]);
@@ -606,6 +610,8 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
     lineas: sanitizeCatalogo(lineaRes.data),
     zonas: Array.from(zonasMap.entries()).map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
     ciudades: sanitizeCatalogo(ciudadRes.data),
+    correrias: sanitizeCatalogo(correriaRes.data),
+    paises: sanitizeCatalogo(paisRes.data),
   };
 }
 
@@ -958,6 +964,7 @@ export type DataDashboard1 = {
   mixMarcas: { marca: string; venta: number; ventaAnterior?: number; porcentaje: number; crecimientoYoY?: number }[];
   rankingVendedores: VendedorAporte[];
   topReferencias: ReferenciaTop[];
+  topReferenciasPorUnidades?: ReferenciaTop[];
   distribucionZonas: ZonaAporte[];
   topCiudades: CiudadAporte[];
   mixCanales: CanalAporte[];
@@ -1113,11 +1120,11 @@ export function calcularDashboard1Cumplimiento(
     const prevV = vendedorVentaMap.get(vNom) || { id: vId, venta: 0, unidades: 0 };
     vendedorVentaMap.set(vNom, { id: vId, venta: prevV.venta + v, unidades: prevV.unidades + cant });
 
-    // Referencias / SKUs
-    const sku = r.sku || r.prenda_hgi || "N/A";
-    const prodNom = r.producto || r.prenda_hgi || "Prenda Trucco's";
-    const prevRef = refVentaMap.get(sku) || { producto: prodNom, linea: lNom, unidades: 0, valor: 0 };
-    refVentaMap.set(sku, {
+    // Referencias / SKUs (Agrupación inteligente por referencia base)
+    const baseRef = (r.prenda_hgi || r.producto_c || r.sku || "N/A").trim().toUpperCase();
+    const prodNom = (r.producto || r.prenda_hgi || baseRef || "Prenda Trucco's").trim();
+    const prevRef = refVentaMap.get(baseRef) || { producto: prodNom, linea: lNom, unidades: 0, valor: 0 };
+    refVentaMap.set(baseRef, {
       producto: prodNom,
       linea: lNom,
       unidades: prevRef.unidades + cant,
@@ -1205,9 +1212,9 @@ export function calcularDashboard1Cumplimiento(
       const prevV = vendedorAntMap.get(vNom) || { venta: 0, unidades: 0 };
       vendedorAntMap.set(vNom, { venta: prevV.venta + v, unidades: prevV.unidades + cant });
 
-      const sku = r.sku || r.prenda_hgi || "N/A";
-      const prevRef = refAntMap.get(sku) || { valor: 0, unidades: 0 };
-      refAntMap.set(sku, { valor: prevRef.valor + v, unidades: prevRef.unidades + cant });
+      const baseRef = (r.prenda_hgi || r.producto_c || r.sku || "N/A").trim().toUpperCase();
+      const prevRef = refAntMap.get(baseRef) || { valor: 0, unidades: 0 };
+      refAntMap.set(baseRef, { valor: prevRef.valor + v, unidades: prevRef.unidades + cant });
 
       const zId = r.zona_id || r.zona_colombia_id || null;
       const zNom = (zId && zonaMap.get(zId)) || "Nacional / Sin Zona";
@@ -1356,7 +1363,7 @@ export function calcularDashboard1Cumplimiento(
     })
     .sort((a, b) => b.venta - a.venta);
 
-  const topReferencias: ReferenciaTop[] = Array.from(refVentaMap.entries())
+  const todasReferenciasD1: ReferenciaTop[] = Array.from(refVentaMap.entries())
     .map(([sku, val]) => {
       const rAnt = refAntMap.get(sku);
       const valAnt = rAnt?.valor || 0;
@@ -1374,8 +1381,14 @@ export function calcularDashboard1Cumplimiento(
         porcentaje: totalVentas > 0 ? Math.round((val.valor / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: yoy,
       };
-    })
+    });
+
+  const topReferencias: ReferenciaTop[] = [...todasReferenciasD1]
     .sort((a, b) => b.valor - a.valor)
+    .slice(0, 15);
+
+  const topReferenciasPorUnidades: ReferenciaTop[] = [...todasReferenciasD1]
+    .sort((a, b) => b.unidades - a.unidades)
     .slice(0, 15);
 
   const distribucionZonas: ZonaAporte[] = Array.from(zonaVentaMap.entries())
@@ -1530,6 +1543,7 @@ export function calcularDashboard1Cumplimiento(
     mixMarcas,
     rankingVendedores,
     topReferencias,
+    topReferenciasPorUnidades,
     distribucionZonas,
     topCiudades,
     mixCanales,
@@ -1856,7 +1870,8 @@ export function calcularDashboard3Digital(
       },
   marcasCatalogo?: CatalogoItem[],
   subCanalFiltro?: "todos" | "tienda_virtual" | "redes_sociales",
-  dataAnterior?: FilaFactVentas[]
+  dataAnterior?: FilaFactVentas[],
+  skuFiltro?: string
 ): DataDashboard3 {
   let vendedoresList: CatalogoItem[] = [];
   let canalesList: CatalogoItem[] = [];
@@ -1989,15 +2004,15 @@ export function calcularDashboard3Digital(
       mesesData[mIdx].ventaTotal += v;
       mesesData[mIdx].unidades += cant;
 
-      // Track references
-      const sku = (r.sku || r.producto || "Sin Ref").trim().toUpperCase();
-      const pNombre = (r.producto || sku).trim();
-      const prevRef = refMap.get(sku) || { producto: pNombre, linea: lName, venta: 0, unidades: 0, tvVenta: 0, rsVenta: 0 };
+      // Unificar por referencia base (prenda_hgi / producto_c / sku)
+      const baseRef = (r.prenda_hgi || r.producto_c || r.sku || r.producto || "Sin Ref").trim().toUpperCase();
+      const pNombre = (r.producto || r.prenda_hgi || baseRef).trim();
+      const prevRef = refMap.get(baseRef) || { producto: pNombre, linea: lName, venta: 0, unidades: 0, tvVenta: 0, rsVenta: 0 };
       prevRef.venta += v;
       prevRef.unidades += cant;
       if (digitalTipo === "tienda_virtual") prevRef.tvVenta += v;
       if (digitalTipo === "redes_sociales") prevRef.rsVenta += v;
-      refMap.set(sku, prevRef);
+      refMap.set(baseRef, prevRef);
 
       // Track lines
       const prevLinea = lineaDistMap.get(lName) || { venta: 0, unidades: 0 };
@@ -2163,7 +2178,16 @@ export function calcularDashboard3Digital(
     roas: m.roas,
   }));
 
+  const skuBusq = (skuFiltro || "").trim().toLowerCase();
   const topReferenciasDigital: TopReferenciaDigital[] = Array.from(refMap.entries())
+    .filter(([referencia, v]) => {
+      if (!skuBusq) return true;
+      return (
+        referencia.toLowerCase().includes(skuBusq) ||
+        v.producto.toLowerCase().includes(skuBusq) ||
+        v.linea.toLowerCase().includes(skuBusq)
+      );
+    })
     .map(([referencia, v]) => ({
       referencia,
       producto: v.producto,
@@ -2174,7 +2198,7 @@ export function calcularDashboard3Digital(
       canalPredominante: v.tvVenta >= v.rsVenta ? "Tienda Virtual" : "Redes Sociales",
     }))
     .sort((a, b) => b.venta - a.venta)
-    .slice(0, 10);
+    .slice(0, skuBusq ? 50 : 15);
 
   const lineasDigital: LineaDigital[] = Array.from(lineaDistMap.entries())
     .map(([linea, v]) => ({
@@ -2775,13 +2799,16 @@ export type DataDashboard6 = {
   curvaTallas: { talla: string; unidades: number; porcentaje: number }[];
   coloresLideres: { color: string; unidades: number; porcentaje: number }[];
   matrizDispersion: { sku: string; producto: string; linea: string; unidades: number; precioPromedio: number; ventaNeta: number; clasificacionABC: "A" | "B" | "C" }[];
+  referenciasDisponiblesEscala?: Array<{ sku: string; producto: string; unidades: number }>;
+  filtroRefEscalaActivo?: string;
 };
 
 export function calcularDashboard6Referencias(
   data: FilaFactVentas[],
   filtros: FiltrosBI,
   catalogos?: CatalogosDisponibles | { lineas?: CatalogoItem[]; marcas?: CatalogoItem[] },
-  dataAnterior?: FilaFactVentas[]
+  dataAnterior?: FilaFactVentas[],
+  filtroRefEscala?: string
 ): DataDashboard6 {
   const lineaMap = new Map<number, string>((catalogos?.lineas || []).map((l) => [l.id, l.nombre]));
   const marcaMap = new Map<number, string>((catalogos?.marcas || []).map((m) => [m.id, m.nombre]));
@@ -2883,8 +2910,15 @@ export function calcularDashboard6Referencias(
     currMarca.unidades += cant;
     currMarca.skus.add(sku);
 
-    if (talla) tallasMap.set(talla, (tallasMap.get(talla) || 0) + cant);
-    if (color) coloresMap.set(color, (coloresMap.get(color) || 0) + cant);
+    const coincideRefEscala =
+      !filtroRefEscala ||
+      filtroRefEscala === "todas" ||
+      sku.toLowerCase() === filtroRefEscala.toLowerCase() ||
+      prod.toLowerCase() === filtroRefEscala.toLowerCase() ||
+      sku.toLowerCase().includes(filtroRefEscala.toLowerCase());
+
+    if (talla && coincideRefEscala) tallasMap.set(talla, (tallasMap.get(talla) || 0) + cant);
+    if (color && coincideRefEscala) coloresMap.set(color, (coloresMap.get(color) || 0) + cant);
   }
 
   // YoY Referencias
@@ -3043,14 +3077,15 @@ export function calcularDashboard6Referencias(
     },
   ];
 
+  const totalUnidadesTallas = Array.from(tallasMap.values()).reduce((a, b) => a + b, 0);
   const curvaTallas = Array.from(tallasMap.entries())
     .map(([talla, unidades]) => ({
       talla,
       unidades,
-      porcentaje: totalUnidades > 0 ? Math.round((unidades / totalUnidades) * 1000) / 10 : 0,
+      porcentaje: totalUnidadesTallas > 0 ? Math.round((unidades / totalUnidadesTallas) * 1000) / 10 : 0,
     }))
     .sort((a, b) => b.unidades - a.unidades)
-    .slice(0, 10);
+    .slice(0, 15);
 
   const coloresLideres = Array.from(coloresMap.entries())
     .map(([color, unidades]) => ({
@@ -3076,6 +3111,10 @@ export function calcularDashboard6Referencias(
 
   const precioPromedioPonderado = totalUnidades > 0 ? Math.round(totalVentaNeta / totalUnidades) : 0;
   const tasaDevolucionGlobal = totalVentaNeta > 0 ? Math.round((totalDevoluciones / totalVentaNeta) * 10000) / 100 : 0;
+
+  const referenciasDisponiblesEscala = todasReferencias
+    .map((r) => ({ sku: r.sku, producto: r.producto, unidades: r.unidades }))
+    .sort((a, b) => b.unidades - a.unidades);
 
   return {
     kpis: {
@@ -3133,6 +3172,8 @@ export function calcularDashboard6Referencias(
     curvaTallas,
     coloresLideres,
     matrizDispersion,
+    referenciasDisponiblesEscala,
+    filtroRefEscalaActivo: filtroRefEscala || "todas",
   };
 }
 
@@ -3257,6 +3298,7 @@ export type FiltrosPedidosDespachos = {
   fecha_hasta?: string | null;
   vendedor_id?: number | null;
   vendedor_ids?: number[] | null;
+  correria_id?: number | string | null;
   tercero_busqueda?: string | null;
   producto_busqueda?: string | null;
   solo_pendientes?: boolean;
@@ -3347,10 +3389,14 @@ export async function obtenerPedidosVsDespachos(
   while (hasMore && rawRows.length < MAX_ROWS) {
     let q = supabase
       .from("fact_ventas")
-      .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
-      .in("transaccion", ["PEDIDOS", "SALIDA POR DESPACHO"])
+      .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
+      .in("transaccion", ["PEDIDOS", "SALIDA POR DESPACHO", "PEDIDO", "SALIDA POR DESPACHOS", "DESPACHO", "DESPACHOS"])
       .gte("fecha", fechaDesde)
       .lte("fecha", fechaHasta);
+
+    if (filtros.correria_id && filtros.correria_id !== "todas") {
+      q = q.eq("correria_id", Number(filtros.correria_id));
+    }
 
     if (filtros.vendedor_id) {
       q = q.or(`vendedor_id.eq.${filtros.vendedor_id},vendedor2_id.eq.${filtros.vendedor_id}`);
@@ -3359,7 +3405,9 @@ export async function obtenerPedidosVsDespachos(
       q = q.or(`vendedor_id.in.(${listStr}),vendedor2_id.in.(${listStr})`);
     }
 
-    const { data, error } = await q.range(offset, offset + CHUNK_SIZE - 1);
+    const { data, error } = await q
+      .order("id", { ascending: true })
+      .range(offset, offset + CHUNK_SIZE - 1);
 
     if (error || !data || data.length === 0) {
       hasMore = false;
@@ -3603,5 +3651,230 @@ export async function obtenerPedidosVsDespachos(
     },
   };
 }
+
+// =========================================================================
+// DASHBOARD 4: CLIENTES ACTIVADOS POR ASESOR COMERCIAL
+// =========================================================================
+
+export type ClienteActivadoItem = {
+  terceroId: number;
+  terceroNombre: string;
+  terceroCodigo?: string | null;
+  vendedorId: number | null;
+  vendedorNombre: string;
+  ventaActual: number;
+  ventaAnterior: number;
+  unidadesActuales: number;
+  unidadesAnteriores: number;
+  crecimientoYoY: number;
+  crecimientoUnidadesYoY: number;
+  transacciones: number;
+  ticketPromedio: number;
+  estadoCliente: "Nuevo" | "Crecimiento" | "Decrecimiento" | "Estable";
+};
+
+export type ResumenClientesVendedor = {
+  clientes: ClienteActivadoItem[];
+  vendedoresLista: CatalogoItem[];
+  kpis: {
+    totalClientes: number;
+    clientesNuevos: number;
+    clientesCrecimiento: number;
+    clientesDecrecimiento: number;
+    ventaTotal: number;
+    ventaAnteriorTotal: number;
+    crecimientoYoYPct: number;
+    unidadesTotal: number;
+    unidadesAnteriorTotal: number;
+    ticketPromedioGlobal: number;
+  };
+};
+
+export async function obtenerClientesPorVendedor(
+  filtros: FiltrosBI
+): Promise<ResumenClientesVendedor> {
+  const [tercRes, vendRes] = await Promise.all([
+    supabase.from("dim_tercero").select("id, codigo, nombre").limit(5000),
+    supabase.from("dim_vendedor").select("id, nombre").limit(1000),
+  ]);
+
+  const tMap = new Map<number, { nombre: string; codigo?: string | null }>(
+    (tercRes.data || []).map((t) => [t.id, { nombre: t.nombre || t.codigo || `Cliente #${t.id}`, codigo: t.codigo }])
+  );
+  const vMap = new Map<number, string>(
+    (vendRes.data || []).map((v) => [v.id, v.nombre])
+  );
+
+  const cols = "id, transaccion, fecha, anio, mes, vendedor_id, vendedor2_id, tercero_id, valor, cantidad";
+  const rawActual = await fetchAllFactVentas<FilaFactVentas>(cols, filtros, 100000);
+
+  const filtrosAnt = obtenerFiltrosAnioAnterior(filtros);
+  const rawAnt = await fetchAllFactVentas<FilaFactVentas>(cols, filtrosAnt, 100000);
+
+  type AccTercero = {
+    terceroId: number;
+    terceroNombre: string;
+    terceroCodigo?: string | null;
+    vendedorId: number | null;
+    vendedorNombre: string;
+    ventaActual: number;
+    ventaAnterior: number;
+    unidadesActuales: number;
+    unidadesAnteriores: number;
+    transaccionesSet: Set<string>;
+  };
+
+  const map = new Map<string, AccTercero>();
+
+  for (const r of rawActual) {
+    const tId = Number(r.tercero_id) || 0;
+    const tInfo = tId ? tMap.get(tId) : null;
+    const tNombre = tInfo?.nombre || (tInfo?.codigo ? tInfo.codigo : `Cliente #${tId || "General"}`);
+    const tCodigo = tInfo?.codigo || null;
+
+    const vId = Number(r.vendedor_id) || Number(r.vendedor2_id) || null;
+    const vNombre = (vId ? vMap.get(vId) : null) || "Asesor General";
+
+    const key = `${vId || 0}__${tId || tNombre}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        terceroId: tId,
+        terceroNombre: tNombre,
+        terceroCodigo: tCodigo,
+        vendedorId: vId,
+        vendedorNombre: vNombre,
+        ventaActual: 0,
+        ventaAnterior: 0,
+        unidadesActuales: 0,
+        unidadesAnteriores: 0,
+        transaccionesSet: new Set(),
+      });
+    }
+
+    const item = map.get(key)!;
+    const v = Number(r.valor || 0);
+    const cant = Math.round(Number(r.cantidad || 0));
+    item.ventaActual += v;
+    item.unidadesActuales += cant;
+    item.transaccionesSet.add(r.transaccion ? String(r.transaccion) : `row_${r.id}`);
+  }
+
+  for (const r of rawAnt) {
+    const tId = Number(r.tercero_id) || 0;
+    const tInfo = tId ? tMap.get(tId) : null;
+    const tNombre = tInfo?.nombre || (tInfo?.codigo ? tInfo.codigo : `Cliente #${tId || "General"}`);
+    const tCodigo = tInfo?.codigo || null;
+
+    const vId = Number(r.vendedor_id) || Number(r.vendedor2_id) || null;
+    const vNombre = (vId ? vMap.get(vId) : null) || "Asesor General";
+
+    const key = `${vId || 0}__${tId || tNombre}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        terceroId: tId,
+        terceroNombre: tNombre,
+        terceroCodigo: tCodigo,
+        vendedorId: vId,
+        vendedorNombre: vNombre,
+        ventaActual: 0,
+        ventaAnterior: 0,
+        unidadesActuales: 0,
+        unidadesAnteriores: 0,
+        transaccionesSet: new Set(),
+      });
+    }
+
+    const item = map.get(key)!;
+    const v = Number(r.valor || 0);
+    const cant = Math.round(Number(r.cantidad || 0));
+    item.ventaAnterior += v;
+    item.unidadesAnteriores += cant;
+  }
+
+  let ventaTotal = 0;
+  let ventaAnteriorTotal = 0;
+  let unidadesTotal = 0;
+  let unidadesAnteriorTotal = 0;
+  let clientesNuevos = 0;
+  let clientesCrecimiento = 0;
+  let clientesDecrecimiento = 0;
+
+  const clientes: ClienteActivadoItem[] = Array.from(map.values())
+    .filter((c) => c.ventaActual > 0 || c.ventaAnterior > 0)
+    .map((c) => {
+      ventaTotal += c.ventaActual;
+      ventaAnteriorTotal += c.ventaAnterior;
+      unidadesTotal += c.unidadesActuales;
+      unidadesAnteriorTotal += c.unidadesAnteriores;
+
+      const yoy = c.ventaAnterior > 0
+        ? Math.round(((c.ventaActual - c.ventaAnterior) / c.ventaAnterior) * 10000) / 100
+        : (c.ventaActual > 0 ? 100 : 0);
+
+      const yoyUnd = c.unidadesAnteriores > 0
+        ? Math.round(((c.unidadesActuales - c.unidadesAnteriores) / c.unidadesAnteriores) * 10000) / 100
+        : (c.unidadesActuales > 0 ? 100 : 0);
+
+      let estadoCliente: "Nuevo" | "Crecimiento" | "Decrecimiento" | "Estable" = "Estable";
+      if (c.ventaAnterior === 0 && c.ventaActual > 0) {
+        estadoCliente = "Nuevo";
+        clientesNuevos++;
+      } else if (c.ventaActual > c.ventaAnterior) {
+        estadoCliente = "Crecimiento";
+        clientesCrecimiento++;
+      } else if (c.ventaActual < c.ventaAnterior) {
+        estadoCliente = "Decrecimiento";
+        clientesDecrecimiento++;
+      }
+
+      const txCount = c.transaccionesSet.size > 0 ? c.transaccionesSet.size : (c.unidadesActuales > 0 ? 1 : 0);
+      const ticketPromedio = txCount > 0 ? Math.round(c.ventaActual / txCount) : 0;
+
+      return {
+        terceroId: c.terceroId,
+        terceroNombre: c.terceroNombre,
+        terceroCodigo: c.terceroCodigo,
+        vendedorId: c.vendedorId,
+        vendedorNombre: c.vendedorNombre,
+        ventaActual: c.ventaActual,
+        ventaAnterior: c.ventaAnterior,
+        unidadesActuales: c.unidadesActuales,
+        unidadesAnteriores: c.unidadesAnteriores,
+        crecimientoYoY: yoy,
+        crecimientoUnidadesYoY: yoyUnd,
+        transacciones: txCount,
+        ticketPromedio,
+        estadoCliente,
+      };
+    })
+    .sort((a, b) => b.ventaActual - a.ventaActual);
+
+  const crecimientoYoYPct = ventaAnteriorTotal > 0
+    ? Math.round(((ventaTotal - ventaAnteriorTotal) / ventaAnteriorTotal) * 10000) / 100
+    : 0;
+
+  const totalTxGlobal = clientes.reduce((acc, c) => acc + c.transacciones, 0);
+  const ticketPromedioGlobal = totalTxGlobal > 0 ? Math.round(ventaTotal / totalTxGlobal) : 0;
+
+  const vendedoresLista: CatalogoItem[] = sanitizeCatalogo(vendRes.data);
+
+  return {
+    clientes,
+    vendedoresLista,
+    kpis: {
+      totalClientes: clientes.length,
+      clientesNuevos,
+      clientesCrecimiento,
+      clientesDecrecimiento,
+      ventaTotal,
+      ventaAnteriorTotal,
+      crecimientoYoYPct,
+      unidadesTotal,
+      unidadesAnteriorTotal,
+      ticketPromedioGlobal,
+    },
+  };
+}
+
 
 

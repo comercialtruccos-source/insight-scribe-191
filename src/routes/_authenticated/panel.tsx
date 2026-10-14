@@ -30,6 +30,9 @@ import {
 } from "@/lib/parse-ventas";
 import { cn } from "@/lib/utils";
 import { VisorPedidosDespachos } from "@/components/pedidos/VisorPedidosDespachos";
+import { MapaVentasZonas } from "@/components/dashboard/MapaVentasZonas";
+import { PanelClientesActivados } from "@/components/vendedores/PanelClientesActivados";
+import { MultiSelectVendedores } from "@/components/vendedores/MultiSelectVendedores";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -322,18 +325,27 @@ function Panel() {
   const [canalId, setCanalId] = useState<string>("todos");
   const [marcaId, setMarcaId] = useState<string>("todos");
   const [vendedorId, setVendedorId] = useState<string>("todos");
+  const [vendedorIds, setVendedorIds] = useState<string[]>([]);
   const [zonaId, setZonaId] = useState<string>("todos");
   const [ciudadId, setCiudadId] = useState<string>("todos");
 
-  // Sub-filtro de canal digital para Dashboard 3
+  // Sub-filtro de canal digital y búsqueda de SKU para Dashboard 3
   const [filtroCanalDigital, setFiltroCanalDigital] = useState<"todos" | "tienda_virtual" | "redes_sociales">("todos");
+  const [busquedaSkuD3, setBusquedaSkuD3] = useState<string>("");
 
   // Explorador de ubicaciones (Zonas y Ciudades) en Dashboard 1
   const [zonaUbicacionD1, setZonaUbicacionD1] = useState<string>("todas");
   const [busquedaCiudadD1, setBusquedaCiudadD1] = useState<string>("");
-  const [vistaUbicacionesD1, setVistaUbicacionesD1] = useState<"graficas" | "tabla">("graficas");
+  const [vistaUbicacionesD1, setVistaUbicacionesD1] = useState<"mapa" | "graficas" | "tabla">("mapa");
 
-  // Dashboard 6: Referencias
+  // Toggle de ordenamiento para Top SKUs en Dashboard 1 (Facturación vs Unidades)
+  const [ordenTopSkusD1, setOrdenTopSkusD1] = useState<"valor" | "unidades">("valor");
+
+  // Sub-pestaña para Dashboard 4 (Equipo de Asesores vs Clientes Activados)
+  const [subTabD4, setSubTabD4] = useState<"asesores" | "clientes">("asesores");
+
+  // Dashboard 6: Referencias y Filtro de Escalas
+  const [filtroRefEscalaD6, setFiltroRefEscalaD6] = useState<string>("todas");
   const [busquedaRef, setBusquedaRef] = useState("");
   const [filtroLineaRef, setFiltroLineaRef] = useState("todas");
   const [filtroAbcRef, setFiltroAbcRef] = useState("todos");
@@ -540,16 +552,16 @@ function Panel() {
     let fVendedorId: number | null = null;
     let fVendedorIds: number[] | null = null;
 
-    if (!esAdmin && vendedorIdsPermitidos) {
-      if (vendedorId !== "todos") {
-        fVendedorId = Number(vendedorId);
-      } else {
-        fVendedorIds = vendedorIdsPermitidos.length > 0 ? vendedorIdsPermitidos : [-99999];
+    if (vendedorIds.length > 0) {
+      fVendedorIds = vendedorIds.map(Number);
+      if (vendedorIds.length === 1) {
+        fVendedorId = Number(vendedorIds[0]);
       }
-    } else {
-      if (vendedorId !== "todos") {
-        fVendedorId = Number(vendedorId);
-      }
+    } else if (vendedorId !== "todos") {
+      fVendedorId = Number(vendedorId);
+      fVendedorIds = [Number(vendedorId)];
+    } else if (!esAdmin && vendedorIdsPermitidos) {
+      fVendedorIds = vendedorIdsPermitidos.length > 0 ? vendedorIdsPermitidos : [-99999];
     }
 
     let fCanalId: number | null = null;
@@ -571,7 +583,7 @@ function Panel() {
       zona_id: zonaId !== "todos" ? Number(zonaId) : null,
       ciudad_id: ciudadId !== "todos" ? Number(ciudadId) : null,
     };
-  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, zonaId, ciudadId, rangoTotal?.fechaMax, esAdmin, vendedorIdsPermitidos, canalesDisponibles]);
+  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, vendedorIds, zonaId, ciudadId, rangoTotal?.fechaMax, esAdmin, vendedorIdsPermitidos, canalesDisponibles]);
 
   const hayFiltrosActivos =
     tabActivo === "d3"
@@ -581,6 +593,7 @@ function Panel() {
         marcaId !== "todos" ||
         ciudadId !== "todos" ||
         filtroCanalDigital !== "todos" ||
+        Boolean(busquedaSkuD3) ||
         Boolean(fechaDesde) ||
         Boolean(fechaHasta)
       : tipoRango !== "todo" ||
@@ -589,8 +602,10 @@ function Panel() {
         canalId !== "todos" ||
         marcaId !== "todos" ||
         vendedorId !== "todos" ||
+        vendedorIds.length > 0 ||
         zonaId !== "todos" ||
         ciudadId !== "todos" ||
+        filtroRefEscalaD6 !== "todas" ||
         Boolean(fechaDesde) ||
         Boolean(fechaHasta);
 
@@ -603,9 +618,12 @@ function Panel() {
     setCanalId(!esAdmin && canalesDisponibles.length === 1 ? String(canalesDisponibles[0].id) : "todos");
     setMarcaId("todos");
     setVendedorId("todos");
+    setVendedorIds([]);
     setZonaId("todos");
     setCiudadId("todos");
     setFiltroCanalDigital("todos");
+    setBusquedaSkuD3("");
+    setFiltroRefEscalaD6("todas");
   };
 
   // Modo Comparativa vs Año Anterior (YoY) - Activación On-Demand para Admin, Activo por Defecto para Vendedores
@@ -795,9 +813,13 @@ function Panel() {
   }, [rawVentas, filtros, catalogos, habilitarYoY, rawVentasYoY, resumenInventario]);
 
   const vendedorSeleccionadoNombre = useMemo(() => {
-    if (vendedorId === "todos") return null;
-    return catalogos?.vendedores?.find((v) => String(v.id) === String(vendedorId))?.nombre || null;
-  }, [vendedorId, catalogos]);
+    if (vendedorIds.length > 1) {
+      return `Varios Asesores (${vendedorIds.length})`;
+    }
+    const idABuscar = vendedorIds.length === 1 ? vendedorIds[0] : vendedorId;
+    if (idABuscar === "todos" || !idABuscar) return null;
+    return catalogos?.vendedores?.find((v) => String(v.id) === String(idABuscar))?.nombre || null;
+  }, [vendedorIds, vendedorId, catalogos]);
 
   const zonaSeleccionadaNombre = useMemo(() => {
     if (zonaId === "todos") return null;
@@ -920,8 +942,8 @@ function Panel() {
     [rawVentas, filtros, compararAnioAnterior, rawVentasYoY]
   );
   const d3 = useMemo(
-    () => calcularDashboard3Digital(rawVentas || [], filtros, catalogos, undefined, filtroCanalDigital, compararAnioAnterior ? rawVentasYoY : undefined),
-    [rawVentas, filtros, catalogos, filtroCanalDigital, compararAnioAnterior, rawVentasYoY]
+    () => calcularDashboard3Digital(rawVentas || [], filtros, catalogos, undefined, filtroCanalDigital, compararAnioAnterior ? rawVentasYoY : undefined, busquedaSkuD3),
+    [rawVentas, filtros, catalogos, filtroCanalDigital, compararAnioAnterior, rawVentasYoY, busquedaSkuD3]
   );
   const d4 = useMemo(
     () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, vendedoresDisponibles, catalogos?.canales, undefined, compararAnioAnterior ? rawVentasYoY : undefined),
@@ -932,8 +954,8 @@ function Panel() {
     [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]
   );
   const d6 = useMemo(
-    () => calcularDashboard6Referencias(rawVentas || [], filtros, catalogos, compararAnioAnterior ? rawVentasYoY : undefined),
-    [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]
+    () => calcularDashboard6Referencias(rawVentas || [], filtros, catalogos, compararAnioAnterior ? rawVentasYoY : undefined, filtroRefEscalaD6),
+    [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY, filtroRefEscalaD6]
   );
 
   const referenciasFiltradas = useMemo(() => {
@@ -1512,26 +1534,18 @@ function Panel() {
                   </SelectContent>
                 </Select>
 
-                {/* Vendedor */}
-                <Select value={vendedorId} onValueChange={setVendedorId}>
-                  <SelectTrigger className="h-8 min-w-[150px] max-w-[200px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs hover:border-primary/50 transition-all font-medium">
-                    <SelectValue placeholder="Vendedor" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72 overflow-y-auto rounded-xl border-border/80 shadow-lg">
-                    <SelectItem value="todos">
-                      {esAdmin
-                        ? "Todos los Vendedores"
-                        : vendedoresDisponibles.length === 1
-                        ? "Mi Vendedor Asignado"
-                        : `Mis Vendedores (${vendedoresDisponibles.length})`}
-                    </SelectItem>
-                    {vendedoresDisponibles.map((v) => (
-                      <SelectItem key={v.id} value={String(v.id)}>
-                        {v.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Vendedor Multi-Select */}
+                <MultiSelectVendedores
+                  vendedores={vendedoresDisponibles}
+                  selectedIds={vendedorIds}
+                  onChange={(ids) => {
+                    setVendedorIds(ids);
+                    if (ids.length === 1) setVendedorId(ids[0]);
+                    else if (ids.length > 1) setVendedorId("multiple");
+                    else setVendedorId("todos");
+                  }}
+                  esAdmin={esAdmin}
+                />
 
                 {/* Zona */}
                 <Select value={zonaId} onValueChange={setZonaId}>
@@ -1588,6 +1602,24 @@ function Panel() {
                 </span>
               )}
             </Button>
+
+            {/* Indicador Multianual YoY en barra de filtros */}
+            <div
+              onClick={() => esAdmin && setTabActivo("multianual")}
+              className={cn(
+                "inline-flex items-center gap-1.5 h-8 px-3 rounded-xl border text-xs font-semibold transition-all shadow-2xs select-none",
+                esAdmin ? "cursor-pointer hover:border-purple-500/60 hover:bg-purple-500/15" : "",
+                "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30"
+              )}
+              title="Métrica Multianual consolidada. Clic para ir al tab Multianual."
+            >
+              <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+              <span className="font-bold">Multianual YoY:</span>
+              <span className="font-mono font-bold text-foreground">
+                {(d1?.kpis.crecimientoYoYPct ?? 0) >= 0 ? "+" : ""}
+                {(d1?.kpis.crecimientoYoYPct ?? 0).toFixed(2)}%
+              </span>
+            </div>
 
             {/* Botón Copiloto & Mentor Comercial */}
             <Button
@@ -3127,6 +3159,17 @@ function Panel() {
                     <div className="flex rounded-md bg-muted p-0.5 border border-border/50">
                       <button
                         type="button"
+                        onClick={() => setVistaUbicacionesD1("mapa")}
+                        className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                          vistaUbicacionesD1 === "mapa"
+                            ? "bg-background shadow-sm text-foreground font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Mapa
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setVistaUbicacionesD1("graficas")}
                         className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
                           vistaUbicacionesD1 === "graficas"
@@ -3173,7 +3216,18 @@ function Panel() {
               </CardHeader>
 
               <CardContent className="pt-4">
-                {vistaUbicacionesD1 === "graficas" ? (
+                {vistaUbicacionesD1 === "mapa" ? (
+                  <MapaVentasZonas
+                    distribucionZonas={d1?.distribucionZonas}
+                    totalVentas={d1?.kpis.ventaYTD}
+                    totalUnidades={d1?.kpis.volumenUnidades}
+                    paisesCatalogo={catalogos?.paises}
+                    zonaSeleccionadaId={zonaId !== "todos" ? Number(zonaId) : null}
+                    onSelectZona={(zId, _zNom) => {
+                      setZonaId(zId ? String(zId) : "todos");
+                    }}
+                  />
+                ) : vistaUbicacionesD1 === "graficas" ? (
                   <div className="grid gap-6 lg:grid-cols-2">
                     {/* Gráfico 1: Zonas Comerciales / Departamentos */}
                     <div className="space-y-3">
@@ -3610,16 +3664,44 @@ function Panel() {
             {/* Fila 3: Top 10 Referencias / Productos Más Vendidos */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
                       <ShoppingBag className="h-4 w-4 text-purple-500" /> Top 10 Referencias y Productos Más Vendidos
                     </CardTitle>
                     <CardDescription>
-                      Prendas líderes en facturación, rotación de unidades y precio promedio
+                      Prendas líderes unificadas por referencia base, rotación de unidades y precio promedio
                     </CardDescription>
                   </div>
-                  <Badge variant="outline">Top 10 SKUs</Badge>
+                  <div className="flex items-center gap-2">
+                    <div className="flex rounded-md bg-muted p-0.5 border border-border/50 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setOrdenTopSkusD1("valor")}
+                        className={cn(
+                          "px-2.5 py-1 rounded font-medium transition-colors",
+                          ordenTopSkusD1 === "valor"
+                            ? "bg-background shadow-xs text-foreground font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Por Facturación ($)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrdenTopSkusD1("unidades")}
+                        className={cn(
+                          "px-2.5 py-1 rounded font-medium transition-colors",
+                          ordenTopSkusD1 === "unidades"
+                            ? "bg-background shadow-xs text-foreground font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Por Unidades
+                      </button>
+                    </div>
+                    <Badge variant="outline">Top 10 SKUs</Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="overflow-x-auto">
@@ -3637,14 +3719,22 @@ function Panel() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
-                    {(!d1?.topReferencias || d1.topReferencias.length === 0) ? (
-                      <tr>
-                        <td colSpan={8} className="py-6 text-center text-muted-foreground">
-                          Sin referencias registradas para el periodo seleccionado
-                        </td>
-                      </tr>
-                    ) : (
-                      d1.topReferencias.map((ref, idx) => (
+                    {(() => {
+                      const lista = ordenTopSkusD1 === "unidades"
+                        ? (d1?.topReferenciasPorUnidades && d1.topReferenciasPorUnidades.length > 0 ? d1.topReferenciasPorUnidades : (d1?.topReferencias || []))
+                        : (d1?.topReferencias || []);
+
+                      if (lista.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={8} className="py-6 text-center text-muted-foreground">
+                              Sin referencias registradas para el periodo seleccionado
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return lista.map((ref, idx) => (
                         <tr key={ref.sku || idx} className="hover:bg-muted/30 transition-colors">
                           <td className="py-2.5 px-3 font-bold text-muted-foreground">
                             {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
@@ -3663,8 +3753,8 @@ function Panel() {
                             </Badge>
                           </td>
                         </tr>
-                      ))
-                    )}
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </CardContent>
@@ -4369,18 +4459,27 @@ function Panel() {
             <div className="grid gap-6 lg:grid-cols-3">
               <Card className="lg:col-span-2">
                 <CardHeader className="pb-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
                       <CardTitle className="text-base font-semibold">Top 10 Referencias / SKUs Más Vendidos en Digital</CardTitle>
-                      <CardDescription>Productos estrella en Tienda Virtual y Social Selling</CardDescription>
+                      <CardDescription>Productos estrella unificados por referencia base en Tienda Virtual y Social Selling</CardDescription>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20 w-fit">
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar SKU o prenda..."
+                          value={busquedaSkuD3}
+                          onChange={(e) => setBusquedaSkuD3(e.target.value)}
+                          className="h-8 pl-8 text-xs w-[170px] bg-background"
+                        />
+                      </div>
+                      <Badge variant="outline" className="text-xs bg-indigo-500/10 text-indigo-600 border-indigo-500/20 w-fit shrink-0">
                         Top Sellers Digital
                       </Badge>
                       <InfoGrafica
                         titulo="Top 10 Referencias en Canales Digitales"
-                        descripcion="Ranking de los productos y referencias de mayor facturación en el ecosistema digital."
+                        descripcion="Ranking de los productos y referencias de mayor facturación en el ecosistema digital, unificados por prenda/referencia base."
                         metrica="Ventas netas ($), unidades despachadas y línea de vestuario del SKU."
                         interpretacion="Identifica las prendas ganadoras ('Hero Products') para priorizar en pauta publicitaria y asegurar stock continuo."
                       />
@@ -4619,13 +4718,59 @@ function Panel() {
                   Facturación real, volumen de prendas, facturas procesadas, ticket promedio y precio por unidad de cada asesor comercial.
                 </p>
               </div>
-              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 font-semibold text-xs">
-                {d4?.kpis.totalAsesores ?? 0} asesores comerciales activos
-              </Badge>
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-md bg-muted p-0.5 border border-border/50 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setSubTabD4("asesores")}
+                    className={cn(
+                      "px-3 py-1 rounded font-medium transition-colors",
+                      subTabD4 === "asesores"
+                        ? "bg-background shadow-xs text-foreground font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Desempeño de Asesores
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSubTabD4("clientes")}
+                    className={cn(
+                      "px-3 py-1 rounded font-medium transition-colors flex items-center gap-1.5",
+                      subTabD4 === "clientes"
+                        ? "bg-background shadow-xs text-emerald-700 dark:text-emerald-300 font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    <span>Clientes Activados</span>
+                  </button>
+                </div>
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 font-semibold text-xs">
+                  {d4?.kpis.totalAsesores ?? 0} asesores comerciales activos
+                </Badge>
+              </div>
             </div>
 
-            {/* Tarjetas KPI Reales Fuerza de Ventas */}
-            <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+            {subTabD4 === "clientes" ? (
+              <PanelClientesActivados
+                filtros={filtros}
+                vendedoresDisponibles={vendedoresDisponibles}
+                vendedorSeleccionadoId={vendedorIds.length === 1 ? Number(vendedorIds[0]) : (vendedorId !== "todos" ? Number(vendedorId) : null)}
+                onSelectVendedor={(id) => {
+                  if (id) {
+                    setVendedorIds([String(id)]);
+                    setVendedorId(String(id));
+                  } else {
+                    setVendedorIds([]);
+                    setVendedorId("todos");
+                  }
+                }}
+              />
+            ) : (
+              <>
+                {/* Tarjetas KPI Reales Fuerza de Ventas */}
+                <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
               <CardKpi
                 titulo="Facturación Fuerza Comercial"
                 valor={formatoCOPFull(d4?.kpis.totalVentaFuerza ?? 0)}
@@ -4920,6 +5065,8 @@ function Panel() {
                 </table>
               </CardContent>
             </Card>
+              </>
+            )}
           </TabsContent>
 
           {/* ========================================================================= */}
@@ -5596,21 +5743,48 @@ function Panel() {
               {/* Curva de Tallas */}
               <Card>
                 <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <CardTitle className="text-base font-semibold flex items-center gap-2">
                         <Tag className="h-4 w-4 text-purple-500" />
                         Curva de Tallas Más Demandadas
                       </CardTitle>
-                      <CardDescription>Distribución de unidades vendidas por talla</CardDescription>
+                      <CardDescription>Distribución de unidades vendidas por talla y escala de corte</CardDescription>
                     </div>
-                    <InfoGrafica
-                      titulo="Curva de Tallas Más Demandadas"
-                      descripcion="Muestra la proporción de unidades vendidas clasificadas por talla física del producto en el periodo."
-                      metrica="Prendas vendidas y porcentaje de demanda por talla."
-                      interpretacion="Permite afinar la escala de corte en confección y rebalancear compras de insumos para evitar agotados en tallas clave."
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <Select value={filtroRefEscalaD6} onValueChange={setFiltroRefEscalaD6}>
+                        <SelectTrigger className="h-7 w-[160px] text-xs rounded-lg bg-background border-border/80">
+                          <SelectValue placeholder="Todas las referencias" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60 overflow-y-auto">
+                          <SelectItem value="todas">Todas las Referencias</SelectItem>
+                          {(d6?.referenciasDisponiblesEscala || []).slice(0, 50).map((r) => (
+                            <SelectItem key={r.sku} value={r.sku}>
+                              {r.sku} - {r.producto.slice(0, 16)} ({r.unidades} u)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <InfoGrafica
+                        titulo="Curva de Tallas Más Demandadas"
+                        descripcion="Muestra la proporción de unidades vendidas clasificadas por talla física del producto en el periodo. Puedes filtrar por referencia específica para ver la curva exacta de corte de ese modelo."
+                        metrica="Prendas vendidas y porcentaje de demanda por talla."
+                        interpretacion="Permite afinar la escala de corte en confección y rebalancear compras de insumos para evitar agotados en tallas clave."
+                      />
+                    </div>
                   </div>
+                  {filtroRefEscalaD6 !== "todas" && (
+                    <div className="mt-2 flex items-center justify-between text-xs px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-300">
+                      <span>Curva de corte para ref: <strong>{filtroRefEscalaD6}</strong></span>
+                      <button
+                        type="button"
+                        onClick={() => setFiltroRefEscalaD6("todas")}
+                        className="text-[11px] hover:underline font-semibold"
+                      >
+                        ✕ Ver todas
+                      </button>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="h-[240px] w-full">
@@ -6044,7 +6218,8 @@ function Panel() {
           <TabsContent value="explorador" className="space-y-4">
             <VisorPedidosDespachos
               vendedorIdFiltro={vendedorId !== "todos" ? Number(vendedorId) : "todos"}
-              vendedorIdsPermitidos={vendedorIdsPermitidos}
+              vendedorIds={vendedorIds.length > 0 ? vendedorIds.map(Number) : undefined}
+              vendedorIdsPermitidos={vendedorIdsPermitidos || undefined}
               esAdmin={esAdmin}
             />
           </TabsContent>

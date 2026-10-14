@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   obtenerPedidosVsDespachos,
   ResultadoPedidosDespachos,
   GrupoVendedorPedidoDespacho,
   GrupoTerceroPedidoDespacho,
   ItemProductoPedidoDespacho,
+  CatalogoItem,
 } from "@/lib/ventas-api";
 import { formatoCOPFull, formatoHGI } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -52,12 +54,14 @@ import {
 interface VisorPedidosDespachosProps {
   vendedorIdFiltro?: number | "todos";
   vendedorIdsPermitidos?: number[];
+  vendedorIds?: number[];
   esAdmin?: boolean;
 }
 
 export function VisorPedidosDespachos({
   vendedorIdFiltro = "todos",
   vendedorIdsPermitidos,
+  vendedorIds,
   esAdmin = false,
 }: VisorPedidosDespachosProps) {
   // Filtros de encabezado HGI
@@ -65,6 +69,7 @@ export function VisorPedidosDespachos({
   const [fechaHasta, setFechaHasta] = useState("2026-12-31");
   const [modoVista, setModoVista] = useState<"datos" | "grafico" | "ambos">("datos");
   const [soloPendientes, setSoloPendientes] = useState(false);
+  const [correriaSeleccionada, setCorreriaSeleccionada] = useState<string>("todas");
   const [busqueda, setBusqueda] = useState("");
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState<number | "todos">(
     vendedorIdFiltro
@@ -74,6 +79,19 @@ export function VisorPedidosDespachos({
     setVendedorSeleccionado(vendedorIdFiltro);
   }, [vendedorIdFiltro]);
 
+  // Cargar catálogo de correrías de dim_correria
+  const { data: correriasData } = useQuery<CatalogoItem[]>({
+    queryKey: ["visor-correrias-catalogo"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("dim_correria")
+        .select("id, nombre")
+        .not("nombre", "is", null)
+        .order("nombre");
+      return (data || []).map((c) => ({ id: Number(c.id), nombre: String(c.nombre) }));
+    },
+    staleTime: 1000 * 60 * 30,
+  });
 
   // Opciones de configuración de tabla estilo visor HGI
   const [mostrarSubtotalesColumna, setMostrarSubtotalesColumna] = useState(true);
@@ -91,7 +109,9 @@ export function VisorPedidosDespachos({
       fechaDesde,
       fechaHasta,
       vendedorSeleccionado,
+      vendedorIds,
       vendedorIdsPermitidos,
+      correriaSeleccionada,
       soloPendientes,
     ],
     queryFn: () =>
@@ -99,7 +119,13 @@ export function VisorPedidosDespachos({
         fecha_desde: fechaDesde,
         fecha_hasta: fechaHasta,
         vendedor_id: vendedorSeleccionado !== "todos" ? Number(vendedorSeleccionado) : undefined,
-        vendedor_ids: vendedorSeleccionado === "todos" && vendedorIdsPermitidos?.length ? vendedorIdsPermitidos : undefined,
+        vendedor_ids:
+          vendedorIds && vendedorIds.length > 0
+            ? vendedorIds
+            : vendedorSeleccionado === "todos" && vendedorIdsPermitidos?.length
+            ? vendedorIdsPermitidos
+            : undefined,
+        correria_id: correriaSeleccionada !== "todas" ? Number(correriaSeleccionada) : undefined,
         solo_pendientes: soloPendientes,
       }),
   });
@@ -277,8 +303,8 @@ export function VisorPedidosDespachos({
 
         {/* 2. Barra de Control / Filtros de Plantilla HGI */}
         <div className="pt-2.5 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          {/* Consulta & Plantilla */}
-          <div className="md:col-span-4 flex items-center gap-2">
+          {/* Consulta & Plantilla & Correría */}
+          <div className="md:col-span-4 flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 min-w-[70px]">
               <span className="text-muted-foreground font-medium">Consulta:</span>
               <span className="font-bold text-foreground">Documentos</span>
@@ -287,6 +313,24 @@ export function VisorPedidosDespachos({
               <span className="text-muted-foreground text-[10.5px]">Plantilla:</span>
               <span className="font-bold text-primary font-mono text-[11px]">PEDIDOSVS.DESPACHOS</span>
               <Save className="h-3 w-3 text-muted-foreground ml-1" />
+            </div>
+
+            {/* Selector de Correría */}
+            <div className="flex items-center gap-1 px-2 py-1 bg-background border rounded-md">
+              <Layers className="h-3 w-3 text-primary shrink-0" />
+              <span className="text-muted-foreground text-[10.5px]">Correría:</span>
+              <select
+                value={correriaSeleccionada}
+                onChange={(e) => setCorreriaSeleccionada(e.target.value)}
+                className="bg-transparent border-0 text-[11px] font-bold text-foreground focus:outline-hidden cursor-pointer font-mono"
+              >
+                <option value="todas">Todas</option>
+                {(correriasData || []).map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
