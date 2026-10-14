@@ -348,7 +348,7 @@ export const PUNTOS_GEOGRAFICOS: PuntoGeografico[] = [
     tipo: 'nacional',
     cx: 289.2,
     cy: 225.7,
-    aliases: ['cordoba', 'córdoba', 'monteria', 'montería', 'cerete', 'lorica', 'sahagun'],
+    aliases: ['cordoba', 'córdoba', 'crdoba', 'crdova', 'monteria', 'montería', 'cerete', 'lorica', 'sahagun'],
   },
   {
     id: 'magdalena',

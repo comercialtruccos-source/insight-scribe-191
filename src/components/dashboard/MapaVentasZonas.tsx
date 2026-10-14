@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo } from "react";
 import { ZonaAporte, CatalogoItem } from "@/lib/ventas-api";
 import { formatoCOP, formatoCOPFull } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -8,9 +8,7 @@ import { Input } from "@/components/ui/input";
 import {
   WORLD_LAND_PATH,
   KEY_COUNTRIES_PATHS,
-  PUNTOS_GEOGRAFICOS,
   buscarPuntoGeografico,
-  PuntoGeografico,
 } from "./world-geo-paths";
 import {
   Globe2,
@@ -19,13 +17,7 @@ import {
   Filter,
   Package,
   Building2,
-  Compass,
-  ArrowUpRight,
-  Maximize2,
-  RotateCcw,
-  Plane,
-  Layers,
-  Sparkles,
+  Info,
 } from "lucide-react";
 
 interface MapaVentasZonasProps {
@@ -38,6 +30,57 @@ interface MapaVentasZonasProps {
   vendedorNombre?: string | null;
 }
 
+/**
+ * Limpia y normaliza cadenas que contienen errores de encoding o caracteres de reemplazo (, ?, etc.)
+ */
+export function limpiarTextoEncoding(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/C[\uFFFD?]RDOBA/gi, "Córdoba")
+    .replace(/CRDOBA/gi, "Córdoba")
+    .replace(/C[\uFFFD?]RDOVA/gi, "Córdoba")
+    .replace(/CRDOVA/gi, "Córdoba")
+    .replace(/PANTAL[\uFFFD?]N/gi, "Pantalón")
+    .replace(/PANTALN/gi, "Pantalón")
+    .replace(/JAMUND[\uFFFD?]/gi, "Jamundí")
+    .replace(/JAMUNDI/gi, "Jamundí")
+    .replace(/BOGOT[\uFFFD?]/gi, "Bogotá")
+    .replace(/BOGOTA/gi, "Bogotá")
+    .replace(/MEDELL[\uFFFD?]N/gi, "Medellín")
+    .replace(/MEDELLIN/gi, "Medellín")
+    .replace(/C[\uFFFD?]CUTA/gi, "Cúcuta")
+    .replace(/CUCUTA/gi, "Cúcuta")
+    .replace(/GIR[\uFFFD?]N/gi, "Girón")
+    .replace(/GIRON/gi, "Girón")
+    .replace(/IBAGU[\uFFFD?]/gi, "Ibagué")
+    .replace(/IBAGUE/gi, "Ibagué")
+    .replace(/POPAY[\uFFFD?]N/gi, "Popayán")
+    .replace(/POPAYAN/gi, "Popayán")
+    .replace(/NARI[\uFFFD?]O/gi, "Nariño")
+    .replace(/NARINO/gi, "Nariño")
+    .replace(/QUIND[\uFFFD?]O/gi, "Quindío")
+    .replace(/QUINDIO/gi, "Quindío")
+    .replace(/ATL[\uFFFD?]NTICO/gi, "Atlántico")
+    .replace(/ATLANTICO/gi, "Atlántico")
+    .replace(/BOL[\uFFFD?]VAR/gi, "Bolívar")
+    .replace(/BOLIVAR/gi, "Bolívar")
+    .replace(/BOYAC[\uFFFD?]/gi, "Boyacá")
+    .replace(/BOYACA/gi, "Boyacá")
+    .replace(/CHOC[\uFFFD?]/gi, "Chocó")
+    .replace(/CHOCO/gi, "Chocó")
+    .replace(/M[\uFFFD?]XICO/gi, "México")
+    .replace(/MEXICO/gi, "México")
+    .replace(/ESP[\uFFFD?]A/gi, "España")
+    .replace(/ESPAÑA/gi, "España")
+    .replace(/PER[\uFFFD?]/gi, "Perú")
+    .replace(/PERU/gi, "Perú")
+    .replace(/PANAM[\uFFFD?]/gi, "Panamá")
+    .replace(/PANAMA/gi, "Panamá")
+    .replace(/LARG@/gi, "Larga")
+    .replace(/\uFFFD/g, "")
+    .trim();
+}
+
 export function MapaVentasZonas({
   distribucionZonas = [],
   totalVentas = 0,
@@ -48,7 +91,7 @@ export function MapaVentasZonas({
 }: MapaVentasZonasProps) {
   const [busqueda, setBusqueda] = useState<string>("");
   const [ordenRefs, setOrdenRefs] = useState<"valor" | "unidades">("valor");
-  const [modoVista, setModoVista] = useState<"mundo" | "americas" | "colombia">("mundo");
+  const [modoVista, setModoVista] = useState<"mundo" | "americas" | "colombia">("colombia");
   const [hoverPunto, setHoverPunto] = useState<{
     nombre: string;
     bandera: string;
@@ -59,8 +102,7 @@ export function MapaVentasZonas({
     porcentaje: number;
     ciudadesCount: number;
     refsCount: number;
-    x: number;
-    y: number;
+    topCiudades: string[];
   } | null>(null);
 
   // Zonas activas con ventas ordenadas por facturación descendente
@@ -79,7 +121,9 @@ export function MapaVentasZonas({
       if (match) return match;
     }
     if (zonaActivaNombre) {
-      const match = distribucionZonas.find((z) => z.zona === zonaActivaNombre);
+      const match = distribucionZonas.find(
+        (z) => z.zona === zonaActivaNombre || limpiarTextoEncoding(z.zona) === limpiarTextoEncoding(zonaActivaNombre)
+      );
       if (match) return match;
     }
     return zonasOrdenadas[0] || distribucionZonas[0] || null;
@@ -89,11 +133,12 @@ export function MapaVentasZonas({
   const zonasFiltradas = useMemo(() => {
     if (!busqueda.trim()) return zonasOrdenadas;
     const q = busqueda.toLowerCase().trim();
-    return zonasOrdenadas.filter(
-      (z) =>
-        z.zona.toLowerCase().includes(q) ||
-        (z.ciudades && z.ciudades.some((c) => c.ciudad.toLowerCase().includes(q)))
-    );
+    return zonasOrdenadas.filter((z) => {
+      const nom = limpiarTextoEncoding(z.zona).toLowerCase();
+      const matchNom = nom.includes(q);
+      const matchCiudad = z.ciudades && z.ciudades.some((c) => limpiarTextoEncoding(c.ciudad).toLowerCase().includes(q));
+      return matchNom || matchCiudad;
+    });
   }, [zonasOrdenadas, busqueda]);
 
   // Referencias de la zona seleccionada ordenadas
@@ -112,10 +157,35 @@ export function MapaVentasZonas({
     return [...zonaActiva.ciudades].sort((a, b) => b.venta - a.venta)[0];
   }, [zonaActiva]);
 
-  // Mapear cada zona activa a un punto geográfico en el Mapa Mundi
-  const puntosMapeados = useMemo(() => {
-    const ColombiaMatrix = { cx: 292.0, cy: 235.0 };
+  // Parámetros de escala calibrados según la perspectiva para evitar colisiones
+  const escalaGeometria = useMemo(() => {
+    if (modoVista === "colombia") {
+      return {
+        radioBase: 0.7,
+        radioExtraMax: 0.45,
+        hitRadius: 1.15,
+        strokeWidth: 0.25,
+      };
+    }
+    if (modoVista === "americas") {
+      return {
+        radioBase: 2.2,
+        radioExtraMax: 1.8,
+        hitRadius: 3.5,
+        strokeWidth: 1.0,
+      };
+    }
+    // mundo
+    return {
+      radioBase: 3.8,
+      radioExtraMax: 3.0,
+      hitRadius: 5.8,
+      strokeWidth: 1.5,
+    };
+  }, [modoVista]);
 
+  // Mapear cada zona activa a un punto geográfico con coordenadas fijas y radios acotados
+  const puntosMapeados = useMemo(() => {
     return zonasOrdenadas.map((z, idx) => {
       const punto = buscarPuntoGeografico(z.zona);
       let cx = 292.0;
@@ -141,28 +211,34 @@ export function MapaVentasZonas({
         else if (punto.id === "chile") countryCode = "CHL";
         else if (punto.id === "guatemala") countryCode = "GTM";
       } else {
-        // Asignación dispersa controlada para zonas sin punto exacto
         const hash = z.zona.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        cx = 286.0 + (hash % 12);
-        cy = 222.0 + (hash % 24);
+        cx = 286.0 + (hash % 10);
+        cy = 224.0 + (hash % 20);
       }
 
-      // Tamaño de la burbuja según porcentaje
       const pct = Math.max(0, Math.min(100, z.porcentaje || 0));
-      const r = Math.min(13, Math.max(4.5, Math.sqrt(pct) * 3.6));
+      const radioCore = escalaGeometria.radioBase + Math.min(escalaGeometria.radioExtraMax, Math.sqrt(pct) * 0.05);
+
+      const nombreLimpio = limpiarTextoEncoding(z.zona);
+      const isSelected = zonaActiva && limpiarTextoEncoding(zonaActiva.zona) === nombreLimpio;
+      const isHovered = hoverPunto && hoverPunto.nombre === nombreLimpio;
 
       return {
         zonaData: z,
-        nombre: z.zona,
+        nombre: nombreLimpio,
+        nombreOriginal: z.zona,
         cx,
         cy,
-        r,
+        r: radioCore,
+        hitRadius: escalaGeometria.hitRadius,
+        strokeWidth: escalaGeometria.strokeWidth,
         bandera,
         pais,
         tipo,
         countryCode,
         esLider: idx === 0,
-        isSelected: zonaActiva?.zona === z.zona,
+        isSelected: !!isSelected,
+        isHovered: !!isHovered,
         venta: z.venta,
         unidades: z.unidades,
         porcentaje: z.porcentaje,
@@ -170,7 +246,7 @@ export function MapaVentasZonas({
         refsCount: z.referencias?.length || 0,
       };
     });
-  }, [zonasOrdenadas, zonaActiva]);
+  }, [zonasOrdenadas, zonaActiva, hoverPunto, escalaGeometria]);
 
   // Rutas de exportación curvas desde Colombia hacia destinos internacionales
   const rutasExportacion = useMemo(() => {
@@ -179,7 +255,6 @@ export function MapaVentasZonas({
     const internacionales = puntosMapeados.filter((p) => p.tipo === "internacional");
 
     return internacionales.map((dest) => {
-      // Punto de control para curva cuadrática de Bézier
       const midX = (colX + dest.cx) / 2;
       const midY = Math.min(colY, dest.cy) - 25;
       const pathD = `M ${colX} ${colY} Q ${midX} ${midY} ${dest.cx} ${dest.cy}`;
@@ -201,29 +276,34 @@ export function MapaVentasZonas({
         set.add(p.countryCode);
       }
     });
-    // Colombia siempre resaltada como matriz
     set.add("COL");
     return Array.from(set);
   }, [puntosMapeados]);
 
-  // ViewBox dinámico según el modo de vista seleccionado
+  // ViewBox dinámico según la perspectiva seleccionada
   const viewBoxActual = useMemo(() => {
     if (modoVista === "colombia") {
-      // Zoom centrado en Colombia y departamentos
+      // Zoom óptimo sobre Colombia sin recorte
       return "272 208 40 48";
     }
     if (modoVista === "americas") {
-      // Vista ampliada de América y rutas de exportación
       return "140 70 340 320";
     }
-    // Vista Mundial Global Completa
     return "0 0 1000 500";
   }, [modoVista]);
+
+  // Punto activo para renderizar en capa superior (z-index SVG)
+  const puntoSuperior = useMemo(() => {
+    if (hoverPunto) {
+      return puntosMapeados.find((p) => p.nombre === hoverPunto.nombre) || null;
+    }
+    return puntosMapeados.find((p) => p.isSelected) || null;
+  }, [puntosMapeados, hoverPunto]);
 
   return (
     <div className="space-y-4">
       {/* ============================================================== */}
-      {/* 1. MAPA MUNDI INTERACTIVO: COBERTURA GLOBAL Y REGIONAL         */}
+      {/* 1. MAPA MUNDI VECTORIAL DE ALTA DEFINICIÓN (GIS / INTERACTIVO)  */}
       {/* ============================================================== */}
       <Card className="border border-border/80 shadow-md bg-card overflow-hidden">
         <CardHeader className="pb-3 border-b border-border/60 bg-muted/20">
@@ -245,7 +325,7 @@ export function MapaVentasZonas({
                   </CardTitle>
                   <CardDescription className="text-xs text-muted-foreground">
                     {vendedorNombre
-                      ? `Visualización geográfica de los mercados y zonas atendidas por ${vendedorNombre}`
+                      ? `Visualización geográfica de los mercados y zonas atendidas por ${limpiarTextoEncoding(vendedorNombre)}`
                       : "Distribución geográfica de facturación nacional y rutas internacionales de exportación"}
                   </CardDescription>
                 </div>
@@ -299,29 +379,27 @@ export function MapaVentasZonas({
             {/* SVG del Mapa Mundi */}
             <svg
               viewBox={viewBoxActual}
-              className="w-full h-full transition-all duration-700 ease-out cursor-grab"
+              className="w-full h-full transition-all duration-700 ease-out"
               preserveAspectRatio="xMidYMid meet"
             >
               <defs>
-                {/* Degradado oceánico de alta definición */}
                 <linearGradient id="oceanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#091122" />
                   <stop offset="50%" stopColor="#0b172e" />
                   <stop offset="100%" stopColor="#0f172a" />
                 </linearGradient>
 
-                {/* Filtro de brillo para nodos líderes */}
-                <filter id="glowFilter" x="-40%" y="-40%" width="180%" height="180%">
-                  <feGaussianBlur stdDeviation="3" result="blur" />
+                <filter id="glowFilt" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="1.5" result="blur" />
                   <feComposite in="SourceGraphic" in2="blur" operator="over" />
                 </filter>
               </defs>
 
               {/* Fondo oceánico */}
-              <rect width="1000" height="500" fill="url(#oceanGrad)" />
+              <rect width="1000" height="500" fill="url(#oceanGrad)" className="pointer-events-none" />
 
               {/* Cuadrícula cartográfica de meridianos y paralelos */}
-              <g opacity="0.12" stroke="#38bdf8" strokeWidth="0.5" strokeDasharray="2 3">
+              <g opacity="0.10" stroke="#38bdf8" strokeWidth="0.5" strokeDasharray="2 3" className="pointer-events-none">
                 <line x1="0" y1="125" x2="1000" y2="125" />
                 <line x1="0" y1="250" x2="1000" y2="250" strokeWidth="0.8" />
                 <line x1="0" y1="375" x2="1000" y2="375" />
@@ -336,7 +414,7 @@ export function MapaVentasZonas({
                 fill="#1e293b"
                 stroke="#334155"
                 strokeWidth={modoVista === "colombia" ? "0.15" : "0.6"}
-                className="transition-colors duration-300"
+                className="transition-colors duration-300 pointer-events-none"
               />
 
               {/* PAÍSES CON VENTAS ACTIVAS ILUMINADOS */}
@@ -352,135 +430,186 @@ export function MapaVentasZonas({
                     fill={esCol ? "rgba(16, 185, 129, 0.22)" : "rgba(14, 165, 233, 0.22)"}
                     stroke={esCol ? "#10b981" : "#38bdf8"}
                     strokeWidth={modoVista === "colombia" ? "0.2" : "0.9"}
-                    className="transition-all duration-300 hover:fill-opacity-50 cursor-pointer"
+                    className="transition-all duration-300 pointer-events-none"
                   />
                 );
               })}
 
-              {/* RUTAS COMERCIALES DE EXPORTACIÓN (Curvas Animadas desde Colombia HQ) */}
+              {/* RUTAS COMERCIALES DE EXPORTACIÓN (Curvas hacia destinos internacionales) */}
               {rutasExportacion.map((ruta) => (
-                <g key={ruta.id} className="transition-opacity">
-                  <path
-                    d={ruta.pathD}
-                    fill="none"
-                    stroke="#38bdf8"
-                    strokeWidth={modoVista === "colombia" ? "0.3" : "1.6"}
-                    strokeDasharray={modoVista === "colombia" ? "1 1" : "4 4"}
-                    opacity="0.85"
-                  />
-                </g>
+                <path
+                  key={ruta.id}
+                  d={ruta.pathD}
+                  fill="none"
+                  stroke="#38bdf8"
+                  strokeWidth={modoVista === "colombia" ? "0.25" : "1.6"}
+                  strokeDasharray={modoVista === "colombia" ? "1 1" : "4 4"}
+                  opacity="0.85"
+                  className="pointer-events-none"
+                />
               ))}
 
-              {/* PUNTOS Y BALIZAS GEOGRÁFICAS INTERACTIVAS */}
+              {/* CAPA BASE DE PUNTOS GEOGRÁFICOS */}
               {puntosMapeados.map((p) => {
                 const colorFondo = p.tipo === "internacional" ? "#0ea5e9" : "#10b981";
-                const colorGlow = p.tipo === "internacional" ? "rgba(14, 165, 233, 0.4)" : "rgba(16, 185, 129, 0.4)";
-                const escalaAjuste = modoVista === "colombia" ? 0.35 : 1;
-                const radioFinal = p.r * escalaAjuste;
+                const isSelected = p.isSelected;
+                const isHovered = p.isHovered;
 
                 return (
-                  <g
-                    key={`punto-${p.nombre}`}
-                    className="cursor-pointer group"
-                    onClick={() => {
-                      setZonaActivaNombre(p.nombre);
-                      if (p.zonaData.id && onSelectZona) {
-                        onSelectZona(p.zonaData.id, p.nombre);
-                      }
-                    }}
-                    onMouseEnter={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setHoverPunto({
-                        nombre: p.nombre,
-                        bandera: p.bandera,
-                        pais: p.pais,
-                        tipo: p.tipo,
-                        venta: p.venta,
-                        unidades: p.unidades,
-                        porcentaje: p.porcentaje,
-                        ciudadesCount: p.ciudadesCount,
-                        refsCount: p.refsCount,
-                        x: p.cx,
-                        y: p.cy,
-                      });
-                    }}
-                    onMouseLeave={() => setHoverPunto(null)}
-                  >
-                    {/* Anillo exterior pulsante */}
+                  <g key={`punto-${p.nombre}`} className="pointer-events-none">
+                    {/* Núcleo visual del punto */}
                     <circle
                       cx={p.cx}
                       cy={p.cy}
-                      r={radioFinal * 1.9}
-                      fill={colorFondo}
-                      opacity={p.isSelected ? "0.45" : "0.25"}
-                      className="animate-ping"
-                      style={{ transformOrigin: `${p.cx}px ${p.cy}px` }}
+                      r={isSelected || isHovered ? p.r * 1.35 : p.r}
+                      fill={isSelected ? "#ffffff" : colorFondo}
+                      stroke={isSelected ? colorFondo : "#ffffff"}
+                      strokeWidth={p.strokeWidth}
+                      className="pointer-events-none transition-all duration-150"
                     />
 
-                    {/* Halo de resplandor */}
-                    <circle
-                      cx={p.cx}
-                      cy={p.cy}
-                      r={radioFinal * 1.4}
-                      fill={colorGlow}
-                    />
-
-                    {/* Núcleo del punto de ventas */}
-                    <circle
-                      cx={p.cx}
-                      cy={p.cy}
-                      r={radioFinal}
-                      fill={p.isSelected ? "#ffffff" : colorFondo}
-                      stroke={p.isSelected ? colorFondo : "#ffffff"}
-                      strokeWidth={modoVista === "colombia" ? "0.3" : "1.8"}
-                      filter={p.esLider ? "url(#glowFilter)" : undefined}
-                      className="transition-transform duration-200 group-hover:scale-125"
-                      style={{ transformOrigin: `${p.cx}px ${p.cy}px` }}
-                    />
-
-                    {/* Etiqueta de texto con bandera y nombre de la zona */}
-                    {modoVista !== "colombia" && (
-                      <text
-                        x={p.cx + radioFinal + 3}
-                        y={p.cy + 3}
-                        fill="#ffffff"
-                        fontSize={p.esLider || p.isSelected ? "9.5" : "8"}
-                        fontWeight={p.esLider || p.isSelected ? "bold" : "600"}
-                        className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] pointer-events-none"
-                      >
-                        {p.bandera} {p.nombre}
-                      </text>
-                    )}
-
-                    {modoVista === "colombia" && (
-                      <text
-                        x={p.cx}
-                        y={p.cy - radioFinal - 1}
-                        fill="#ffffff"
-                        textAnchor="middle"
-                        fontSize="2.4"
-                        fontWeight="bold"
-                        className="drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)] pointer-events-none"
-                      >
-                        {p.nombre}
-                      </text>
+                    {/* Halo suave solo para el líder o seleccionado (sin interferencia de eventos) */}
+                    {(p.esLider || isSelected) && (
+                      <circle
+                        cx={p.cx}
+                        cy={p.cy}
+                        r={p.r * 1.5}
+                        fill={colorFondo}
+                        opacity="0.25"
+                        className="pointer-events-none"
+                      />
                     )}
                   </g>
                 );
               })}
+
+              {/* CAPA SUPERIOR: ELEMENTO HOVERED O SELECCIONADO (Z-Index alto para no solaparse) */}
+              {puntoSuperior && (
+                <g className="pointer-events-none animate-in fade-in zoom-in-95 duration-100">
+                  {/* Anillo de pulso sutil EXCLUSIVO del punto activo */}
+                  <circle
+                    cx={puntoSuperior.cx}
+                    cy={puntoSuperior.cy}
+                    r={puntoSuperior.r * 1.9}
+                    fill={puntoSuperior.tipo === "internacional" ? "#0ea5e9" : "#10b981"}
+                    opacity="0.3"
+                    className="animate-ping pointer-events-none"
+                  />
+
+                  {/* Núcleo resaltado */}
+                  <circle
+                    cx={puntoSuperior.cx}
+                    cy={puntoSuperior.cy}
+                    r={puntoSuperior.r * 1.4}
+                    fill="#ffffff"
+                    stroke={puntoSuperior.tipo === "internacional" ? "#0ea5e9" : "#10b981"}
+                    strokeWidth={puntoSuperior.strokeWidth * 1.6}
+                    className="pointer-events-none"
+                  />
+
+                  {/* Etiqueta flotante anti-colisión exclusiva del punto activo */}
+                  {modoVista === "colombia" ? (
+                    <g className="pointer-events-none">
+                      <rect
+                        x={puntoSuperior.cx - 9}
+                        y={puntoSuperior.cy - puntoSuperior.r - 4.5}
+                        width="18"
+                        height="3.6"
+                        rx="1"
+                        fill="#0b1329"
+                        stroke={puntoSuperior.tipo === "internacional" ? "#38bdf8" : "#10b981"}
+                        strokeWidth="0.22"
+                        opacity="0.95"
+                      />
+                      <text
+                        x={puntoSuperior.cx}
+                        y={puntoSuperior.cy - puntoSuperior.r - 2.1}
+                        fill="#ffffff"
+                        textAnchor="middle"
+                        fontSize="1.9"
+                        fontWeight="bold"
+                        className="drop-shadow-xs"
+                      >
+                        {puntoSuperior.bandera} {puntoSuperior.nombre}
+                      </text>
+                    </g>
+                  ) : (
+                    <g className="pointer-events-none">
+                      <rect
+                        x={puntoSuperior.cx - 28}
+                        y={puntoSuperior.cy - puntoSuperior.r - 18}
+                        width="56"
+                        height="14"
+                        rx="4"
+                        fill="#0b1329"
+                        stroke={puntoSuperior.tipo === "internacional" ? "#38bdf8" : "#10b981"}
+                        strokeWidth="1"
+                        opacity="0.95"
+                      />
+                      <text
+                        x={puntoSuperior.cx}
+                        y={puntoSuperior.cy - puntoSuperior.r - 7.5}
+                        fill="#ffffff"
+                        textAnchor="middle"
+                        fontSize="8.5"
+                        fontWeight="bold"
+                        className="drop-shadow-sm"
+                      >
+                        {puntoSuperior.bandera} {puntoSuperior.nombre}
+                      </text>
+                    </g>
+                  )}
+                </g>
+              )}
+
+              {/* CAPA EXCLUSIVA DE INTERACCIÓN: HIT-TARGETS INDEPENDIENTES (Sin solapamiento) */}
+              {puntosMapeados.map((p) => (
+                <circle
+                  key={`hit-${p.nombre}`}
+                  cx={p.cx}
+                  cy={p.cy}
+                  r={p.hitRadius}
+                  fill="transparent"
+                  className="cursor-pointer pointer-events-auto"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setZonaActivaNombre(p.nombreOriginal);
+                    if (p.zonaData.id && onSelectZona) {
+                      onSelectZona(p.zonaData.id, p.nombreOriginal);
+                    }
+                  }}
+                  onMouseEnter={() => {
+                    setHoverPunto({
+                      nombre: p.nombre,
+                      bandera: p.bandera,
+                      pais: p.pais,
+                      tipo: p.tipo,
+                      venta: p.venta,
+                      unidades: p.unidades,
+                      porcentaje: p.porcentaje,
+                      ciudadesCount: p.ciudadesCount,
+                      refsCount: p.refsCount,
+                      topCiudades: p.zonaData.ciudades?.slice(0, 3).map((c) => limpiarTextoEncoding(c.ciudad)) || [],
+                    });
+                  }}
+                  onMouseLeave={() => {
+                    setHoverPunto(null);
+                  }}
+                />
+              ))}
             </svg>
 
-            {/* Tooltip flotante al pasar el mouse por encima de un marcador */}
-            {hoverPunto && (
+            {/* HUD / TOOLTIP FLOTANTE AISLADO EN LA ESQUINA SUPERIOR DERECHA */}
+            {hoverPunto ? (
               <div
-                className="absolute z-20 pointer-events-none p-2.5 rounded-xl bg-slate-900/95 text-white border border-slate-700/80 shadow-xl backdrop-blur-md text-xs min-w-[190px]"
+                className="absolute z-20 pointer-events-none p-3 rounded-2xl bg-slate-900/95 text-white border border-slate-700/80 shadow-2xl backdrop-blur-md text-xs min-w-[210px] animate-in fade-in duration-100"
                 style={{
                   top: "12px",
                   right: "12px",
                 }}
               >
-                <div className="flex items-center gap-1.5 mb-1 pb-1 border-b border-slate-800">
-                  <span className="text-base">{hoverPunto.bandera}</span>
+                <div className="flex items-center gap-2 mb-1.5 pb-1.5 border-b border-slate-800">
+                  <span className="text-xl">{hoverPunto.bandera}</span>
                   <div>
                     <span className="font-extrabold text-foreground text-xs block text-white leading-tight">
                       {hoverPunto.nombre}
@@ -510,15 +639,36 @@ export function MapaVentasZonas({
                       {hoverPunto.unidades.toLocaleString("es-CO")} prendas
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5 border-t border-slate-800">
+
+                  {hoverPunto.topCiudades.length > 0 && (
+                    <div className="pt-1 border-t border-slate-800 text-[9.5px] text-slate-300">
+                      <span className="text-slate-400 font-medium">Ciudades: </span>
+                      {hoverPunto.topCiudades.join(", ")}
+                      {hoverPunto.ciudadesCount > 3 ? ` (+${hoverPunto.ciudadesCount - 3})` : ""}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-[9.5px] text-slate-400 pt-0.5 border-t border-slate-800">
                     <span>{hoverPunto.ciudadesCount} municipios</span>
                     <span>{hoverPunto.refsCount} referencias</span>
                   </div>
                 </div>
               </div>
+            ) : (
+              /* Indicador de ayuda cuando no hay cursor sobre una ciudad */
+              <div
+                className="hidden sm:flex items-center gap-1.5 absolute z-10 pointer-events-none p-2 rounded-xl bg-slate-900/70 text-slate-300 border border-slate-800 backdrop-blur-xs text-[10.5px]"
+                style={{
+                  top: "12px",
+                  right: "12px",
+                }}
+              >
+                <Info className="h-3.5 w-3.5 text-sky-400" />
+                <span>Pasa el cursor sobre un punto para ver su detalle</span>
+              </div>
             )}
 
-            {/* Controles flotantes en la esquina inferior izquierda del mapa */}
+            {/* Leyenda en la esquina inferior izquierda */}
             <div className="absolute bottom-2.5 left-2.5 z-10 flex items-center gap-2 bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/60 text-[10px] text-white">
               <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-xs" />
@@ -530,7 +680,7 @@ export function MapaVentasZonas({
                 <span className="font-semibold">Exportaciones</span>
               </div>
               <span className="text-slate-600">•</span>
-              <span className="text-slate-400">Haz clic en un punto para inspeccionarlo</span>
+              <span className="text-slate-400">Haz clic en un punto para seleccionarlo</span>
             </div>
           </div>
         </CardContent>
@@ -542,7 +692,7 @@ export function MapaVentasZonas({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="p-3.5 rounded-2xl bg-card border border-border/70 shadow-xs">
           <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">
-            {vendedorNombre ? `Ventas de ${vendedorNombre}` : "Facturación Nacional Total"}
+            {vendedorNombre ? `Ventas de ${limpiarTextoEncoding(vendedorNombre)}` : "Facturación Nacional Total"}
           </span>
           <span className="text-base font-extrabold text-foreground font-mono block mt-0.5">
             {formatoCOPFull(totalVentas)}
@@ -569,7 +719,7 @@ export function MapaVentasZonas({
             Zona Líder (Mayor Ventas)
           </span>
           <span className="text-base font-extrabold text-foreground truncate block mt-0.5">
-            {zonaLider ? zonaLider.zona : "Sin ventas"}
+            {zonaLider ? limpiarTextoEncoding(zonaLider.zona) : "Sin ventas"}
           </span>
           <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
             {zonaLider ? `${formatoCOPFull(zonaLider.venta)} (${zonaLider.porcentaje.toFixed(1)}%)` : "$ 0 COP"}
@@ -581,7 +731,7 @@ export function MapaVentasZonas({
             Municipio / Ciudad Líder
           </span>
           <span className="text-base font-extrabold text-foreground truncate block mt-0.5">
-            {ciudadLider ? ciudadLider.ciudad : "Sin ventas"}
+            {ciudadLider ? limpiarTextoEncoding(ciudadLider.ciudad) : "Sin ventas"}
           </span>
           <span className="text-[11px] text-sky-600 dark:text-sky-400 font-semibold">
             {ciudadLider ? `${formatoCOPFull(ciudadLider.venta)} (${ciudadLider.porcentaje.toFixed(1)}% de zona)` : "$ 0 COP"}
@@ -624,7 +774,8 @@ export function MapaVentasZonas({
               </div>
             ) : (
               zonasFiltradas.map((z, idx) => {
-                const isSelected = zonaActiva?.zona === z.zona;
+                const nombreLimpio = limpiarTextoEncoding(z.zona);
+                const isSelected = zonaActiva && limpiarTextoEncoding(zonaActiva.zona) === nombreLimpio;
                 const esLider = idx === 0;
 
                 return (
@@ -657,7 +808,7 @@ export function MapaVentasZonas({
                         </span>
                         <div>
                           <span className="font-extrabold text-foreground text-xs block leading-tight">
-                            {z.zona}
+                            {nombreLimpio}
                           </span>
                           <span className="text-[10px] text-muted-foreground">
                             {z.ciudades?.length || 0} {z.ciudades?.length === 1 ? "ciudad" : "ciudades"} • {z.referencias?.length || 0} refs
@@ -693,7 +844,7 @@ export function MapaVentasZonas({
                             key={c.ciudad}
                             className="px-1.5 py-0.5 rounded-md bg-muted/50 text-foreground text-[9.5px] font-medium"
                           >
-                            {c.ciudad} ({c.porcentaje.toFixed(0)}%)
+                            {limpiarTextoEncoding(c.ciudad)} ({c.porcentaje.toFixed(0)}%)
                           </span>
                         ))}
                         {z.ciudades.length > 3 && (
@@ -723,14 +874,14 @@ export function MapaVentasZonas({
                     </span>
                     <div>
                       <h4 className="text-sm font-extrabold text-foreground flex items-center gap-1.5">
-                        <span>Zona: {zonaActiva.zona}</span>
+                        <span>Zona: {limpiarTextoEncoding(zonaActiva.zona)}</span>
                         <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold border-emerald-500/30">
                           {zonaActiva.porcentaje.toFixed(1)}% Participación
                         </Badge>
                       </h4>
                       <p className="text-[11px] text-muted-foreground">
                         {vendedorNombre
-                          ? `Detalle comercial de municipios y referencias vendidas por ${vendedorNombre}`
+                          ? `Detalle comercial de municipios y referencias vendidas por ${limpiarTextoEncoding(vendedorNombre)}`
                           : "Detalle comercial de municipios y referencias vendidas"}
                       </p>
                     </div>
@@ -786,7 +937,7 @@ export function MapaVentasZonas({
                           <span className="w-4 h-4 rounded-full bg-muted flex items-center justify-center text-[9px] font-bold text-muted-foreground">
                             {cIdx + 1}
                           </span>
-                          <span className="font-semibold text-foreground truncate">{c.ciudad}</span>
+                          <span className="font-semibold text-foreground truncate">{limpiarTextoEncoding(c.ciudad)}</span>
                         </div>
                         <div className="text-right">
                           <span className="font-mono font-bold text-foreground text-[11px] block">
@@ -807,7 +958,7 @@ export function MapaVentasZonas({
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
                   <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <Package className="h-3.5 w-3.5 text-purple-500" />
-                    <span>Referencias Vendidas en {zonaActiva.zona} ({referenciasZona.length})</span>
+                    <span>Referencias Vendidas en {limpiarTextoEncoding(zonaActiva.zona)} ({referenciasZona.length})</span>
                   </span>
 
                   {/* Selector: Por Facturación vs Por Unidades */}
@@ -839,7 +990,7 @@ export function MapaVentasZonas({
 
                 {referenciasZona.length === 0 ? (
                   <div className="p-6 text-center text-xs text-muted-foreground border border-dashed rounded-xl bg-muted/10">
-                    No se registran referencias vendidas en {zonaActiva.zona} para los filtros actuales.
+                    No se registran referencias vendidas en {limpiarTextoEncoding(zonaActiva.zona)} para los filtros actuales.
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/60 max-h-[220px]">
@@ -862,11 +1013,11 @@ export function MapaVentasZonas({
                             <td className="py-1.5 px-2.5 font-bold text-muted-foreground">
                               {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
                             </td>
-                            <td className="py-1.5 px-2.5 font-mono font-medium text-foreground">{ref.sku}</td>
+                            <td className="py-1.5 px-2.5 font-mono font-medium text-foreground">{limpiarTextoEncoding(ref.sku)}</td>
                             <td className="py-1.5 px-2.5 font-semibold text-foreground truncate max-w-[140px]">
-                              {ref.producto}
+                              {limpiarTextoEncoding(ref.producto)}
                             </td>
-                            <td className="py-1.5 px-2.5 text-muted-foreground">{ref.linea}</td>
+                            <td className="py-1.5 px-2.5 text-muted-foreground">{limpiarTextoEncoding(ref.linea)}</td>
                             <td className="py-1.5 px-2.5 text-right font-medium">
                               {ref.unidades.toLocaleString("es-CO")}
                             </td>
