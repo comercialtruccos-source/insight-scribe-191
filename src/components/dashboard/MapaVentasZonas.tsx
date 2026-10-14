@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { ZonaAporte, CatalogoItem } from "@/lib/ventas-api";
+import { ZonaAporte, CatalogoItem, ClienteEnCiudad } from "@/lib/ventas-api";
 import { formatoCOP, formatoCOPFull } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import {
   Package,
   Building2,
   Info,
+  Users,
 } from "lucide-react";
 
 interface MapaVentasZonasProps {
@@ -150,6 +151,31 @@ export function MapaVentasZonas({
     }
     return lista.sort((a, b) => b.valor - a.valor);
   }, [zonaActiva, ordenRefs]);
+
+  // Ciudad seleccionada dentro de la zona activa para ver sus clientes
+  const [ciudadSeleccionadaNombre, setCiudadSeleccionadaNombre] = useState<string | null>(null);
+  const [ordenClientes, setOrdenClientes] = useState<"valor" | "unidades">("valor");
+
+  const ciudadActiva = useMemo(() => {
+    if (!zonaActiva?.ciudades || zonaActiva.ciudades.length === 0) return null;
+    if (ciudadSeleccionadaNombre) {
+      const match = zonaActiva.ciudades.find(
+        (c) => c.ciudad === ciudadSeleccionadaNombre || limpiarTextoEncoding(c.ciudad) === limpiarTextoEncoding(ciudadSeleccionadaNombre)
+      );
+      if (match) return match;
+    }
+    return zonaActiva.ciudades[0] || null;
+  }, [zonaActiva, ciudadSeleccionadaNombre]);
+
+  // Clientes de la ciudad activa ordenados
+  const clientesCiudad = useMemo(() => {
+    if (!ciudadActiva?.clientes) return [];
+    const lista = [...ciudadActiva.clientes];
+    if (ordenClientes === "unidades") {
+      return lista.sort((a, b) => b.unidades - a.unidades);
+    }
+    return lista.sort((a, b) => b.venta - a.venta);
+  }, [ciudadActiva, ordenClientes]);
 
   const zonaLider = zonasOrdenadas[0] || null;
   const ciudadLider = useMemo(() => {
@@ -921,39 +947,176 @@ export function MapaVentasZonas({
                     <Building2 className="h-3.5 w-3.5 text-sky-500" />
                     <span>Municipios y Ciudades ({zonaActiva.ciudades?.length || 0})</span>
                   </span>
-                  <span className="text-[10px] text-muted-foreground">Ordenado por facturación</span>
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <span>💡 Clic en una ciudad para ver sus clientes</span>
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[140px] overflow-y-auto pr-1">
                   {(!zonaActiva.ciudades || zonaActiva.ciudades.length === 0) ? (
                     <p className="text-xs text-muted-foreground py-2">Sin ciudades registradas</p>
                   ) : (
-                    zonaActiva.ciudades.map((c, cIdx) => (
-                      <div
-                        key={c.ciudad}
-                        className="p-2 rounded-xl bg-background border border-border/60 flex items-center justify-between text-xs shadow-2xs"
-                      >
-                        <div className="flex items-center gap-1.5 truncate max-w-[150px]">
-                          <span className="w-4 h-4 rounded-full bg-muted flex items-center justify-center text-[9px] font-bold text-muted-foreground">
-                            {cIdx + 1}
-                          </span>
-                          <span className="font-semibold text-foreground truncate">{limpiarTextoEncoding(c.ciudad)}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="font-mono font-bold text-foreground text-[11px] block">
-                            {formatoCOP(c.venta)}
-                          </span>
-                          <span className="text-[9.5px] text-muted-foreground">
-                            {c.unidades.toLocaleString("es-CO")} unds ({c.porcentaje.toFixed(0)}%)
-                          </span>
-                        </div>
-                      </div>
-                    ))
+                    zonaActiva.ciudades.map((c, cIdx) => {
+                      const isSelected =
+                        ciudadActiva &&
+                        (ciudadActiva.ciudad === c.ciudad ||
+                          limpiarTextoEncoding(ciudadActiva.ciudad) === limpiarTextoEncoding(c.ciudad));
+                      return (
+                        <button
+                          key={c.ciudad}
+                          type="button"
+                          onClick={() => setCiudadSeleccionadaNombre(c.ciudad)}
+                          className={`p-2 rounded-xl text-left border flex items-center justify-between text-xs transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-sky-500/15 border-sky-500 ring-2 ring-sky-500/30 shadow-xs"
+                              : "bg-background border-border/60 hover:bg-muted/50 hover:border-border shadow-2xs"
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 truncate max-w-[155px]">
+                            <span
+                              className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                                isSelected ? "bg-sky-500 text-white" : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              {cIdx + 1}
+                            </span>
+                            <div className="truncate">
+                              <span
+                                className={`font-semibold truncate block ${
+                                  isSelected ? "text-sky-600 dark:text-sky-400 font-bold" : "text-foreground"
+                                }`}
+                              >
+                                {limpiarTextoEncoding(c.ciudad)}
+                              </span>
+                              {isSelected && (
+                                <span className="text-[9px] text-sky-500 font-bold block leading-none">
+                                  ● Filtrando clientes
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-mono font-bold text-foreground text-[11px] block">
+                              {formatoCOP(c.venta)}
+                            </span>
+                            <span className="text-[9.5px] text-muted-foreground">
+                              {c.unidades.toLocaleString("es-CO")} unds ({c.porcentaje.toFixed(0)}%)
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </div>
 
-              {/* Sub-sección 2: Referencias / Prendas Vendidas en esta Zona */}
+              {/* Sub-sección 2: Clientes que han comprado en la ciudad seleccionada */}
+              <div className="space-y-2 pt-2 border-t border-border/50">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="p-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                      <Users className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <span>
+                        Clientes que Compraron en{" "}
+                        <span className="text-sky-600 dark:text-sky-400 font-extrabold">
+                          {ciudadActiva ? limpiarTextoEncoding(ciudadActiva.ciudad) : "la Ciudad"}
+                        </span>{" "}
+                        ({clientesCiudad.length})
+                      </span>
+                    </span>
+                  </div>
+
+                  {/* Selector: Por Facturación vs Por Unidades */}
+                  <div className="flex rounded-lg bg-muted p-0.5 border border-border/50 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setOrdenClientes("valor")}
+                      className={`px-2 py-0.5 rounded font-semibold transition-all ${
+                        ordenClientes === "valor"
+                          ? "bg-background text-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Por Facturación ($)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrdenClientes("unidades")}
+                      className={`px-2 py-0.5 rounded font-semibold transition-all ${
+                        ordenClientes === "unidades"
+                          ? "bg-background text-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Por Unidades
+                    </button>
+                  </div>
+                </div>
+
+                {clientesCiudad.length === 0 ? (
+                  <div className="p-5 text-center text-xs text-muted-foreground border border-dashed rounded-xl bg-muted/10">
+                    No se registran clientes con compras en {ciudadActiva ? limpiarTextoEncoding(ciudadActiva.ciudad) : "esta ciudad"} para los filtros actuales.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/60 max-h-[220px]">
+                    <table className="w-full text-xs text-left">
+                      <thead className="border-b border-border/80 uppercase text-[10px] text-muted-foreground font-bold bg-muted/30 sticky top-0">
+                        <tr>
+                          <th className="py-2 px-2.5">#</th>
+                          <th className="py-2 px-2.5">Cliente / Razón Social</th>
+                          <th className="py-2 px-2.5">NIT / Código</th>
+                          <th className="py-2 px-2.5 text-right">Prendas</th>
+                          <th className="py-2 px-2.5 text-right">Ticket Prom.</th>
+                          <th className="py-2 px-2.5 text-right">Facturación</th>
+                          <th className="py-2 px-2.5 text-right">% en {ciudadActiva ? limpiarTextoEncoding(ciudadActiva.ciudad) : "Ciudad"}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/40 text-[11px]">
+                        {clientesCiudad.map((cli, idx) => (
+                          <tr key={`${cli.id}-${idx}`} className="hover:bg-muted/40 transition-colors">
+                            <td className="py-1.5 px-2.5 font-bold text-muted-foreground">
+                              {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
+                            </td>
+                            <td className="py-1.5 px-2.5 font-semibold text-foreground truncate max-w-[200px]" title={cli.nombre}>
+                              {limpiarTextoEncoding(cli.nombre)}
+                            </td>
+                            <td className="py-1.5 px-2.5 font-mono text-muted-foreground">
+                              {cli.codigo ? (
+                                <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 bg-muted/40 text-muted-foreground border-border">
+                                  {cli.codigo}
+                                </Badge>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground/60">N/D</span>
+                              )}
+                            </td>
+                            <td className="py-1.5 px-2.5 text-right font-medium text-foreground">
+                              {cli.unidades.toLocaleString("es-CO")}
+                            </td>
+                            <td className="py-1.5 px-2.5 text-right font-mono text-muted-foreground">
+                              <span>{formatoCOP(cli.ticketPromedio)}</span>
+                              <span className="block text-[8.5px] text-muted-foreground/80">
+                                {cli.transacciones} {cli.transacciones === 1 ? "pedido" : "pedidos"}
+                              </span>
+                            </td>
+                            <td className="py-1.5 px-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                              {formatoCOPFull(cli.venta)}
+                            </td>
+                            <td className="py-1.5 px-2.5 text-right">
+                              <Badge variant="outline" className="text-[9.5px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 py-0 px-1">
+                                {Number(cli.porcentajeEnCiudad).toFixed(1)}%
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Sub-sección 3: Referencias / Prendas Vendidas en esta Zona */}
               <div className="space-y-2 pt-2 border-t border-border/50">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
                   <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">

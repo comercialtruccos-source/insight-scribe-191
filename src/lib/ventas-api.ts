@@ -22,6 +22,7 @@ export type FiltrosBI = {
 export type CatalogoItem = {
   id: number;
   nombre: string;
+  codigo?: string | null;
 };
 
 export type CatalogosDisponibles = {
@@ -34,6 +35,7 @@ export type CatalogosDisponibles = {
   ciudades: CatalogoItem[];
   correrias: CatalogoItem[];
   paises: CatalogoItem[];
+  terceros?: CatalogoItem[];
 };
 
 export type RangoFechasInfo = {
@@ -553,7 +555,7 @@ const sanitizeCatalogo = (data: unknown[] | null | undefined): CatalogoItem[] =>
 
 /** Obtiene catálogos y TODOS los años presentes dinámicamente en el documento */
 export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
-  const [vendRes, canalRes, marcaRes, lineaRes, zonaRes, zonaColRes, ciudadRes, correriaRes, paisRes, fechaMinRes, fechaMaxRes] =
+  const [vendRes, canalRes, marcaRes, lineaRes, zonaRes, zonaColRes, ciudadRes, correriaRes, paisRes, tercRes, fechaMinRes, fechaMaxRes] =
     await Promise.all([
       supabase.from("dim_vendedor").select("id, nombre").not("nombre", "is", null).order("nombre").limit(2000),
       supabase.from("dim_canal").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
@@ -564,6 +566,7 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
       supabase.from("dim_ciudad").select("id, nombre").not("nombre", "is", null).order("nombre").limit(1000),
       supabase.from("dim_correria").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
       supabase.from("dim_pais").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
+      supabase.from("dim_tercero").select("id, nombre, codigo").not("nombre", "is", null).order("nombre").limit(5000),
       supabase.from("fact_ventas").select("fecha, anio, anio_col").not("fecha", "is", null).order("fecha", { ascending: true }).limit(1),
       supabase.from("fact_ventas").select("fecha, anio, anio_col").not("fecha", "is", null).order("fecha", { ascending: false }).limit(1),
     ]);
@@ -612,11 +615,16 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
     ciudades: sanitizeCatalogo(ciudadRes.data),
     correrias: sanitizeCatalogo(correriaRes.data),
     paises: sanitizeCatalogo(paisRes.data),
+    terceros: (tercRes.data || []).map((t: any) => ({
+      id: Number(t.id),
+      nombre: String(t.nombre || t.codigo || `Cliente #${t.id}`).trim(),
+      codigo: t.codigo ? String(t.codigo).trim() : null,
+    })),
   };
 }
 
 export const COLUMNAS_ALL_FACT_VENTAS =
-  "id, anio, anio_col, mes, dia, fecha, transaccion, valor, cantidad, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, ciudad_id, pais_id, sku, producto, prenda_hgi, talla, color";
+  "id, anio, anio_col, mes, dia, fecha, transaccion, valor, cantidad, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, ciudad_id, pais_id, tercero_id, sku, producto, prenda_hgi, talla, color";
 
 export type FilaFactVentas = {
   id: number;
@@ -638,6 +646,7 @@ export type FilaFactVentas = {
   zona_colombia_id: number | null;
   ciudad_id: number | null;
   pais_id: number | null;
+  tercero_id: number | null;
   sku: string | null;
   producto: string | null;
   prenda_hgi: string | null;
@@ -869,6 +878,17 @@ export type CiudadAporte = {
   crecimientoYoY?: number;
 };
 
+export type ClienteEnCiudad = {
+  id: number;
+  nombre: string;
+  codigo?: string | null;
+  venta: number;
+  unidades: number;
+  transacciones: number;
+  ticketPromedio: number;
+  porcentajeEnCiudad: number;
+};
+
 export type CiudadEnZona = {
   id: number | null;
   ciudad: string;
@@ -879,6 +899,7 @@ export type CiudadEnZona = {
   porcentaje: number;
   porcentajeGlobal: number;
   crecimientoYoY?: number;
+  clientes?: ClienteEnCiudad[];
 };
 
 export type ZonaAporte = {
@@ -892,6 +913,7 @@ export type ZonaAporte = {
   crecimientoYoY?: number;
   ciudades: CiudadEnZona[];
   referencias?: ReferenciaTop[];
+  clientes?: ClienteEnCiudad[];
 };
 
 export type CanalAporte = {
@@ -1031,6 +1053,7 @@ export function calcularDashboard1Cumplimiento(
         canales?: CatalogoItem[];
         zonas?: CatalogoItem[];
         ciudades?: CatalogoItem[];
+        terceros?: CatalogoItem[];
       },
   catalogosMarcas?: CatalogoItem[],
   catalogosVendedores?: CatalogoItem[],
@@ -1047,6 +1070,7 @@ export function calcularDashboard1Cumplimiento(
   const zonasArr = Array.isArray(catalogosLineas) ? catalogosZonas : catalogosLineas?.zonas;
   const canalesArr = Array.isArray(catalogosLineas) ? catalogosCanales : catalogosLineas?.canales;
   const ciudadesArr = Array.isArray(catalogosLineas) ? catalogosCiudades : catalogosLineas?.ciudades;
+  const tercerosArr = !Array.isArray(catalogosLineas) ? catalogosLineas?.terceros : undefined;
 
   const lineaMap = new Map<number, string>((lineasArr || []).map((l) => [l.id, l.nombre]));
   const marcaMap = new Map<number, string>((marcasArr || []).map((m) => [m.id, m.nombre]));
@@ -1054,6 +1078,16 @@ export function calcularDashboard1Cumplimiento(
   const canalMap = new Map<number, string>((canalesArr || []).map((c) => [c.id, c.nombre]));
   const zonaMap = new Map<number, string>((zonasArr || []).map((z) => [z.id, z.nombre]));
   const ciudadMap = new Map<number, string>((ciudadesArr || []).map((c) => [c.id, c.nombre]));
+  const terceroMap = new Map<number, CatalogoItem>((tercerosArr || []).map((t) => [t.id, t]));
+
+  type ClienteAcc = {
+    id: number;
+    nombre: string;
+    codigo?: string | null;
+    venta: number;
+    unidades: number;
+    transaccionesSet: Set<string>;
+  };
 
   const periodoMap = new Map<string, { anio: number; mes: number; venta: number; unidades: number; dev: number }>();
   const lineaVentaMap = new Map<string, { venta: number; unidades: number }>();
@@ -1066,8 +1100,17 @@ export function calcularDashboard1Cumplimiento(
       id: number | null;
       venta: number;
       unidades: number;
-      ciudadesMap: Map<string, { id: number | null; venta: number; unidades: number }>;
+      ciudadesMap: Map<
+        string,
+        {
+          id: number | null;
+          venta: number;
+          unidades: number;
+          clientesMap: Map<number, ClienteAcc>;
+        }
+      >;
       referenciasMap: Map<string, { sku: string; producto: string; linea: string; unidades: number; valor: number }>;
+      clientesMap: Map<number, ClienteAcc>;
     }
   >();
   const ciudadGlobalMap = new Map<string, { id: number | null; ciudad: string; zona: string; venta: number; unidades: number }>();
@@ -1154,11 +1197,33 @@ export function calcularDashboard1Cumplimiento(
         unidades: 0,
         ciudadesMap: new Map(),
         referenciasMap: new Map(),
+        clientesMap: new Map(),
       });
     }
     const currZ = zonaVentaMap.get(zNom)!;
     currZ.venta += v;
     currZ.unidades += cant;
+
+    const tId = r.tercero_id ? Number(r.tercero_id) : 0;
+    const tItem = tId > 0 ? terceroMap.get(tId) : undefined;
+    const tNom = (tItem?.nombre || (tId > 0 ? `Cliente #${tId}` : "Cliente Mostrador / Venta Directa")).trim();
+    const tCod = tItem?.codigo || null;
+    const txKey = r.transaccion ? String(r.transaccion) : `${r.id || Math.random()}`;
+
+    if (!currZ.clientesMap.has(tId)) {
+      currZ.clientesMap.set(tId, {
+        id: tId,
+        nombre: tNom,
+        codigo: tCod,
+        venta: 0,
+        unidades: 0,
+        transaccionesSet: new Set(),
+      });
+    }
+    const currZCli = currZ.clientesMap.get(tId)!;
+    currZCli.venta += v;
+    currZCli.unidades += cant;
+    currZCli.transaccionesSet.add(txKey);
 
     if (!currZ.referenciasMap.has(baseRef)) {
       currZ.referenciasMap.set(baseRef, {
@@ -1174,11 +1239,31 @@ export function calcularDashboard1Cumplimiento(
     currZR.valor += v;
 
     if (!currZ.ciudadesMap.has(cNom)) {
-      currZ.ciudadesMap.set(cNom, { id: cId, venta: 0, unidades: 0 });
+      currZ.ciudadesMap.set(cNom, {
+        id: cId,
+        venta: 0,
+        unidades: 0,
+        clientesMap: new Map(),
+      });
     }
     const currZC = currZ.ciudadesMap.get(cNom)!;
     currZC.venta += v;
     currZC.unidades += cant;
+
+    if (!currZC.clientesMap.has(tId)) {
+      currZC.clientesMap.set(tId, {
+        id: tId,
+        nombre: tNom,
+        codigo: tCod,
+        venta: 0,
+        unidades: 0,
+        transaccionesSet: new Set(),
+      });
+    }
+    const currZCCli = currZC.clientesMap.get(tId)!;
+    currZCCli.venta += v;
+    currZCCli.unidades += cant;
+    currZCCli.transaccionesSet.add(txKey);
 
     const ciudadKey = `${cNom}||${zNom}`;
     if (!ciudadGlobalMap.has(ciudadKey)) {
@@ -1427,12 +1512,48 @@ export function calcularDashboard1Cumplimiento(
       const zAntUnidades = zAnt?.unidades || 0;
       const zYoY = zAntVenta > 0 ? Math.round(((val.venta - zAntVenta) / zAntVenta) * 10000) / 100 : 0;
 
+      const clientesZona: ClienteEnCiudad[] = val.clientesMap
+        ? Array.from(val.clientesMap.values())
+            .map((cli) => {
+              const transCount = Math.max(cli.transaccionesSet.size, 1);
+              return {
+                id: cli.id,
+                nombre: cli.nombre,
+                codigo: cli.codigo,
+                venta: cli.venta,
+                unidades: cli.unidades,
+                transacciones: transCount,
+                ticketPromedio: transCount > 0 ? Math.round(cli.venta / transCount) : cli.venta,
+                porcentajeEnCiudad: val.venta > 0 ? Math.round((cli.venta / val.venta) * 10000) / 100 : 0,
+              };
+            })
+            .sort((a, b) => b.venta - a.venta)
+        : [];
+
       const ciudadesList: CiudadEnZona[] = Array.from(val.ciudadesMap.entries())
         .map(([ciudad, cVal]) => {
           const cAnt = zAnt?.ciudadesMap.get(ciudad);
           const cAntVenta = cAnt?.venta || 0;
           const cAntUnidades = cAnt?.unidades || 0;
           const cYoY = cAntVenta > 0 ? Math.round(((cVal.venta - cAntVenta) / cAntVenta) * 10000) / 100 : 0;
+          const clientesCiudad: ClienteEnCiudad[] = cVal.clientesMap
+            ? Array.from(cVal.clientesMap.values())
+                .map((cli) => {
+                  const transCount = Math.max(cli.transaccionesSet.size, 1);
+                  return {
+                    id: cli.id,
+                    nombre: cli.nombre,
+                    codigo: cli.codigo,
+                    venta: cli.venta,
+                    unidades: cli.unidades,
+                    transacciones: transCount,
+                    ticketPromedio: transCount > 0 ? Math.round(cli.venta / transCount) : cli.venta,
+                    porcentajeEnCiudad: cVal.venta > 0 ? Math.round((cli.venta / cVal.venta) * 10000) / 100 : 0,
+                  };
+                })
+                .sort((a, b) => b.venta - a.venta)
+            : [];
+
           return {
             id: cVal.id,
             ciudad,
@@ -1443,6 +1564,7 @@ export function calcularDashboard1Cumplimiento(
             porcentaje: val.venta > 0 ? Math.round((cVal.venta / val.venta) * 10000) / 100 : 0,
             porcentajeGlobal: totalVentas > 0 ? Math.round((cVal.venta / totalVentas) * 10000) / 100 : 0,
             crecimientoYoY: cYoY,
+            clientes: clientesCiudad,
           };
         })
         .sort((a, b) => b.venta - a.venta);
@@ -1473,6 +1595,7 @@ export function calcularDashboard1Cumplimiento(
         crecimientoYoY: zYoY,
         ciudades: ciudadesList,
         referencias: referenciasList,
+        clientes: clientesZona,
       };
     })
     .sort((a, b) => b.venta - a.venta);
