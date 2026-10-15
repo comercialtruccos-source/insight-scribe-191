@@ -84,6 +84,8 @@ export function limpiarTextoEncoding(str: string): string {
     .replace(/CH[\uFFFD?]A\b/gi, "Chía")
     .replace(/\bCHA\b/gi, "Chía")
     .replace(/\bCHIA\b/gi, "Chía")
+    .replace(/SAN JOS[\uFFFD?]? DEL GUAVIARE/gi, "San José del Guaviare")
+    .replace(/SAN JOSE DEL GUAVIARE/gi, "San José del Guaviare")
     .replace(/PANAM[\uFFFD?]/gi, "Panamá")
     .replace(/PANAMA/gi, "Panamá")
     .replace(/LARG@/gi, "Larga")
@@ -827,10 +829,10 @@ export function MapaVentasZonas({
       {/* ============================================================== */}
       {/* 3. DOS COLUMNAS DE DETALLE: ZONAS + MUNICIPIOS Y REFERENCIAS   */}
       {/* ============================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
         {/* COLUMNA IZQUIERDA: LISTA Y RANKING DE ZONAS (COL 5) */}
-        <div className="lg:col-span-5 space-y-3">
-          <div className="flex items-center justify-between">
+        <div className="lg:col-span-5 flex flex-col h-full min-h-0 space-y-3">
+          <div className="flex items-center justify-between shrink-0">
             <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
               <MapPin className="h-3.5 w-3.5 text-emerald-500" />
               <span>Departamentos y Zonas con Ventas</span>
@@ -841,7 +843,7 @@ export function MapaVentasZonas({
           </div>
 
           {/* Buscador de zonas o municipios */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="Buscar zona o ciudad del asesor..."
@@ -851,8 +853,8 @@ export function MapaVentasZonas({
             />
           </div>
 
-          {/* Lista scrolleable de zonas */}
-          <div className="space-y-2 max-h-[640px] lg:max-h-[720px] overflow-y-auto pr-1.5 pb-4">
+          {/* Lista scrolleable de zonas que ocupa TODO el largo del bloque */}
+          <div className="space-y-2 flex-1 min-h-[500px] lg:min-h-[850px] overflow-y-auto pr-1.5 pb-6">
             {zonasFiltradas.length === 0 ? (
               <div className="p-8 text-center text-xs text-muted-foreground border border-dashed rounded-2xl bg-muted/10">
                 No se registran ventas en zonas para el filtro seleccionado.
@@ -942,9 +944,9 @@ export function MapaVentasZonas({
         </div>
 
         {/* COLUMNA DERECHA: DETALLE COMPLETO DE LA ZONA (CIUDADES + REFERENCIAS VENDIDAS) (COL 7) */}
-        <div className="lg:col-span-7 space-y-4">
+        <div className="lg:col-span-7 space-y-4 flex flex-col h-full min-h-0">
           {zonaActiva ? (
-            <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs space-y-4">
+            <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs space-y-4 flex flex-col h-full">
               {/* Encabezado de la Zona Seleccionada */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-border/60 gap-2">
                 <div>
@@ -1454,7 +1456,7 @@ export function MapaVentasZonas({
               </div>
             </div>
           ) : (
-            <div className="p-12 text-center text-xs text-muted-foreground border border-dashed rounded-2xl bg-muted/10">
+            <div className="p-12 text-center text-xs text-muted-foreground border border-dashed rounded-2xl bg-muted/10 flex items-center justify-center h-full min-h-[350px]">
               Selecciona una zona en el mapa o a la izquierda para inspeccionar sus municipios y referencias vendidas.
             </div>
           )}
