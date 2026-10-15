@@ -906,14 +906,14 @@ function Panel() {
     if (tabActivo === "multianual") {
       setTabActivo("d1");
     } else if (tabActivo === "carga" && !puedeVerCargar) {
-      setTabActivo("d4");
+      setTabActivo("d1");
     } else if (tabActivo === "d3" && !puedeVerDigital) {
-      setTabActivo("d4");
+      setTabActivo("d1");
     } else if (tabActivo === "d5" && !puedeVerMarketplaces) {
-      setTabActivo("d4");
+      setTabActivo("d1");
     } else if (vendedorId !== "todos") {
       if (tabActivo === "d3" || tabActivo === "d5") {
-        setTabActivo("d4");
+        setTabActivo("d1");
       }
     } else if (zonaId !== "todos" || (ciudadId !== "todos" && tabActivo !== "d3")) {
       if (tabActivo === "d3" || tabActivo === "d5") {
@@ -1804,13 +1804,6 @@ function Panel() {
               {/* Tabs enfocados para Vendedor (sin Digital, Marketplaces ni Multianual repetitivo) */}
               <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1">
                 <TabsTrigger
-                  value="d4"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                  4. Fuerza Ventas
-                </TabsTrigger>
-                <TabsTrigger
                   value="d1"
                   className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
@@ -1823,6 +1816,13 @@ function Panel() {
                 >
                   <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                   2. Run Rate
+                </TabsTrigger>
+                <TabsTrigger
+                  value="d4"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
+                >
+                  <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  4. Fuerza Ventas
                 </TabsTrigger>
                 <TabsTrigger
                   value="referencias"
@@ -1922,7 +1922,7 @@ function Panel() {
                   className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
-                  Pedidos vs Despachos
+                  7. Pedidos vs Despachos
                 </TabsTrigger>
                 {esAdmin && (
                   <TabsTrigger
