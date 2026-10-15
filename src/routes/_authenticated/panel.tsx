@@ -309,15 +309,8 @@ function Panel() {
   const [fechaDesde, setFechaDesde] = useState<string>("");
   const [fechaHasta, setFechaHasta] = useState<string>("");
 
-  // Control de Tab Activo (Por defecto "1. Cumplimiento" para comerciales para no repetir información)
-  const [tabActivo, setTabActivo] = useState<string>(() => {
-    const s = obtenerSesionActiva();
-    if (s) {
-      const p = obtenerPermisoUsuario(s.email, s.id);
-      if (p && p.rol === "admin") return "multianual";
-    }
-    return "d1";
-  });
+  // Control de Tab Activo (Por defecto "1. Cumplimiento")
+  const [tabActivo, setTabActivo] = useState<string>("d1");
 
   // Filtros globales
   const [anio, setAnio] = useState<string>("todos");
@@ -678,16 +671,41 @@ function Panel() {
   const cD5 = cVentas || (habilitarYoY && cYoYLoading);
   const cD6 = cVentas || (habilitarYoY && cYoYLoading);
 
+  // Filtros para la matriz histórica multianual (conservando canales, marcas, vendedores, etc. pero sin restringir el año para mostrar todos los años)
+  const filtrosMultianual: FiltrosBI = useMemo(() => {
+    return {
+      canal_id: canalId !== "todos" ? Number(canalId) : undefined,
+      marca_id: marcaId !== "todos" ? Number(marcaId) : undefined,
+      vendedor_id: vendedorId !== "todos" ? Number(vendedorId) : undefined,
+      vendedor_ids: vendedorIds.length > 0 ? vendedorIds.map(Number) : undefined,
+      zona_id: zonaId !== "todos" ? Number(zonaId) : undefined,
+      ciudad_id: ciudadId !== "todos" ? Number(ciudadId) : undefined,
+    };
+  }, [canalId, marcaId, vendedorId, vendedorIds, zonaId, ciudadId]);
+
+  // Si el usuario filtra un año específico en los filtros superiores, consultamos el histórico completo para la matriz
+  const { data: rawVentasMultianual } = useQuery({
+    queryKey: ["bi-fact-ventas-multianual", filtrosMultianual],
+    queryFn: () => obtenerVentasRaw(filtrosMultianual),
+    staleTime: 120 * 1000,
+    enabled: anio !== "todos" || Boolean(fechaDesde) || Boolean(fechaHasta),
+  });
+
+  const ventasMatrizHistorica = useMemo(() => {
+    if (anio !== "todos" || fechaDesde || fechaHasta) {
+      return rawVentasMultianual && rawVentasMultianual.length > 0 ? rawVentasMultianual : (rawVentas || []);
+    }
+    return rawVentas || [];
+  }, [anio, fechaDesde, fechaHasta, rawVentasMultianual, rawVentas]);
+
   const dMultianual = useMemo(
     () =>
-      esAdmin && vendedorId === "todos"
-        ? calcularHistoricoMultianual(
-            rawVentas || [],
-            filtros,
-            habilitarYoY ? rawVentasYoY : undefined
-          )
-        : null,
-    [esAdmin, vendedorId, rawVentas, filtros, habilitarYoY, rawVentasYoY]
+      calcularHistoricoMultianual(
+        ventasMatrizHistorica,
+        filtrosMultianual,
+        habilitarYoY ? rawVentasYoY : undefined
+      ),
+    [ventasMatrizHistorica, filtrosMultianual, habilitarYoY, rawVentasYoY]
   );
   const d1 = useMemo(
     () =>
@@ -885,7 +903,7 @@ function Panel() {
 
   // Redirección inteligente si se filtra por vendedor o territorio o por falta de permisos en tabs protegidos
   useEffect(() => {
-    if ((!esAdmin || vendedorId !== "todos") && tabActivo === "multianual") {
+    if (tabActivo === "multianual") {
       setTabActivo("d1");
     } else if (tabActivo === "carga" && !puedeVerCargar) {
       setTabActivo("d4");
@@ -1139,6 +1157,7 @@ function Panel() {
         ).toLocaleString("es-CO")} ya existentes.`
       );
       queryClient.invalidateQueries({ queryKey: ["resumen"] });
+      queryClient.invalidateQueries({ queryKey: ["bi-fact-ventas-multianual"] });
       queryClient.invalidateQueries({ queryKey: ["bi-multianual"] });
       queryClient.invalidateQueries({ queryKey: ["bi-d1-cumplimiento"] });
       queryClient.invalidateQueries({ queryKey: ["bi-d2-runrate"] });
@@ -1624,13 +1643,12 @@ function Panel() {
 
             {/* Indicador Multianual YoY en barra de filtros */}
             <div
-              onClick={() => esAdmin && setTabActivo("multianual")}
+              onClick={() => setTabActivo("d1")}
               className={cn(
-                "inline-flex items-center gap-1.5 h-8 px-3 rounded-xl border text-xs font-semibold transition-all shadow-2xs select-none",
-                esAdmin ? "cursor-pointer hover:border-purple-500/60 hover:bg-purple-500/15" : "",
+                "inline-flex items-center gap-1.5 h-8 px-3 rounded-xl border text-xs font-semibold transition-all shadow-2xs select-none cursor-pointer hover:border-purple-500/60 hover:bg-purple-500/15",
                 "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30"
               )}
-              title="Métrica Multianual consolidada. Clic para ir al tab Multianual."
+              title="Métrica Multianual consolidada en Dashboard 1."
             >
               <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
               <span className="font-bold">Multianual YoY:</span>
@@ -1743,7 +1761,7 @@ function Panel() {
                 variant="outline"
                 size="sm"
                 className="h-8 text-xs font-semibold border-indigo-500/40 hover:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 hover:text-indigo-950 dark:hover:text-white flex items-center gap-1.5 shrink-0 bg-background/80"
-                onClick={() => setTabActivo(esAdmin ? "multianual" : "d1")}
+                onClick={() => setTabActivo("d1")}
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Volver a Todos los Dashboards
@@ -1899,15 +1917,6 @@ function Panel() {
                   <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
                   6. Referencias
                 </TabsTrigger>
-                {esAdmin && (
-                  <TabsTrigger
-                    value="multianual"
-                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
-                  >
-                    <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                    Multianual
-                  </TabsTrigger>
-                )}
                 <TabsTrigger
                   value="explorador"
                   className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
@@ -1927,16 +1936,7 @@ function Panel() {
               </TabsList>
             </div>
           ) : (
-            <TabsList className={`grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-7 ${esAdmin ? "lg:grid-cols-9" : "lg:grid-cols-8"} h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1`}>
-              {esAdmin && (
-                <TabsTrigger
-                  value="multianual"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <History className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                  Multianual
-                </TabsTrigger>
-              )}
+            <TabsList className={`grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-7 ${esAdmin ? "lg:grid-cols-8" : "lg:grid-cols-7"} h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1`}>
               <TabsTrigger
                 value="d1"
                 className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
@@ -2000,266 +2000,6 @@ function Panel() {
                 </TabsTrigger>
               )}
             </TabsList>
-          )}
-
-          {/* ========================================================================= */}
-          {/* TAB MULTIANUAL: DIMENSIÓN DE TIEMPO (SOLO ADMIN GLOBAL - OCULTO PARA COMERCIALES) */}
-          {/* ========================================================================= */}
-          {esAdmin && vendedorId === "todos" && (
-          <TabsContent value="multianual" className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-3">
-              <div>
-                <h2 className="text-xl font-bold tracking-tight text-foreground font-display">
-                  Dimensión de Tiempo: Análisis Histórico Multianual
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  Consolidado interanual de facturación, crecimiento año a año (YoY), estacionalidad comparativa y matriz histórica completa.
-                </p>
-              </div>
-              <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30 font-semibold">
-                {dMultianual?.aniosResumen.length ?? 0} Años Registrados ({dMultianual?.aniosPresentes[0] ?? "—"} - {dMultianual?.aniosPresentes[dMultianual.aniosPresentes.length - 1] ?? "—"})
-              </Badge>
-            </div>
-
-            {/* Tarjetas KPI Multianual */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <CardKpi
-                titulo={compararAnioAnterior && dMultianual?.aniosResumen.length ? `Facturación Año ${dMultianual.aniosResumen[0].anio}` : "Facturación Histórica Total"}
-                valor={formatoCOPFull(
-                  compararAnioAnterior && dMultianual?.aniosResumen.length
-                    ? dMultianual.aniosResumen[0].totalVentas
-                    : (dMultianual?.aniosResumen || []).reduce((a, b) => a + b.totalVentas, 0)
-                )}
-                subtexto={
-                  compararAnioAnterior && dMultianual?.aniosResumen.length
-                    ? `Periodo activo en año ${dMultianual.aniosResumen[0].anio}`
-                    : `Acumulado de todos los años en el documento`
-                }
-                icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
-                cargando={cMultianual}
-                badgeYoY={
-                  compararAnioAnterior && dMultianual?.aniosResumen && dMultianual.aniosResumen.length > 1
-                    ? (
-                      <BadgeYoY
-                        actual={dMultianual.aniosResumen[0].totalVentas}
-                        anterior={dMultianual.aniosResumen[1].totalVentas}
-                        porcentaje={dMultianual.aniosResumen[0].crecimientoYoYPct}
-                        label={`año ${dMultianual.aniosResumen[1].anio}`}
-                      />
-                    )
-                    : undefined
-                }
-              />
-              <CardKpi
-                titulo={compararAnioAnterior && dMultianual?.aniosResumen.length ? `Unidades Año ${dMultianual.aniosResumen[0].anio}` : "Unidades Históricas Vendidas"}
-                valor={`${(
-                  compararAnioAnterior && dMultianual?.aniosResumen.length
-                    ? dMultianual.aniosResumen[0].totalUnidades
-                    : (dMultianual?.aniosResumen || []).reduce((a, b) => a + b.totalUnidades, 0)
-                ).toLocaleString("es-CO")} unds`}
-                subtexto={
-                  compararAnioAnterior && dMultianual?.aniosResumen.length
-                    ? `Prendas facturadas en año ${dMultianual.aniosResumen[0].anio}`
-                    : "Total de prendas y artículos facturados"
-                }
-                icono={<Package className="h-5 w-5 text-blue-500" />}
-                cargando={cMultianual}
-                badgeYoY={
-                  compararAnioAnterior && dMultianual?.aniosResumen && dMultianual.aniosResumen.length > 1
-                    ? (
-                      <BadgeYoYUnidades
-                        actual={dMultianual.aniosResumen[0].totalUnidades}
-                        anterior={dMultianual.aniosResumen[1].totalUnidades}
-                        label={`año ${dMultianual.aniosResumen[1].anio}`}
-                      />
-                    )
-                    : undefined
-                }
-              />
-              <CardKpi
-                titulo="Años Registrados"
-                valor={`${dMultianual?.aniosResumen.length ?? 0} Años`}
-                subtexto={`Rango: ${(dMultianual?.aniosPresentes || []).join(", ")}`}
-                icono={<History className="h-5 w-5 text-purple-500" />}
-                cargando={cMultianual}
-              />
-              <CardKpi
-                titulo={compararAnioAnterior && dMultianual?.aniosResumen.length ? `Transacciones Año ${dMultianual.aniosResumen[0].anio}` : "Transacciones Totales"}
-                valor={(
-                  compararAnioAnterior && dMultianual?.aniosResumen.length
-                    ? dMultianual.aniosResumen[0].totalTransacciones
-                    : (dMultianual?.aniosResumen || []).reduce((a, b) => a + b.totalTransacciones, 0)
-                ).toLocaleString("es-CO")}
-                subtexto={
-                  compararAnioAnterior && dMultianual?.aniosResumen.length
-                    ? `Documentos en año ${dMultianual.aniosResumen[0].anio}`
-                    : "Facturas y recibos únicos procesados"
-                }
-                icono={<Receipt className="h-5 w-5 text-amber-500" />}
-                cargando={cMultianual}
-                badgeYoY={
-                  compararAnioAnterior && dMultianual?.aniosResumen && dMultianual.aniosResumen.length > 1
-                    ? (
-                      <BadgeYoY
-                        actual={dMultianual.aniosResumen[0].totalTransacciones}
-                        anterior={dMultianual.aniosResumen[1].totalTransacciones}
-                        tipo="entero"
-                        label={`trans. ${dMultianual.aniosResumen[1].anio}`}
-                      />
-                    )
-                    : undefined
-                }
-              />
-            </div>
-
-            {/* Gráfico 1: Facturación por Año (BarChart) */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base font-semibold">Facturación Anual Comparativa</CardTitle>
-                    <CardDescription>Ingresos totales por cada año de operación</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <InfoGrafica
-                      titulo="Facturación Anual Comparativa"
-                      descripcion="Compara la facturación neta total y el margen generado en cada uno de los años registrados en el documento."
-                      metrica="Suma consolidada de ventas brutas menos devoluciones por año calendario."
-                      interpretacion="Permite evaluar la tasa de crecimiento interanual (YoY) y la estabilidad financiera del negocio en el tiempo."
-                    />
-                    <Badge variant="outline">Anual</Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <div className="h-[320px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={[...(dMultianual?.aniosResumen || [])].reverse()}
-                      margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                      <XAxis dataKey="anio" tick={{ fontSize: 12 }} />
-                      <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
-                      <Tooltip
-                        formatter={(v: number, name: string) => [
-                          formatoCOPFull(v),
-                          name === "totalVentas" ? "Ventas Totales" : "Margen Bruto",
-                        ]}
-                      />
-                      <Legend formatter={(v) => (v === "totalVentas" ? "Facturación ($ COP)" : "Margen Bruto ($)")} />
-                      <Bar dataKey="totalVentas" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="margenBruto" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Gráfico 2: Estacionalidad Mensual Superpuesta (Multi-Line Chart) */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base font-semibold">Curvas de Estacionalidad Mensual por Año</CardTitle>
-                    <CardDescription>Comparación directa de los meses (Ene a Dic) superponiendo cada año histórico</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <InfoGrafica
-                      titulo="Curvas de Estacionalidad Mensual"
-                      descripcion="Superpone la curva mensual de ventas de cada año para identificar patrones estacionales fijos del comportamiento de compra."
-                      metrica="Ventas netas mes a mes (Enero a Diciembre) desglosadas por línea de color para cada año."
-                      interpretacion="Identifica picos comerciales (Día de la Madre, Amor y Amistad, Diciembre) y valles para sincronizar compras de insumos, confección y promociones."
-                    />
-                    <Badge variant="outline">Estacionalidad</Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <div className="h-[340px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={dMultianual?.estacionalidadCurvas || []} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                      <XAxis dataKey="nombreMes" tick={{ fontSize: 12 }} />
-                      <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
-                      <Tooltip formatter={(v: number) => [formatoCOPFull(v)]} />
-                      <Legend />
-                      {(dMultianual?.aniosPresentes || []).map((an, i) => (
-                        <Line
-                          key={`line-an-${an}`}
-                          type="monotone"
-                          dataKey={`anio_${an}`}
-                          name={`Año ${an}`}
-                          stroke={COLORES[i % COLORES.length]}
-                          strokeWidth={2.5}
-                          dot={{ r: 3 }}
-                        />
-                      ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Tabla Matriz Histórica Año x Mes */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Matriz Histórica de Facturación (Año × Mes)</CardTitle>
-                <CardDescription>Ventas mensuales detalladas en pesos colombianos para todos los años</CardDescription>
-              </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
-                    <tr>
-                      <th className="py-2.5 px-3">Año</th>
-                      <th className="py-2.5 px-2 text-right">Ene</th>
-                      <th className="py-2.5 px-2 text-right">Feb</th>
-                      <th className="py-2.5 px-2 text-right">Mar</th>
-                      <th className="py-2.5 px-2 text-right">Abr</th>
-                      <th className="py-2.5 px-2 text-right">May</th>
-                      <th className="py-2.5 px-2 text-right">Jun</th>
-                      <th className="py-2.5 px-2 text-right">Jul</th>
-                      <th className="py-2.5 px-2 text-right">Ago</th>
-                      <th className="py-2.5 px-2 text-right">Sep</th>
-                      <th className="py-2.5 px-2 text-right">Oct</th>
-                      <th className="py-2.5 px-2 text-right">Nov</th>
-                      <th className="py-2.5 px-2 text-right">Dic</th>
-                      <th className="py-2.5 px-3 text-right bg-muted/40 font-bold text-foreground">Total Anual</th>
-                      <th className="py-2.5 px-3 text-right">% YoY</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {(dMultianual?.matrizMesAnio || []).map((m) => {
-                      const resAnual = dMultianual?.aniosResumen.find((a) => a.anio === m.anio);
-                      const yoy = resAnual?.crecimientoYoYPct ?? 0;
-                      return (
-                        <tr key={m.anio} className="hover:bg-muted/30 font-mono">
-                          <td className="py-2.5 px-3 font-sans font-bold text-primary">{m.anio}</td>
-                          {m.meses.map((val, idx) => (
-                            <td key={idx} className="py-2.5 px-2 text-right text-muted-foreground">
-                              {val > 0 ? formatoCOP(val) : "—"}
-                            </td>
-                          ))}
-                          <td className="py-2.5 px-3 text-right bg-muted/40 font-bold text-foreground">
-                            {formatoCOP(m.totalAnio)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-sans font-semibold">
-                            {yoy !== 0 ? (
-                              <span className={yoy >= 0 ? "text-emerald-600" : "text-rose-600"}>
-                                {yoy > 0 ? "+" : ""}{Number(yoy).toFixed(2)}%
-                              </span>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
-          </TabsContent>
           )}
 
           {/* ========================================================================= */}
@@ -4042,6 +3782,74 @@ function Panel() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Matriz Histórica de Facturación (Año × Mes) */}
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base font-semibold">Matriz Histórica de Facturación (Año × Mes)</CardTitle>
+                    <CardDescription>Ventas mensuales detalladas en pesos colombianos para todos los años</CardDescription>
+                  </div>
+                  {dMultianual?.aniosResumen && dMultianual.aniosResumen.length > 0 && (
+                    <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30 font-semibold self-start sm:self-auto">
+                      {dMultianual.aniosResumen.length} Años Registrados ({dMultianual.aniosPresentes[0] ?? "—"} - {dMultianual.aniosPresentes[dMultianual.aniosPresentes.length - 1] ?? "—"})
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
+                    <tr>
+                      <th className="py-2.5 px-3">Año</th>
+                      <th className="py-2.5 px-2 text-right">Ene</th>
+                      <th className="py-2.5 px-2 text-right">Feb</th>
+                      <th className="py-2.5 px-2 text-right">Mar</th>
+                      <th className="py-2.5 px-2 text-right">Abr</th>
+                      <th className="py-2.5 px-2 text-right">May</th>
+                      <th className="py-2.5 px-2 text-right">Jun</th>
+                      <th className="py-2.5 px-2 text-right">Jul</th>
+                      <th className="py-2.5 px-2 text-right">Ago</th>
+                      <th className="py-2.5 px-2 text-right">Sep</th>
+                      <th className="py-2.5 px-2 text-right">Oct</th>
+                      <th className="py-2.5 px-2 text-right">Nov</th>
+                      <th className="py-2.5 px-2 text-right">Dic</th>
+                      <th className="py-2.5 px-3 text-right bg-muted/40 font-bold text-foreground">Total Anual</th>
+                      <th className="py-2.5 px-3 text-right">% YoY</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {(dMultianual?.matrizMesAnio || []).map((m) => {
+                      const resAnual = dMultianual?.aniosResumen.find((a) => a.anio === m.anio);
+                      const yoy = resAnual?.crecimientoYoYPct ?? 0;
+                      return (
+                        <tr key={m.anio} className="hover:bg-muted/30 font-mono">
+                          <td className="py-2.5 px-3 font-sans font-bold text-primary">{m.anio}</td>
+                          {m.meses.map((val, idx) => (
+                            <td key={idx} className="py-2.5 px-2 text-right text-muted-foreground">
+                              {val > 0 ? formatoCOP(val) : "—"}
+                            </td>
+                          ))}
+                          <td className="py-2.5 px-3 text-right bg-muted/40 font-bold text-foreground">
+                            {formatoCOP(m.totalAnio)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-sans font-semibold">
+                            {yoy !== 0 ? (
+                              <span className={yoy >= 0 ? "text-emerald-600" : "text-rose-600"}>
+                                {yoy > 0 ? "+" : ""}{Number(yoy).toFixed(2)}%
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
 
             {/* Fila 5: Tabla Detalle Cronológico Mes a Mes */}
             <Card>
