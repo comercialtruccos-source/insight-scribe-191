@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { ZonaAporte, CatalogoItem, ClienteEnCiudad } from "@/lib/ventas-api";
-import { formatoCOP, formatoCOPFull } from "@/lib/utils";
+import { cn, formatoCOP, formatoCOPFull } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DesgloseSkusTabla } from "./DesgloseSkusTabla";
 import {
   WORLD_LAND_PATH,
   KEY_COUNTRIES_PATHS,
@@ -22,6 +23,8 @@ import {
   Users,
   Store,
   UserCheck,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 interface MapaVentasZonasProps {
@@ -160,9 +163,13 @@ export function MapaVentasZonas({
   const [ordenClientes, setOrdenClientes] = useState<"valor" | "unidades">("valor");
   const [filtroTipoCliente, setFiltroTipoCliente] = useState<"todos" | "identificados">("todos");
 
-  // Al cambiar de zona activa, resetear el filtro de ciudad
+  // Referencia expandida para ver desglose de SKU dentro de la zona
+  const [refExpandidaMapa, setRefExpandidaMapa] = useState<string | null>(null);
+
+  // Al cambiar de zona activa, resetear el filtro de ciudad y la referencia expandida
   useEffect(() => {
     setCiudadSeleccionadaNombre(null);
+    setRefExpandidaMapa(null);
   }, [zonaActiva?.zona]);
 
   const ciudadActiva = useMemo(() => {
@@ -1340,9 +1347,9 @@ export function MapaVentasZonas({
                     No se registran referencias vendidas en {limpiarTextoEncoding(zonaActiva.zona)} para los filtros actuales.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/60 max-h-[220px]">
+                  <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/60 max-h-[420px]">
                     <table className="w-full text-xs text-left">
-                      <thead className="border-b border-border/80 uppercase text-[10px] text-muted-foreground font-bold bg-muted/30 sticky top-0">
+                      <thead className="border-b border-border/80 uppercase text-[10px] text-muted-foreground font-bold bg-muted/30 sticky top-0 z-10">
                         <tr>
                           <th className="py-2 px-2.5">#</th>
                           <th className="py-2 px-2.5">SKU / Ref</th>
@@ -1356,41 +1363,92 @@ export function MapaVentasZonas({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/40 text-[11px]">
-                        {referenciasZona.map((ref, idx) => (
-                          <tr key={`${ref.sku}-${idx}`} className="hover:bg-muted/40 transition-colors">
-                            <td className="py-1.5 px-2.5 font-bold text-muted-foreground">
-                              {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
-                            </td>
-                            <td className="py-1.5 px-2.5 font-mono font-bold text-primary">{limpiarTextoEncoding(ref.sku)}</td>
-                            <td className="py-1.5 px-2.5 font-semibold text-foreground truncate max-w-[170px]" title={ref.producto}>
-                              {limpiarTextoEncoding(ref.producto)}
-                            </td>
-                            <td className="py-1.5 px-2.5">
-                              {ref.prenda ? (
-                                <Badge variant="outline" className="text-[9px] font-semibold bg-muted/40 py-0 px-1 border-border/60">
-                                  {limpiarTextoEncoding(ref.prenda)}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground/60 text-[10px]">-</span>
+                        {referenciasZona.map((ref, idx) => {
+                          const isExpanded = refExpandidaMapa === ref.sku;
+                          const numSkus = ref.totalSkus || ref.skus?.length || 1;
+                          return (
+                            <React.Fragment key={`${ref.sku}-${idx}`}>
+                              <tr
+                                onClick={() => setRefExpandidaMapa(isExpanded ? null : ref.sku)}
+                                className={cn(
+                                  "cursor-pointer transition-colors select-none group",
+                                  isExpanded
+                                    ? "bg-primary/10 border-l-4 border-l-primary"
+                                    : "hover:bg-muted/40"
+                                )}
+                                title="Haz clic para ver el desglose por SKU (tallas y colores)"
+                              >
+                                <td className="py-1.5 px-2.5 font-bold text-muted-foreground whitespace-nowrap">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-muted-foreground group-hover:text-primary transition-colors">
+                                      {isExpanded ? (
+                                        <ChevronDown className="h-3 w-3 text-primary" />
+                                      ) : (
+                                        <ChevronRight className="h-3 w-3" />
+                                      )}
+                                    </span>
+                                    <span>{idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}</span>
+                                  </div>
+                                </td>
+                                <td className="py-1.5 px-2.5 font-mono font-bold text-primary">
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{limpiarTextoEncoding(ref.sku)}</span>
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[9px] px-1 py-0 font-mono font-normal bg-primary/10 text-primary border-primary/20"
+                                    >
+                                      {numSkus} {numSkus === 1 ? "SKU" : "SKUs"}
+                                    </Badge>
+                                  </div>
+                                </td>
+                                <td className="py-1.5 px-2.5 font-semibold text-foreground truncate max-w-[170px]" title={ref.producto}>
+                                  {limpiarTextoEncoding(ref.producto)}
+                                </td>
+                                <td className="py-1.5 px-2.5">
+                                  {ref.prenda ? (
+                                    <Badge variant="outline" className="text-[9px] font-semibold bg-muted/40 py-0 px-1 border-border/60">
+                                      {limpiarTextoEncoding(ref.prenda)}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground/60 text-[10px]">-</span>
+                                  )}
+                                </td>
+                                <td className="py-1.5 px-2.5 text-muted-foreground">{limpiarTextoEncoding(ref.linea)}</td>
+                                <td className="py-1.5 px-2.5 text-right font-medium">
+                                  {ref.unidades.toLocaleString("es-CO")}
+                                </td>
+                                <td className="py-1.5 px-2.5 text-right font-mono text-muted-foreground">
+                                  {formatoCOP(ref.precioPromedio)}
+                                </td>
+                                <td className="py-1.5 px-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                                  {formatoCOPFull(ref.valor)}
+                                </td>
+                                <td className="py-1.5 px-2.5 text-right">
+                                  <Badge variant="outline" className="text-[9.5px] font-bold bg-primary/5 py-0 px-1">
+                                    {Number(ref.porcentaje).toFixed(1)}%
+                                  </Badge>
+                                </td>
+                              </tr>
+                              {isExpanded && (
+                                <tr className="bg-muted/15 border-b-2 border-primary/30">
+                                  <td colSpan={9} className="p-3">
+                                    <DesgloseSkusTabla
+                                      referenciaCodigo={ref.sku}
+                                      referenciaNombre={ref.producto}
+                                      prenda={ref.prenda}
+                                      linea={ref.linea}
+                                      totalUnidades={ref.unidades}
+                                      totalValor={ref.valor}
+                                      precioPromedio={ref.precioPromedio}
+                                      skus={ref.skus || []}
+                                      onClose={() => setRefExpandidaMapa(null)}
+                                    />
+                                  </td>
+                                </tr>
                               )}
-                            </td>
-                            <td className="py-1.5 px-2.5 text-muted-foreground">{limpiarTextoEncoding(ref.linea)}</td>
-                            <td className="py-1.5 px-2.5 text-right font-medium">
-                              {ref.unidades.toLocaleString("es-CO")}
-                            </td>
-                            <td className="py-1.5 px-2.5 text-right font-mono text-muted-foreground">
-                              {formatoCOP(ref.precioPromedio)}
-                            </td>
-                            <td className="py-1.5 px-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                              {formatoCOPFull(ref.valor)}
-                            </td>
-                            <td className="py-1.5 px-2.5 text-right">
-                              <Badge variant="outline" className="text-[9.5px] font-bold bg-primary/5 py-0 px-1">
-                                {Number(ref.porcentaje).toFixed(1)}%
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))}
+                            </React.Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

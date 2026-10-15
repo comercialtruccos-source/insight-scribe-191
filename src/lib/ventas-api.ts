@@ -624,7 +624,7 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
 }
 
 export const COLUMNAS_ALL_FACT_VENTAS =
-  "id, anio, anio_col, mes, dia, fecha, transaccion, valor, cantidad, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, ciudad_id, pais_id, tercero_id, producto_c, sku, producto, prenda_hgi, talla, color";
+  "id, anio, anio_col, mes, dia, fecha, transaccion, valor, cantidad, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, ciudad_id, pais_id, tercero_id, producto_c, sku, producto, prenda_hgi, talla, color, cod_color";
 
 export type FilaFactVentas = {
   id: number;
@@ -653,6 +653,7 @@ export type FilaFactVentas = {
   prenda_hgi: string | null;
   talla: string | null;
   color: string | null;
+  cod_color: string | null;
 };
 
 export async function obtenerVentasRaw(filtros: FiltrosBI): Promise<FilaFactVentas[]> {
@@ -854,8 +855,24 @@ export type VendedorAporte = {
   crecimientoYoY?: number;
 };
 
+export type SkuDetalle = {
+  sku: string;
+  referencia: string;
+  talla: string;
+  color: string;
+  cod_color?: string | null;
+  unidades: number;
+  unidadesAnterior?: number;
+  valor: number;
+  valorAnterior?: number;
+  precioPromedio: number;
+  porcentajeEnReferencia: number;
+  porcentajeTotal?: number;
+};
+
 export type ReferenciaTop = {
   sku: string;
+  referencia?: string;
   producto: string;
   prenda?: string;
   linea: string;
@@ -866,6 +883,8 @@ export type ReferenciaTop = {
   precioPromedio: number;
   porcentaje: number;
   crecimientoYoY?: number;
+  skus?: SkuDetalle[];
+  totalSkus?: number;
 };
 
 export type CiudadAporte = {
@@ -1138,11 +1157,30 @@ export function calcularDashboard1Cumplimiento(
     transaccionesSet: Set<string>;
   };
 
+  type SkuAcc = {
+    sku: string;
+    talla: string;
+    color: string;
+    cod_color?: string | null;
+    unidades: number;
+    valor: number;
+  };
+
+  type RefAcc = {
+    sku: string;
+    producto: string;
+    prenda?: string;
+    linea: string;
+    unidades: number;
+    valor: number;
+    skusMap: Map<string, SkuAcc>;
+  };
+
   const periodoMap = new Map<string, { anio: number; mes: number; venta: number; unidades: number; dev: number }>();
   const lineaVentaMap = new Map<string, { venta: number; unidades: number }>();
   const marcaVentaMap = new Map<string, number>();
   const vendedorVentaMap = new Map<string, { id: number | null; venta: number; unidades: number }>();
-  const refVentaMap = new Map<string, { producto: string; linea: string; unidades: number; valor: number }>();
+  const refVentaMap = new Map<string, RefAcc>();
   const zonaVentaMap = new Map<
     string,
     {
@@ -1158,7 +1196,7 @@ export function calcularDashboard1Cumplimiento(
           clientesMap: Map<number, ClienteAcc>;
         }
       >;
-      referenciasMap: Map<string, { sku: string; producto: string; linea: string; unidades: number; valor: number }>;
+      referenciasMap: Map<string, RefAcc>;
       clientesMap: Map<number, ClienteAcc>;
     }
   >();
@@ -1226,14 +1264,53 @@ export function calcularDashboard1Cumplimiento(
     const baseRef = (r.producto_c || r.sku || r.producto || "SIN_REF").trim().toUpperCase();
     const prodNom = (r.producto || r.prenda_hgi || `Ref. ${baseRef}`).trim();
     const prendaTipo = (r.prenda_hgi || "").trim();
-    const prevRef = refVentaMap.get(baseRef) || { producto: prodNom, prenda: prendaTipo, linea: lNom, unidades: 0, valor: 0 };
-    refVentaMap.set(baseRef, {
-      producto: (prodNom && !prodNom.startsWith("Ref. ")) ? prodNom : prevRef.producto,
-      prenda: prendaTipo || prevRef.prenda,
-      linea: lNom !== "General / Confección" ? lNom : prevRef.linea,
-      unidades: prevRef.unidades + cant,
-      valor: prevRef.valor + v,
-    });
+
+    // Detalle de variante SKU
+    const rawSku = (r.sku || "").trim();
+    const tallaVal = (r.talla || "").trim() || "Única";
+    const colorVal = (r.color || "").trim() || "Estándar";
+    const codColorVal = (r.cod_color || "").trim() || null;
+    const skuCode = rawSku || `${baseRef}-${tallaVal}-${colorVal}`;
+    const skuKey = `${skuCode}__${tallaVal}__${colorVal}`;
+
+    if (!refVentaMap.has(baseRef)) {
+      refVentaMap.set(baseRef, {
+        sku: baseRef,
+        producto: prodNom,
+        prenda: prendaTipo,
+        linea: lNom,
+        unidades: 0,
+        valor: 0,
+        skusMap: new Map(),
+      });
+    }
+    const currRefAcc = refVentaMap.get(baseRef)!;
+    currRefAcc.unidades += cant;
+    currRefAcc.valor += v;
+    if (prodNom && !prodNom.startsWith("Ref. ") && currRefAcc.producto.startsWith("Ref. ")) {
+      currRefAcc.producto = prodNom;
+    }
+    if (!currRefAcc.prenda && prendaTipo) {
+      currRefAcc.prenda = prendaTipo;
+    }
+    if (lNom !== "General / Confección" && currRefAcc.linea === "General / Confección") {
+      currRefAcc.linea = lNom;
+    }
+
+    if (!currRefAcc.skusMap.has(skuKey)) {
+      currRefAcc.skusMap.set(skuKey, {
+        sku: skuCode,
+        talla: tallaVal,
+        color: colorVal,
+        cod_color: codColorVal,
+        unidades: 0,
+        valor: 0,
+      });
+    }
+    const sAcc = currRefAcc.skusMap.get(skuKey)!;
+    sAcc.unidades += cant;
+    sAcc.valor += v;
+    if (codColorVal && !sAcc.cod_color) sAcc.cod_color = codColorVal;
 
     // Zonas / Regiones y Ciudades
     const zId = r.zona_id || r.zona_colombia_id || null;
@@ -1287,6 +1364,7 @@ export function calcularDashboard1Cumplimiento(
         linea: lNom,
         unidades: 0,
         valor: 0,
+        skusMap: new Map(),
       });
     }
     const currZR = currZ.referenciasMap.get(baseRef)!;
@@ -1298,6 +1376,24 @@ export function calcularDashboard1Cumplimiento(
     if (!currZR.prenda && prendaTipo) {
       currZR.prenda = prendaTipo;
     }
+    if (lNom !== "General / Confección" && currZR.linea === "General / Confección") {
+      currZR.linea = lNom;
+    }
+
+    if (!currZR.skusMap.has(skuKey)) {
+      currZR.skusMap.set(skuKey, {
+        sku: skuCode,
+        talla: tallaVal,
+        color: colorVal,
+        cod_color: codColorVal,
+        unidades: 0,
+        valor: 0,
+      });
+    }
+    const zSAcc = currZR.skusMap.get(skuKey)!;
+    zSAcc.unidades += cant;
+    zSAcc.valor += v;
+    if (codColorVal && !zSAcc.cod_color) zSAcc.cod_color = codColorVal;
 
     if (!currZ.ciudadesMap.has(cNom)) {
       currZ.ciudadesMap.set(cNom, {
@@ -1347,7 +1443,7 @@ export function calcularDashboard1Cumplimiento(
   const lineaAntMap = new Map<string, { venta: number; unidades: number }>();
   const marcaAntMap = new Map<string, number>();
   const vendedorAntMap = new Map<string, { venta: number; unidades: number }>();
-  const refAntMap = new Map<string, { valor: number; unidades: number }>();
+  const refAntMap = new Map<string, { valor: number; unidades: number; skusMap: Map<string, { valor: number; unidades: number }> }>();
   const zonaAntMap = new Map<string, { venta: number; unidades: number; ciudadesMap: Map<string, { venta: number; unidades: number }> }>();
   const ciudadGlobalAntMap = new Map<string, { venta: number; unidades: number }>();
   const canalAntMap = new Map<string, { venta: number; unidades: number }>();
@@ -1389,8 +1485,25 @@ export function calcularDashboard1Cumplimiento(
       vendedorAntMap.set(vNom, { venta: prevV.venta + v, unidades: prevV.unidades + cant });
 
       const baseRef = (r.producto_c || r.sku || r.producto || "SIN_REF").trim().toUpperCase();
-      const prevRef = refAntMap.get(baseRef) || { valor: 0, unidades: 0 };
-      refAntMap.set(baseRef, { valor: prevRef.valor + v, unidades: prevRef.unidades + cant });
+      const rawSkuAnt = (r.sku || "").trim();
+      const tallaAnt = (r.talla || "").trim() || "Única";
+      const colorAnt = (r.color || "").trim() || "Estándar";
+      const skuCodeAnt = rawSkuAnt || `${baseRef}-${tallaAnt}-${colorAnt}`;
+      const skuKeyAnt = `${skuCodeAnt}__${tallaAnt}__${colorAnt}`;
+
+      if (!refAntMap.has(baseRef)) {
+        refAntMap.set(baseRef, { valor: 0, unidades: 0, skusMap: new Map() });
+      }
+      const prevRef = refAntMap.get(baseRef)!;
+      prevRef.valor += v;
+      prevRef.unidades += cant;
+
+      if (!prevRef.skusMap.has(skuKeyAnt)) {
+        prevRef.skusMap.set(skuKeyAnt, { valor: 0, unidades: 0 });
+      }
+      const sAnt = prevRef.skusMap.get(skuKeyAnt)!;
+      sAnt.valor += v;
+      sAnt.unidades += cant;
 
       const zId = r.zona_id || r.zona_colombia_id || null;
       const zNom = (zId && zonaMap.get(zId)) || "Nacional / Sin Zona";
@@ -1545,8 +1658,35 @@ export function calcularDashboard1Cumplimiento(
       const valAnt = rAnt?.valor || 0;
       const uAnt = rAnt?.unidades || 0;
       const yoy = valAnt > 0 ? Math.round(((val.valor - valAnt) / valAnt) * 10000) / 100 : 0;
+
+      const skusList: SkuDetalle[] = val.skusMap
+        ? Array.from(val.skusMap.values())
+            .map((s) => {
+              const skuKey = `${s.sku}__${s.talla}__${s.color}`;
+              const sAnt = rAnt?.skusMap?.get(skuKey);
+              const sValAnt = sAnt?.valor || 0;
+              const sUAnt = sAnt?.unidades || 0;
+              return {
+                sku: s.sku,
+                referencia: sku,
+                talla: s.talla,
+                color: s.color,
+                cod_color: s.cod_color,
+                unidades: s.unidades,
+                unidadesAnterior: sUAnt,
+                valor: s.valor,
+                valorAnterior: sValAnt,
+                precioPromedio: s.unidades > 0 ? Math.round(s.valor / s.unidades) : 0,
+                porcentajeEnReferencia: val.valor > 0 ? Math.round((s.valor / val.valor) * 10000) / 100 : 0,
+                porcentajeTotal: totalVentas > 0 ? Math.round((s.valor / totalVentas) * 10000) / 100 : 0,
+              };
+            })
+            .sort((a, b) => b.valor - a.valor)
+        : [];
+
       return {
         sku,
+        referencia: sku,
         producto: val.producto,
         prenda: val.prenda,
         linea: val.linea,
@@ -1557,6 +1697,8 @@ export function calcularDashboard1Cumplimiento(
         precioPromedio: val.unidades > 0 ? Math.round(val.valor / val.unidades) : 0,
         porcentaje: totalVentas > 0 ? Math.round((val.valor / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: yoy,
+        skus: skusList,
+        totalSkus: skusList.length,
       };
     });
 
@@ -1636,16 +1778,38 @@ export function calcularDashboard1Cumplimiento(
 
       const referenciasList: ReferenciaTop[] = val.referenciasMap
         ? Array.from(val.referenciasMap.values())
-            .map((rVal) => ({
-              sku: rVal.sku,
-              producto: rVal.producto,
-              prenda: rVal.prenda,
-              linea: rVal.linea,
-              unidades: rVal.unidades,
-              valor: rVal.valor,
-              precioPromedio: rVal.unidades > 0 ? Math.round(rVal.valor / rVal.unidades) : 0,
-              porcentaje: val.venta > 0 ? Math.round((rVal.valor / val.venta) * 10000) / 100 : 0,
-            }))
+            .map((rVal) => {
+              const skusList: SkuDetalle[] = rVal.skusMap
+                ? Array.from(rVal.skusMap.values())
+                    .map((s) => ({
+                      sku: s.sku,
+                      referencia: rVal.sku,
+                      talla: s.talla,
+                      color: s.color,
+                      cod_color: s.cod_color,
+                      unidades: s.unidades,
+                      valor: s.valor,
+                      precioPromedio: s.unidades > 0 ? Math.round(s.valor / s.unidades) : 0,
+                      porcentajeEnReferencia: rVal.valor > 0 ? Math.round((s.valor / rVal.valor) * 10000) / 100 : 0,
+                      porcentajeTotal: val.venta > 0 ? Math.round((s.valor / val.venta) * 10000) / 100 : 0,
+                    }))
+                    .sort((a, b) => b.valor - a.valor)
+                : [];
+
+              return {
+                sku: rVal.sku,
+                referencia: rVal.sku,
+                producto: rVal.producto,
+                prenda: rVal.prenda,
+                linea: rVal.linea,
+                unidades: rVal.unidades,
+                valor: rVal.valor,
+                precioPromedio: rVal.unidades > 0 ? Math.round(rVal.valor / rVal.unidades) : 0,
+                porcentaje: val.venta > 0 ? Math.round((rVal.valor / val.venta) * 10000) / 100 : 0,
+                skus: skusList,
+                totalSkus: skusList.length,
+              };
+            })
             .sort((a, b) => b.valor - a.valor)
             .slice(0, 60)
         : [];
@@ -2998,6 +3162,9 @@ export type ItemReferenciaAnalisis = {
   clasificacionABC: "A" | "B" | "C";
   costoTotal?: number;
   margenBrutoEstimado?: number;
+  referencia?: string;
+  skus?: SkuDetalle[];
+  totalSkus?: number;
 };
 
 export type DataDashboard6 = {
@@ -3064,6 +3231,7 @@ export function calcularDashboard6Referencias(
     devoluciones: number;
     ventaNeta: number;
     costoTotal: number;
+    skusMap: Map<string, SkuAcc>;
   };
 
   const refMap = new Map<string, RefAcum>();
@@ -3086,6 +3254,9 @@ export function calcularDashboard6Referencias(
     const marca = (r.marca_id && marcaMap.get(r.marca_id)) || "Trucco's";
     const talla = (r.talla || "").trim().toUpperCase();
     const color = (r.color || "").trim().toUpperCase();
+    const rawSkuItem = (r.sku || "").trim();
+    const itemSku = rawSkuItem || sku;
+    const codColor = (r.cod_color || "").trim();
 
     const esDev = esDevolucionTransaccion(r.transaccion, v);
     totalVentaNeta += v;
@@ -3107,6 +3278,7 @@ export function calcularDashboard6Referencias(
         devoluciones: 0,
         ventaNeta: 0,
         costoTotal: 0,
+        skusMap: new Map<string, SkuAcc>(),
       };
       refMap.set(sku, currRef);
     }
@@ -3114,6 +3286,23 @@ export function calcularDashboard6Referencias(
     currRef.unidades += cant;
     currRef.ventaNeta += v;
     currRef.costoTotal += costo;
+
+    // Acumular variante SKU dentro de la referencia
+    const skuKey = `${itemSku}__${talla}__${color}`;
+    let currSkuAcc = currRef.skusMap.get(skuKey);
+    if (!currSkuAcc) {
+      currSkuAcc = {
+        sku: itemSku,
+        talla: talla || "UN",
+        color: color || "ÚNICO",
+        cod_color: codColor,
+        unidades: 0,
+        valor: 0,
+      };
+      currRef.skusMap.set(skuKey, currSkuAcc);
+    }
+    currSkuAcc.unidades += cant;
+    currSkuAcc.valor += v;
     if (v > 0) currRef.ventaBruta += v;
     if (esDev) {
       currRef.devoluciones += Math.abs(v);
@@ -3218,6 +3407,23 @@ export function calcularDashboard6Referencias(
     const uAnt = rAnt?.unidades || 0;
     const yoy = vAnt > 0 ? Math.round(((r.ventaNeta - vAnt) / vAnt) * 1000) / 10 : 0;
 
+    const skusList: SkuDetalle[] = r.skusMap
+      ? Array.from(r.skusMap.values())
+          .map((s) => ({
+            sku: s.sku,
+            referencia: r.sku,
+            talla: s.talla,
+            color: s.color,
+            cod_color: s.cod_color,
+            unidades: s.unidades,
+            valor: s.valor,
+            precioPromedio: s.unidades > 0 ? Math.round(s.valor / s.unidades) : 0,
+            porcentajeEnReferencia: r.ventaNeta > 0 ? Math.round((s.valor / r.ventaNeta) * 10000) / 100 : 0,
+            porcentajeTotal: totalVentaNeta > 0 ? Math.round((s.valor / totalVentaNeta) * 10000) / 100 : 0,
+          }))
+          .sort((a, b) => b.valor - a.valor)
+      : [];
+
     return {
       sku: r.sku,
       producto: r.producto,
@@ -3238,6 +3444,8 @@ export function calcularDashboard6Referencias(
       clasificacionABC,
       costoTotal: r.costoTotal,
       margenBrutoEstimado,
+      skus: skusList,
+      totalSkus: skusList.length,
     };
   });
 

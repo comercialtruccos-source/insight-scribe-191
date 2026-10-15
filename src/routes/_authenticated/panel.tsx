@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -31,6 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import { VisorPedidosDespachos } from "@/components/pedidos/VisorPedidosDespachos";
 import { MapaVentasZonas } from "@/components/dashboard/MapaVentasZonas";
+import { DesgloseSkusTabla } from "@/components/dashboard/DesgloseSkusTabla";
 import { PanelClientesActivados } from "@/components/vendedores/PanelClientesActivados";
 import { MultiSelectVendedores } from "@/components/vendedores/MultiSelectVendedores";
 import { Button } from "@/components/ui/button";
@@ -119,6 +120,8 @@ import {
   Sparkles,
   X,
   Check,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vendedores-dialog";
@@ -334,6 +337,11 @@ function Panel() {
 
   // Toggle de ordenamiento para Top SKUs en Dashboard 1 (Facturación vs Unidades)
   const [ordenTopSkusD1, setOrdenTopSkusD1] = useState<"valor" | "unidades">("valor");
+
+  // Referencia expandida para ver desglose interactivo de SKUs (tallas, colores, unidades y facturación)
+  const [refExpandidaD1, setRefExpandidaD1] = useState<string | null>(null);
+  const [refExpandidaTop10, setRefExpandidaTop10] = useState<string | null>(null);
+  const [refExpandidaD6, setRefExpandidaD6] = useState<string | null>(null);
 
   // Sub-pestaña para Dashboard 4 (Equipo de Asesores vs Clientes Activados)
   const [subTabD4, setSubTabD4] = useState<"asesores" | "clientes">("asesores");
@@ -961,9 +969,11 @@ function Panel() {
     if (!d1) return [];
     let refs: typeof d1.topReferencias = [];
     if (zonaUbicacionD1 === "todas") {
-      refs = ordenRefZonaD1 === "unidades"
-        ? (d1.topReferenciasPorUnidades || d1.topReferencias || [])
-        : (d1.topReferencias || []);
+      refs = (d1.todasReferenciasD1 && d1.todasReferenciasD1.length > 0)
+        ? d1.todasReferenciasD1
+        : (ordenRefZonaD1 === "unidades"
+            ? (d1.topReferenciasPorUnidades || d1.topReferencias || [])
+            : (d1.topReferencias || []));
     } else {
       const zonaObj = d1.distribucionZonas?.find((z) => z.zona === zonaUbicacionD1);
       refs = zonaObj?.referencias || [];
@@ -3288,9 +3298,9 @@ function Panel() {
                         No se registran ventas de referencias para {zonaUbicacionD1 === "todas" ? "esta selección" : `la zona ${zonaUbicacionD1}`}
                       </div>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/50 max-h-[340px]">
+                      <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/50 max-h-[520px]">
                         <table className="w-full text-xs text-left">
-                          <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0">
+                          <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0 z-10">
                             <tr>
                               <th className="py-2.5 px-3">#</th>
                               <th className="py-2.5 px-3">SKU / Ref</th>
@@ -3304,39 +3314,90 @@ function Panel() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border/40">
-                            {referenciasZonaD1.map((ref, idx) => (
-                              <tr key={`${ref.sku}-${idx}`} className="hover:bg-muted/30 transition-colors">
-                                <td className="py-2.5 px-3 font-bold text-muted-foreground">
-                                  {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
-                                </td>
-                                <td className="py-2.5 px-3 font-mono font-bold text-primary">{ref.sku}</td>
-                                <td className="py-2.5 px-3 font-semibold text-foreground">{ref.producto}</td>
-                                <td className="py-2.5 px-3">
-                                  {ref.prenda ? (
-                                    <Badge variant="outline" className="text-[10px] font-medium bg-muted/40 py-0 px-1.5 border-border/60">
-                                      {ref.prenda}
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-muted-foreground/60 text-xs">-</span>
+                            {referenciasZonaD1.map((ref, idx) => {
+                              const isExpanded = refExpandidaD1 === ref.sku;
+                              const numSkus = ref.totalSkus || ref.skus?.length || 1;
+                              return (
+                                <React.Fragment key={`${ref.sku}-${idx}`}>
+                                  <tr
+                                    onClick={() => setRefExpandidaD1(isExpanded ? null : ref.sku)}
+                                    className={cn(
+                                      "cursor-pointer transition-colors select-none group",
+                                      isExpanded
+                                        ? "bg-primary/10 border-l-4 border-l-primary"
+                                        : "hover:bg-muted/40"
+                                    )}
+                                    title="Haz clic para ver el desglose por SKU (tallas y colores)"
+                                  >
+                                    <td className="py-2.5 px-3 font-bold text-muted-foreground whitespace-nowrap">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-muted-foreground group-hover:text-primary transition-colors">
+                                          {isExpanded ? (
+                                            <ChevronDown className="h-3.5 w-3.5 text-primary" />
+                                          ) : (
+                                            <ChevronRight className="h-3.5 w-3.5" />
+                                          )}
+                                        </span>
+                                        <span>{idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 font-mono font-bold text-primary">
+                                      <div className="flex items-center gap-2">
+                                        <span>{ref.sku}</span>
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-[9.5px] px-1.5 py-0 font-mono font-normal bg-primary/10 text-primary border-primary/20"
+                                        >
+                                          {numSkus} {numSkus === 1 ? "SKU" : "SKUs"}
+                                        </Badge>
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 font-semibold text-foreground">{ref.producto}</td>
+                                    <td className="py-2.5 px-3">
+                                      {ref.prenda ? (
+                                        <Badge variant="outline" className="text-[10px] font-medium bg-muted/40 py-0 px-1.5 border-border/60">
+                                          {ref.prenda}
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-muted-foreground/60 text-xs">-</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-muted-foreground">{ref.linea}</td>
+                                    <td className="py-2.5 px-3 text-right font-medium">
+                                      {ref.unidades.toLocaleString("es-CO")}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
+                                      {formatoCOP(ref.precioPromedio)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                                      {formatoCOPFull(ref.valor)}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right">
+                                      <Badge variant="outline" className="font-semibold text-[11px] bg-primary/5">
+                                        {Number(ref.porcentaje).toFixed(2)}%
+                                      </Badge>
+                                    </td>
+                                  </tr>
+                                  {isExpanded && (
+                                    <tr className="bg-muted/15 border-b-2 border-primary/30">
+                                      <td colSpan={9} className="p-3">
+                                        <DesgloseSkusTabla
+                                          referenciaCodigo={ref.sku}
+                                          referenciaNombre={ref.producto}
+                                          prenda={ref.prenda}
+                                          linea={ref.linea}
+                                          totalUnidades={ref.unidades}
+                                          totalValor={ref.valor}
+                                          precioPromedio={ref.precioPromedio}
+                                          skus={ref.skus || []}
+                                          onClose={() => setRefExpandidaD1(null)}
+                                        />
+                                      </td>
+                                    </tr>
                                   )}
-                                </td>
-                                <td className="py-2.5 px-3 text-muted-foreground">{ref.linea}</td>
-                                <td className="py-2.5 px-3 text-right font-medium">
-                                  {ref.unidades.toLocaleString("es-CO")}
-                                </td>
-                                <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">
-                                  {formatoCOP(ref.precioPromedio)}
-                                </td>
-                                <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                                  {formatoCOPFull(ref.valor)}
-                                </td>
-                                <td className="py-2.5 px-3 text-right">
-                                  <Badge variant="outline" className="font-semibold text-[11px] bg-primary/5">
-                                    {Number(ref.porcentaje).toFixed(2)}%
-                                  </Badge>
-                                </td>
-                              </tr>
-                            ))}
+                                </React.Fragment>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -3620,35 +3681,86 @@ function Panel() {
                         );
                       }
 
-                      return lista.map((ref, idx) => (
-                        <tr key={ref.sku || idx} className="hover:bg-muted/30 transition-colors">
-                          <td className="py-2.5 px-3 font-bold text-muted-foreground">
-                            {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
-                          </td>
-                          <td className="py-2.5 px-3 font-mono font-bold text-primary">{ref.sku}</td>
-                          <td className="py-2.5 px-3 font-semibold text-foreground">{ref.producto}</td>
-                          <td className="py-2.5 px-3">
-                            {ref.prenda ? (
-                              <Badge variant="outline" className="text-[10px] font-medium bg-muted/40 py-0 px-1.5 border-border/60">
-                                {ref.prenda}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground/60 text-xs">-</span>
+                      return lista.map((ref, idx) => {
+                        const isExpanded = refExpandidaTop10 === ref.sku;
+                        const numSkus = ref.totalSkus || ref.skus?.length || 1;
+                        return (
+                          <React.Fragment key={ref.sku || idx}>
+                            <tr
+                              onClick={() => setRefExpandidaTop10(isExpanded ? null : ref.sku)}
+                              className={cn(
+                                "cursor-pointer transition-colors select-none group",
+                                isExpanded
+                                  ? "bg-primary/10 border-l-4 border-l-primary"
+                                  : "hover:bg-muted/40"
+                              )}
+                              title="Haz clic para ver el desglose por SKU (tallas y colores)"
+                            >
+                              <td className="py-2.5 px-3 font-bold text-muted-foreground whitespace-nowrap">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-muted-foreground group-hover:text-primary transition-colors">
+                                    {isExpanded ? (
+                                      <ChevronDown className="h-3.5 w-3.5 text-primary" />
+                                    ) : (
+                                      <ChevronRight className="h-3.5 w-3.5" />
+                                    )}
+                                  </span>
+                                  <span>{idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}</span>
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 font-mono font-bold text-primary">
+                                <div className="flex items-center gap-2">
+                                  <span>{ref.sku}</span>
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-[9.5px] px-1.5 py-0 font-mono font-normal bg-primary/10 text-primary border-primary/20"
+                                  >
+                                    {numSkus} {numSkus === 1 ? "SKU" : "SKUs"}
+                                  </Badge>
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-3 font-semibold text-foreground">{ref.producto}</td>
+                              <td className="py-2.5 px-3">
+                                {ref.prenda ? (
+                                  <Badge variant="outline" className="text-[10px] font-medium bg-muted/40 py-0 px-1.5 border-border/60">
+                                    {ref.prenda}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground/60 text-xs">-</span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-muted-foreground">{ref.linea}</td>
+                              <td className="py-2.5 px-3 text-right font-medium">{ref.unidades.toLocaleString("es-CO")}</td>
+                              <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">{formatoCOP(ref.precioPromedio)}</td>
+                              <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                                {formatoCOPFull(ref.valor)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                <Badge variant="outline" className="font-semibold text-[11px] bg-primary/5">
+                                  {Number(ref.porcentaje).toFixed(2)}%
+                                </Badge>
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr className="bg-muted/15 border-b-2 border-primary/30">
+                                <td colSpan={9} className="p-3">
+                                  <DesgloseSkusTabla
+                                    referenciaCodigo={ref.sku}
+                                    referenciaNombre={ref.producto}
+                                    prenda={ref.prenda}
+                                    linea={ref.linea}
+                                    totalUnidades={ref.unidades}
+                                    totalValor={ref.valor}
+                                    precioPromedio={ref.precioPromedio}
+                                    skus={ref.skus || []}
+                                    onClose={() => setRefExpandidaTop10(null)}
+                                  />
+                                </td>
+                              </tr>
                             )}
-                          </td>
-                          <td className="py-2.5 px-3 text-muted-foreground">{ref.linea}</td>
-                          <td className="py-2.5 px-3 text-right font-medium">{ref.unidades.toLocaleString("es-CO")}</td>
-                          <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">{formatoCOP(ref.precioPromedio)}</td>
-                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                            {formatoCOPFull(ref.valor)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right">
-                            <Badge variant="outline" className="font-semibold text-[11px] bg-primary/5">
-                              {Number(ref.porcentaje).toFixed(2)}%
-                            </Badge>
-                          </td>
-                        </tr>
-                      ));
+                          </React.Fragment>
+                        );
+                      });
                     })()}
                   </tbody>
                 </table>
@@ -6060,82 +6172,128 @@ function Panel() {
                           const rank = filasPorPaginaRef === "todas"
                             ? idx + 1
                             : (paginaRef - 1) * Number(filasPorPaginaRef) + idx + 1;
+                          const isExpanded = refExpandidaD6 === ref.sku;
+                          const numSkus = ref.totalSkus || ref.skus?.length || 1;
                           return (
-                            <tr key={ref.sku} className="hover:bg-muted/30 transition-colors">
-                              <td className="py-2.5 px-3 text-center text-muted-foreground font-mono font-semibold">
-                                {rank}
-                              </td>
-                              <td className="py-2.5 px-3 font-mono font-bold text-primary">
-                                {ref.sku}
-                              </td>
-                              <td className="py-2.5 px-3 font-medium text-foreground max-w-[220px] truncate" title={ref.producto}>
-                                {ref.producto}
-                              </td>
-                              <td className="py-2.5 px-3 text-muted-foreground">
-                                {ref.linea}
-                              </td>
-                              <td className="py-2.5 px-3 text-center">
-                                <Badge
-                                  className={
-                                    ref.clasificacionABC === "A"
-                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-bold"
-                                      : ref.clasificacionABC === "B"
-                                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px] font-bold"
-                                      : "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30 text-[10px] font-bold"
-                                  }
-                                >
-                                  Clase {ref.clasificacionABC}
-                                </Badge>
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-semibold text-foreground">
-                                {ref.unidades.toLocaleString("es-CO")}
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                                {formatoCOPFull(ref.ventaNeta)}
-                              </td>
-                              {compararAnioAnterior && (
-                                <td className="py-2.5 px-3 text-right font-mono">
-                                  {ref.ventaAnterior ? (
-                                    <span
-                                      className={cn(
-                                        "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-semibold text-[11px]",
-                                        (ref.crecimientoYoYPct ?? 0) >= 0
-                                          ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
-                                          : "text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20"
+                            <React.Fragment key={ref.sku}>
+                              <tr
+                                onClick={() => setRefExpandidaD6(isExpanded ? null : ref.sku)}
+                                className={cn(
+                                  "cursor-pointer transition-colors select-none group",
+                                  isExpanded
+                                    ? "bg-primary/10 border-l-4 border-l-primary"
+                                    : "hover:bg-muted/40"
+                                )}
+                                title="Haz clic para ver el desglose por SKU (tallas y colores)"
+                              >
+                                <td className="py-2.5 px-3 text-center text-muted-foreground font-mono font-semibold whitespace-nowrap">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <span className="text-muted-foreground group-hover:text-primary transition-colors">
+                                      {isExpanded ? (
+                                        <ChevronDown className="h-3.5 w-3.5 text-primary" />
+                                      ) : (
+                                        <ChevronRight className="h-3.5 w-3.5" />
                                       )}
+                                    </span>
+                                    <span>{rank}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-primary">
+                                  <div className="flex items-center gap-2">
+                                    <span>{ref.sku}</span>
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[9.5px] px-1.5 py-0 font-mono font-normal bg-primary/10 text-primary border-primary/20"
                                     >
-                                      {(ref.crecimientoYoYPct ?? 0) >= 0 ? "+" : ""}
-                                      {(ref.crecimientoYoYPct ?? 0).toFixed(2)}%
+                                      {numSkus} {numSkus === 1 ? "SKU" : "SKUs"}
+                                    </Badge>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 font-medium text-foreground max-w-[220px] truncate" title={ref.producto}>
+                                  {ref.producto}
+                                </td>
+                                <td className="py-2.5 px-3 text-muted-foreground">
+                                  {ref.linea}
+                                </td>
+                                <td className="py-2.5 px-3 text-center">
+                                  <Badge
+                                    className={
+                                      ref.clasificacionABC === "A"
+                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-bold"
+                                        : ref.clasificacionABC === "B"
+                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px] font-bold"
+                                        : "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30 text-[10px] font-bold"
+                                    }
+                                  >
+                                    Clase {ref.clasificacionABC}
+                                  </Badge>
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-semibold text-foreground">
+                                  {ref.unidades.toLocaleString("es-CO")}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                                  {formatoCOPFull(ref.ventaNeta)}
+                                </td>
+                                {compararAnioAnterior && (
+                                  <td className="py-2.5 px-3 text-right font-mono">
+                                    {ref.ventaAnterior ? (
+                                      <span
+                                        className={cn(
+                                          "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-semibold text-[11px]",
+                                          (ref.crecimientoYoYPct ?? 0) >= 0
+                                            ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                                            : "text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20"
+                                        )}
+                                      >
+                                        {(ref.crecimientoYoYPct ?? 0) >= 0 ? "+" : ""}
+                                        {(ref.crecimientoYoYPct ?? 0).toFixed(2)}%
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted-foreground text-[11px]">-</span>
+                                    )}
+                                  </td>
+                                )}
+                                <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
+                                  {formatoCOP(ref.precioPromedio)}
+                                </td>
+                                <td className="py-2.5 px-3 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <div className="w-12 bg-muted rounded-full h-1.5 overflow-hidden hidden sm:block">
+                                      <div
+                                        className="bg-primary h-full rounded-full"
+                                        style={{ width: `${Math.min(100, ref.porcentajeVenta * 10)}%` }}
+                                      />
+                                    </div>
+                                    <span className="font-mono font-medium">{Number(ref.porcentajeVenta).toFixed(2)}%</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono">
+                                  {ref.tasaDevolucion > 0 ? (
+                                    <span className="text-rose-600 dark:text-rose-400 font-medium">
+                                      {Number(ref.tasaDevolucion).toFixed(2)}%
                                     </span>
                                   ) : (
-                                    <span className="text-muted-foreground text-[11px]">-</span>
+                                    <span className="text-muted-foreground">0.00%</span>
                                   )}
                                 </td>
-                              )}
-                              <td className="py-2.5 px-3 text-right font-mono text-muted-foreground">
-                                {formatoCOP(ref.precioPromedio)}
-                              </td>
-                              <td className="py-2.5 px-3 text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <div className="w-12 bg-muted rounded-full h-1.5 overflow-hidden hidden sm:block">
-                                    <div
-                                      className="bg-primary h-full rounded-full"
-                                      style={{ width: `${Math.min(100, ref.porcentajeVenta * 10)}%` }}
+                              </tr>
+                              {isExpanded && (
+                                <tr className="bg-muted/15 border-b-2 border-primary/30">
+                                  <td colSpan={compararAnioAnterior ? 11 : 10} className="p-3">
+                                    <DesgloseSkusTabla
+                                      referenciaCodigo={ref.sku}
+                                      referenciaNombre={ref.producto}
+                                      linea={ref.linea}
+                                      totalUnidades={ref.unidades}
+                                      totalValor={ref.ventaNeta}
+                                      precioPromedio={ref.precioPromedio}
+                                      skus={ref.skus || []}
+                                      onClose={() => setRefExpandidaD6(null)}
                                     />
-                                  </div>
-                                  <span className="font-mono font-medium">{Number(ref.porcentajeVenta).toFixed(2)}%</span>
-                                </div>
-                              </td>
-                              <td className="py-2.5 px-3 text-right font-mono">
-                                {ref.tasaDevolucion > 0 ? (
-                                  <span className="text-rose-600 dark:text-rose-400 font-medium">
-                                    {Number(ref.tasaDevolucion).toFixed(2)}%
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground">0.00%</span>
-                                )}
-                              </td>
-                            </tr>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
                           );
                         })
                       )}
