@@ -151,17 +151,17 @@ export type Database = {
       }
       dim_tercero: {
         Row: {
-          codigo: string
+          codigo: string | null
           id: number
           nombre: string | null
         }
         Insert: {
-          codigo: string
+          codigo?: string | null
           id?: number
           nombre?: string | null
         }
         Update: {
-          codigo?: string
+          codigo?: string | null
           id?: number
           nombre?: string | null
         }
