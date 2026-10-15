@@ -624,7 +624,7 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
 }
 
 export const COLUMNAS_ALL_FACT_VENTAS =
-  "id, anio, anio_col, mes, dia, fecha, transaccion, valor, cantidad, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, ciudad_id, pais_id, tercero_id, sku, producto, prenda_hgi, talla, color";
+  "id, anio, anio_col, mes, dia, fecha, transaccion, valor, cantidad, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, ciudad_id, pais_id, tercero_id, producto_c, sku, producto, prenda_hgi, talla, color";
 
 export type FilaFactVentas = {
   id: number;
@@ -647,6 +647,7 @@ export type FilaFactVentas = {
   ciudad_id: number | null;
   pais_id: number | null;
   tercero_id: number | null;
+  producto_c: string | null;
   sku: string | null;
   producto: string | null;
   prenda_hgi: string | null;
@@ -856,6 +857,7 @@ export type VendedorAporte = {
 export type ReferenciaTop = {
   sku: string;
   producto: string;
+  prenda?: string;
   linea: string;
   unidades: number;
   unidadesAnterior?: number;
@@ -1173,13 +1175,15 @@ export function calcularDashboard1Cumplimiento(
     const prevV = vendedorVentaMap.get(vNom) || { id: vId, venta: 0, unidades: 0 };
     vendedorVentaMap.set(vNom, { id: vId, venta: prevV.venta + v, unidades: prevV.unidades + cant });
 
-    // Referencias / SKUs (Agrupación inteligente por referencia base)
-    const baseRef = (r.prenda_hgi || r.producto_c || r.sku || "N/A").trim().toUpperCase();
-    const prodNom = (r.producto || r.prenda_hgi || baseRef || "Prenda Trucco's").trim();
-    const prevRef = refVentaMap.get(baseRef) || { producto: prodNom, linea: lNom, unidades: 0, valor: 0 };
+    // Referencias / SKUs (Agrupación inteligente por referencia base / producto_c / sku)
+    const baseRef = (r.producto_c || r.sku || r.producto || "SIN_REF").trim().toUpperCase();
+    const prodNom = (r.producto || r.prenda_hgi || `Ref. ${baseRef}`).trim();
+    const prendaTipo = (r.prenda_hgi || "").trim();
+    const prevRef = refVentaMap.get(baseRef) || { producto: prodNom, prenda: prendaTipo, linea: lNom, unidades: 0, valor: 0 };
     refVentaMap.set(baseRef, {
-      producto: prodNom,
-      linea: lNom,
+      producto: (prodNom && !prodNom.startsWith("Ref. ")) ? prodNom : prevRef.producto,
+      prenda: prendaTipo || prevRef.prenda,
+      linea: lNom !== "General / Confección" ? lNom : prevRef.linea,
       unidades: prevRef.unidades + cant,
       valor: prevRef.valor + v,
     });
@@ -1229,6 +1233,7 @@ export function calcularDashboard1Cumplimiento(
       currZ.referenciasMap.set(baseRef, {
         sku: baseRef,
         producto: prodNom,
+        prenda: prendaTipo,
         linea: lNom,
         unidades: 0,
         valor: 0,
@@ -1237,6 +1242,12 @@ export function calcularDashboard1Cumplimiento(
     const currZR = currZ.referenciasMap.get(baseRef)!;
     currZR.unidades += cant;
     currZR.valor += v;
+    if (prodNom && !prodNom.startsWith("Ref. ") && currZR.producto.startsWith("Ref. ")) {
+      currZR.producto = prodNom;
+    }
+    if (!currZR.prenda && prendaTipo) {
+      currZR.prenda = prendaTipo;
+    }
 
     if (!currZ.ciudadesMap.has(cNom)) {
       currZ.ciudadesMap.set(cNom, {
@@ -1326,7 +1337,7 @@ export function calcularDashboard1Cumplimiento(
       const prevV = vendedorAntMap.get(vNom) || { venta: 0, unidades: 0 };
       vendedorAntMap.set(vNom, { venta: prevV.venta + v, unidades: prevV.unidades + cant });
 
-      const baseRef = (r.prenda_hgi || r.producto_c || r.sku || "N/A").trim().toUpperCase();
+      const baseRef = (r.producto_c || r.sku || r.producto || "SIN_REF").trim().toUpperCase();
       const prevRef = refAntMap.get(baseRef) || { valor: 0, unidades: 0 };
       refAntMap.set(baseRef, { valor: prevRef.valor + v, unidades: prevRef.unidades + cant });
 
@@ -1486,6 +1497,7 @@ export function calcularDashboard1Cumplimiento(
       return {
         sku,
         producto: val.producto,
+        prenda: val.prenda,
         linea: val.linea,
         unidades: val.unidades,
         unidadesAnterior: uAnt,
@@ -1574,6 +1586,7 @@ export function calcularDashboard1Cumplimiento(
             .map((rVal) => ({
               sku: rVal.sku,
               producto: rVal.producto,
+              prenda: rVal.prenda,
               linea: rVal.linea,
               unidades: rVal.unidades,
               valor: rVal.valor,
@@ -2172,9 +2185,9 @@ export function calcularDashboard3Digital(
       mesesData[mIdx].ventaTotal += v;
       mesesData[mIdx].unidades += cant;
 
-      // Unificar por referencia base (prenda_hgi / producto_c / sku)
-      const baseRef = (r.prenda_hgi || r.producto_c || r.sku || r.producto || "Sin Ref").trim().toUpperCase();
-      const pNombre = (r.producto || r.prenda_hgi || baseRef).trim();
+      // Unificar por referencia base (producto_c / sku)
+      const baseRef = (r.producto_c || r.sku || r.producto || "Sin Ref").trim().toUpperCase();
+      const pNombre = (r.producto || r.prenda_hgi || `Ref. ${baseRef}`).trim();
       const prevRef = refMap.get(baseRef) || { producto: pNombre, linea: lName, venta: 0, unidades: 0, tvVenta: 0, rsVenta: 0 };
       prevRef.venta += v;
       prevRef.unidades += cant;
@@ -2776,8 +2789,8 @@ export function calcularDashboard5Marketplaces(
   for (const r of data) {
     const v = Number(r.valor || 0);
     const cant = Math.round(Number(r.cantidad || 0));
-    const sku = r.sku || "N/A";
-    const prod = r.producto || r.prenda_hgi || "Prenda Trucco's";
+    const sku = (r.producto_c || r.sku || "N/A").trim().toUpperCase();
+    const prod = (r.producto || r.prenda_hgi || `Prenda ${sku}`).trim();
     const talla = (r.talla || "").trim().toUpperCase();
     const color = (r.color || "").trim().toUpperCase();
     const canal = (r.canal_id ? canalMap.get(r.canal_id) : "") || "Mercado Libre";
@@ -2805,7 +2818,7 @@ export function calcularDashboard5Marketplaces(
     for (const r of dataAnterior) {
       const v = Number(r.valor || 0);
       const cant = Math.round(Number(r.cantidad || 0));
-      const sku = r.sku || "N/A";
+      const sku = (r.producto_c || r.sku || "N/A").trim().toUpperCase();
       const canal = (r.canal_id ? canalMap.get(r.canal_id) : "") || "Mercado Libre";
 
       ventaTotalMarketplacesAnterior += v;
@@ -3013,7 +3026,7 @@ export function calcularDashboard6Referencias(
     const cant = Math.round(Number(r.cantidad || 0));
     const costo = Number(r.costo_total || 0);
 
-    const rawSku = (r.sku || r.prenda_hgi || "").trim();
+    const rawSku = (r.producto_c || r.sku || "").trim();
     const sku = rawSku || "REF-DESCONOCIDA";
     const prod = (r.producto || r.prenda_hgi || `Referencia ${sku}`).trim();
     const linea = (r.linea_id && lineaMap.get(r.linea_id)) || "General / Confección";
@@ -3102,7 +3115,7 @@ export function calcularDashboard6Referencias(
 
       const v = Number(r.valor || 0);
       const cant = Math.round(Number(r.cantidad || 0));
-      const rawSku = (r.sku || r.prenda_hgi || "").trim();
+      const rawSku = (r.producto_c || r.sku || "").trim();
       const sku = rawSku || "REF-DESCONOCIDA";
 
       const esDevAnt = esDevolucionTransaccion(r.transaccion, v);
@@ -3404,13 +3417,13 @@ export async function obtenerTransaccionesDetalle(
 
   let query = supabase
     .from("fact_ventas")
-    .select("id, transaccion, fecha, anio, anio_col, mes, dia, producto, prenda_hgi, sku, talla, color, cantidad, valor, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, ciudad_id", { count: "exact" });
+    .select("id, transaccion, fecha, anio, anio_col, mes, dia, producto_c, sku, producto, prenda_hgi, talla, color, cantidad, valor, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, ciudad_id", { count: "exact" });
 
   query = aplicarFiltrosQuery(query, filtros);
 
   if (busqueda && busqueda.trim().length > 0) {
     const b = busqueda.trim();
-    query = query.or(`transaccion.ilike.%${b}%,sku.ilike.%${b}%,producto.ilike.%${b}%,prenda_hgi.ilike.%${b}%`);
+    query = query.or(`transaccion.ilike.%${b}%,producto_c.ilike.%${b}%,sku.ilike.%${b}%,producto.ilike.%${b}%,prenda_hgi.ilike.%${b}%`);
   }
 
   const desde = pagina * tamanoPagina;
@@ -3444,7 +3457,7 @@ export async function obtenerTransaccionesDetalle(
       linea: (r.linea_id && lMap.get(r.linea_id)) || null,
       zona: zonaNombre,
       ciudad: (r.ciudad_id && cMap.get(r.ciudad_id)) || null,
-      sku: r.sku || null,
+      sku: (r.producto_c || r.sku || null)?.trim() || null,
       producto: r.producto || r.prenda_hgi || null,
       talla: r.talla || null,
       color: r.color || null,

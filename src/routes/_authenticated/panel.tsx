@@ -3295,6 +3295,7 @@ function Panel() {
                               <th className="py-2.5 px-3">#</th>
                               <th className="py-2.5 px-3">SKU / Ref</th>
                               <th className="py-2.5 px-3">Nombre del Producto</th>
+                              <th className="py-2.5 px-3">Prenda</th>
                               <th className="py-2.5 px-3">Línea</th>
                               <th className="py-2.5 px-3 text-right">Unidades</th>
                               <th className="py-2.5 px-3 text-right">Precio Prom.</th>
@@ -3308,8 +3309,17 @@ function Panel() {
                                 <td className="py-2.5 px-3 font-bold text-muted-foreground">
                                   {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
                                 </td>
-                                <td className="py-2.5 px-3 font-mono font-medium text-foreground">{ref.sku}</td>
+                                <td className="py-2.5 px-3 font-mono font-bold text-primary">{ref.sku}</td>
                                 <td className="py-2.5 px-3 font-semibold text-foreground">{ref.producto}</td>
+                                <td className="py-2.5 px-3">
+                                  {ref.prenda ? (
+                                    <Badge variant="outline" className="text-[10px] font-medium bg-muted/40 py-0 px-1.5 border-border/60">
+                                      {ref.prenda}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground/60 text-xs">-</span>
+                                  )}
+                                </td>
                                 <td className="py-2.5 px-3 text-muted-foreground">{ref.linea}</td>
                                 <td className="py-2.5 px-3 text-right font-medium">
                                   {ref.unidades.toLocaleString("es-CO")}
@@ -3586,6 +3596,7 @@ function Panel() {
                       <th className="py-2.5 px-3">#</th>
                       <th className="py-2.5 px-3">SKU / Ref</th>
                       <th className="py-2.5 px-3">Nombre del Producto</th>
+                      <th className="py-2.5 px-3">Prenda</th>
                       <th className="py-2.5 px-3">Línea</th>
                       <th className="py-2.5 px-3 text-right">Unidades</th>
                       <th className="py-2.5 px-3 text-right">Precio Prom.</th>
@@ -3602,7 +3613,7 @@ function Panel() {
                       if (lista.length === 0) {
                         return (
                           <tr>
-                            <td colSpan={8} className="py-6 text-center text-muted-foreground">
+                            <td colSpan={9} className="py-6 text-center text-muted-foreground">
                               Sin referencias registradas para el periodo seleccionado
                             </td>
                           </tr>
@@ -3614,12 +3625,21 @@ function Panel() {
                           <td className="py-2.5 px-3 font-bold text-muted-foreground">
                             {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
                           </td>
-                          <td className="py-2.5 px-3 font-mono font-medium text-foreground">{ref.sku}</td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-primary">{ref.sku}</td>
                           <td className="py-2.5 px-3 font-semibold text-foreground">{ref.producto}</td>
+                          <td className="py-2.5 px-3">
+                            {ref.prenda ? (
+                              <Badge variant="outline" className="text-[10px] font-medium bg-muted/40 py-0 px-1.5 border-border/60">
+                                {ref.prenda}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground/60 text-xs">-</span>
+                            )}
+                          </td>
                           <td className="py-2.5 px-3 text-muted-foreground">{ref.linea}</td>
                           <td className="py-2.5 px-3 text-right font-medium">{ref.unidades.toLocaleString("es-CO")}</td>
-                          <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(ref.precioPromedio)}</td>
-                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                          <td className="py-2.5 px-3 text-right text-muted-foreground font-mono">{formatoCOP(ref.precioPromedio)}</td>
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                             {formatoCOPFull(ref.valor)}
                           </td>
                           <td className="py-2.5 px-3 text-right">

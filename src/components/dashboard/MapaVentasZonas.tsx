@@ -1163,6 +1163,7 @@ export function MapaVentasZonas({
                           <th className="py-2 px-2.5">#</th>
                           <th className="py-2 px-2.5">SKU / Ref</th>
                           <th className="py-2 px-2.5">Nombre del Producto</th>
+                          <th className="py-2 px-2.5">Prenda / Tipo</th>
                           <th className="py-2 px-2.5">Línea</th>
                           <th className="py-2 px-2.5 text-right">Unidades</th>
                           <th className="py-2 px-2.5 text-right">Precio Prom.</th>
@@ -1176,9 +1177,18 @@ export function MapaVentasZonas({
                             <td className="py-1.5 px-2.5 font-bold text-muted-foreground">
                               {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
                             </td>
-                            <td className="py-1.5 px-2.5 font-mono font-medium text-foreground">{limpiarTextoEncoding(ref.sku)}</td>
-                            <td className="py-1.5 px-2.5 font-semibold text-foreground truncate max-w-[140px]">
+                            <td className="py-1.5 px-2.5 font-mono font-bold text-primary">{limpiarTextoEncoding(ref.sku)}</td>
+                            <td className="py-1.5 px-2.5 font-semibold text-foreground truncate max-w-[170px]" title={ref.producto}>
                               {limpiarTextoEncoding(ref.producto)}
+                            </td>
+                            <td className="py-1.5 px-2.5">
+                              {ref.prenda ? (
+                                <Badge variant="outline" className="text-[9px] font-semibold bg-muted/40 py-0 px-1 border-border/60">
+                                  {limpiarTextoEncoding(ref.prenda)}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground/60 text-[10px]">-</span>
+                              )}
                             </td>
                             <td className="py-1.5 px-2.5 text-muted-foreground">{limpiarTextoEncoding(ref.linea)}</td>
                             <td className="py-1.5 px-2.5 text-right font-medium">

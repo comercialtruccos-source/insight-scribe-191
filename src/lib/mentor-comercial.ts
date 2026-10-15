@@ -167,9 +167,9 @@ export function calcularDiagnosticoMentor(
   for (const r of ventasActuales) {
     const v = Number(r.valor || 0);
     const cant = Math.round(Number(r.cantidad || 0));
-    const rawSku = (r.sku || r.prenda_hgi || "").trim();
+    const rawSku = (r.producto_c || r.sku || "").trim();
     const sku = rawSku || "REF-GRAL";
-    const prodNom = (r.producto || r.prenda_hgi || sku).trim();
+    const prodNom = (r.producto || r.prenda_hgi || `Ref. ${sku}`).trim();
     const lNom = (r.linea_id ? lineaMap.get(r.linea_id) : "") || "Confección General";
     const zNom = (r.zona_id ? zonaMap.get(r.zona_id) : "") || (r.zona_colombia_id ? zonaMap.get(r.zona_colombia_id) : "") || "Zona Principal";
 
