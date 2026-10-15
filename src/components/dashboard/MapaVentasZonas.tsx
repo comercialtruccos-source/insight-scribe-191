@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { ZonaAporte, CatalogoItem, ClienteEnCiudad } from "@/lib/ventas-api";
 import { formatoCOP, formatoCOPFull } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import {
   MapPin,
   Search,
   Filter,
+  FilterX,
   Package,
   Building2,
   Info,
@@ -152,30 +153,54 @@ export function MapaVentasZonas({
     return lista.sort((a, b) => b.valor - a.valor);
   }, [zonaActiva, ordenRefs]);
 
-  // Ciudad seleccionada dentro de la zona activa para ver sus clientes
+  // Ciudad seleccionada dentro de la zona activa para ver sus clientes (null = ver todos los clientes de la zona)
   const [ciudadSeleccionadaNombre, setCiudadSeleccionadaNombre] = useState<string | null>(null);
   const [ordenClientes, setOrdenClientes] = useState<"valor" | "unidades">("valor");
 
+  // Al cambiar de zona activa, resetear el filtro de ciudad
+  useEffect(() => {
+    setCiudadSeleccionadaNombre(null);
+  }, [zonaActiva?.zona]);
+
   const ciudadActiva = useMemo(() => {
-    if (!zonaActiva?.ciudades || zonaActiva.ciudades.length === 0) return null;
-    if (ciudadSeleccionadaNombre) {
-      const match = zonaActiva.ciudades.find(
-        (c) => c.ciudad === ciudadSeleccionadaNombre || limpiarTextoEncoding(c.ciudad) === limpiarTextoEncoding(ciudadSeleccionadaNombre)
-      );
-      if (match) return match;
-    }
-    return zonaActiva.ciudades[0] || null;
+    if (!ciudadSeleccionadaNombre || !zonaActiva?.ciudades || zonaActiva.ciudades.length === 0) return null;
+    const match = zonaActiva.ciudades.find(
+      (c) => c.ciudad === ciudadSeleccionadaNombre || limpiarTextoEncoding(c.ciudad) === limpiarTextoEncoding(ciudadSeleccionadaNombre)
+    );
+    return match || null;
   }, [zonaActiva, ciudadSeleccionadaNombre]);
 
-  // Clientes de la ciudad activa ordenados
+  // Clientes a mostrar: si hay una ciudad filtrada muestra los de esa ciudad; si no, muestra el consolidado de toda la zona
   const clientesCiudad = useMemo(() => {
-    if (!ciudadActiva?.clientes) return [];
-    const lista = [...ciudadActiva.clientes];
+    let lista: ClienteEnCiudad[] = [];
+    if (ciudadActiva?.clientes && ciudadActiva.clientes.length > 0) {
+      lista = [...ciudadActiva.clientes];
+    } else if (zonaActiva?.clientes && zonaActiva.clientes.length > 0) {
+      lista = [...zonaActiva.clientes];
+    } else if (zonaActiva?.ciudades) {
+      // Fallback si no viniera directo en zonaActiva.clientes
+      const mapCli = new Map<number, ClienteEnCiudad>();
+      for (const c of zonaActiva.ciudades) {
+        for (const cli of (c.clientes || [])) {
+          const prev = mapCli.get(cli.id);
+          if (!prev) {
+            mapCli.set(cli.id, { ...cli });
+          } else {
+            prev.venta += cli.venta;
+            prev.unidades += cli.unidades;
+            prev.transacciones += cli.transacciones;
+            prev.ticketPromedio = prev.transacciones > 0 ? Math.round(prev.venta / prev.transacciones) : prev.venta;
+          }
+        }
+      }
+      lista = Array.from(mapCli.values());
+    }
+
     if (ordenClientes === "unidades") {
       return lista.sort((a, b) => b.unidades - a.unidades);
     }
     return lista.sort((a, b) => b.venta - a.venta);
-  }, [ciudadActiva, ordenClientes]);
+  }, [ciudadActiva, zonaActiva, ordenClientes]);
 
   const zonaLider = zonasOrdenadas[0] || null;
   const ciudadLider = useMemo(() => {
@@ -942,14 +967,28 @@ export function MapaVentasZonas({
 
               {/* Sub-sección 1: Ciudades y Municipios donde tuvo ventas */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-1.5">
                   <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1">
                     <Building2 className="h-3.5 w-3.5 text-sky-500" />
                     <span>Municipios y Ciudades ({zonaActiva.ciudades?.length || 0})</span>
                   </span>
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <span>💡 Clic en una ciudad para ver sus clientes</span>
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {ciudadActiva ? (
+                      <button
+                        type="button"
+                        onClick={() => setCiudadSeleccionadaNombre(null)}
+                        className="text-[10px] font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 bg-sky-500/10 hover:bg-sky-500/20 px-2 py-0.5 rounded-md flex items-center gap-1 transition-all cursor-pointer border border-sky-500/30"
+                        title="Desfiltrar ciudad y ver todos los clientes de la zona"
+                      >
+                        <FilterX className="h-3 w-3" />
+                        <span>Desfiltrar ciudad ({limpiarTextoEncoding(ciudadActiva.ciudad)})</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <span>💡 Clic en una ciudad para ver sus clientes</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[140px] overflow-y-auto pr-1">
@@ -965,12 +1004,25 @@ export function MapaVentasZonas({
                         <button
                           key={c.ciudad}
                           type="button"
-                          onClick={() => setCiudadSeleccionadaNombre(c.ciudad)}
+                          onClick={() => {
+                            setCiudadSeleccionadaNombre((prev) => {
+                              const isCurrent =
+                                prev &&
+                                (prev === c.ciudad ||
+                                  limpiarTextoEncoding(prev) === limpiarTextoEncoding(c.ciudad));
+                              return isCurrent ? null : c.ciudad;
+                            });
+                          }}
                           className={`p-2 rounded-xl text-left border flex items-center justify-between text-xs transition-all cursor-pointer ${
                             isSelected
                               ? "bg-sky-500/15 border-sky-500 ring-2 ring-sky-500/30 shadow-xs"
                               : "bg-background border-border/60 hover:bg-muted/50 hover:border-border shadow-2xs"
                           }`}
+                          title={
+                            isSelected
+                              ? `Clic para desfiltrar ${limpiarTextoEncoding(c.ciudad)} y ver toda la zona`
+                              : `Clic para filtrar los clientes de ${limpiarTextoEncoding(c.ciudad)}`
+                          }
                         >
                           <div className="flex items-center gap-1.5 truncate max-w-[155px]">
                             <span
@@ -988,11 +1040,11 @@ export function MapaVentasZonas({
                               >
                                 {limpiarTextoEncoding(c.ciudad)}
                               </span>
-                              {isSelected && (
-                                <span className="text-[9px] text-sky-500 font-bold block leading-none">
-                                  ● Filtrando clientes
+                              {isSelected ? (
+                                <span className="text-[9px] text-sky-600 dark:text-sky-400 font-bold block leading-none mt-0.5">
+                                  ● Filtrando clientes <span className="font-normal opacity-80">(clic p/ quitar)</span>
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                           <div className="text-right shrink-0">
@@ -1013,19 +1065,36 @@ export function MapaVentasZonas({
               {/* Sub-sección 2: Clientes que han comprado en la ciudad seleccionada */}
               <div className="space-y-2 pt-2 border-t border-border/50">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="p-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">
                       <Users className="h-3.5 w-3.5" />
                     </span>
-                    <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5 flex-wrap">
                       <span>
                         Clientes que Compraron en{" "}
-                        <span className="text-sky-600 dark:text-sky-400 font-extrabold">
-                          {ciudadActiva ? limpiarTextoEncoding(ciudadActiva.ciudad) : "la Ciudad"}
-                        </span>{" "}
+                        {ciudadActiva ? (
+                          <span className="text-sky-600 dark:text-sky-400 font-extrabold">
+                            {limpiarTextoEncoding(ciudadActiva.ciudad)}
+                          </span>
+                        ) : (
+                          <span className="text-foreground font-extrabold">
+                            {limpiarTextoEncoding(zonaActiva.zona)} (Todas las Ciudades)
+                          </span>
+                        )}{" "}
                         ({clientesCiudad.length})
                       </span>
                     </span>
+                    {ciudadActiva && (
+                      <button
+                        type="button"
+                        onClick={() => setCiudadSeleccionadaNombre(null)}
+                        className="text-[10px] font-semibold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 cursor-pointer ml-1 bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20"
+                        title="Ver todos los clientes de la zona"
+                      >
+                        <FilterX className="h-2.5 w-2.5" />
+                        <span>Ver toda la zona</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Selector: Por Facturación vs Por Unidades */}
@@ -1057,7 +1126,9 @@ export function MapaVentasZonas({
 
                 {clientesCiudad.length === 0 ? (
                   <div className="p-5 text-center text-xs text-muted-foreground border border-dashed rounded-xl bg-muted/10">
-                    No se registran clientes con compras en {ciudadActiva ? limpiarTextoEncoding(ciudadActiva.ciudad) : "esta ciudad"} para los filtros actuales.
+                    No se registran clientes con compras en{" "}
+                    {ciudadActiva ? limpiarTextoEncoding(ciudadActiva.ciudad) : limpiarTextoEncoding(zonaActiva.zona)}{" "}
+                    para los filtros actuales.
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/60 max-h-[220px]">
@@ -1070,7 +1141,11 @@ export function MapaVentasZonas({
                           <th className="py-2 px-2.5 text-right">Prendas</th>
                           <th className="py-2 px-2.5 text-right">Ticket Prom.</th>
                           <th className="py-2 px-2.5 text-right">Facturación</th>
-                          <th className="py-2 px-2.5 text-right">% en {ciudadActiva ? limpiarTextoEncoding(ciudadActiva.ciudad) : "Ciudad"}</th>
+                          <th className="py-2 px-2.5 text-right">
+                            {ciudadActiva
+                              ? `% en ${limpiarTextoEncoding(ciudadActiva.ciudad)}`
+                              : `% en ${limpiarTextoEncoding(zonaActiva.zona)}`}
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/40 text-[11px]">
