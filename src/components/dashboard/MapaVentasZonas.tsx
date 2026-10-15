@@ -81,6 +81,9 @@ export function limpiarTextoEncoding(str: string): string {
     .replace(/ESPAÑA/gi, "España")
     .replace(/PER[\uFFFD?]/gi, "Perú")
     .replace(/PERU/gi, "Perú")
+    .replace(/CH[\uFFFD?]A\b/gi, "Chía")
+    .replace(/\bCHA\b/gi, "Chía")
+    .replace(/\bCHIA\b/gi, "Chía")
     .replace(/PANAM[\uFFFD?]/gi, "Panamá")
     .replace(/PANAMA/gi, "Panamá")
     .replace(/LARG@/gi, "Larga")
@@ -849,7 +852,7 @@ export function MapaVentasZonas({
           </div>
 
           {/* Lista scrolleable de zonas */}
-          <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-[640px] lg:max-h-[720px] overflow-y-auto pr-1.5 pb-4">
             {zonasFiltradas.length === 0 ? (
               <div className="p-8 text-center text-xs text-muted-foreground border border-dashed rounded-2xl bg-muted/10">
                 No se registran ventas en zonas para el filtro seleccionado.
@@ -918,22 +921,17 @@ export function MapaVentasZonas({
                       />
                     </div>
 
-                    {/* Previsualización de ciudades principales */}
+                    {/* Lista completa de ciudades de la zona (sin cortar) */}
                     {z.ciudades && z.ciudades.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1 border-t border-border/40">
-                        {z.ciudades.slice(0, 3).map((c) => (
+                      <div className="flex flex-wrap gap-1 pt-1.5 border-t border-border/40">
+                        {z.ciudades.map((c) => (
                           <span
                             key={c.ciudad}
-                            className="px-1.5 py-0.5 rounded-md bg-muted/50 text-foreground text-[9.5px] font-medium"
+                            className="px-1.5 py-0.5 rounded-md bg-muted/60 text-foreground text-[9.5px] font-medium transition-colors hover:bg-muted"
                           >
                             {limpiarTextoEncoding(c.ciudad)} ({c.porcentaje.toFixed(0)}%)
                           </span>
                         ))}
-                        {z.ciudades.length > 3 && (
-                          <span className="text-[9px] text-muted-foreground self-center">
-                            +{z.ciudades.length - 3} más
-                          </span>
-                        )}
                       </div>
                     )}
                   </div>
@@ -1022,7 +1020,7 @@ export function MapaVentasZonas({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[140px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1 pb-1">
                   {(!zonaActiva.ciudades || zonaActiva.ciudades.length === 0) ? (
                     <p className="text-xs text-muted-foreground py-2">Sin ciudades registradas</p>
                   ) : (
