@@ -20,6 +20,8 @@ import {
   Building2,
   Info,
   Users,
+  Store,
+  UserCheck,
 } from "lucide-react";
 
 interface MapaVentasZonasProps {
@@ -156,6 +158,7 @@ export function MapaVentasZonas({
   // Ciudad seleccionada dentro de la zona activa para ver sus clientes (null = ver todos los clientes de la zona)
   const [ciudadSeleccionadaNombre, setCiudadSeleccionadaNombre] = useState<string | null>(null);
   const [ordenClientes, setOrdenClientes] = useState<"valor" | "unidades">("valor");
+  const [filtroTipoCliente, setFiltroTipoCliente] = useState<"todos" | "identificados">("todos");
 
   // Al cambiar de zona activa, resetear el filtro de ciudad
   useEffect(() => {
@@ -171,7 +174,7 @@ export function MapaVentasZonas({
   }, [zonaActiva, ciudadSeleccionadaNombre]);
 
   // Clientes a mostrar: si hay una ciudad filtrada muestra los de esa ciudad; si no, muestra el consolidado de toda la zona
-  const clientesCiudad = useMemo(() => {
+  const clientesConsolidados = useMemo(() => {
     let lista: ClienteEnCiudad[] = [];
     if (ciudadActiva?.clientes && ciudadActiva.clientes.length > 0) {
       lista = [...ciudadActiva.clientes];
@@ -201,6 +204,27 @@ export function MapaVentasZonas({
     }
     return lista.sort((a, b) => b.venta - a.venta);
   }, [ciudadActiva, zonaActiva, ordenClientes]);
+
+  // Totales y estadísticas para desglose transparente de mostrador vs identificados
+  const statsClientes = useMemo(() => {
+    const totalVenta = clientesConsolidados.reduce((acc, c) => acc + c.venta, 0);
+    const ventaMostrador = clientesConsolidados.filter((c) => c.esGenerico).reduce((acc, c) => acc + c.venta, 0);
+    const ventaIdentificada = clientesConsolidados.filter((c) => !c.esGenerico).reduce((acc, c) => acc + c.venta, 0);
+    const cantIdentificados = clientesConsolidados.filter((c) => !c.esGenerico).length;
+    const cantMostrador = clientesConsolidados.filter((c) => c.esGenerico).length;
+    return { totalVenta, ventaMostrador, ventaIdentificada, cantIdentificados, cantMostrador };
+  }, [clientesConsolidados]);
+
+  const listaIdentificados = useMemo(() => {
+    return clientesConsolidados.filter((c) => !c.esGenerico);
+  }, [clientesConsolidados]);
+
+  const clientesCiudad = useMemo(() => {
+    if (filtroTipoCliente === "identificados") {
+      return clientesConsolidados.filter((c) => !c.esGenerico);
+    }
+    return clientesConsolidados;
+  }, [clientesConsolidados, filtroTipoCliente]);
 
   const zonaLider = zonasOrdenadas[0] || null;
   const ciudadLider = useMemo(() => {
@@ -1097,32 +1121,91 @@ export function MapaVentasZonas({
                     )}
                   </div>
 
-                  {/* Selector: Por Facturación vs Por Unidades */}
-                  <div className="flex rounded-lg bg-muted p-0.5 border border-border/50 text-[10px]">
-                    <button
-                      type="button"
-                      onClick={() => setOrdenClientes("valor")}
-                      className={`px-2 py-0.5 rounded font-semibold transition-all ${
-                        ordenClientes === "valor"
-                          ? "bg-background text-foreground shadow-2xs"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      Por Facturación ($)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOrdenClientes("unidades")}
-                      className={`px-2 py-0.5 rounded font-semibold transition-all ${
-                        ordenClientes === "unidades"
-                          ? "bg-background text-foreground shadow-2xs"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      Por Unidades
-                    </button>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Filtro: Todos vs Solo Clientes Identificados */}
+                    {statsClientes.cantMostrador > 0 && (
+                      <div className="flex rounded-lg bg-muted p-0.5 border border-border/50 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => setFiltroTipoCliente("todos")}
+                          className={`px-2 py-0.5 rounded font-semibold transition-all ${
+                            filtroTipoCliente === "todos"
+                              ? "bg-background text-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Todos ({clientesConsolidados.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFiltroTipoCliente("identificados")}
+                          className={`px-2 py-0.5 rounded font-semibold transition-all flex items-center gap-1 ${
+                            filtroTipoCliente === "identificados"
+                              ? "bg-background text-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                          title="Mostrar únicamente clientes con NIT o identificación registrada"
+                        >
+                          <UserCheck className="h-2.5 w-2.5" />
+                          Solo Clientes ({statsClientes.cantIdentificados})
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Selector: Por Facturación vs Por Unidades */}
+                    <div className="flex rounded-lg bg-muted p-0.5 border border-border/50 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setOrdenClientes("valor")}
+                        className={`px-2 py-0.5 rounded font-semibold transition-all ${
+                          ordenClientes === "valor"
+                            ? "bg-background text-foreground shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Por Facturación ($)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrdenClientes("unidades")}
+                        className={`px-2 py-0.5 rounded font-semibold transition-all ${
+                          ordenClientes === "unidades"
+                            ? "bg-background text-foreground shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Por Unidades
+                      </button>
+                    </div>
                   </div>
                 </div>
+
+                {/* Banner informativo de transparencia para compras de mostrador */}
+                {statsClientes.ventaMostrador > 0 && filtroTipoCliente === "todos" && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+                        <Store className="h-3.5 w-3.5" />
+                      </span>
+                      <div>
+                        <span className="font-semibold text-foreground">Ventas Mostrador / Sin NIT: </span>
+                        <span className="font-bold text-amber-700 dark:text-amber-300 font-mono">
+                          {formatoCOPFull(statsClientes.ventaMostrador)}
+                        </span>
+                        <span className="text-muted-foreground text-[10.5px] ml-1.5">
+                          ({statsClientes.totalVenta > 0 ? ((statsClientes.ventaMostrador / statsClientes.totalVenta) * 100).toFixed(1) : 0}% de compras directas sin identificación)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                      <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span><strong className="text-foreground">{statsClientes.cantIdentificados}</strong> clientes identificados:</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                        {formatoCOPFull(statsClientes.ventaIdentificada)}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {clientesCiudad.length === 0 ? (
                   <div className="p-5 text-center text-xs text-muted-foreground border border-dashed rounded-xl bg-muted/10">
@@ -1149,42 +1232,68 @@ export function MapaVentasZonas({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/40 text-[11px]">
-                        {clientesCiudad.map((cli, idx) => (
-                          <tr key={`${cli.id}-${idx}`} className="hover:bg-muted/40 transition-colors">
-                            <td className="py-1.5 px-2.5 font-bold text-muted-foreground">
-                              {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
-                            </td>
-                            <td className="py-1.5 px-2.5 font-semibold text-foreground truncate max-w-[200px]" title={cli.nombre}>
-                              {limpiarTextoEncoding(cli.nombre)}
-                            </td>
-                            <td className="py-1.5 px-2.5 font-mono text-muted-foreground">
-                              {cli.codigo ? (
-                                <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 bg-muted/40 text-muted-foreground border-border">
-                                  {cli.codigo}
+                        {clientesCiudad.map((cli, idx) => {
+                          const idxIdentificado = listaIdentificados.findIndex((x) => x.id === cli.id);
+                          return (
+                            <tr key={`${cli.id}-${idx}`} className="hover:bg-muted/40 transition-colors">
+                              <td className="py-1.5 px-2.5 font-bold text-muted-foreground">
+                                {cli.esGenerico ? (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-semibold flex items-center gap-0.5 w-fit">
+                                    <Store className="h-2.5 w-2.5" />
+                                    Mostrador
+                                  </Badge>
+                                ) : (
+                                  idxIdentificado === 0 ? "🥇" : idxIdentificado === 1 ? "🥈" : idxIdentificado === 2 ? "🥉" : `#${idxIdentificado + 1}`
+                                )}
+                              </td>
+                              <td className="py-1.5 px-2.5 font-semibold text-foreground truncate max-w-[220px]" title={cli.nombre}>
+                                {cli.esGenerico ? (
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1">
+                                      <Store className="h-3 w-3 shrink-0 text-amber-500" />
+                                      {limpiarTextoEncoding(cli.nombre)}
+                                    </span>
+                                    <span className="text-[9.5px] text-muted-foreground font-normal">
+                                      Consolidado ventas directas en mostrador
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span>{limpiarTextoEncoding(cli.nombre)}</span>
+                                )}
+                              </td>
+                              <td className="py-1.5 px-2.5 font-mono text-muted-foreground">
+                                {cli.esGenerico ? (
+                                  <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20">
+                                    {cli.codigo || "NO APLICA"}
+                                  </Badge>
+                                ) : cli.codigo ? (
+                                  <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 bg-muted/40 text-muted-foreground border-border">
+                                    {cli.codigo}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-[10px] text-muted-foreground/60">N/D</span>
+                                )}
+                              </td>
+                              <td className="py-1.5 px-2.5 text-right font-medium text-foreground">
+                                {cli.unidades.toLocaleString("es-CO")}
+                              </td>
+                              <td className="py-1.5 px-2.5 text-right font-mono text-muted-foreground">
+                                <span>{formatoCOP(cli.ticketPromedio)}</span>
+                                <span className="block text-[8.5px] text-muted-foreground/80">
+                                  {cli.transacciones} {cli.transacciones === 1 ? "operación" : "operaciones"}
+                                </span>
+                              </td>
+                              <td className="py-1.5 px-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                                {formatoCOPFull(cli.venta)}
+                              </td>
+                              <td className="py-1.5 px-2.5 text-right">
+                                <Badge variant="outline" className="text-[9.5px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 py-0 px-1">
+                                  {Number(cli.porcentajeEnCiudad).toFixed(1)}%
                                 </Badge>
-                              ) : (
-                                <span className="text-[10px] text-muted-foreground/60">N/D</span>
-                              )}
-                            </td>
-                            <td className="py-1.5 px-2.5 text-right font-medium text-foreground">
-                              {cli.unidades.toLocaleString("es-CO")}
-                            </td>
-                            <td className="py-1.5 px-2.5 text-right font-mono text-muted-foreground">
-                              <span>{formatoCOP(cli.ticketPromedio)}</span>
-                              <span className="block text-[8.5px] text-muted-foreground/80">
-                                {cli.transacciones} {cli.transacciones === 1 ? "pedido" : "pedidos"}
-                              </span>
-                            </td>
-                            <td className="py-1.5 px-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                              {formatoCOPFull(cli.venta)}
-                            </td>
-                            <td className="py-1.5 px-2.5 text-right">
-                              <Badge variant="outline" className="text-[9.5px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 py-0 px-1">
-                                {Number(cli.porcentajeEnCiudad).toFixed(1)}%
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

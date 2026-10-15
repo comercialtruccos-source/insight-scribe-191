@@ -889,7 +889,56 @@ export type ClienteEnCiudad = {
   transacciones: number;
   ticketPromedio: number;
   porcentajeEnCiudad: number;
+  esGenerico?: boolean;
 };
+
+/**
+ * Normaliza y resuelve la información de un tercero / cliente.
+ * Detecta códigos y registros genéricos o de mostrador (NO APLICA, GENERAL, CONSUMIDOR FINAL, etc.)
+ * para evitar atribuir masivamente ventas anónimas o de mostrador a personas individuales.
+ */
+export function resolverInfoTercero(
+  tId: number,
+  tItem?: { id?: number; nombre?: string | null; codigo?: string | null }
+): { id: number; nombre: string; codigo: string | null; esGenerico: boolean } {
+  let codigo = tItem?.codigo ? String(tItem.codigo).trim() : null;
+  let nombre = tItem?.nombre ? String(tItem.nombre).trim() : "";
+
+  const codUpper = (codigo || "").toUpperCase();
+  const nomUpper = nombre.toUpperCase();
+
+  const esGenerico =
+    !tId ||
+    tId === 0 ||
+    codUpper === "NO APLICA" ||
+    codUpper === "GENERAL" ||
+    codUpper === "CONSUMIDOR FINAL" ||
+    codUpper === "VARIOS" ||
+    codUpper === "0" ||
+    codUpper === "222222222222" ||
+    nomUpper.includes("VENTA MOSTRADOR") ||
+    nomUpper.includes("CONSUMIDOR FINAL") ||
+    nomUpper.includes("SIN IDENTIFICAR") ||
+    nomUpper.includes("VENTAS GENERALES") ||
+    nomUpper.includes("CLIENTE MOSTRADOR") ||
+    // Salvaguarda histórica contra asociar Yomaira o Claudia Mabel a transacciones NO APLICA / GENERAL
+    (codUpper === "NO APLICA" && nomUpper.includes("MARIN VALENCIA")) ||
+    (codUpper === "GENERAL" && nomUpper.includes("GOMEZ JARAMILLO"));
+
+  if (esGenerico) {
+    if (codUpper === "GENERAL" || nomUpper.includes("GENERAL")) {
+      nombre = "Ventas Generales / Consumidor Final";
+      codigo = codigo || "GENERAL";
+    } else {
+      nombre = "Venta Mostrador / Sin Identificar (Consumidor Final)";
+      codigo = codigo || "NO APLICA";
+    }
+  } else if (!nombre) {
+    nombre = codigo ? `Cliente (${codigo})` : `Cliente #${tId}`;
+  }
+
+  return { id: tId, nombre, codigo, esGenerico };
+}
 
 export type CiudadEnZona = {
   id: number | null;
@@ -1086,6 +1135,7 @@ export function calcularDashboard1Cumplimiento(
     id: number;
     nombre: string;
     codigo?: string | null;
+    esGenerico: boolean;
     venta: number;
     unidades: number;
     transaccionesSet: Set<string>;
@@ -1210,15 +1260,18 @@ export function calcularDashboard1Cumplimiento(
 
     const tId = r.tercero_id ? Number(r.tercero_id) : 0;
     const tItem = tId > 0 ? terceroMap.get(tId) : undefined;
-    const tNom = (tItem?.nombre || (tId > 0 ? `Cliente #${tId}` : "Cliente Mostrador / Venta Directa")).trim();
-    const tCod = tItem?.codigo || null;
-    const txKey = r.transaccion ? String(r.transaccion) : `${r.id || Math.random()}`;
+    const infoT = resolverInfoTercero(tId, tItem);
+    const tNom = infoT.nombre;
+    const tCod = infoT.codigo;
+    const tEsGen = infoT.esGenerico;
+    const txKey = r.fecha && r.transaccion ? `${r.fecha}_${r.transaccion}` : (r.transaccion ? String(r.transaccion) : `${r.id || Math.random()}`);
 
     if (!currZ.clientesMap.has(tId)) {
       currZ.clientesMap.set(tId, {
         id: tId,
         nombre: tNom,
         codigo: tCod,
+        esGenerico: tEsGen,
         venta: 0,
         unidades: 0,
         transaccionesSet: new Set(),
@@ -1266,6 +1319,7 @@ export function calcularDashboard1Cumplimiento(
         id: tId,
         nombre: tNom,
         codigo: tCod,
+        esGenerico: tEsGen,
         venta: 0,
         unidades: 0,
         transaccionesSet: new Set(),
@@ -1532,6 +1586,7 @@ export function calcularDashboard1Cumplimiento(
                 id: cli.id,
                 nombre: cli.nombre,
                 codigo: cli.codigo,
+                esGenerico: cli.esGenerico,
                 venta: cli.venta,
                 unidades: cli.unidades,
                 transacciones: transCount,
@@ -1556,6 +1611,7 @@ export function calcularDashboard1Cumplimiento(
                     id: cli.id,
                     nombre: cli.nombre,
                     codigo: cli.codigo,
+                    esGenerico: cli.esGenerico,
                     venta: cli.venta,
                     unidades: cli.unidades,
                     transacciones: transCount,
@@ -3852,6 +3908,7 @@ export type ClienteActivadoItem = {
   transacciones: number;
   ticketPromedio: number;
   estadoCliente: "Nuevo" | "Crecimiento" | "Decrecimiento" | "Estable";
+  esGenerico?: boolean;
 };
 
 export type ResumenClientesVendedor = {
@@ -3896,6 +3953,7 @@ export async function obtenerClientesPorVendedor(
     terceroId: number;
     terceroNombre: string;
     terceroCodigo?: string | null;
+    esGenerico: boolean;
     vendedorId: number | null;
     vendedorNombre: string;
     ventaActual: number;
@@ -3910,18 +3968,20 @@ export async function obtenerClientesPorVendedor(
   for (const r of rawActual) {
     const tId = Number(r.tercero_id) || 0;
     const tInfo = tId ? tMap.get(tId) : null;
-    const tNombre = tInfo?.nombre || (tInfo?.codigo ? tInfo.codigo : `Cliente #${tId || "General"}`);
-    const tCodigo = tInfo?.codigo || null;
+    const infoT = resolverInfoTercero(tId, tInfo);
+    const tNombre = infoT.nombre;
+    const tCodigo = infoT.codigo;
 
     const vId = Number(r.vendedor_id) || Number(r.vendedor2_id) || null;
     const vNombre = (vId ? vMap.get(vId) : null) || "Asesor General";
 
-    const key = `${vId || 0}__${tId || tNombre}`;
+    const key = `${vId || 0}__${infoT.esGenerico ? `gen_${tCodigo}` : tId}`;
     if (!map.has(key)) {
       map.set(key, {
         terceroId: tId,
         terceroNombre: tNombre,
         terceroCodigo: tCodigo,
+        esGenerico: infoT.esGenerico,
         vendedorId: vId,
         vendedorNombre: vNombre,
         ventaActual: 0,
@@ -3937,24 +3997,27 @@ export async function obtenerClientesPorVendedor(
     const cant = Math.round(Number(r.cantidad || 0));
     item.ventaActual += v;
     item.unidadesActuales += cant;
-    item.transaccionesSet.add(r.transaccion ? String(r.transaccion) : `row_${r.id}`);
+    const txId = r.fecha && r.transaccion ? `${r.fecha}_${r.transaccion}` : (r.transaccion ? String(r.transaccion) : `row_${r.id}`);
+    item.transaccionesSet.add(txId);
   }
 
   for (const r of rawAnt) {
     const tId = Number(r.tercero_id) || 0;
     const tInfo = tId ? tMap.get(tId) : null;
-    const tNombre = tInfo?.nombre || (tInfo?.codigo ? tInfo.codigo : `Cliente #${tId || "General"}`);
-    const tCodigo = tInfo?.codigo || null;
+    const infoT = resolverInfoTercero(tId, tInfo);
+    const tNombre = infoT.nombre;
+    const tCodigo = infoT.codigo;
 
     const vId = Number(r.vendedor_id) || Number(r.vendedor2_id) || null;
     const vNombre = (vId ? vMap.get(vId) : null) || "Asesor General";
 
-    const key = `${vId || 0}__${tId || tNombre}`;
+    const key = `${vId || 0}__${infoT.esGenerico ? `gen_${tCodigo}` : tId}`;
     if (!map.has(key)) {
       map.set(key, {
         terceroId: tId,
         terceroNombre: tNombre,
         terceroCodigo: tCodigo,
+        esGenerico: infoT.esGenerico,
         vendedorId: vId,
         vendedorNombre: vNombre,
         ventaActual: 0,
@@ -4015,6 +4078,7 @@ export async function obtenerClientesPorVendedor(
         terceroId: c.terceroId,
         terceroNombre: c.terceroNombre,
         terceroCodigo: c.terceroCodigo,
+        esGenerico: c.esGenerico,
         vendedorId: c.vendedorId,
         vendedorNombre: c.vendedorNombre,
         ventaActual: c.ventaActual,
