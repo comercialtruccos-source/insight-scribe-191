@@ -1219,8 +1219,8 @@ export function MapaVentasZonas({
                       <thead className="border-b border-border/80 uppercase text-[10px] text-muted-foreground font-bold bg-muted/30 sticky top-0">
                         <tr>
                           <th className="py-2 px-2.5">#</th>
-                          <th className="py-2 px-2.5">Cliente / Razón Social</th>
-                          <th className="py-2 px-2.5">NIT / Código</th>
+                          <th className="py-2 px-2.5" title="Nombre real del comprador extraído de la columna TERCERO">Cliente / Comprador</th>
+                          <th className="py-2 px-2.5" title="Cédula, NIT o código auxiliar (columna TERCEROAUX)">NIT / Identificación</th>
                           <th className="py-2 px-2.5 text-right">Prendas</th>
                           <th className="py-2 px-2.5 text-right">Ticket Prom.</th>
                           <th className="py-2 px-2.5 text-right">Facturación</th>

@@ -40,7 +40,7 @@ export type VentaRow = {
 };
 
 const CAMPOS_HASH = [
-  "transaccion","anio","mes","dia","fecha","vendedor","vendedor2","tercero_aux",
+  "transaccion","anio","mes","dia","fecha","vendedor","vendedor2","tercero_aux","tercero",
   "zona","ciudad","linea","coleccion","canal","zona2","pais","zona_colombia",
   "correria","marca","producto_c","prenda_hgi","producto","talla","color",
   "cod_color","sku","anio_col","cantidad","valor","fecha_compra","tr","costo","costo_total",
@@ -109,6 +109,7 @@ export const COLUMNAS_DIMENSION = [
   "Ciudad",
   "Linea",
   "Colección",
+  "Tercero",
   "TerceroAux",
 ];
 
@@ -481,6 +482,10 @@ const MAPA: Record<string, keyof VentaRow> = {
   CEDULACLIENTE: "tercero_aux",
   TERCERO: "tercero",
   CLIENTE: "tercero",
+  COMPRADOR: "tercero",
+  NOMBRECOMPRADOR: "tercero",
+  NOMCOMPRADOR: "tercero",
+  CLIENTECOMPRADOR: "tercero",
   NOMTERCERO: "tercero",
   NOMBRECLIENTE: "tercero",
   RAZONSOCIAL: "tercero",

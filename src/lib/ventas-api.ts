@@ -566,7 +566,7 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
       supabase.from("dim_ciudad").select("id, nombre").not("nombre", "is", null).order("nombre").limit(1000),
       supabase.from("dim_correria").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
       supabase.from("dim_pais").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
-      supabase.from("dim_tercero").select("id, nombre, codigo").not("nombre", "is", null).order("nombre").limit(5000),
+      supabase.from("dim_tercero").select("id, nombre, codigo").not("nombre", "is", null).order("nombre").limit(50000),
       supabase.from("fact_ventas").select("fecha, anio, anio_col").not("fecha", "is", null).order("fecha", { ascending: true }).limit(1),
       supabase.from("fact_ventas").select("fecha, anio, anio_col").not("fecha", "is", null).order("fecha", { ascending: false }).limit(1),
     ]);
@@ -910,23 +910,20 @@ export function resolverInfoTercero(
   const esGenerico =
     !tId ||
     tId === 0 ||
-    codUpper === "NO APLICA" ||
-    codUpper === "GENERAL" ||
-    codUpper === "CONSUMIDOR FINAL" ||
-    codUpper === "VARIOS" ||
-    codUpper === "0" ||
-    codUpper === "222222222222" ||
+    nomUpper === "NO APLICA" ||
+    nomUpper === "GENERAL" ||
+    nomUpper === "CONSUMIDOR FINAL" ||
+    nomUpper === "VARIOS" ||
+    nomUpper === "SIN IDENTIFICAR" ||
     nomUpper.includes("VENTA MOSTRADOR") ||
     nomUpper.includes("CONSUMIDOR FINAL") ||
     nomUpper.includes("SIN IDENTIFICAR") ||
     nomUpper.includes("VENTAS GENERALES") ||
     nomUpper.includes("CLIENTE MOSTRADOR") ||
-    // Salvaguarda histórica contra asociar Yomaira o Claudia Mabel a transacciones NO APLICA / GENERAL
-    (codUpper === "NO APLICA" && nomUpper.includes("MARIN VALENCIA")) ||
-    (codUpper === "GENERAL" && nomUpper.includes("GOMEZ JARAMILLO"));
+    (nomUpper === "" && (codUpper === "NO APLICA" || codUpper === "0" || codUpper === "222222222222" || codUpper === ""));
 
   if (esGenerico) {
-    if (codUpper === "GENERAL" || nomUpper.includes("GENERAL")) {
+    if (nomUpper.includes("GENERAL") || codUpper === "GENERAL") {
       nombre = "Ventas Generales / Consumidor Final";
       codigo = codigo || "GENERAL";
     } else {
@@ -934,7 +931,7 @@ export function resolverInfoTercero(
       codigo = codigo || "NO APLICA";
     }
   } else if (!nombre) {
-    nombre = codigo ? `Cliente (${codigo})` : `Cliente #${tId}`;
+    nombre = codigo && codigo !== "NO APLICA" ? `Cliente (${codigo})` : `Cliente #${tId}`;
   }
 
   return { id: tId, nombre, codigo, esGenerico };
@@ -3608,7 +3605,7 @@ export async function obtenerPedidosVsDespachos(
 
   const [vendsRes, tercsRes] = await Promise.all([
     supabase.from("dim_vendedor").select("id, nombre"),
-    supabase.from("dim_tercero").select("id, codigo, nombre"),
+    supabase.from("dim_tercero").select("id, codigo, nombre").limit(50000),
   ]);
 
   const vMap = new Map<number, string>((vendsRes.data || []).map((v) => [v.id, v.nombre]));
@@ -3932,7 +3929,7 @@ export async function obtenerClientesPorVendedor(
   filtros: FiltrosBI
 ): Promise<ResumenClientesVendedor> {
   const [tercRes, vendRes] = await Promise.all([
-    supabase.from("dim_tercero").select("id, codigo, nombre").limit(5000),
+    supabase.from("dim_tercero").select("id, codigo, nombre").limit(50000),
     supabase.from("dim_vendedor").select("id, nombre").limit(1000),
   ]);
 
