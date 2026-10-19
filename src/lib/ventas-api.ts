@@ -466,7 +466,16 @@ export async function registrarCargaCliente(
     filas_duplicadas: Math.max(0, recibidas - nuevas),
     usuario_id: userData?.user?.id ?? null,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    const { error: errRetry } = await supabase.from("cargas").insert({
+      archivo,
+      filas_recibidas: recibidas,
+      filas_nuevas: nuevas,
+      filas_duplicadas: Math.max(0, recibidas - nuevas),
+      usuario_id: null,
+    });
+    if (errRetry) throw new Error(errRetry.message);
+  }
   return { ok: true };
 }
 

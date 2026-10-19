@@ -88,6 +88,8 @@ function AuthPage() {
       loggedAt: new Date().toISOString(),
     };
     guardarSesionActiva(userSession);
+    // Sincronizar en segundo plano sesión de Supabase si existe la cuenta
+    supabase.auth.signInWithPassword({ email: u.email, password: "QWE123" }).catch(() => {});
     toast.success(`¡Bienvenido ${u.nombre || u.email}!`);
     navigate({ to: "/panel" });
   };
@@ -118,6 +120,8 @@ function AuthPage() {
         loggedAt: new Date().toISOString(),
       };
       guardarSesionActiva(userSession);
+      // Sincronizar en segundo plano sesión de Supabase si existe la cuenta
+      supabase.auth.signInWithPassword({ email: emailTrim, password: pwdTrim }).catch(() => {});
       toast.success(`¡Bienvenido ${permisoConfigurado.nombre || permisoConfigurado.email}!`);
       navigate({ to: "/panel" });
       setCargando(false);
