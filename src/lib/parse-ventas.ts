@@ -372,7 +372,13 @@ const MAPA: Record<string, keyof VentaRow> = {
   ORDEN: "transaccion",
   NROORDEN: "transaccion",
   PEDIDO: "transaccion",
+  PEDIDOS: "transaccion",
   NROPEDIDO: "transaccion",
+  NROPEDIDOS: "transaccion",
+  NUMEROPEDIDO: "transaccion",
+  NUMEROPEDIDOS: "transaccion",
+  TIPOTRANSACCION: "transaccion",
+  TIPODOCUMENTO: "transaccion",
 
   // Fechas y Periodos
   ANO: "anio",
@@ -883,6 +889,18 @@ export type MetadataArchivo = {
   columnasIgnoradas: string[];
   esCSV: boolean;
   tamanoBytes: number;
+  esPivotOInvalido?: boolean;
+  hojaSeleccionada?: string;
+  hojasDisponibles?: string[];
+  mensajeAviso?: string;
+};
+
+export type ResultadoFilaEncabezados = {
+  filaEncabezados: number;
+  coincidencias: number;
+  campos: Set<string>;
+  archivoTienePivot: boolean;
+  esValido: boolean;
 };
 
 /**
@@ -951,40 +969,83 @@ export function expandirRangoHoja(sheet: XLSX.WorkSheet): string | undefined {
 }
 
 /**
- * Escanea las primeras 30 filas de una matriz de datos crudos para identificar
- * cuál fila corresponde a los encabezados de columnas reales (ignorando títulos,
- * logotipos o membretes iniciales del ERP).
+ * Escanea hasta las primeras 60 filas de una matriz de datos crudos para identificar
+ * cuál fila corresponde a los encabezados de columnas reales.
+ * Detecta y descarta automáticamente filas con filtros de Tablas Dinámicas
+ * (como "(Varios elementos)", "(Todas)", "(Todos)", "Multiple items" o columnas repetidas).
  */
-export function encontrarFilaEncabezados(filas: unknown[][]): {
-  filaEncabezados: number;
-  coincidencias: number;
-} {
+export function encontrarFilaEncabezados(filas: unknown[][]): ResultadoFilaEncabezados {
   let mejorFila = 0;
-  let maxCoincidencias = 0;
+  let maxPuntaje = 0;
+  let camposMejorFila = new Set<string>();
+  let archivoTienePivot = false;
 
-  const limite = Math.min(filas.length, 30);
+  const limite = Math.min(filas.length, 60);
   for (let r = 0; r < limite; r++) {
     const fila = filas[r];
     if (!Array.isArray(fila)) continue;
 
-    let coincidencias = 0;
+    const camposFila = new Set<string>();
+    const frecuencias = new Map<string, number>();
+    let esFilaFiltroPivot = false;
+
     for (const celda of fila) {
       if (celda === null || celda === undefined) continue;
       const texto = String(celda).trim();
       if (!texto) continue;
+
+      const lower = texto.toLowerCase();
+      if (
+        lower.includes("varios elementos") ||
+        lower.includes("(todas)") ||
+        lower.includes("(todos)") ||
+        lower.includes("(all)") ||
+        lower.includes("multiple items")
+      ) {
+        esFilaFiltroPivot = true;
+        archivoTienePivot = true;
+      }
+
       const n = norm(texto);
-      if (MAPA[n] || n.match(/\b(20\d{2})\b/)) {
-        coincidencias++;
+      const campo = MAPA[n];
+      if (campo) {
+        camposFila.add(campo);
+        frecuencias.set(campo, (frecuencias.get(campo) || 0) + 1);
+      } else if (n.match(/\b(20\d{2})\b/)) {
+        camposFila.add("anio");
       }
     }
 
-    if (coincidencias > maxCoincidencias) {
-      maxCoincidencias = coincidencias;
+    // Si una misma columna aparece repetida 3 o más veces en la misma fila, es un bloque de filtros/slicers
+    let repetidosExcesivos = false;
+    for (const count of frecuencias.values()) {
+      if (count >= 3) repetidosExcesivos = true;
+    }
+
+    if (esFilaFiltroPivot || repetidosExcesivos) {
+      continue;
+    }
+
+    let puntaje = camposFila.size;
+    if (camposFila.has("cantidad") && camposFila.has("valor")) puntaje += 2;
+    if (camposFila.has("vendedor")) puntaje += 1;
+    if (camposFila.has("tercero")) puntaje += 1;
+    if (camposFila.has("transaccion")) puntaje += 1;
+
+    if (puntaje > maxPuntaje) {
+      maxPuntaje = puntaje;
       mejorFila = r;
+      camposMejorFila = camposFila;
     }
   }
 
-  return { filaEncabezados: mejorFila, coincidencias: maxCoincidencias };
+  return {
+    filaEncabezados: mejorFila,
+    coincidencias: camposMejorFila.size,
+    campos: camposMejorFila,
+    archivoTienePivot,
+    esValido: camposMejorFila.size >= 3,
+  };
 }
 
 export async function inspeccionarEncabezados(file: File): Promise<MetadataArchivo> {
@@ -993,20 +1054,35 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
   if (esCSV) {
     return new Promise((resolve, reject) => {
       Papa.parse<unknown[]>(file, {
-        preview: 35,
+        preview: 60,
         header: false,
         skipEmptyLines: "greedy",
         complete: (results) => {
           const rawRows = (results.data || []) as unknown[][];
-          const { filaEncabezados } = encontrarFilaEncabezados(rawRows);
-          const headers = ((rawRows[filaEncabezados] as unknown[]) || [])
+          const info = encontrarFilaEncabezados(rawRows);
+
+          if (!info.esValido && info.archivoTienePivot) {
+            resolve({
+              columnasDetectadas: [],
+              columnasFaltantes: COLUMNAS_ESPERADAS,
+              columnasIgnoradas: [],
+              esCSV: true,
+              tamanoBytes: file.size,
+              esPivotOInvalido: true,
+              mensajeAviso:
+                "⚠️ El archivo CSV seleccionado contiene una Tabla Dinámica o filtros de informe ('(Varios elementos)', 'PEDIDOS') en lugar de la base de datos detallada. Para registrar ventas, por favor exporta y sube la pestaña con las transacciones fila por fila (con columnas de Fecha, Vendedor, Cliente, Cantidad, Valor, etc.).",
+            });
+            return;
+          }
+
+          const rawHeaderList = ((rawRows[info.filaEncabezados] as unknown[]) || [])
             .map((h) => String(h ?? "").trim())
             .filter(Boolean);
 
           const detectados = new Set<string>();
           const ignoradas: string[] = [];
 
-          for (const h of headers) {
+          for (const h of rawHeaderList) {
             const normH = norm(h);
             const campo = MAPA[normH];
             if (campo) {
@@ -1014,7 +1090,13 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
             } else if (normH.match(/\b(20\d{2})\b/)) {
               detectados.add("anio");
             } else {
-              ignoradas.push(h);
+              if (
+                !h.startsWith("_") &&
+                !h.match(/^\d+$/) &&
+                !h.toLowerCase().includes("varios elementos")
+              ) {
+                ignoradas.push(h);
+              }
             }
           }
 
@@ -1029,6 +1111,11 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
             columnasIgnoradas: ignoradas,
             esCSV: true,
             tamanoBytes: file.size,
+            esPivotOInvalido: detectados.size < 2,
+            mensajeAviso:
+              detectados.size < 2
+                ? "⚠️ No se encontraron las columnas requeridas de ventas en el archivo CSV."
+                : undefined,
           });
         },
         error: (err) => reject(err),
@@ -1038,39 +1125,79 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
 
   // Si es Excel (.xlsx, .xls)
   try {
-    const buffer = await file.slice(0, Math.min(file.size, 2 * 1024 * 1024)).arrayBuffer();
-    const wb = XLSX.read(buffer, { type: "array", dense: true, sheetRows: 35 });
+    const buffer = await file.slice(0, Math.min(file.size, 3 * 1024 * 1024)).arrayBuffer();
+    const wb = XLSX.read(buffer, { type: "array", dense: true, sheetRows: 60 });
     if (wb.SheetNames.length > 0) {
+      const analisisHojas: {
+        sheetName: string;
+        filaEncabezados: number;
+        coincidencias: number;
+        campos: Set<string>;
+        archivoTienePivot: boolean;
+        esValido: boolean;
+        headers: string[];
+      }[] = [];
+
       for (const sheetName of wb.SheetNames) {
         const sheet = wb.Sheets[sheetName];
         if (!sheet) continue;
         expandirRangoHoja(sheet);
         const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 }) as unknown[][];
-        const { filaEncabezados, coincidencias } = encontrarFilaEncabezados(rawRows);
-        if (coincidencias > 0) {
-          const headers = ((rawRows[filaEncabezados] as unknown[]) || [])
-            .map((h) => String(h ?? "").trim())
-            .filter(Boolean);
+        if (!rawRows || rawRows.length === 0) continue;
 
-          const detectados = new Set<string>();
-          const ignoradas: string[] = [];
+        const info = encontrarFilaEncabezados(rawRows);
+        const headers = ((rawRows[info.filaEncabezados] as unknown[]) || [])
+          .map((h) => String(h ?? "").trim())
+          .filter(Boolean);
 
-          for (const h of headers) {
-            const normH = norm(h);
-            const campo = MAPA[normH];
-            if (campo) {
-              detectados.add(campo);
-            } else if (normH.match(/\b(20\d{2})\b/)) {
-              detectados.add("anio");
-            } else {
+        analisisHojas.push({
+          sheetName,
+          filaEncabezados: info.filaEncabezados,
+          coincidencias: info.coincidencias,
+          campos: info.campos,
+          archivoTienePivot: info.archivoTienePivot,
+          esValido: info.esValido,
+          headers,
+        });
+      }
+
+      if (analisisHojas.length > 0) {
+        // Ordenar por cantidad de coincidencias únicas descendentemente
+        analisisHojas.sort((a, b) => b.coincidencias - a.coincidencias);
+        const mejor = analisisHojas[0]!;
+
+        const detectados = new Set<string>();
+        const ignoradas: string[] = [];
+
+        for (const h of mejor.headers) {
+          const normH = norm(h);
+          const campo = MAPA[normH];
+          if (campo) {
+            detectados.add(campo);
+          } else if (normH.match(/\b(20\d{2})\b/)) {
+            detectados.add("anio");
+          } else {
+            if (
+              !h.startsWith("_") &&
+              !h.match(/^\d+$/) &&
+              !h.toLowerCase().includes("varios elementos")
+            ) {
               ignoradas.push(h);
             }
           }
+        }
 
-          const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
-            const campo = MAPA[norm(c)];
-            return campo ? !detectados.has(campo) : false;
-          });
+        const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
+          const campo = MAPA[norm(c)];
+          return campo ? !detectados.has(campo) : false;
+        });
+
+        // Caso: Libro donde la mejor hoja es válida
+        if (mejor.esValido) {
+          let mensajeAviso: string | undefined = undefined;
+          if (wb.SheetNames.length > 1) {
+            mensajeAviso = `📄 Hoja seleccionada para procesar: "${mejor.sheetName}" (${mejor.coincidencias} columnas de ventas reconocidas).`;
+          }
 
           return {
             columnasDetectadas: [...detectados],
@@ -1078,8 +1205,27 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
             columnasIgnoradas: ignoradas,
             esCSV: false,
             tamanoBytes: file.size,
+            hojaSeleccionada: mejor.sheetName,
+            hojasDisponibles: wb.SheetNames,
+            mensajeAviso,
           };
         }
+
+        // Caso: El libro entero solo contiene tablas dinámicas o ninguna hoja tiene columnas de venta válidas
+        const tienePivotEnAlguna = analisisHojas.some((h) => h.archivoTienePivot);
+        return {
+          columnasDetectadas: [...detectados],
+          columnasFaltantes: faltantes,
+          columnasIgnoradas: ignoradas,
+          esCSV: false,
+          tamanoBytes: file.size,
+          esPivotOInvalido: true,
+          hojaSeleccionada: mejor.sheetName,
+          hojasDisponibles: wb.SheetNames,
+          mensajeAviso: tienePivotEnAlguna
+            ? "⚠️ El libro de Excel parece contener Tablas Dinámicas o filtros de informe ('(Varios elementos)'). Asegúrate de que el archivo incluya la hoja con la Base de Datos DETALLADA de ventas (con columnas de Transacción, Fecha, Vendedor, Cliente, Cantidad, Valor, etc.)."
+            : "⚠️ No se encontraron las columnas requeridas de ventas en el archivo Excel.",
+        };
       }
     }
   } catch {
@@ -1159,8 +1305,14 @@ export async function procesarArchivoPorStreaming({
       };
     }
 
-    const { filaEncabezados } = encontrarFilaEncabezados(rawRows);
-    const rawHeaderList = ((rawRows[filaEncabezados] as unknown[]) || []).map((h) => String(h ?? "").trim());
+    const info = encontrarFilaEncabezados(rawRows);
+    if (!info.esValido && info.archivoTienePivot) {
+      throw new Error(
+        "El archivo CSV contiene una Tabla Dinámica ('(Varios elementos)') en lugar de la base de datos detallada de ventas. Por favor exporta y sube la pestaña con las transacciones completas (con columnas de Fecha, Vendedor, Cliente, Cantidad, Valor, etc.)."
+      );
+    }
+
+    const rawHeaderList = ((rawRows[info.filaEncabezados] as unknown[]) || []).map((h) => String(h ?? "").trim());
     const headerMap = new Map<string, keyof VentaRow>();
 
     for (const h of rawHeaderList) {
@@ -1173,11 +1325,13 @@ export async function procesarArchivoPorStreaming({
         headerMap.set(h, "anio");
         detectados.add("anio");
       } else {
-        ignoradasSet.add(h);
+        if (!h.startsWith("_") && !h.match(/^\d+$/) && !h.toLowerCase().includes("varios elementos")) {
+          ignoradasSet.add(h);
+        }
       }
     }
 
-    const dataRows = rawRows.slice(filaEncabezados + 1);
+    const dataRows = rawRows.slice(info.filaEncabezados + 1);
     const totalDataRows = dataRows.length;
 
     for (let i = 0; i < totalDataRows; i += tamanoLote) {
@@ -1260,8 +1414,16 @@ export async function procesarArchivoPorStreaming({
 
   if (wb.SheetNames.length === 0) throw new Error("El archivo no contiene hojas de datos.");
 
-  // Pre-inspeccionar hojas para saber cuáles tienen datos de ventas
-  const hojasProcesables: { sheetName: string; rawRows: unknown[][]; filaEncabezados: number; headers: string[] }[] = [];
+  // Pre-inspeccionar todas las hojas para seleccionar inteligentemente las que tienen datos reales
+  const analisisHojas: {
+    sheetName: string;
+    rawRows: unknown[][];
+    filaEncabezados: number;
+    coincidencias: number;
+    archivoTienePivot: boolean;
+    esValido: boolean;
+    headers: string[];
+  }[] = [];
 
   for (const sheetName of wb.SheetNames) {
     const hoja = wb.Sheets[sheetName];
@@ -1273,26 +1435,43 @@ export async function procesarArchivoPorStreaming({
     const rawRows = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, defval: null, raw: true }) as unknown[][];
     if (!rawRows || rawRows.length === 0) continue;
 
-    const { filaEncabezados, coincidencias } = encontrarFilaEncabezados(rawRows);
-    // Si hay más de una hoja, requerimos al menos 2 coincidencias de columnas para no procesar hojas vacías o instructivos
-    if (wb.SheetNames.length > 1 && coincidencias < 2) continue;
+    const info = encontrarFilaEncabezados(rawRows);
+    const headers = ((rawRows[info.filaEncabezados] as unknown[]) || []).map((h) => String(h ?? "").trim());
 
-    const headers = ((rawRows[filaEncabezados] as unknown[]) || []).map((h) => String(h ?? "").trim());
-    hojasProcesables.push({ sheetName, rawRows, filaEncabezados, headers });
+    analisisHojas.push({
+      sheetName,
+      rawRows,
+      filaEncabezados: info.filaEncabezados,
+      coincidencias: info.coincidencias,
+      archivoTienePivot: info.archivoTienePivot,
+      esValido: info.esValido,
+      headers,
+    });
   }
 
-  if (hojasProcesables.length === 0) {
-    // Si ninguna cumplió el filtro estricto, tomar la primera hoja disponible
-    const sheetName = wb.SheetNames[0]!;
-    const hoja = wb.Sheets[sheetName]!;
-    expandirRangoHoja(hoja);
-    const rawRows = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, defval: null, raw: true }) as unknown[][];
-    const { filaEncabezados } = encontrarFilaEncabezados(rawRows);
-    const headers = ((rawRows[filaEncabezados] as unknown[]) || []).map((h) => String(h ?? "").trim());
-    hojasProcesables.push({ sheetName, rawRows, filaEncabezados, headers });
+  const maxCoincidencias = Math.max(...analisisHojas.map((h) => h.coincidencias), 0);
+
+  // Filtrar hojas procesables:
+  // Si encontramos hojas válidas con datos de ventas (>= 3 columnas),
+  // descartamos hojas de resumen / tablas dinámicas que tengan menos columnas o marcas de pivot.
+  const hojasAProcesar = analisisHojas.filter((h) => {
+    if (maxCoincidencias >= 3) {
+      return h.coincidencias >= 3 && h.coincidencias >= maxCoincidencias * 0.5;
+    }
+    return h.coincidencias > 0;
+  });
+
+  if (hojasAProcesar.length === 0) {
+    const tienePivot = analisisHojas.some((h) => h.archivoTienePivot);
+    if (tienePivot) {
+      throw new Error(
+        "El archivo de Excel contiene únicamente Tablas Dinámicas o informes resumidos ('(Varios elementos)'). Por favor incluye o sube la hoja con la Base de Datos DETALLADA de ventas (con columnas como Transacción, Fecha, Vendedor, Cliente, Cantidad, Valor, etc.)."
+      );
+    }
+    throw new Error("No se encontraron hojas con columnas de ventas válidas en el archivo Excel.");
   }
 
-  for (const { sheetName, rawRows, filaEncabezados, headers } of hojasProcesables) {
+  for (const { sheetName, rawRows, filaEncabezados, headers } of hojasAProcesar) {
     const matchSheetYear = sheetName.match(/\b(20\d{2})\b/);
     const sheetDefaultYear = matchSheetYear ? parseInt(matchSheetYear[1]!, 10) : fileDefaultYear;
 
@@ -1307,7 +1486,9 @@ export async function procesarArchivoPorStreaming({
         headerMap.set(h, "anio");
         detectados.add("anio");
       } else {
-        ignoradasSet.add(h);
+        if (!h.startsWith("_") && !h.match(/^\d+$/) && !h.toLowerCase().includes("varios elementos")) {
+          ignoradasSet.add(h);
+        }
       }
     }
 

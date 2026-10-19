@@ -369,6 +369,7 @@ function Panel() {
   const [estado, setEstado] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string[]>([]);
   const [esCSV, setEsCSV] = useState(false);
+  const [esPivotOInvalido, setEsPivotOInvalido] = useState(false);
 
   // Queries iniciales para metadatos y rangos
   const { data: resumen } = useQuery({
@@ -1227,6 +1228,7 @@ function Panel() {
     setAviso([]);
     setProgreso(0);
     setEstado(null);
+    setEsPivotOInvalido(false);
 
     if (!file) return;
 
@@ -1236,12 +1238,34 @@ function Panel() {
     try {
       const meta = await inspeccionarEncabezados(file);
       const avisos: string[] = [];
-      if (meta.columnasDetectadas.length > 0) {
-        avisos.push(`✓ ${meta.columnasDetectadas.length} columnas reconocidas y listas para procesar.`);
+
+      if (meta.esPivotOInvalido) {
+        setEsPivotOInvalido(true);
+        avisos.push(
+          meta.mensajeAviso ||
+            "⚠️ El archivo parece ser una Tabla Dinámica / Informe Resumen (contiene filtros como '(Varios elementos)', 'PEDIDOS'). Para registrar ventas en el sistema, por favor sube el archivo con la Base de Datos DETALLADA (que contenga las columnas de Transacción, Vendedor, Cliente, Fecha, Cantidad, Valor, etc.)."
+        );
+      } else {
+        if (meta.mensajeAviso) {
+          avisos.push(meta.mensajeAviso);
+        } else if (meta.hojaSeleccionada && !meta.esCSV) {
+          avisos.push(`📄 Hoja seleccionada para procesar: "${meta.hojaSeleccionada}"`);
+        }
+
+        if (meta.columnasDetectadas.length > 0) {
+          avisos.push(`✓ ${meta.columnasDetectadas.length} columnas reconocidas y listas para procesar.`);
+        }
+
+        if (meta.columnasIgnoradas.length > 0) {
+          const ignoradasLimpias = meta.columnasIgnoradas.filter(
+            (c) => c && !c.startsWith("_") && !c.match(/^\d+$/) && !c.toLowerCase().includes("varios elementos")
+          );
+          if (ignoradasLimpias.length > 0) {
+            avisos.push(`Columnas adicionales no mapeadas: ${ignoradasLimpias.join(", ")}`);
+          }
+        }
       }
-      if (meta.columnasIgnoradas.length > 0) {
-        avisos.push(`Columnas adicionales no mapeadas: ${meta.columnasIgnoradas.join(", ")}`);
-      }
+
       setAviso(avisos);
     } catch {
       // Continuar
@@ -6614,7 +6638,7 @@ function Panel() {
                 )}
 
                 <Button
-                  disabled={!archivo || carga.isPending}
+                  disabled={!archivo || carga.isPending || esPivotOInvalido}
                   onClick={() => archivo && carga.mutate(archivo)}
                 >
                   {carga.isPending ? "Procesando en streaming..." : "Procesar archivo"}
