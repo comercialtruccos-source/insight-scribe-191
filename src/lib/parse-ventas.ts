@@ -941,23 +941,26 @@ export function esEncabezadoTecnicoOIgnorable(header: string): boolean {
  */
 export function expandirRangoHoja(sheet: XLSX.WorkSheet): string | undefined {
   if (!sheet) return undefined;
-  let minR = Infinity, maxR = -1, minC = Infinity, maxC = -1;
+  let minR = 0, maxR = -1, minC = 0, maxC = -1;
   let hasCells = false;
 
   if (Array.isArray(sheet)) {
     // Modo denso: sheet es un arreglo de filas
-    for (let r = 0; r < sheet.length; r++) {
-      const row = sheet[r];
-      if (!row || !Array.isArray(row)) continue;
-      for (let c = 0; c < row.length; c++) {
-        const cell = row[c];
-        if (cell !== undefined && cell !== null && (cell.v !== undefined || cell.t !== undefined)) {
-          if (r < minR) minR = r;
-          if (r > maxR) maxR = r;
-          if (c < minC) minC = c;
-          if (c > maxC) maxC = c;
-          hasCells = true;
+    if (sheet.length > 0) {
+      minR = 0;
+      maxR = sheet.length - 1;
+      hasCells = true;
+      // Determinar maxC inspeccionando las primeras 50 filas y la última
+      const sampleLimit = Math.min(sheet.length, 50);
+      for (let r = 0; r < sampleLimit; r++) {
+        const row = sheet[r];
+        if (Array.isArray(row) && row.length > 0) {
+          if (row.length - 1 > maxC) maxC = row.length - 1;
         }
+      }
+      const lastRow = sheet[sheet.length - 1];
+      if (Array.isArray(lastRow) && lastRow.length > 0) {
+        if (lastRow.length - 1 > maxC) maxC = lastRow.length - 1;
       }
     }
   } else {
@@ -973,23 +976,22 @@ export function expandirRangoHoja(sheet: XLSX.WorkSheet): string | undefined {
     }
   }
 
-  // Respetar también el !ref original si tenía dimensiones válidas y mayores
+  // Si !ref existe, respetar el ancho de columnas (maxC) o coordenadas válidas
   if (sheet["!ref"]) {
     try {
       const existingRange = XLSX.utils.decode_range(sheet["!ref"]);
-      if (existingRange.s.r < minR) minR = existingRange.s.r;
-      if (existingRange.e.r > maxR) maxR = existingRange.e.r;
-      if (existingRange.s.c < minC) minC = existingRange.s.c;
       if (existingRange.e.c > maxC) maxC = existingRange.e.c;
-      hasCells = true;
+      // Si la hoja no tenía celdas computadas en el bucle pero !ref sí
+      if (maxR < 0 && existingRange.e.r >= 0) {
+        maxR = existingRange.e.r;
+        hasCells = true;
+      }
     } catch {
       // Ignorar si el rango existente está malformado
     }
   }
 
   if (hasCells && maxR >= 0 && maxC >= 0) {
-    if (minR === Infinity) minR = 0;
-    if (minC === Infinity) minC = 0;
     const newRef = XLSX.utils.encode_range({ s: { r: minR, c: minC }, e: { r: maxR, c: maxC } });
     sheet["!ref"] = newRef;
     return newRef;
@@ -1139,7 +1141,7 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
 
   // Si es Excel (.xlsx, .xls)
   try {
-    const buffer = await file.slice(0, Math.min(file.size, 3 * 1024 * 1024)).arrayBuffer();
+    const buffer = await file.arrayBuffer();
     const wb = XLSX.read(buffer, { type: "array", dense: true, sheetRows: 60 });
     if (wb.SheetNames.length > 0) {
       const analisisHojas: {
@@ -1297,104 +1299,175 @@ export async function procesarArchivoPorStreaming({
       mensaje: "Leyendo y analizando archivo CSV...",
     });
 
-    const texto = await file.text();
-    const parsed = Papa.parse<unknown[]>(texto, {
-      header: false,
-      skipEmptyLines: "greedy",
-    });
+    return new Promise((resolve, reject) => {
+      let headers: string[] = [];
+      const headerMap = new Map<string, keyof VentaRow>();
+      let loteBuffer: VentaRow[] = [];
+      const fileSize = file.size;
+      let headerRowIndex = 0;
+      let headerDetected = false;
+      const initialRowsBuffer: unknown[][] = [];
 
-    const rawRows = (parsed.data || []) as unknown[][];
-    if (rawRows.length === 0) {
-      return {
-        recibidas: 0,
-        nuevas: 0,
-        columnasDetectadas: [],
-        columnasFaltantes: COLUMNAS_ESPERADAS,
-        columnasIgnoradas: [],
-      };
-    }
+      Papa.parse<unknown[]>(file, {
+        chunkSize: 1024 * 1024 * 2, // Chunks de 2MB para streaming de bajo consumo de memoria
+        header: false,
+        skipEmptyLines: "greedy",
+        chunk: async (results, parser) => {
+          parser.pause();
+          try {
+            let filas = (results.data || []) as unknown[][];
 
-    const info = encontrarFilaEncabezados(rawRows);
+            if (!headerDetected) {
+              initialRowsBuffer.push(...filas);
+              if (initialRowsBuffer.length >= 60 || results.meta.cursor >= fileSize) {
+                const info = encontrarFilaEncabezados(initialRowsBuffer.slice(0, 100));
+                headerRowIndex = info.filaEncabezados;
+                const rawHeaderList = ((initialRowsBuffer[headerRowIndex] as unknown[]) || []).map((h) =>
+                  String(h ?? "").trim()
+                );
 
-    const rawHeaderList = ((rawRows[info.filaEncabezados] as unknown[]) || []).map((h) => String(h ?? "").trim());
-    const headerMap = new Map<string, keyof VentaRow>();
+                for (const h of rawHeaderList) {
+                  const normH = norm(h);
+                  const campo = MAPA[normH];
+                  if (campo) {
+                    headerMap.set(h, campo);
+                    detectados.add(campo);
+                  } else if (normH.match(/\b(20\d{2})\b/)) {
+                    headerMap.set(h, "anio");
+                    detectados.add("anio");
+                  } else {
+                    if (!esEncabezadoTecnicoOIgnorable(h)) {
+                      ignoradasSet.add(h);
+                    }
+                  }
+                }
+                headers = rawHeaderList;
+                headerDetected = true;
 
-    for (const h of rawHeaderList) {
-      const normH = norm(h);
-      const campo = MAPA[normH];
-      if (campo) {
-        headerMap.set(h, campo);
-        detectados.add(campo);
-      } else if (normH.match(/\b(20\d{2})\b/)) {
-        headerMap.set(h, "anio");
-        detectados.add("anio");
-      } else {
-        if (!esEncabezadoTecnicoOIgnorable(h)) {
-          ignoradasSet.add(h);
-        }
-      }
-    }
+                filas = initialRowsBuffer.slice(headerRowIndex + 1);
+              } else {
+                parser.resume();
+                return;
+              }
+            }
 
-    const dataRows = rawRows.slice(info.filaEncabezados + 1);
-    const totalDataRows = dataRows.length;
+            for (const arr of filas) {
+              if (!Array.isArray(arr) || arr.length === 0) continue;
+              const r: Record<string, unknown> = {};
+              for (let c = 0; c < headers.length; c++) {
+                const key = headers[c];
+                if (key === undefined) continue;
+                r[key] = arr[c] ?? null;
+              }
+              globalRowCounter++;
+              const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, fileDefaultYear);
+              if (fila) loteBuffer.push(asignarOcurrencia(fila, contadorOcurrencias));
 
-    for (let i = 0; i < totalDataRows; i += tamanoLote) {
-      const loteFilas: VentaRow[] = [];
-      const chunk = dataRows.slice(i, i + tamanoLote);
+              if (loteBuffer.length >= tamanoLote) {
+                const subLote = loteBuffer;
+                loteBuffer = [];
+                const res = await onLote(subLote);
+                recibidas += res.recibidas;
+                nuevas += res.nuevas;
+                const cursor = results.meta?.cursor ?? globalRowCounter * 100;
+                const porcentaje = fileSize > 0 ? Math.min(99, Math.round((cursor / fileSize) * 100)) : 50;
+                onProgreso?.({
+                  filasLeidas: recibidas,
+                  filasNuevas: nuevas,
+                  porcentaje,
+                  mensaje: `Procesando: ${recibidas.toLocaleString("es-CO")} filas (${nuevas.toLocaleString("es-CO")} nuevas)...`,
+                });
+              }
+            }
 
-      for (const arr of chunk) {
-        if (!Array.isArray(arr) || arr.length === 0) continue;
-        const r: Record<string, unknown> = {};
-        for (let c = 0; c < rawHeaderList.length; c++) {
-          const key = rawHeaderList[c];
-          if (key === undefined) continue;
-          r[key] = arr[c] ?? null;
-        }
-        globalRowCounter++;
-        const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, fileDefaultYear);
-        if (fila) loteFilas.push(asignarOcurrencia(fila, contadorOcurrencias));
-      }
+            parser.resume();
+          } catch (err) {
+            parser.abort();
+            reject(err);
+          }
+        },
+        complete: async () => {
+          try {
+            if (!headerDetected && initialRowsBuffer.length > 0) {
+              const info = encontrarFilaEncabezados(initialRowsBuffer);
+              headerRowIndex = info.filaEncabezados;
+              const rawHeaderList = ((initialRowsBuffer[headerRowIndex] as unknown[]) || []).map((h) =>
+                String(h ?? "").trim()
+              );
 
-      if (loteFilas.length > 0) {
-        const res = await onLote(loteFilas);
-        recibidas += res.recibidas;
-        nuevas += res.nuevas;
-      }
+              for (const h of rawHeaderList) {
+                const normH = norm(h);
+                const campo = MAPA[normH];
+                if (campo) {
+                  headerMap.set(h, campo);
+                  detectados.add(campo);
+                } else if (normH.match(/\b(20\d{2})\b/)) {
+                  headerMap.set(h, "anio");
+                  detectados.add("anio");
+                } else {
+                  if (!esEncabezadoTecnicoOIgnorable(h)) {
+                    ignoradasSet.add(h);
+                  }
+                }
+              }
+              headers = rawHeaderList;
 
-      const porcentaje = totalDataRows > 0 ? Math.min(100, Math.round(((i + chunk.length) / totalDataRows) * 100)) : 100;
-      onProgreso?.({
-        filasLeidas: recibidas,
-        filasNuevas: nuevas,
-        porcentaje,
-        mensaje: `Procesando: ${recibidas.toLocaleString("es-CO")} filas (${nuevas.toLocaleString("es-CO")} nuevas)...`,
+              const dataFilas = initialRowsBuffer.slice(headerRowIndex + 1);
+              for (const arr of dataFilas) {
+                if (!Array.isArray(arr) || arr.length === 0) continue;
+                const r: Record<string, unknown> = {};
+                for (let c = 0; c < headers.length; c++) {
+                  const key = headers[c];
+                  if (key === undefined) continue;
+                  r[key] = arr[c] ?? null;
+                }
+                globalRowCounter++;
+                const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, fileDefaultYear);
+                if (fila) loteBuffer.push(asignarOcurrencia(fila, contadorOcurrencias));
+              }
+            }
+
+            if (loteBuffer.length > 0) {
+              const res = await onLote(loteBuffer);
+              recibidas += res.recibidas;
+              nuevas += res.nuevas;
+              loteBuffer = [];
+            }
+
+            const faltantesCsv = COLUMNAS_ESPERADAS.filter((c) => {
+              const campo = MAPA[norm(c)];
+              return campo ? !detectados.has(campo) : false;
+            });
+
+            onProgreso?.({
+              filasLeidas: recibidas,
+              filasNuevas: nuevas,
+              porcentaje: 100,
+              mensaje: `Carga completada: ${recibidas.toLocaleString("es-CO")} procesadas (${nuevas.toLocaleString("es-CO")} nuevas)`,
+            });
+
+            resolve({
+              recibidas,
+              nuevas,
+              columnasDetectadas: [...detectados],
+              columnasFaltantes: faltantesCsv,
+              columnasIgnoradas: [...ignoradasSet],
+            });
+          } catch (err) {
+            reject(err);
+          }
+        },
+        error: (err) => {
+          reject(err);
+        },
       });
-    }
-
-    const faltantesCsv = COLUMNAS_ESPERADAS.filter((c) => {
-      const campo = MAPA[norm(c)];
-      return campo ? !detectados.has(campo) : false;
     });
-
-    onProgreso?.({
-      filasLeidas: recibidas,
-      filasNuevas: nuevas,
-      porcentaje: 100,
-      mensaje: `Carga completada: ${recibidas.toLocaleString("es-CO")} procesadas (${nuevas.toLocaleString("es-CO")} nuevas)`,
-    });
-
-    return {
-      recibidas,
-      nuevas,
-      columnasDetectadas: [...detectados],
-      columnasFaltantes: faltantesCsv,
-      columnasIgnoradas: [...ignoradasSet],
-    };
   }
 
   // Si es Excel (.xlsx, .xls)
-  if (file.size > 50 * 1024 * 1024) {
+  if (file.size > 150 * 1024 * 1024) {
     throw new Error(
-      "El archivo Excel supera los 50 MB. Por favor guárdalo/expórtalo en formato .CSV (delimitado por comas) para procesarlo de manera óptima."
+      "El archivo Excel supera los 150 MB. Por favor guárdalo/expórtalo en formato .CSV (delimitado por comas) para procesarlo de manera óptima."
     );
   }
 

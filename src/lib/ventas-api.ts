@@ -926,20 +926,39 @@ export async function registrarCargaCliente(
 }
 
 export async function purgarDatosVentas(): Promise<{ ok: boolean; filas_eliminadas: number; mensaje: string }> {
-  // 1. Invocar RPCs dedicados de purga si existen
+  // 1. Invocar RPCs dedicados de purga si existen en el backend
   await Promise.allSettled([
     invokeRpc("purgar_datos_ventas"),
     invokeRpc("purgar_ventas"),
     invokeRpc("limpiar_todo"),
   ]);
 
-  // 2. Ejecutar borrado directo en tablas de base de datos
+  // 2. Limpieza inmediata del historial de cargas
   await Promise.allSettled([
-    supabase.from("fact_ventas").delete().gte("id", 0),
-    supabase.from("fact_ventas").delete().neq("id", 0),
     supabase.from("cargas").delete().gte("id", 0),
     supabase.from("cargas").delete().neq("id", 0),
   ]);
+
+  // 3. Purgado resiliente por lotes de fact_ventas (evita statement timeout de PostgreSQL con cientos de miles de registros)
+  try {
+    const [minRes, maxRes] = await Promise.all([
+      supabase.from("fact_ventas").select("id").order("id", { ascending: true }).limit(1),
+      supabase.from("fact_ventas").select("id").order("id", { ascending: false }).limit(1),
+    ]);
+    const minId = minRes.data?.[0]?.id;
+    const maxId = maxRes.data?.[0]?.id;
+
+    if (typeof minId === "number" && typeof maxId === "number" && maxId >= minId) {
+      const STEP = 25000;
+      for (let current = minId; current <= maxId; current += STEP) {
+        await supabase.from("fact_ventas").delete().gte("id", current).lt("id", current + STEP);
+      }
+    }
+    // Barrido final directo para asegurar que la tabla quede en 0
+    await supabase.from("fact_ventas").delete().gte("id", 0);
+  } catch {
+    await supabase.from("fact_ventas").delete().not("id", "is", null);
+  }
 
   return {
     ok: true,

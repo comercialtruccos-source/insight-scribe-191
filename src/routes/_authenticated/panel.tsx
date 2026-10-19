@@ -6546,7 +6546,7 @@ function Panel() {
                       <Button
                         variant="destructive"
                         size="sm"
-                        disabled={purgarMutation.isPending || (resumen?.totalVentas ?? 0) === 0}
+                        disabled={purgarMutation.isPending}
                         className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm shrink-0"
                       >
                         <Trash2 className="mr-1.5 h-3.5 w-3.5" />
@@ -6596,10 +6596,10 @@ function Panel() {
                   <span className="font-medium text-foreground">
                     {archivo ? archivo.name : "Selecciona o arrastra tu archivo"}
                   </span>
-                  <span className="text-xs text-muted-foreground">.csv (recomendado para streaming sin límite de tamaño), .xlsx o .xls</span>
+                  <span className="text-xs text-muted-foreground">.csv (recomendado para streaming sin límite de tamaño), .xlsx, .xlsm o .xls</span>
                   <input
                     type="file"
-                    accept=".xlsx,.xls,.csv"
+                    accept=".xlsx,.xls,.xlsm,.csv"
                     className="hidden"
                     disabled={carga.isPending}
                     onChange={(e) => alSeleccionarArchivo(e.target.files?.[0] ?? null)}
