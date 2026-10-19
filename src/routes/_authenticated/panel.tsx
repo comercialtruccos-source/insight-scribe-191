@@ -15,6 +15,9 @@ import {
   calcularDashboard2RunRate,
   calcularDashboard3Digital,
   calcularDashboard4FuerzaVentas,
+  obtenerCanalIdDeVendedor,
+  calcularRankingAsesoresCanal,
+  type AsesorRankingCanal,
   calcularDashboard5Marketplaces,
   calcularDashboard6Referencias,
   obtenerTransaccionesDetalle,
@@ -324,6 +327,7 @@ function Panel() {
   const [vendedorIds, setVendedorIds] = useState<string[]>([]);
   const [zonaId, setZonaId] = useState<string>("todos");
   const [ciudadId, setCiudadId] = useState<string>("todos");
+  const [canalRankingOverride, setCanalRankingOverride] = useState<number | null>(null);
 
   // Sub-filtro de canal digital y búsqueda de SKU para Dashboard 3
   const [filtroCanalDigital, setFiltroCanalDigital] = useState<"todos" | "tienda_virtual" | "redes_sociales">("todos");
@@ -651,6 +655,68 @@ function Panel() {
     queryKey: ["bi-fact-ventas-yoy", filtrosYoY],
     queryFn: () => (filtrosYoY ? obtenerVentasRaw(filtrosYoY) : Promise.resolve([])),
     enabled: Boolean(habilitarYoY && filtrosYoY),
+    staleTime: 60 * 1000,
+  });
+
+  // Canal activo para el ranking de Dashboard 4 (detecta el canal oficial de cada vendedor)
+  const canalActivoRankingId = useMemo(() => {
+    if (canalId !== "todos") return Number(canalId);
+    if (canalRankingOverride !== null) return canalRankingOverride;
+
+    const activeVendId =
+      vendedorIds.length === 1
+        ? Number(vendedorIds[0])
+        : vendedorId !== "todos"
+        ? Number(vendedorId)
+        : (!esAdmin && vendedorIdsPermitidos?.length ? vendedorIdsPermitidos[0] : null);
+
+    if (activeVendId) {
+      return obtenerCanalIdDeVendedor(activeVendId, catalogos?.canales, rawVentas);
+    }
+
+    return 1; // Canal Mayorista Nacional por defecto
+  }, [canalId, canalRankingOverride, vendedorId, vendedorIds, esAdmin, vendedorIdsPermitidos, catalogos?.canales, rawVentas]);
+
+  // Si hay filtro de vendedor activo, necesitamos consultar las ventas del canal completo para el ranking de pares
+  const necesitaQueryCanalD4 = useMemo(() => {
+    return (
+      tabActivo === "d4" &&
+      (vendedorId !== "todos" || vendedorIds.length > 0 || (!esAdmin && Boolean(vendedorIdsPermitidos?.length)))
+    );
+  }, [tabActivo, vendedorId, vendedorIds, esAdmin, vendedorIdsPermitidos]);
+
+  const filtrosCanalD4 = useMemo(() => {
+    if (!necesitaQueryCanalD4) return null;
+    return {
+      anio: filtros.anio,
+      mes: filtros.mes,
+      fecha_desde: filtros.fecha_desde,
+      fecha_hasta: filtros.fecha_hasta,
+      canal_id: canalActivoRankingId,
+      marca_id: filtros.marca_id,
+      vendedor_id: null,
+      vendedor_ids: null,
+      zona_id: null,
+      ciudad_id: null,
+    };
+  }, [necesitaQueryCanalD4, filtros, canalActivoRankingId]);
+
+  const { data: rawVentasCanalD4 } = useQuery({
+    queryKey: ["bi-fact-ventas-canal-d4", filtrosCanalD4],
+    queryFn: () => (filtrosCanalD4 ? obtenerVentasRaw(filtrosCanalD4) : Promise.resolve([])),
+    enabled: Boolean(necesitaQueryCanalD4 && filtrosCanalD4),
+    staleTime: 60 * 1000,
+  });
+
+  const filtrosCanalD4YoY = useMemo(() => {
+    if (!habilitarYoY || !filtrosCanalD4) return null;
+    return obtenerFiltrosAnioAnterior(filtrosCanalD4, catalogos?.anios);
+  }, [habilitarYoY, filtrosCanalD4, catalogos?.anios]);
+
+  const { data: rawVentasCanalD4YoY } = useQuery({
+    queryKey: ["bi-fact-ventas-canal-d4-yoy", filtrosCanalD4YoY],
+    queryFn: () => (filtrosCanalD4YoY ? obtenerVentasRaw(filtrosCanalD4YoY) : Promise.resolve([])),
+    enabled: Boolean(necesitaQueryCanalD4 && filtrosCanalD4YoY),
     staleTime: 60 * 1000,
   });
 
@@ -996,6 +1062,50 @@ function Panel() {
     () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, vendedoresDisponibles, catalogos?.canales, undefined, compararAnioAnterior ? rawVentasYoY : undefined),
     [rawVentas, filtros, vendedoresDisponibles, catalogos, compararAnioAnterior, rawVentasYoY]
   );
+
+  // Ranking integral de asesores exclusivo por canal y unidades (prendas vendidas)
+  const rankingCanal = useMemo(() => {
+    const ventasFuente = necesitaQueryCanalD4 ? (rawVentasCanalD4 || []) : (rawVentas || []);
+    const ventasFuenteYoY = necesitaQueryCanalD4 ? (rawVentasCanalD4YoY || []) : (rawVentasYoY || []);
+
+    const activeVendId =
+      vendedorIds.length === 1
+        ? Number(vendedorIds[0])
+        : vendedorId !== "todos"
+        ? Number(vendedorId)
+        : (!esAdmin && vendedorIdsPermitidos?.length ? vendedorIdsPermitidos[0] : null);
+
+    const activeVendIds =
+      vendedorIds.length > 0
+        ? vendedorIds.map(Number)
+        : vendedorId !== "todos"
+        ? [Number(vendedorId)]
+        : (!esAdmin && vendedorIdsPermitidos?.length ? vendedorIdsPermitidos : undefined);
+
+    return calcularRankingAsesoresCanal(
+      ventasFuente,
+      canalActivoRankingId,
+      catalogos?.canales,
+      catalogos?.vendedores,
+      compararAnioAnterior ? ventasFuenteYoY : undefined,
+      activeVendId,
+      activeVendIds
+    );
+  }, [
+    necesitaQueryCanalD4,
+    rawVentasCanalD4,
+    rawVentas,
+    rawVentasCanalD4YoY,
+    rawVentasYoY,
+    canalActivoRankingId,
+    catalogos?.canales,
+    catalogos?.vendedores,
+    compararAnioAnterior,
+    vendedorIds,
+    vendedorId,
+    esAdmin,
+    vendedorIdsPermitidos,
+  ]);
   const d5 = useMemo(
     () => calcularDashboard5Marketplaces(rawVentas || [], filtros, catalogos?.canales, compararAnioAnterior ? rawVentasYoY : undefined),
     [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]
@@ -4822,7 +4932,7 @@ function Panel() {
                   </button>
                 </div>
                 <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 font-semibold text-xs">
-                  {d4?.kpis.totalAsesores ?? 0} asesores comerciales activos
+                  {rankingCanal.asesores.length} asesores en {rankingCanal.canalNombre}
                 </Badge>
               </div>
             </div>
@@ -4890,57 +5000,74 @@ function Panel() {
 
             {/* Gráficos de Rendimiento Comercial */}
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* Top 10 Asesores por Facturación */}
+              {/* Ranking de Asesores por Unidades Vendidas del Canal */}
               <Card>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-base font-semibold flex items-center justify-between">
-                        <span>Top 10 Asesores por Facturación ($)</span>
+                        <span>Ranking de Asesores por Unidades Vendidas</span>
                       </CardTitle>
-                      <CardDescription>Participación en valor monetario del equipo comercial</CardDescription>
+                      <CardDescription>
+                        {rankingCanal.canalNombre} • Solo volumen de prendas entregadas (sin valores monetarios)
+                      </CardDescription>
                     </div>
                     <InfoGrafica
-                      titulo="Top 10 Asesores por Facturación"
-                      descripcion="Ranking de los 10 asesores comerciales con mayor recaudo y facturación dentro del periodo seleccionado. Puedes hacer clic sobre una barra para aislar y enfocar a dicho vendedor."
-                      metrica="Ventas netas totales ($) facturadas por el asesor."
-                      interpretacion="Permite reconocer a los mejores ejecutivos de cuenta y detectar brechas de rendimiento dentro del equipo comercial."
+                      titulo="Ranking de Asesores por Unidades del Canal"
+                      descripcion="Ranking de los asesores comerciales del canal según la cantidad total de prendas vendidas en el periodo seleccionado. Sin valores en pesos ($), enfocado exclusivamente en volumen físico."
+                      metrica="Prendas físicas entregadas por cada asesor comercial dentro del canal."
+                      interpretacion="Permite evaluar el desempeño real del equipo comercial dentro de su canal respectivo sin distorsión por precios ni facturación monetaria."
                     />
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {(d4?.asesores || []).length === 0 ? (
+                  {rankingCanal.asesores.length === 0 ? (
                     <div className="h-[280px] grid place-items-center text-sm text-muted-foreground">
-                      Sin datos de asesores para el periodo seleccionado
+                      Sin datos de asesores en {rankingCanal.canalNombre} para el periodo seleccionado
                     </div>
                   ) : (
                     <div className="h-[280px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
-                          data={(d4?.asesores || []).slice(0, 10)}
+                          data={rankingCanal.asesores.slice(0, 10)}
                           layout="vertical"
                           margin={{ left: 30, right: 20 }}
                           onClick={(e) => {
                             if (e && e.activePayload && e.activePayload[0]) {
-                              const aItem = e.activePayload[0].payload as AsesorComercial;
-                              const matchVendedor = vendedoresDisponibles.find(
-                                (v) => v.nombre.toLowerCase() === aItem.vendedor.toLowerCase()
-                              );
-                              if (matchVendedor) {
-                                setVendedorId(String(matchVendedor.id) === String(vendedorId) ? "todos" : String(matchVendedor.id));
+                              const aItem = e.activePayload[0].payload as AsesorRankingCanal;
+                              if (aItem.vendedorIds && aItem.vendedorIds.length > 0) {
+                                const primaryId = String(aItem.vendedorIds[0]);
+                                if (vendedorId === primaryId || (vendedorIds.length === 1 && vendedorIds[0] === primaryId)) {
+                                  setVendedorId("todos");
+                                  setVendedorIds([]);
+                                } else {
+                                  setVendedorId(primaryId);
+                                  setVendedorIds(aItem.vendedorIds.map(String));
+                                }
                               }
                             }
                           }}
                         >
-                          <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} />
-                          <YAxis dataKey="vendedor" type="category" width={110} tick={{ fontSize: 11 }} />
+                          <XAxis
+                            type="number"
+                            tickFormatter={(v) => `${Number(v).toLocaleString("es-CO")} unds`}
+                            tick={{ fontSize: 11 }}
+                          />
+                          <YAxis dataKey="vendedor" type="category" width={115} tick={{ fontSize: 11 }} />
                           <Tooltip
-                            formatter={(v: number, name: string) => [
-                              formatoCOPFull(v),
-                              "Facturación Total",
+                            formatter={(v: number) => [
+                              `${Number(v).toLocaleString("es-CO")} prendas`,
+                              "Prendas Vendidas",
                             ]}
                           />
-                          <Bar dataKey="ventaTotal" fill="#4f46e5" radius={[0, 6, 6, 0]} className="cursor-pointer" />
+                          <Bar dataKey="unidades" radius={[0, 6, 6, 0]} className="cursor-pointer">
+                            {rankingCanal.asesores.slice(0, 10).map((entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={entry.isFocused ? "#f59e0b" : "#4f46e5"}
+                              />
+                            ))}
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -5006,138 +5133,195 @@ function Panel() {
               </Card>
             </div>
 
-            {/* Tabla Matriz Integral de Asesores */}
+            {/* Tabla Matriz de Ranking por Unidades del Canal */}
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
-                    <CardTitle className="text-base font-semibold">Ranking Integral de Asesores Comerciales</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base font-semibold">Ranking de Asesores por Unidades</CardTitle>
+                      <Badge variant="outline" className="bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 text-[11px] font-semibold">
+                        {rankingCanal.canalNombre}
+                      </Badge>
+                    </div>
                     <CardDescription>
-                      Métricas reales consolidadas: facturación, cuota de participación, unidades, transacciones y promedios por documento y prenda.
+                      Comparativa de volumen físico (prendas) exclusivamente entre los asesores comerciales del {rankingCanal.canalNombre}.
                     </CardDescription>
                   </div>
-                  {vendedorId !== "todos" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setVendedorId("todos")}
-                      className="text-xs border-amber-500/40 text-amber-700 dark:text-amber-300"
-                    >
-                      <FilterX className="h-3.5 w-3.5 mr-1 text-amber-500" />
-                      Quitar Filtro de Asesor
-                    </Button>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Selector de Canal para Admin */}
+                    {esAdmin && canalId === "todos" && (
+                      <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/60 text-xs">
+                        {[
+                          { id: 1, label: "Mayorista" },
+                          { id: 2, label: "Detal" },
+                          { id: 4, label: "Internacional" },
+                        ].map((ch) => (
+                          <button
+                            key={ch.id}
+                            type="button"
+                            onClick={() => {
+                              setCanalRankingOverride(ch.id);
+                              if (vendedorId !== "todos") {
+                                setVendedorId("todos");
+                                setVendedorIds([]);
+                              }
+                            }}
+                            className={cn(
+                              "px-2.5 py-1 rounded-md font-medium transition-colors",
+                              canalActivoRankingId === ch.id
+                                ? "bg-background shadow-xs text-foreground font-semibold"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            {ch.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {vendedorId !== "todos" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setVendedorId("todos");
+                          setVendedorIds([]);
+                        }}
+                        className="text-xs border-amber-500/40 text-amber-700 dark:text-amber-300"
+                      >
+                        <FilterX className="h-3.5 w-3.5 mr-1 text-amber-500" />
+                        Quitar Enfoque
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="overflow-x-auto p-0">
-                <table className="w-full text-xs text-left">
-                  <thead className="border-y border-border/80 uppercase text-muted-foreground font-semibold bg-muted/40">
-                    <tr>
-                      <th className="py-3 px-3 text-center w-12">#</th>
-                      <th className="py-3 px-3">Asesor Comercial</th>
-                      <th className="py-3 px-3 text-right">Facturación ($)</th>
-                      {compararAnioAnterior && <th className="py-3 px-3 text-right">Vs. Año Ant.</th>}
-                      <th className="py-3 px-3 text-left w-36">% Cartera</th>
-                      <th className="py-3 px-3 text-right">Prendas (Unds)</th>
-                      <th className="py-3 px-3 text-right">Facturas</th>
-                      <th className="py-3 px-3 text-right">Ticket Promedio</th>
-                      <th className="py-3 px-3 text-right">Precio Prom. / Prenda</th>
-                      <th className="py-3 px-3 text-right">Prendas / Factura</th>
-                      <th className="py-3 px-3 text-center">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {(d4?.asesores || []).map((a, idx) => {
-                      const matchVendedor = vendedoresDisponibles.find(
-                        (v) => v.nombre.toLowerCase() === a.vendedor.toLowerCase()
-                      );
-                      const isSelected = matchVendedor && String(matchVendedor.id) === String(vendedorId);
-                      return (
-                        <tr
-                          key={a.vendedor}
-                          onClick={() => {
-                            if (matchVendedor) {
-                              setVendedorId(isSelected ? "todos" : String(matchVendedor.id));
-                            }
-                          }}
-                          className={`cursor-pointer transition-colors ${
-                            isSelected
-                              ? "bg-amber-500/15 dark:bg-amber-950/30 font-semibold"
-                              : "hover:bg-muted/40"
-                          }`}
-                          title={matchVendedor ? "Clic para activar Modo Enfoque de este asesor" : undefined}
-                        >
-                          <td className="py-3 px-3 text-center text-muted-foreground font-mono">
-                            {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}`}
-                          </td>
-                          <td className="py-3 px-3 font-medium text-foreground">
-                            <div className="flex items-center gap-2">
-                              <span>{a.vendedor}</span>
-                              {isSelected && (
-                                <Badge variant="outline" className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40">
-                                  Enfocado
-                                </Badge>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-right font-bold text-foreground">{formatoCOPFull(a.ventaTotal)}</td>
-                          {compararAnioAnterior && (
-                            <td className="py-3 px-3 text-right font-mono">
-                              {a.ventaAnterior ? (
-                                <span
-                                  className={cn(
-                                    "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-semibold text-[11px]",
-                                    (a.crecimientoYoYPct ?? 0) >= 0
-                                      ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
-                                      : "text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20"
-                                  )}
-                                >
-                                  {(a.crecimientoYoYPct ?? 0) >= 0 ? "+" : ""}
-                                  {(a.crecimientoYoYPct ?? 0).toFixed(2)}%
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground text-[11px]">-</span>
-                              )}
-                            </td>
-                          )}
-                          <td className="py-3 px-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
-                                <div
-                                  className="h-full bg-indigo-600 rounded-full"
-                                  style={{ width: `${Math.min(100, a.participacionCarteraPct)}%` }}
-                                />
-                              </div>
-                              <span className="font-semibold text-[11px] text-muted-foreground">{Number(a.participacionCarteraPct).toFixed(2)}%</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-right text-muted-foreground font-medium">{a.unidades.toLocaleString("es-CO")}</td>
-                          <td className="py-3 px-3 text-right text-muted-foreground font-medium">{a.transacciones.toLocaleString("es-CO")}</td>
-                          <td className="py-3 px-3 text-right font-semibold text-foreground">{formatoCOP(a.ticketPromedio)}</td>
-                          <td className="py-3 px-3 text-right text-muted-foreground">{formatoCOP(a.precioPromedioPrenda)}</td>
-                          <td className="py-3 px-3 text-right font-medium text-muted-foreground">{Math.round(a.prendasPorTransaccion).toLocaleString("es-CO")} unds</td>
-                          <td className="py-3 px-3 text-center">
-                            <Button
-                              variant={isSelected ? "default" : "outline"}
-                              size="sm"
-                              className={`h-6 text-[11px] px-2 rounded-lg ${
-                                isSelected ? "bg-amber-600 hover:bg-amber-700 text-white" : "border-border/60 hover:bg-amber-500/10 hover:text-amber-700"
-                              }`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (matchVendedor) {
-                                  setVendedorId(isSelected ? "todos" : String(matchVendedor.id));
+                {rankingCanal.asesores.length === 0 ? (
+                  <div className="py-12 text-center text-sm text-muted-foreground">
+                    Sin ventas registradas para asesores en {rankingCanal.canalNombre} en este periodo.
+                  </div>
+                ) : (
+                  <table className="w-full text-xs text-left">
+                    <thead className="border-y border-border/80 uppercase text-muted-foreground font-semibold bg-muted/40">
+                      <tr>
+                        <th className="py-3 px-3 text-center w-12">#</th>
+                        <th className="py-3 px-3">Asesor Comercial</th>
+                        <th className="py-3 px-3 text-right">Prendas (Unds)</th>
+                        <th className="py-3 px-3 text-left w-36">% Cuota Canal</th>
+                        <th className="py-3 px-3 text-right">Facturas / Pedidos</th>
+                        <th className="py-3 px-3 text-right">Prendas / Factura</th>
+                        {compararAnioAnterior && <th className="py-3 px-3 text-right">Vs. Año Ant. (Prendas)</th>}
+                        <th className="py-3 px-3 text-center">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {rankingCanal.asesores.map((a, idx) => {
+                        const isSelected = a.isFocused;
+                        return (
+                          <tr
+                            key={a.vendedor}
+                            onClick={() => {
+                              if (a.vendedorIds && a.vendedorIds.length > 0) {
+                                const primaryId = String(a.vendedorIds[0]);
+                                if (isSelected) {
+                                  setVendedorId("todos");
+                                  setVendedorIds([]);
+                                } else {
+                                  setVendedorId(primaryId);
+                                  setVendedorIds(a.vendedorIds.map(String));
                                 }
-                              }}
-                            >
-                              {isSelected ? "Enfocado" : "Enfocar"}
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                              }
+                            }}
+                            className={`cursor-pointer transition-colors ${
+                              isSelected
+                                ? "bg-amber-500/15 dark:bg-amber-950/30 font-semibold"
+                                : "hover:bg-muted/40"
+                            }`}
+                            title="Clic para enfocar o des-enfocar este asesor"
+                          >
+                            <td className="py-3 px-3 text-center text-muted-foreground font-mono">
+                              {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}`}
+                            </td>
+                            <td className="py-3 px-3 font-medium text-foreground">
+                              <div className="flex items-center gap-2">
+                                <span>{a.vendedor}</span>
+                                {isSelected && (
+                                  <Badge variant="outline" className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40">
+                                    {(!esAdmin && vendedorIdsPermitidos?.some((id) => a.vendedorIds.includes(id))) ? "Tú (Enfocado)" : "Enfocado"}
+                                  </Badge>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-right font-bold text-foreground font-mono">
+                              {a.unidades.toLocaleString("es-CO")} unds
+                            </td>
+                            <td className="py-3 px-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-2 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className="h-full bg-indigo-600 rounded-full"
+                                    style={{ width: `${Math.min(100, a.cuotaCanalPct)}%` }}
+                                  />
+                                </div>
+                                <span className="font-semibold text-[11px] text-muted-foreground">{Number(a.cuotaCanalPct).toFixed(1)}%</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-right text-muted-foreground font-medium font-mono">
+                              {a.transacciones.toLocaleString("es-CO")}
+                            </td>
+                            <td className="py-3 px-3 text-right font-medium text-muted-foreground font-mono">
+                              {Math.round(a.prendasPorTransaccion).toLocaleString("es-CO")} unds
+                            </td>
+                            {compararAnioAnterior && (
+                              <td className="py-3 px-3 text-right font-mono">
+                                {a.unidadesAnterior > 0 ? (
+                                  <span
+                                    className={cn(
+                                      "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-semibold text-[11px]",
+                                      (a.crecimientoYoYPct ?? 0) >= 0
+                                        ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                                        : "text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20"
+                                    )}
+                                  >
+                                    {(a.crecimientoYoYPct ?? 0) >= 0 ? "+" : ""}
+                                    {(a.crecimientoYoYPct ?? 0).toFixed(1)}% ({a.diferenciaUnidadesYoY >= 0 ? "+" : ""}{a.diferenciaUnidadesYoY.toLocaleString("es-CO")})
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground text-[11px]">-</span>
+                                )}
+                              </td>
+                            )}
+                            <td className="py-3 px-3 text-center">
+                              <Button
+                                variant={isSelected ? "default" : "outline"}
+                                size="sm"
+                                className={`h-6 text-[11px] px-2 rounded-lg ${
+                                  isSelected ? "bg-amber-600 hover:bg-amber-700 text-white" : "border-border/60 hover:bg-amber-500/10 hover:text-amber-700"
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (a.vendedorIds && a.vendedorIds.length > 0) {
+                                    const primaryId = String(a.vendedorIds[0]);
+                                    if (isSelected) {
+                                      setVendedorId("todos");
+                                      setVendedorIds([]);
+                                    } else {
+                                      setVendedorId(primaryId);
+                                      setVendedorIds(a.vendedorIds.map(String));
+                                    }
+                                  }
+                                }}
+                              >
+                                {isSelected ? "Enfocado" : "Enfocar"}
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
               </CardContent>
             </Card>
               </>

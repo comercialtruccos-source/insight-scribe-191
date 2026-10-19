@@ -5,6 +5,7 @@ import {
   obtenerKpisCalibradosCMI,
   obtenerMatrizMesAnioCalibradaCMI,
 } from "./cuadro-mando-matrix";
+import { USUARIOS_INICIALES_PRECONFIGURADOS } from "./permisos-vendedores";
 
 export type FiltrosBI = {
   anio?: number | null | undefined;
@@ -2964,6 +2965,251 @@ export async function obtenerDashboard4FuerzaVentas(filtros: FiltrosBI): Promise
     supabase.from("dim_pais").select("id, nombre"),
   ]);
   return calcularDashboard4FuerzaVentas(data, filtros, vendedoresRes.data || [], canalesRes.data || [], paisesRes.data || []);
+}
+
+// =========================================================================
+// RANKING DE ASESORES POR CANAL Y UNIDADES (PRENDAS VENDIDAS)
+// =========================================================================
+export type AsesorRankingCanal = {
+  vendedor: string;
+  vendedorIds: number[];
+  canalId: number;
+  canalNombre: string;
+  unidades: number;
+  unidadesAnterior: number;
+  crecimientoYoYPct: number | null;
+  diferenciaUnidadesYoY: number;
+  transacciones: number;
+  cuotaCanalPct: number;
+  prendasPorTransaccion: number;
+  isFocused?: boolean;
+};
+
+export type ResultadoRankingCanal = {
+  canalId: number;
+  canalNombre: string;
+  totalUnidadesCanal: number;
+  totalTransaccionesCanal: number;
+  asesores: AsesorRankingCanal[];
+};
+
+/**
+ * Deduce o resuelve el canal oficial al que pertenece un vendedor
+ */
+export function obtenerCanalIdDeVendedor(
+  vendedorId?: number | null,
+  catalogosCanales?: CatalogoItem[],
+  ventas?: FilaFactVentas[],
+  vendedorNombre?: string | null
+): number {
+  if (vendedorId) {
+    const pre = USUARIOS_INICIALES_PRECONFIGURADOS.find((u) => u.vendedorIds?.includes(vendedorId));
+    if (pre && pre.canal) {
+      const uc = pre.canal.trim().toUpperCase();
+      if (uc.includes("MAYORISTA NACIONAL") || uc.includes("PRESENCIAL")) return 1;
+      if (uc.includes("DETAL") || uc.includes("TIENDA")) return 2;
+      if (uc.includes("EXPORTACION") || uc.includes("INTERNACIONAL")) return 4;
+    }
+  }
+
+  if (vendedorNombre) {
+    const vNorm = vendedorNombre.trim().toLowerCase();
+    const pre = USUARIOS_INICIALES_PRECONFIGURADOS.find((u) => (u.nombre || "").toLowerCase() === vNorm);
+    if (pre && pre.canal) {
+      const uc = pre.canal.trim().toUpperCase();
+      if (uc.includes("MAYORISTA NACIONAL") || uc.includes("PRESENCIAL")) return 1;
+      if (uc.includes("DETAL") || uc.includes("TIENDA")) return 2;
+      if (uc.includes("EXPORTACION") || uc.includes("INTERNACIONAL")) return 4;
+    }
+  }
+
+  if (vendedorId && ventas && ventas.length > 0) {
+    const canalCounts = new Map<number, number>();
+    for (const r of ventas) {
+      if ((r.vendedor_id === vendedorId || r.vendedor2_id === vendedorId) && r.canal_id) {
+        canalCounts.set(r.canal_id, (canalCounts.get(r.canal_id) || 0) + 1);
+      }
+    }
+    if (canalCounts.size > 0) {
+      let maxCount = -1;
+      let bestCanal = 1;
+      for (const [cId, count] of canalCounts.entries()) {
+        if (count > maxCount) {
+          maxCount = count;
+          bestCanal = cId;
+        }
+      }
+      return bestCanal;
+    }
+  }
+
+  return 1;
+}
+
+/**
+ * Calcula el ranking de asesores comerciales exclusivo para el canal al que pertenecen,
+ * evaluando únicamente volumen físico de prendas (unidades vendidas), pedidos y cuota de canal,
+ * evitando completamente cualquier cifra monetaria ($).
+ */
+export function calcularRankingAsesoresCanal(
+  ventasCanal: FilaFactVentas[],
+  canalId: number,
+  catalogosCanales?: CatalogoItem[],
+  catalogosVendedores?: CatalogoItem[],
+  ventasCanalAnterior?: FilaFactVentas[],
+  vendedorActivoId?: number | null,
+  vendedorActivoIds?: number[]
+): ResultadoRankingCanal {
+  let canalNombre = catalogosCanales?.find((c) => c.id === canalId)?.nombre;
+  if (!canalNombre) {
+    if (canalId === 1) canalNombre = "Canal Mayorista Nacional";
+    else if (canalId === 2) canalNombre = "Canal Detal (Tiendas y Digital)";
+    else if (canalId === 4) canalNombre = "Canal Internacional (Exportaciones)";
+    else canalNombre = `Canal #${canalId}`;
+  }
+
+  const vendIdToAsesorInfo = new Map<number, { nombre: string; allIds: number[] }>();
+  for (const u of USUARIOS_INICIALES_PRECONFIGURADOS) {
+    if (u.vendedorIds && u.vendedorIds.length > 0) {
+      for (const id of u.vendedorIds) {
+        vendIdToAsesorInfo.set(id, { nombre: u.nombre || `Asesor #${id}`, allIds: u.vendedorIds });
+      }
+    }
+  }
+
+  const vCatMap = new Map<number, string>((catalogosVendedores || []).map((v) => [v.id, v.nombre]));
+
+  const asesoresMap = new Map<
+    string,
+    {
+      vendedor: string;
+      vendedorIds: Set<number>;
+      unidades: number;
+      transaccionesSet: Set<string>;
+    }
+  >();
+
+  const totalTransaccionesSet = new Set<string>();
+
+  for (const r of ventasCanal) {
+    if (r.canal_id !== canalId) continue;
+    if (r.transaccion && !esTransaccionFacturacionReal(r.transaccion)) continue;
+
+    const cant = Math.round(Number(r.cantidad || 0));
+    const txId = r.transaccion ? String(r.transaccion).trim() : `row_${r.id}`;
+    totalTransaccionesSet.add(txId);
+
+    const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
+    let asesorNombre = "Asesor General";
+    let asesorIds = new Set<number>();
+
+    if (vId) {
+      const info = vendIdToAsesorInfo.get(vId);
+      if (info) {
+        asesorNombre = info.nombre;
+        asesorIds = new Set(info.allIds);
+      } else {
+        const catNom = vCatMap.get(vId);
+        asesorNombre = catNom ? catNom.trim() : `Asesor #${vId}`;
+        asesorIds = new Set([vId]);
+      }
+    }
+
+    const normNom = asesorNombre.toUpperCase();
+    if (
+      normNom.includes("PUBLICIDAD") ||
+      normNom.includes("BODEGA") ||
+      normNom.includes("GENERAL") ||
+      normNom.includes("EMPLEADOS")
+    ) {
+      continue;
+    }
+
+    if (!asesoresMap.has(asesorNombre)) {
+      asesoresMap.set(asesorNombre, {
+        vendedor: asesorNombre,
+        vendedorIds: asesorIds,
+        unidades: 0,
+        transaccionesSet: new Set<string>(),
+      });
+    }
+
+    const item = asesoresMap.get(asesorNombre)!;
+    item.unidades += cant;
+    item.transaccionesSet.add(txId);
+    if (vId) item.vendedorIds.add(vId);
+  }
+
+  const unidadesAnteriorMap = new Map<string, number>();
+  if (ventasCanalAnterior && ventasCanalAnterior.length > 0) {
+    for (const r of ventasCanalAnterior) {
+      if (r.canal_id !== canalId) continue;
+      if (r.transaccion && !esTransaccionFacturacionReal(r.transaccion)) continue;
+
+      const cant = Math.round(Number(r.cantidad || 0));
+      const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
+      let asesorNombre = "Asesor General";
+
+      if (vId) {
+        const info = vendIdToAsesorInfo.get(vId);
+        if (info) {
+          asesorNombre = info.nombre;
+        } else {
+          const catNom = vCatMap.get(vId);
+          asesorNombre = catNom ? catNom.trim() : `Asesor #${vId}`;
+        }
+      }
+
+      unidadesAnteriorMap.set(asesorNombre, (unidadesAnteriorMap.get(asesorNombre) || 0) + cant);
+    }
+  }
+
+  let totalUnidadesCanal = 0;
+  for (const a of asesoresMap.values()) {
+    totalUnidadesCanal += a.unidades;
+  }
+
+  const focusedIdsSet = new Set<number>();
+  if (vendedorActivoId) focusedIdsSet.add(vendedorActivoId);
+  if (vendedorActivoIds) {
+    for (const id of vendedorActivoIds) focusedIdsSet.add(id);
+  }
+
+  const asesores: AsesorRankingCanal[] = Array.from(asesoresMap.values()).map((a) => {
+    const txCount = a.transaccionesSet.size;
+    const uAnt = unidadesAnteriorMap.get(a.vendedor) || 0;
+    const yoyPct = uAnt > 0 ? Math.round(((a.unidades - uAnt) / uAnt) * 1000) / 10 : null;
+    const cuotaPct = totalUnidadesCanal > 0 ? Math.round((a.unidades / totalUnidadesCanal) * 1000) / 10 : 0;
+    const prendasPorTx = txCount > 0 ? Math.round(a.unidades / txCount) : 0;
+
+    const idsArray = Array.from(a.vendedorIds);
+    const isFocused = idsArray.some((id) => focusedIdsSet.has(id));
+
+    return {
+      vendedor: a.vendedor,
+      vendedorIds: idsArray,
+      canalId,
+      canalNombre,
+      unidades: a.unidades,
+      unidadesAnterior: uAnt,
+      crecimientoYoYPct: yoyPct,
+      diferenciaUnidadesYoY: a.unidades - uAnt,
+      transacciones: txCount,
+      cuotaCanalPct: cuotaPct,
+      prendasPorTransaccion: prendasPorTx,
+      isFocused,
+    };
+  });
+
+  asesores.sort((a, b) => b.unidades - a.unidades);
+
+  return {
+    canalId,
+    canalNombre,
+    totalUnidadesCanal,
+    totalTransaccionesCanal: totalTransaccionesSet.size,
+    asesores,
+  };
 }
 
 // =========================================================================
