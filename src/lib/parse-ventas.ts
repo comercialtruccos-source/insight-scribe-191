@@ -904,6 +904,35 @@ export type ResultadoFilaEncabezados = {
 };
 
 /**
+ * Determina si un encabezado es un artefacto técnico, columna sin nombre generada por parsers
+ * (ej. _1, _2, __EMPTY) o filtro/marcador de tabla dinámica de Excel.
+ */
+export function esEncabezadoTecnicoOIgnorable(header: string): boolean {
+  if (!header) return true;
+  const h = header.trim();
+  if (!h) return true;
+  if (/^_\d+$/.test(h)) return true;
+  if (/^__EMPTY/i.test(h)) return true;
+  if (/^\d+$/.test(h)) return true;
+
+  const lower = h.toLowerCase();
+  if (lower.includes("varios elementos")) return true;
+  if (lower.includes("multiple items")) return true;
+  if (lower.includes("(todas)") || lower.includes("(todos)") || lower.includes("(all)")) return true;
+  if (
+    lower.startsWith("etiquetas de") ||
+    lower.startsWith("total general") ||
+    lower.startsWith("total oficial")
+  ) {
+    return true;
+  }
+  if (lower.startsWith("cuenta de ") || lower.startsWith("suma de ")) return true;
+  if (/^(transaccion|pedidos|vendedor|documento|factura)_\d+$/i.test(h)) return true;
+
+  return false;
+}
+
+/**
  * Corrige el rango !ref de la hoja de cálculo.
  * Algunos ERPs (como HGI) o motores de exportación escriben <dimension ref="A1:XX269"/>
  * acotando erróneamente la hoja a 269 filas (encabezado + 268 registros).
@@ -1061,20 +1090,6 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
           const rawRows = (results.data || []) as unknown[][];
           const info = encontrarFilaEncabezados(rawRows);
 
-          if (!info.esValido && info.archivoTienePivot) {
-            resolve({
-              columnasDetectadas: [],
-              columnasFaltantes: COLUMNAS_ESPERADAS,
-              columnasIgnoradas: [],
-              esCSV: true,
-              tamanoBytes: file.size,
-              esPivotOInvalido: true,
-              mensajeAviso:
-                "⚠️ El archivo CSV seleccionado contiene una Tabla Dinámica o filtros de informe ('(Varios elementos)', 'PEDIDOS') en lugar de la base de datos detallada. Para registrar ventas, por favor exporta y sube la pestaña con las transacciones fila por fila (con columnas de Fecha, Vendedor, Cliente, Cantidad, Valor, etc.).",
-            });
-            return;
-          }
-
           const rawHeaderList = ((rawRows[info.filaEncabezados] as unknown[]) || [])
             .map((h) => String(h ?? "").trim())
             .filter(Boolean);
@@ -1090,11 +1105,7 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
             } else if (normH.match(/\b(20\d{2})\b/)) {
               detectados.add("anio");
             } else {
-              if (
-                !h.startsWith("_") &&
-                !h.match(/^\d+$/) &&
-                !h.toLowerCase().includes("varios elementos")
-              ) {
+              if (!esEncabezadoTecnicoOIgnorable(h)) {
                 ignoradas.push(h);
               }
             }
@@ -1105,17 +1116,20 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
             return campo ? !detectados.has(campo) : false;
           });
 
+          let mensajeAviso: string | undefined = undefined;
+          if (info.archivoTienePivot || detectados.size < 3) {
+            mensajeAviso =
+              "💡 Nota: Se procesará este archivo. Si deseas registrar la base de datos detallada de ventas con todos los pedidos (fecha, vendedor, cliente, valor, etc.), puedes subir el archivo Excel (.xlsx) con la pestaña completa o el CSV detallado.";
+          }
+
           resolve({
             columnasDetectadas: [...detectados],
             columnasFaltantes: faltantes,
             columnasIgnoradas: ignoradas,
             esCSV: true,
             tamanoBytes: file.size,
-            esPivotOInvalido: detectados.size < 2,
-            mensajeAviso:
-              detectados.size < 2
-                ? "⚠️ No se encontraron las columnas requeridas de ventas en el archivo CSV."
-                : undefined,
+            esPivotOInvalido: false,
+            mensajeAviso,
           });
         },
         error: (err) => reject(err),
@@ -1177,11 +1191,7 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
           } else if (normH.match(/\b(20\d{2})\b/)) {
             detectados.add("anio");
           } else {
-            if (
-              !h.startsWith("_") &&
-              !h.match(/^\d+$/) &&
-              !h.toLowerCase().includes("varios elementos")
-            ) {
+            if (!esEncabezadoTecnicoOIgnorable(h)) {
               ignoradas.push(h);
             }
           }
@@ -1208,23 +1218,22 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
             hojaSeleccionada: mejor.sheetName,
             hojasDisponibles: wb.SheetNames,
             mensajeAviso,
+            esPivotOInvalido: false,
           };
         }
 
         // Caso: El libro entero solo contiene tablas dinámicas o ninguna hoja tiene columnas de venta válidas
-        const tienePivotEnAlguna = analisisHojas.some((h) => h.archivoTienePivot);
         return {
           columnasDetectadas: [...detectados],
           columnasFaltantes: faltantes,
           columnasIgnoradas: ignoradas,
           esCSV: false,
           tamanoBytes: file.size,
-          esPivotOInvalido: true,
+          esPivotOInvalido: false,
           hojaSeleccionada: mejor.sheetName,
           hojasDisponibles: wb.SheetNames,
-          mensajeAviso: tienePivotEnAlguna
-            ? "⚠️ El libro de Excel parece contener Tablas Dinámicas o filtros de informe ('(Varios elementos)'). Asegúrate de que el archivo incluya la hoja con la Base de Datos DETALLADA de ventas (con columnas de Transacción, Fecha, Vendedor, Cliente, Cantidad, Valor, etc.)."
-            : "⚠️ No se encontraron las columnas requeridas de ventas en el archivo Excel.",
+          mensajeAviso:
+            "💡 Nota: Se procesará la hoja disponible. Para cargar las transacciones completas con fecha y cliente, asegúrate de que el libro contenga la hoja con la base de datos detallada.",
         };
       }
     }
@@ -1306,11 +1315,6 @@ export async function procesarArchivoPorStreaming({
     }
 
     const info = encontrarFilaEncabezados(rawRows);
-    if (!info.esValido && info.archivoTienePivot) {
-      throw new Error(
-        "El archivo CSV contiene una Tabla Dinámica ('(Varios elementos)') en lugar de la base de datos detallada de ventas. Por favor exporta y sube la pestaña con las transacciones completas (con columnas de Fecha, Vendedor, Cliente, Cantidad, Valor, etc.)."
-      );
-    }
 
     const rawHeaderList = ((rawRows[info.filaEncabezados] as unknown[]) || []).map((h) => String(h ?? "").trim());
     const headerMap = new Map<string, keyof VentaRow>();
@@ -1325,7 +1329,7 @@ export async function procesarArchivoPorStreaming({
         headerMap.set(h, "anio");
         detectados.add("anio");
       } else {
-        if (!h.startsWith("_") && !h.match(/^\d+$/) && !h.toLowerCase().includes("varios elementos")) {
+        if (!esEncabezadoTecnicoOIgnorable(h)) {
           ignoradasSet.add(h);
         }
       }
@@ -1462,13 +1466,11 @@ export async function procesarArchivoPorStreaming({
   });
 
   if (hojasAProcesar.length === 0) {
-    const tienePivot = analisisHojas.some((h) => h.archivoTienePivot);
-    if (tienePivot) {
-      throw new Error(
-        "El archivo de Excel contiene únicamente Tablas Dinámicas o informes resumidos ('(Varios elementos)'). Por favor incluye o sube la hoja con la Base de Datos DETALLADA de ventas (con columnas como Transacción, Fecha, Vendedor, Cliente, Cantidad, Valor, etc.)."
-      );
+    if (analisisHojas.length > 0) {
+      hojasAProcesar.push(analisisHojas[0]!);
+    } else {
+      throw new Error("El archivo no contiene filas o datos para procesar.");
     }
-    throw new Error("No se encontraron hojas con columnas de ventas válidas en el archivo Excel.");
   }
 
   for (const { sheetName, rawRows, filaEncabezados, headers } of hojasAProcesar) {
@@ -1486,7 +1488,7 @@ export async function procesarArchivoPorStreaming({
         headerMap.set(h, "anio");
         detectados.add("anio");
       } else {
-        if (!h.startsWith("_") && !h.match(/^\d+$/) && !h.toLowerCase().includes("varios elementos")) {
+        if (!esEncabezadoTecnicoOIgnorable(h)) {
           ignoradasSet.add(h);
         }
       }
