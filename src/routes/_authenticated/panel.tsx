@@ -2204,8 +2204,8 @@ function Panel() {
               </div>
             )}
 
-            {/* 6 Tarjetas KPI Ejecutivas con Dimensiones Homogéneas */}
-            <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-6 items-stretch">
+            {/* 5 Tarjetas KPI Ejecutivas con Dimensiones Homogéneas */}
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 items-stretch">
               <CardKpi
                 titulo="Venta Neta Total"
                 valor={formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}
@@ -2249,18 +2249,6 @@ function Panel() {
                 icono={<Target className="h-5 w-5 text-purple-500" />}
                 cargando={cD1}
                 badgeCumplimientoPct={(d1?.kpis.pptoYTD ?? 0) > 0 ? d1?.kpis.cumplimientoGlobalPct : undefined}
-              />
-              <CardKpi
-                titulo={nombreMesPuntual ? `Cartera ${nombreMesPuntual}` : (mes !== "todos" ? "Cartera del Mes" : "Cartera Actual")}
-                valor={formatoCOPFull(d1?.kpis.carteraTotal ?? 0)}
-                subtexto={
-                  (d1?.kpis.carteraTotal ?? 0) > 0
-                    ? `Mora > 90d: ${formatoCOPFull(d1?.kpis.carteraMayor90Dias ?? 0)} (${Number(d1?.kpis.carteraPct90Dias ?? 0).toFixed(2)}%)`
-                    : `Mora > 90d: ${formatoCOPFull(0)} (0.00%)`
-                }
-                icono={<CreditCard className="h-5 w-5 text-amber-500" />}
-                cargando={cD1}
-                badgeCarteraPct={d1?.kpis.carteraPct90Dias}
               />
             </div>
 
