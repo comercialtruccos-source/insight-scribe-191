@@ -4955,48 +4955,40 @@ function Panel() {
             ) : (
               <>
                 {/* Tarjetas KPI Reales Fuerza de Ventas */}
-                <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-              <CardKpi
-                titulo="Facturación Fuerza Comercial"
-                valor={formatoCOPFull(d4?.kpis.totalVentaFuerza ?? 0)}
-                subtexto={`Nacional: ${formatoCOP(d4?.kpis.ventaNacional ?? 0)} • Export: ${formatoCOP(d4?.kpis.ventaExportaciones ?? 0)}`}
-                icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
-                cargando={cD4}
-                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d4?.kpis.totalVentaFuerza} anterior={d4?.kpis.ventaAnteriorTotal} porcentaje={d4?.kpis.crecimientoYoYPct} /> : undefined}
-              />
-              <CardKpi
-                titulo="Prendas Comercializadas"
-                valor={`${(d4?.kpis.totalUnidades ?? 0).toLocaleString("es-CO")} unds`}
-                subtexto="Volumen total entregado"
-                icono={<Package className="h-5 w-5 text-blue-500" />}
-                cargando={cD4}
-                badgeYoY={compararAnioAnterior ? <BadgeYoYUnidades actual={d4?.kpis.totalUnidades} anterior={d4?.kpis.unidadesAnteriorTotal} /> : undefined}
-              />
-              <CardKpi
-                titulo="Facturas / Transacciones"
-                valor={`${(d4?.kpis.totalTransacciones ?? 0).toLocaleString("es-CO")}`}
-                subtexto="Documentos emitidos"
-                icono={<Receipt className="h-5 w-5 text-amber-500" />}
-                cargando={cD4}
-                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d4?.kpis.totalTransacciones} anterior={d4?.kpis.totalTransaccionesAnterior} tipo="entero" label="trans. ant." /> : undefined}
-              />
-              <CardKpi
-                titulo="Ticket Promedio / Pedido"
-                valor={formatoCOP(d4?.kpis.ticketPromedio ?? 0)}
-                subtexto="Facturación por documento"
-                icono={<ShoppingBag className="h-5 w-5 text-purple-500" />}
-                cargando={cD4}
-                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d4?.kpis.ticketPromedio} anterior={d4?.kpis.ticketPromedioAnterior} label="ticket ant." /> : undefined}
-              />
-              <CardKpi
-                titulo="Precio Promedio / Prenda"
-                valor={formatoCOP(d4?.kpis.precioPromedioPrenda ?? 0)}
-                subtexto="ASP unitario ponderado"
-                icono={<Tag className="h-5 w-5 text-cyan-500" />}
-                cargando={cD4}
-                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d4?.kpis.precioPromedioPrenda} anterior={d4?.kpis.precioPromedioPrendaAnterior} /> : undefined}
-              />
-            </div>
+                <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+                  <CardKpi
+                    titulo="Facturación Fuerza Comercial"
+                    valor={formatoCOPFull(d4?.kpis.totalVentaFuerza ?? 0)}
+                    subtexto={`Nacional: ${formatoCOP(d4?.kpis.ventaNacional ?? 0)} • Export: ${formatoCOP(d4?.kpis.ventaExportaciones ?? 0)}`}
+                    icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
+                    cargando={cD4}
+                    badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d4?.kpis.totalVentaFuerza} anterior={d4?.kpis.ventaAnteriorTotal} porcentaje={d4?.kpis.crecimientoYoYPct} /> : undefined}
+                  />
+                  <CardKpi
+                    titulo="Prendas Comercializadas"
+                    valor={`${(d4?.kpis.totalUnidades ?? 0).toLocaleString("es-CO")} unds`}
+                    subtexto="Volumen total entregado"
+                    icono={<Package className="h-5 w-5 text-blue-500" />}
+                    cargando={cD4}
+                    badgeYoY={compararAnioAnterior ? <BadgeYoYUnidades actual={d4?.kpis.totalUnidades} anterior={d4?.kpis.unidadesAnteriorTotal} /> : undefined}
+                  />
+                  <CardKpi
+                    titulo="Ticket Promedio / Pedido"
+                    valor={formatoCOP(d4?.kpis.ticketPromedio ?? 0)}
+                    subtexto="Facturación por documento"
+                    icono={<ShoppingBag className="h-5 w-5 text-purple-500" />}
+                    cargando={cD4}
+                    badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d4?.kpis.ticketPromedio} anterior={d4?.kpis.ticketPromedioAnterior} label="ticket ant." /> : undefined}
+                  />
+                  <CardKpi
+                    titulo="Precio Promedio / Prenda"
+                    valor={formatoCOP(d4?.kpis.precioPromedioPrenda ?? 0)}
+                    subtexto="ASP unitario ponderado"
+                    icono={<Tag className="h-5 w-5 text-cyan-500" />}
+                    cargando={cD4}
+                    badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d4?.kpis.precioPromedioPrenda} anterior={d4?.kpis.precioPromedioPrendaAnterior} /> : undefined}
+                  />
+                </div>
 
             {/* Gráficos de Rendimiento Comercial */}
             <div className="grid gap-6 lg:grid-cols-2">
