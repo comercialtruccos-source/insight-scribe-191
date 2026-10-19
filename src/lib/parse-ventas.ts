@@ -207,12 +207,34 @@ export function toNumber(val: unknown): number | null {
   const ultimoPunto = limpio.lastIndexOf(".");
   const ultimaComa = limpio.lastIndexOf(",");
 
-  if (ultimaComa > ultimoPunto && ultimaComa === limpio.length - 3) {
-    limpio = limpio.replace(/\./g, "").replace(",", ".");
-  } else if (ultimoPunto > ultimaComa && ultimoPunto === limpio.length - 3) {
-    limpio = limpio.replace(/,/g, "");
-  } else {
-    limpio = limpio.replace(/[.,]/g, "");
+  if (ultimaComa !== -1 && ultimoPunto !== -1) {
+    if (ultimaComa > ultimoPunto) {
+      // Formato latino: 1.250.000,50 -> la coma es decimal
+      limpio = limpio.replace(/\./g, "").replace(",", ".");
+    } else {
+      // Formato anglosajón: 1,250,000.50 -> el punto es decimal
+      limpio = limpio.replace(/,/g, "");
+    }
+  } else if (ultimaComa !== -1) {
+    // Solo hay coma: decimal (ej. 150,5 o 1250,00) o miles (ej. 1,500,000)
+    const partes = limpio.split(",");
+    if (partes.length === 2 && partes[1] && partes[1].length <= 3) {
+      limpio = partes[0] + "." + partes[1];
+    } else {
+      limpio = limpio.replace(/,/g, "");
+    }
+  } else if (ultimoPunto !== -1) {
+    // Solo hay punto: decimal (ej. 150.5 o 1250.00) o miles (ej. 1.500.000)
+    const partes = limpio.split(".");
+    if (partes.length === 2 && partes[1] && partes[1].length <= 2) {
+      // 1 o 2 decimales -> mantener punto decimal
+    } else if (partes.length === 2 && partes[0] && partes[0].length <= 3 && partes[1] && partes[1].length === 3) {
+      // ej. "1.500" -> miles en formato latino
+      limpio = limpio.replace(/\./g, "");
+    } else if (partes.length > 2) {
+      // ej. 1.500.000 -> miles en formato latino
+      limpio = limpio.replace(/\./g, "");
+    }
   }
 
   const num = parseFloat(limpio);
@@ -843,7 +865,10 @@ export function normalizarFila(
     fila.sku !== null ||
     fila.producto !== null ||
     fila.valor !== null ||
-    fila.cantidad !== null;
+    fila.cantidad !== null ||
+    fila.vendedor !== null ||
+    fila.tercero !== null ||
+    fila.fecha !== null;
 
   if (!tieneDatos) {
     return null;
@@ -860,17 +885,124 @@ export type MetadataArchivo = {
   tamanoBytes: number;
 };
 
+/**
+ * Corrige el rango !ref de la hoja de cálculo.
+ * Algunos ERPs (como HGI) o motores de exportación escriben <dimension ref="A1:XX269"/>
+ * acotando erróneamente la hoja a 269 filas (encabezado + 268 registros).
+ * Esta función examina todas las celdas presentes tanto en modo denso como disperso
+ * y expande !ref para abarcar el 100% de los datos reales.
+ */
+export function expandirRangoHoja(sheet: XLSX.WorkSheet): string | undefined {
+  if (!sheet) return undefined;
+  let minR = Infinity, maxR = -1, minC = Infinity, maxC = -1;
+  let hasCells = false;
+
+  if (Array.isArray(sheet)) {
+    // Modo denso: sheet es un arreglo de filas
+    for (let r = 0; r < sheet.length; r++) {
+      const row = sheet[r];
+      if (!row || !Array.isArray(row)) continue;
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c];
+        if (cell !== undefined && cell !== null && (cell.v !== undefined || cell.t !== undefined)) {
+          if (r < minR) minR = r;
+          if (r > maxR) maxR = r;
+          if (c < minC) minC = c;
+          if (c > maxC) maxC = c;
+          hasCells = true;
+        }
+      }
+    }
+  } else {
+    // Modo disperso estándar: propiedades como "A1", "B2", etc.
+    for (const key of Object.keys(sheet)) {
+      if (key.startsWith("!")) continue;
+      const cell = XLSX.utils.decode_cell(key);
+      if (cell.r < minR) minR = cell.r;
+      if (cell.r > maxR) maxR = cell.r;
+      if (cell.c < minC) minC = cell.c;
+      if (cell.c > maxC) maxC = cell.c;
+      hasCells = true;
+    }
+  }
+
+  // Respetar también el !ref original si tenía dimensiones válidas y mayores
+  if (sheet["!ref"]) {
+    try {
+      const existingRange = XLSX.utils.decode_range(sheet["!ref"]);
+      if (existingRange.s.r < minR) minR = existingRange.s.r;
+      if (existingRange.e.r > maxR) maxR = existingRange.e.r;
+      if (existingRange.s.c < minC) minC = existingRange.s.c;
+      if (existingRange.e.c > maxC) maxC = existingRange.e.c;
+      hasCells = true;
+    } catch {
+      // Ignorar si el rango existente está malformado
+    }
+  }
+
+  if (hasCells && maxR >= 0 && maxC >= 0) {
+    if (minR === Infinity) minR = 0;
+    if (minC === Infinity) minC = 0;
+    const newRef = XLSX.utils.encode_range({ s: { r: minR, c: minC }, e: { r: maxR, c: maxC } });
+    sheet["!ref"] = newRef;
+    return newRef;
+  }
+  return sheet["!ref"];
+}
+
+/**
+ * Escanea las primeras 30 filas de una matriz de datos crudos para identificar
+ * cuál fila corresponde a los encabezados de columnas reales (ignorando títulos,
+ * logotipos o membretes iniciales del ERP).
+ */
+export function encontrarFilaEncabezados(filas: unknown[][]): {
+  filaEncabezados: number;
+  coincidencias: number;
+} {
+  let mejorFila = 0;
+  let maxCoincidencias = 0;
+
+  const limite = Math.min(filas.length, 30);
+  for (let r = 0; r < limite; r++) {
+    const fila = filas[r];
+    if (!Array.isArray(fila)) continue;
+
+    let coincidencias = 0;
+    for (const celda of fila) {
+      if (celda === null || celda === undefined) continue;
+      const texto = String(celda).trim();
+      if (!texto) continue;
+      const n = norm(texto);
+      if (MAPA[n] || n.match(/\b(20\d{2})\b/)) {
+        coincidencias++;
+      }
+    }
+
+    if (coincidencias > maxCoincidencias) {
+      maxCoincidencias = coincidencias;
+      mejorFila = r;
+    }
+  }
+
+  return { filaEncabezados: mejorFila, coincidencias: maxCoincidencias };
+}
+
 export async function inspeccionarEncabezados(file: File): Promise<MetadataArchivo> {
   const esCSV = file.name.toLowerCase().endsWith(".csv");
 
   if (esCSV) {
     return new Promise((resolve, reject) => {
-      Papa.parse(file, {
-        preview: 5,
-        header: true,
+      Papa.parse<unknown[]>(file, {
+        preview: 35,
+        header: false,
         skipEmptyLines: "greedy",
         complete: (results) => {
-          const headers = results.meta.fields || [];
+          const rawRows = (results.data || []) as unknown[][];
+          const { filaEncabezados } = encontrarFilaEncabezados(rawRows);
+          const headers = ((rawRows[filaEncabezados] as unknown[]) || [])
+            .map((h) => String(h ?? "").trim())
+            .filter(Boolean);
+
           const detectados = new Set<string>();
           const ignoradas: string[] = [];
 
@@ -906,41 +1038,48 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
 
   // Si es Excel (.xlsx, .xls)
   try {
-    const buffer = await file.slice(0, Math.min(file.size, 1024 * 1024)).arrayBuffer();
-    const wb = XLSX.read(buffer, { type: "array", dense: true, sheetRows: 2 });
+    const buffer = await file.slice(0, Math.min(file.size, 2 * 1024 * 1024)).arrayBuffer();
+    const wb = XLSX.read(buffer, { type: "array", dense: true, sheetRows: 35 });
     if (wb.SheetNames.length > 0) {
-      const sheetName = wb.SheetNames[0]!;
-      const sheet = wb.Sheets[sheetName]!;
-      const rawRows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
-      if (rawRows.length > 0 && Array.isArray(rawRows[0])) {
-        const headers = rawRows[0].map((h) => String(h ?? "").trim()).filter(Boolean);
-        const detectados = new Set<string>();
-        const ignoradas: string[] = [];
+      for (const sheetName of wb.SheetNames) {
+        const sheet = wb.Sheets[sheetName];
+        if (!sheet) continue;
+        expandirRangoHoja(sheet);
+        const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 }) as unknown[][];
+        const { filaEncabezados, coincidencias } = encontrarFilaEncabezados(rawRows);
+        if (coincidencias > 0) {
+          const headers = ((rawRows[filaEncabezados] as unknown[]) || [])
+            .map((h) => String(h ?? "").trim())
+            .filter(Boolean);
 
-        for (const h of headers) {
-          const normH = norm(h);
-          const campo = MAPA[normH];
-          if (campo) {
-            detectados.add(campo);
-          } else if (normH.match(/\b(20\d{2})\b/)) {
-            detectados.add("anio");
-          } else {
-            ignoradas.push(h);
+          const detectados = new Set<string>();
+          const ignoradas: string[] = [];
+
+          for (const h of headers) {
+            const normH = norm(h);
+            const campo = MAPA[normH];
+            if (campo) {
+              detectados.add(campo);
+            } else if (normH.match(/\b(20\d{2})\b/)) {
+              detectados.add("anio");
+            } else {
+              ignoradas.push(h);
+            }
           }
+
+          const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
+            const campo = MAPA[norm(c)];
+            return campo ? !detectados.has(campo) : false;
+          });
+
+          return {
+            columnasDetectadas: [...detectados],
+            columnasFaltantes: faltantes,
+            columnasIgnoradas: ignoradas,
+            esCSV: false,
+            tamanoBytes: file.size,
+          };
         }
-
-        const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
-          const campo = MAPA[norm(c)];
-          return campo ? !detectados.has(campo) : false;
-        });
-
-        return {
-          columnasDetectadas: [...detectados],
-          columnasFaltantes: faltantes,
-          columnasIgnoradas: ignoradas,
-          esCSV: false,
-          tamanoBytes: file.size,
-        };
       }
     }
   } catch {
@@ -996,118 +1135,108 @@ export async function procesarArchivoPorStreaming({
   const contadorOcurrencias = new Map<string, number>();
 
   if (esCSV) {
-    return new Promise((resolve, reject) => {
-      let loteBuffer: VentaRow[] = [];
-      const headerMap = new Map<string, keyof VentaRow>();
-      let headers: string[] = [];
-      const fileSize = file.size;
-
-      Papa.parse<string[]>(file, {
-        header: false,
-        skipEmptyLines: "greedy",
-        chunkSize: 1024 * 1024 * 2, // Lotes de streaming de 2MB
-        chunk: async (results, parser) => {
-          parser.pause();
-          try {
-            let filas = results.data;
-            if (headers.length === 0 && filas.length > 0) {
-              const primera = filas[0] ?? [];
-              headers = primera.map((h) => String(h ?? "").trim());
-              for (const h of headers) {
-                const normH = norm(h);
-                const campo = MAPA[normH];
-                if (campo) {
-                  headerMap.set(h, campo);
-                  detectados.add(campo);
-                } else if (normH.match(/\b(20\d{2})\b/)) {
-                  headerMap.set(h, "anio");
-                  detectados.add("anio");
-                } else {
-                  ignoradasSet.add(h);
-                }
-              }
-              filas = filas.slice(1);
-            }
-
-            for (const arr of filas) {
-              if (!Array.isArray(arr) || arr.length === 0) continue;
-              const r: Record<string, unknown> = {};
-              for (let c = 0; c < headers.length; c++) {
-                const key = headers[c];
-                if (key === undefined) continue;
-                r[key] = arr[c] ?? null;
-              }
-              globalRowCounter++;
-              const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, fileDefaultYear);
-              if (fila) loteBuffer.push(asignarOcurrencia(fila, contadorOcurrencias));
-
-              if (loteBuffer.length >= tamanoLote) {
-                const subLote = loteBuffer;
-                loteBuffer = [];
-                const res = await onLote(subLote);
-                recibidas += res.recibidas;
-                nuevas += res.nuevas;
-                const cursor = results.meta?.cursor ?? globalRowCounter * 100;
-                const porcentaje = fileSize > 0 ? Math.min(99, Math.round((cursor / fileSize) * 100)) : 50;
-                onProgreso?.({
-                  filasLeidas: recibidas,
-                  filasNuevas: nuevas,
-                  porcentaje,
-                  mensaje: `Procesando: ${recibidas.toLocaleString("es-CO")} filas (${nuevas.toLocaleString("es-CO")} nuevas)...`,
-                });
-              }
-            }
-
-            parser.resume();
-          } catch (err) {
-            parser.abort();
-            reject(err);
-          }
-        },
-        complete: async () => {
-          try {
-            if (loteBuffer.length > 0) {
-              const res = await onLote(loteBuffer);
-              recibidas += res.recibidas;
-              nuevas += res.nuevas;
-              loteBuffer = [];
-            }
-
-            const faltantesCsv = COLUMNAS_ESPERADAS.filter((c) => {
-              const campo = MAPA[norm(c)];
-              return campo ? !detectados.has(campo) : false;
-            });
-
-            onProgreso?.({
-              filasLeidas: recibidas,
-              filasNuevas: nuevas,
-              porcentaje: 100,
-              mensaje: `Carga completada: ${recibidas.toLocaleString("es-CO")} procesadas (${nuevas.toLocaleString("es-CO")} nuevas)`,
-            });
-
-            resolve({
-              recibidas,
-              nuevas,
-              columnasDetectadas: [...detectados],
-              columnasFaltantes: faltantesCsv,
-              columnasIgnoradas: [...ignoradasSet],
-            });
-          } catch (err) {
-            reject(err);
-          }
-        },
-        error: (err) => {
-          reject(err);
-        },
-      });
+    onProgreso?.({
+      filasLeidas: 0,
+      filasNuevas: 0,
+      porcentaje: 5,
+      mensaje: "Leyendo y analizando archivo CSV...",
     });
+
+    const texto = await file.text();
+    const parsed = Papa.parse<unknown[]>(texto, {
+      header: false,
+      skipEmptyLines: "greedy",
+    });
+
+    const rawRows = (parsed.data || []) as unknown[][];
+    if (rawRows.length === 0) {
+      return {
+        recibidas: 0,
+        nuevas: 0,
+        columnasDetectadas: [],
+        columnasFaltantes: COLUMNAS_ESPERADAS,
+        columnasIgnoradas: [],
+      };
+    }
+
+    const { filaEncabezados } = encontrarFilaEncabezados(rawRows);
+    const rawHeaderList = ((rawRows[filaEncabezados] as unknown[]) || []).map((h) => String(h ?? "").trim());
+    const headerMap = new Map<string, keyof VentaRow>();
+
+    for (const h of rawHeaderList) {
+      const normH = norm(h);
+      const campo = MAPA[normH];
+      if (campo) {
+        headerMap.set(h, campo);
+        detectados.add(campo);
+      } else if (normH.match(/\b(20\d{2})\b/)) {
+        headerMap.set(h, "anio");
+        detectados.add("anio");
+      } else {
+        ignoradasSet.add(h);
+      }
+    }
+
+    const dataRows = rawRows.slice(filaEncabezados + 1);
+    const totalDataRows = dataRows.length;
+
+    for (let i = 0; i < totalDataRows; i += tamanoLote) {
+      const loteFilas: VentaRow[] = [];
+      const chunk = dataRows.slice(i, i + tamanoLote);
+
+      for (const arr of chunk) {
+        if (!Array.isArray(arr) || arr.length === 0) continue;
+        const r: Record<string, unknown> = {};
+        for (let c = 0; c < rawHeaderList.length; c++) {
+          const key = rawHeaderList[c];
+          if (key === undefined) continue;
+          r[key] = arr[c] ?? null;
+        }
+        globalRowCounter++;
+        const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, fileDefaultYear);
+        if (fila) loteFilas.push(asignarOcurrencia(fila, contadorOcurrencias));
+      }
+
+      if (loteFilas.length > 0) {
+        const res = await onLote(loteFilas);
+        recibidas += res.recibidas;
+        nuevas += res.nuevas;
+      }
+
+      const porcentaje = totalDataRows > 0 ? Math.min(100, Math.round(((i + chunk.length) / totalDataRows) * 100)) : 100;
+      onProgreso?.({
+        filasLeidas: recibidas,
+        filasNuevas: nuevas,
+        porcentaje,
+        mensaje: `Procesando: ${recibidas.toLocaleString("es-CO")} filas (${nuevas.toLocaleString("es-CO")} nuevas)...`,
+      });
+    }
+
+    const faltantesCsv = COLUMNAS_ESPERADAS.filter((c) => {
+      const campo = MAPA[norm(c)];
+      return campo ? !detectados.has(campo) : false;
+    });
+
+    onProgreso?.({
+      filasLeidas: recibidas,
+      filasNuevas: nuevas,
+      porcentaje: 100,
+      mensaje: `Carga completada: ${recibidas.toLocaleString("es-CO")} procesadas (${nuevas.toLocaleString("es-CO")} nuevas)`,
+    });
+
+    return {
+      recibidas,
+      nuevas,
+      columnasDetectadas: [...detectados],
+      columnasFaltantes: faltantesCsv,
+      columnasIgnoradas: [...ignoradasSet],
+    };
   }
 
-
   // Si es Excel (.xlsx, .xls)
-  if (file.size > 25 * 1024 * 1024) {
+  if (file.size > 50 * 1024 * 1024) {
     throw new Error(
-      "El archivo Excel supera los 25 MB. Por favor guárdalo/expórtalo en formato .CSV (delimitado por comas) para procesar todas las 680.000 filas en streaming sin límite de memoria."
+      "El archivo Excel supera los 50 MB. Por favor guárdalo/expórtalo en formato .CSV (delimitado por comas) para procesarlo de manera óptima."
     );
   }
 
@@ -1131,31 +1260,72 @@ export async function procesarArchivoPorStreaming({
 
   if (wb.SheetNames.length === 0) throw new Error("El archivo no contiene hojas de datos.");
 
+  // Pre-inspeccionar hojas para saber cuáles tienen datos de ventas
+  const hojasProcesables: { sheetName: string; rawRows: unknown[][]; filaEncabezados: number; headers: string[] }[] = [];
+
   for (const sheetName of wb.SheetNames) {
+    const hoja = wb.Sheets[sheetName];
+    if (!hoja) continue;
+
+    // CRÍTICO: Recalcular rango real de la hoja para no truncar a 268 registros
+    expandirRangoHoja(hoja);
+
+    const rawRows = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, defval: null, raw: true }) as unknown[][];
+    if (!rawRows || rawRows.length === 0) continue;
+
+    const { filaEncabezados, coincidencias } = encontrarFilaEncabezados(rawRows);
+    // Si hay más de una hoja, requerimos al menos 2 coincidencias de columnas para no procesar hojas vacías o instructivos
+    if (wb.SheetNames.length > 1 && coincidencias < 2) continue;
+
+    const headers = ((rawRows[filaEncabezados] as unknown[]) || []).map((h) => String(h ?? "").trim());
+    hojasProcesables.push({ sheetName, rawRows, filaEncabezados, headers });
+  }
+
+  if (hojasProcesables.length === 0) {
+    // Si ninguna cumplió el filtro estricto, tomar la primera hoja disponible
+    const sheetName = wb.SheetNames[0]!;
+    const hoja = wb.Sheets[sheetName]!;
+    expandirRangoHoja(hoja);
+    const rawRows = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, defval: null, raw: true }) as unknown[][];
+    const { filaEncabezados } = encontrarFilaEncabezados(rawRows);
+    const headers = ((rawRows[filaEncabezados] as unknown[]) || []).map((h) => String(h ?? "").trim());
+    hojasProcesables.push({ sheetName, rawRows, filaEncabezados, headers });
+  }
+
+  for (const { sheetName, rawRows, filaEncabezados, headers } of hojasProcesables) {
     const matchSheetYear = sheetName.match(/\b(20\d{2})\b/);
     const sheetDefaultYear = matchSheetYear ? parseInt(matchSheetYear[1]!, 10) : fileDefaultYear;
 
-    const hoja = wb.Sheets[sheetName]!;
-    const crudo = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, {
-      defval: null,
-      raw: true,
-    });
-
-    if (crudo.length === 0) continue;
-
-    const headers = Object.keys(crudo[0]!);
     const headerMap = new Map<string, keyof VentaRow>();
     for (const h of headers) {
-      const campo = MAPA[norm(h)];
-      if (campo) headerMap.set(h, campo);
+      const normH = norm(h);
+      const campo = MAPA[normH];
+      if (campo) {
+        headerMap.set(h, campo);
+        detectados.add(campo);
+      } else if (normH.match(/\b(20\d{2})\b/)) {
+        headerMap.set(h, "anio");
+        detectados.add("anio");
+      } else {
+        ignoradasSet.add(h);
+      }
     }
 
-    const total = crudo.length;
-    for (let i = 0; i < total; i += tamanoLote) {
-      const loteFilas: VentaRow[] = [];
-      const chunk = crudo.slice(i, i + tamanoLote);
+    const dataRows = rawRows.slice(filaEncabezados + 1);
+    const totalDataRows = dataRows.length;
 
-      for (const r of chunk) {
+    for (let i = 0; i < totalDataRows; i += tamanoLote) {
+      const loteFilas: VentaRow[] = [];
+      const chunk = dataRows.slice(i, i + tamanoLote);
+
+      for (const arr of chunk) {
+        if (!Array.isArray(arr) || arr.length === 0) continue;
+        const r: Record<string, unknown> = {};
+        for (let c = 0; c < headers.length; c++) {
+          const key = headers[c];
+          if (key === undefined) continue;
+          r[key] = arr[c] ?? null;
+        }
         globalRowCounter++;
         const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, sheetDefaultYear);
         if (fila) loteFilas.push(asignarOcurrencia(fila, contadorOcurrencias));
@@ -1167,12 +1337,12 @@ export async function procesarArchivoPorStreaming({
         nuevas += res.nuevas;
       }
 
-      const porcentaje = Math.min(100, Math.round(((i + chunk.length) / total) * 100));
+      const porcentaje = totalDataRows > 0 ? Math.min(100, Math.round(((i + chunk.length) / totalDataRows) * 100)) : 100;
       onProgreso?.({
         filasLeidas: recibidas,
         filasNuevas: nuevas,
         porcentaje,
-        mensaje: `Hoja "${sheetName}": ${recibidas.toLocaleString("es-CO")} filas procesadas...`,
+        mensaje: `Hoja "${sheetName}": ${recibidas.toLocaleString("es-CO")} filas procesadas (${nuevas.toLocaleString("es-CO")} nuevas)...`,
       });
     }
   }
