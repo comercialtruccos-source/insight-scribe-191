@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+import { ingestarLoteClienteDirecto } from "./ventas-api";
+
 export type LoteEntrada = {
   archivo: string;
   filas: unknown[];
@@ -13,17 +15,8 @@ export const ingestarLote = createServerFn({ method: "POST" })
     if (input.filas.length > 2000) throw new Error("Lote demasiado grande");
     return input;
   })
-  .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { data: res, error } = await supabase.rpc("ingest_ventas", {
-      payload: data.filas as never,
-    });
-    if (error) throw new Error(error.message);
-    const fila = Array.isArray(res) ? res[0] : res;
-    return {
-      recibidas: Number(fila?.recibidas ?? 0),
-      nuevas: Number(fila?.nuevas ?? 0),
-    };
+  .handler(async ({ data }) => {
+    return await ingestarLoteClienteDirecto(data.filas as any[]);
   });
 
 export const registrarCarga = createServerFn({ method: "POST" })

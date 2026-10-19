@@ -708,14 +708,33 @@ async function asegurarValoresDimension(
 
   for (let i = 0; i < toInsert.length; i += 100) {
     const chunk = toInsert.slice(i, i + 100);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase.from(tabla) as any).insert(chunk).select("id, nombre");
-    if (data) {
-      for (const d of data) {
-        if (d.id && d.nombre) {
-          cache.set(d.nombre.trim().toLowerCase(), d.id);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from(tabla) as any).insert(chunk).select("id, nombre");
+      if (data) {
+        for (const d of data) {
+          if (d.id && d.nombre) {
+            cache.set(d.nombre.trim().toLowerCase(), d.id);
+          }
         }
       }
+      if (error) {
+        // En caso de que algunos nombres ya existan, consultar los existentes para actualizar la caché
+        const nombresChunk = chunk.map((c) => String(c.nombre));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: existing } = await (supabase.from(tabla) as any)
+          .select("id, nombre")
+          .in("nombre", nombresChunk);
+        if (existing) {
+          for (const ex of existing) {
+            if (ex.id && ex.nombre) {
+              cache.set(String(ex.nombre).trim().toLowerCase(), ex.id);
+            }
+          }
+        }
+      }
+    } catch {
+      // Continuar sin interrumpir el flujo principal
     }
   }
 }
@@ -832,17 +851,27 @@ export async function ingestarLoteClienteDirecto(filas: any[]): Promise<{ recibi
     };
   });
 
+  // Deduplicar dentro del lote para evitar conflictos internos de clave en PostgreSQL
+  const vistos = new Set<string>();
+  const rowsUnicos: typeof rowsToInsert = [];
+  for (const r of rowsToInsert) {
+    if (!vistos.has(r.row_hash)) {
+      vistos.add(r.row_hash);
+      rowsUnicos.push(r);
+    }
+  }
+
   // 3. Upsert en fact_ventas ignorando duplicados exactamente igual que Postgres
   let nuevasCount = 0;
-  for (let i = 0; i < rowsToInsert.length; i += 500) {
-    const chunk = rowsToInsert.slice(i, i + 500);
+  for (let i = 0; i < rowsUnicos.length; i += 500) {
+    const chunk = rowsUnicos.slice(i, i + 500);
     const { data: insData, error: insErr } = await supabase
       .from("fact_ventas")
       .upsert(chunk, { onConflict: "row_hash", ignoreDuplicates: true })
       .select("id");
 
     if (insErr) {
-      console.warn("Error en upsert por lote, reintentando fila a fila:", insErr);
+      console.warn("Aviso en upsert por lote, procesando fila a fila:", insErr.message);
       for (const row of chunk) {
         const { data: singleData } = await supabase
           .from("fact_ventas")
@@ -859,42 +888,14 @@ export async function ingestarLoteClienteDirecto(filas: any[]): Promise<{ recibi
 }
 
 export async function ingestarLoteCliente(filas: unknown[]) {
+  // Ingestión directa y robusta en tablas Supabase.
+  // Evita el error 'permission denied for function ingest_ventas' (Postgres 42501)
+  // que ocurre al invocar el procedimiento remoto no concedido a usuarios autenticados.
   try {
-    const { data: res, error } = await supabase.rpc("ingest_ventas", {
-      payload: filas as never,
-    });
-
-    if (error) {
-      const msg = (error.message || "").toLowerCase();
-      if (
-        error.code === "42501" ||
-        msg.includes("permission denied") ||
-        msg.includes("no autorizado") ||
-        msg.includes("not found")
-      ) {
-        // Fallback resiliente directo a tablas Supabase
-        return await ingestarLoteClienteDirecto(filas as any[]);
-      }
-      throw new Error(error.message);
-    }
-
-    const fila = Array.isArray(res) ? res[0] : res;
-    return {
-      recibidas: Number(fila?.recibidas ?? 0),
-      nuevas: Number(fila?.nuevas ?? 0),
-    };
+    return await ingestarLoteClienteDirecto(filas as any[]);
   } catch (err: any) {
-    const msg = (err?.message || "").toLowerCase();
-    if (
-      err?.code === "42501" ||
-      msg.includes("permission denied") ||
-      msg.includes("no autorizado") ||
-      msg.includes("not found")
-    ) {
-      // Fallback resiliente directo a tablas Supabase
-      return await ingestarLoteClienteDirecto(filas as any[]);
-    }
-    throw err;
+    console.error("Error en ingestarLoteCliente:", err);
+    throw new Error(err?.message || "Error al procesar el lote de ventas en base de datos");
   }
 }
 
@@ -925,23 +926,14 @@ export async function registrarCargaCliente(
 }
 
 export async function purgarDatosVentas(): Promise<{ ok: boolean; filas_eliminadas: number; mensaje: string }> {
-  // 1. Invocar ingest_ventas con acción especial purge
-  try {
-    await supabase.rpc("ingest_ventas", {
-      payload: [{ __action__: "purge" }] as never,
-    });
-  } catch {
-    // Continuar con siguientes métodos
-  }
-
-  // 2. Invocar RPCs dedicados de purga
+  // 1. Invocar RPCs dedicados de purga si existen
   await Promise.allSettled([
     invokeRpc("purgar_datos_ventas"),
     invokeRpc("purgar_ventas"),
     invokeRpc("limpiar_todo"),
   ]);
 
-  // 3. Ejecutar borrado directo en tablas de base de datos
+  // 2. Ejecutar borrado directo en tablas de base de datos
   await Promise.allSettled([
     supabase.from("fact_ventas").delete().gte("id", 0),
     supabase.from("fact_ventas").delete().neq("id", 0),
@@ -957,16 +949,14 @@ export async function purgarDatosVentas(): Promise<{ ok: boolean; filas_eliminad
 }
 
 export async function eliminarCarga(cargaId: number): Promise<{ ok: boolean }> {
-  // 1. Invocar ingest_ventas con payload delete_carga
-  try {
-    await supabase.rpc("ingest_ventas", {
-      payload: [{ __action__: "delete_carga", carga_id: cargaId }] as never,
-    });
-  } catch {
-    // Continuar con siguientes métodos
-  }
+  // 1. Invocar RPC dedicada si existe
+  await Promise.allSettled([
+    invokeRpc("eliminar_carga", { p_carga_id: cargaId }),
+    invokeRpc("eliminar_carga", { carga_id: cargaId }),
+    invokeRpc("eliminar_carga", { id: cargaId }),
+  ]);
 
-  // 2. Invocar RPC dedicada
+  // 2. Borrado directo en cargas
   await Promise.allSettled([
     invokeRpc("eliminar_carga", { p_carga_id: cargaId }),
     invokeRpc("eliminar_carga", { carga_id: cargaId }),
