@@ -5540,7 +5540,7 @@ function Panel() {
             </div>
 
             {/* Tarjetas KPI Gerenciales de Referencias */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            <div className="grid gap-3.5 sm:gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
               <CardKpi
                 titulo="Facturación Neta"
                 valor={formatoCOPFull(d6?.kpis.totalVentaNeta ?? 0)}
@@ -5566,7 +5566,7 @@ function Panel() {
                 badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d6?.kpis.totalReferenciasActivas} anterior={d6?.kpis.totalReferenciasActivasAnterior} tipo="entero" label="SKUs ant." /> : undefined}
               />
               <CardKpi
-                titulo="Precio Promedio (ASP)"
+                titulo="Precio Promedio"
                 valor={formatoCOPFull(d6?.kpis.precioPromedioPonderado ?? 0)}
                 subtexto="Ticket unitario ponderado"
                 icono={<Tag className="h-5 w-5 text-amber-500" />}
@@ -5575,8 +5575,8 @@ function Panel() {
               />
               <CardKpi
                 titulo="Concentración Pareto"
-                valor={`${Number(d6?.kpis.concentracionParetoA.ventaPct ?? 0).toFixed(2)}%`}
-                subtexto={`Generado por el ${Number(d6?.kpis.concentracionParetoA.referenciasPct ?? 0).toFixed(2)}% de SKUs`}
+                valor={`${Number(d6?.kpis.concentracionParetoA.ventaPct ?? 0).toFixed(1)}%`}
+                subtexto={`Generado por el ${Number(d6?.kpis.concentracionParetoA.referenciasPct ?? 0).toFixed(1)}% de SKUs`}
                 icono={<Percent className="h-5 w-5 text-purple-500" />}
                 cargando={cD6}
               />
@@ -5585,19 +5585,11 @@ function Panel() {
                 valor={d6?.kpis.referenciaTopVentas?.sku ?? "N/A"}
                 subtexto={
                   d6?.kpis.referenciaTopVentas
-                    ? `${formatoCOP(d6.kpis.referenciaTopVentas.valor)} (${Number(d6.kpis.referenciaTopVentas.porcentaje).toFixed(2)}% total)`
+                    ? `${formatoCOP(d6.kpis.referenciaTopVentas.valor)} (${Number(d6.kpis.referenciaTopVentas.porcentaje).toFixed(1)}% total)`
                     : "Sin datos"
                 }
                 icono={<Award className="h-5 w-5 text-pink-500" />}
                 cargando={cD6}
-              />
-              <CardKpi
-                titulo="Tasa Devolución"
-                valor={`${Number(d6?.kpis.tasaDevolucionGlobal ?? 0).toFixed(2)}%`}
-                subtexto={`Total devs: ${formatoCOP(d6?.kpis.totalDevoluciones ?? 0)}`}
-                icono={<ArrowDownRight className="h-5 w-5 text-rose-500" />}
-                cargando={cD6}
-                badgeYoY={compararAnioAnterior ? <BadgeYoY actual={d6?.kpis.tasaDevolucionGlobal} anterior={d6?.kpis.tasaDevolucionAnterior} tipo="pct" invertido={true} label="tasa ant." /> : undefined}
               />
             </div>
 
@@ -6804,10 +6796,10 @@ function InfoGrafica({
 
 function getKpiValueFontSize(val: string) {
   const len = val.length;
-  if (len >= 16) return "text-sm sm:text-base xl:text-lg 2xl:text-xl";
-  if (len >= 13) return "text-base sm:text-lg xl:text-xl 2xl:text-2xl";
-  if (len >= 10) return "text-lg sm:text-xl xl:text-2xl 2xl:text-[1.65rem]";
-  return "text-xl sm:text-2xl xl:text-[1.65rem]";
+  if (len >= 15) return "text-sm sm:text-base xl:text-[14px] 2xl:text-base";
+  if (len >= 12) return "text-base sm:text-lg xl:text-[15px] 2xl:text-lg";
+  if (len >= 9) return "text-lg sm:text-xl xl:text-lg 2xl:text-xl";
+  return "text-xl sm:text-2xl xl:text-xl 2xl:text-2xl";
 }
 
 function CardKpi({
@@ -6835,18 +6827,18 @@ function CardKpi({
     <Card className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/95 backdrop-blur-md shadow-2xs hover:shadow-lg hover:border-primary/40 transition-all duration-300 glass-card-hover h-full flex flex-col justify-between">
       {/* Top accent glowing gradient beam on hover */}
       <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full space-y-2 flex-1">
+      <CardContent className="p-3.5 sm:p-4 flex flex-col justify-between h-full space-y-2 flex-1">
         <div>
           {/* Header Zone: Min height locked for 100% vertical alignment */}
-          <div className="flex items-start justify-between gap-2 min-h-[2.4rem]">
+          <div className="flex items-start justify-between gap-1.5 sm:gap-2 min-h-[2.4rem]">
             <p
-              className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground leading-snug line-clamp-2"
+              className="text-[11px] sm:text-xs font-semibold uppercase tracking-tight text-muted-foreground leading-tight line-clamp-2 break-words flex-1 pr-1"
               title={titulo}
             >
               {titulo}
             </p>
             {icono && (
-              <div className="grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-xl bg-muted/60 text-muted-foreground group-hover:bg-primary/15 group-hover:text-primary group-hover:scale-110 transition-all duration-200 shrink-0 shadow-2xs">
+              <div className="grid h-7.5 w-7.5 sm:h-8 sm:w-8 place-items-center rounded-xl bg-muted/60 text-muted-foreground group-hover:bg-primary/15 group-hover:text-primary group-hover:scale-105 transition-all duration-200 shrink-0 shadow-2xs [&>svg]:h-4 [&>svg]:w-4 sm:[&>svg]:h-4.5 sm:[&>svg]:w-4.5">
                 {icono}
               </div>
             )}
@@ -6856,7 +6848,7 @@ function CardKpi({
           <div className="mt-1 min-h-[2.1rem] flex items-baseline">
             <p
               className={cn(
-                "font-extrabold font-display tracking-tight text-foreground tabular-nums leading-tight break-all sm:break-normal",
+                "font-extrabold font-display tracking-tight text-foreground tabular-nums leading-tight whitespace-nowrap",
                 getKpiValueFontSize(cargando ? "—" : valor)
               )}
               title={cargando ? undefined : valor}
@@ -6902,11 +6894,11 @@ function CardKpi({
           </div>
         </div>
 
-        {/* Footer Subtext Zone: Locked min-height and truncate to avoid pushing cards downwards */}
-        <div className="min-h-[1.85rem] flex items-center border-t border-border/40 pt-2 mt-auto">
+        {/* Footer Subtext Zone: Locked min-height for clean 2-line wrapping so text is never truncated */}
+        <div className="min-h-[2.5rem] flex items-center border-t border-border/40 pt-2 mt-auto">
           {subtexto ? (
             <p
-              className="text-[11px] text-muted-foreground font-medium truncate w-full"
+              className="text-[10px] sm:text-[11px] text-muted-foreground font-medium leading-tight line-clamp-2 w-full break-words"
               title={subtexto}
             >
               {subtexto}
