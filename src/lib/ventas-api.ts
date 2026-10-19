@@ -441,16 +441,461 @@ export async function obtenerRangoFechasTotal(): Promise<RangoFechasInfo> {
   };
 }
 
-export async function ingestarLoteCliente(filas: unknown[]) {
-  const { data: res, error } = await supabase.rpc("ingest_ventas", {
-    payload: filas as never,
-  });
-  if (error) throw new Error(error.message);
-  const fila = Array.isArray(res) ? res[0] : res;
-  return {
-    recibidas: Number(fila?.recibidas ?? 0),
-    nuevas: Number(fila?.nuevas ?? 0),
+/**
+ * Implementación pura y sincrónica de MD5 (RFC 1321) para cálculo determinístico de row_hash en navegador y Node.
+ * Coincide exactamente con el resultado de PostgreSQL: md5(concat_ws('|', ...))
+ */
+function calcularMD5(string: string): string {
+  function rotateLeft(lValue: number, iShiftBits: number) {
+    return (lValue << iShiftBits) | (lValue >>> (32 - iShiftBits));
+  }
+  function addUnsigned(lX: number, lY: number) {
+    const lX4 = lX & 0x40000000;
+    const lY4 = lY & 0x40000000;
+    const lX8 = lX & 0x80000000;
+    const lY8 = lY & 0x80000000;
+    const lResult = (lX & 0x3fffffff) + (lY & 0x3fffffff);
+    if (lX4 & lY4) return lResult ^ 0x80000000 ^ lX8 ^ lY8;
+    if (lX4 | lY4) {
+      if (lResult & 0x40000000) return lResult ^ 0xc0000000 ^ lX8 ^ lY8;
+      else return lResult ^ 0x40000000 ^ lX8 ^ lY8;
+    } else return lResult ^ lX8 ^ lY8;
+  }
+  function F(x: number, y: number, z: number) { return (x & y) | (~x & z); }
+  function G(x: number, y: number, z: number) { return (x & z) | (y & ~z); }
+  function H(x: number, y: number, z: number) { return x ^ y ^ z; }
+  function I(x: number, y: number, z: number) { return y ^ (x | ~z); }
+  function FF(a: number, b: number, c: number, d: number, x: number, s: number, ac: number) {
+    a = addUnsigned(a, addUnsigned(addUnsigned(F(b, c, d), x), ac));
+    return addUnsigned(rotateLeft(a, s), b);
+  }
+  function GG(a: number, b: number, c: number, d: number, x: number, s: number, ac: number) {
+    a = addUnsigned(a, addUnsigned(addUnsigned(G(b, c, d), x), ac));
+    return addUnsigned(rotateLeft(a, s), b);
+  }
+  function HH(a: number, b: number, c: number, d: number, x: number, s: number, ac: number) {
+    a = addUnsigned(a, addUnsigned(addUnsigned(H(b, c, d), x), ac));
+    return addUnsigned(rotateLeft(a, s), b);
+  }
+  function II(a: number, b: number, c: number, d: number, x: number, s: number, ac: number) {
+    a = addUnsigned(a, addUnsigned(addUnsigned(I(b, c, d), x), ac));
+    return addUnsigned(rotateLeft(a, s), b);
+  }
+  function convertToWordArray(str: string) {
+    const lMessageLength = str.length;
+    const lNumberOfWords = (((lMessageLength + 8) - ((lMessageLength + 8) % 64)) / 64 + 1) * 16;
+    const lWordArray = new Array<number>(lNumberOfWords);
+    for (let i = 0; i < lNumberOfWords; i++) lWordArray[i] = 0;
+    let lBytePosition = 0;
+    let lByteCount = 0;
+    while (lByteCount < lMessageLength) {
+      const lWordCount = (lByteCount - (lByteCount % 4)) / 4;
+      lBytePosition = (lByteCount % 4) * 8;
+      lWordArray[lWordCount] = lWordArray[lWordCount] | (str.charCodeAt(lByteCount) << lBytePosition);
+      lByteCount++;
+    }
+    const lWordCount = (lByteCount - (lByteCount % 4)) / 4;
+    lBytePosition = (lByteCount % 4) * 8;
+    lWordArray[lWordCount] = lWordArray[lWordCount] | (0x80 << lBytePosition);
+    lWordArray[lNumberOfWords - 2] = lMessageLength << 3;
+    lWordArray[lNumberOfWords - 1] = lMessageLength >>> 29;
+    return lWordArray;
+  }
+  function wordToHex(lValue: number) {
+    let wordToHexValue = "";
+    for (let lCount = 0; lCount <= 3; lCount++) {
+      const lByte = (lValue >>> (lCount * 8)) & 255;
+      const temp = "0" + lByte.toString(16);
+      wordToHexValue += temp.substr(temp.length - 2, 2);
+    }
+    return wordToHexValue;
+  }
+  function utf8Encode(str: string) {
+    str = str.replace(/\r\n/g, "\n");
+    let utftext = "";
+    for (let n = 0; n < str.length; n++) {
+      const c = str.charCodeAt(n);
+      if (c < 128) {
+        utftext += String.fromCharCode(c);
+      } else if (c > 127 && c < 2048) {
+        utftext += String.fromCharCode((c >> 6) | 192);
+        utftext += String.fromCharCode((c & 63) | 128);
+      } else {
+        utftext += String.fromCharCode((c >> 12) | 224);
+        utftext += String.fromCharCode(((c >> 6) & 63) | 128);
+        utftext += String.fromCharCode((c & 63) | 128);
+      }
+    }
+    return utftext;
+  }
+
+  const x = convertToWordArray(utf8Encode(string));
+  let a = 0x67452301;
+  let b = 0xefcdab89;
+  let c = 0x98badcfe;
+  let d = 0x10325476;
+
+  for (let k = 0; k < x.length; k += 16) {
+    const AA = a;
+    const BB = b;
+    const CC = c;
+    const DD = d;
+
+    a = FF(a, b, c, d, x[k + 0], 7, 0xd76aa478);
+    d = FF(d, a, b, c, x[k + 1], 12, 0xe8c7b756);
+    c = FF(c, d, a, b, x[k + 2], 17, 0x242070db);
+    b = FF(b, c, d, a, x[k + 3], 22, 0xc1bdceee);
+    a = FF(a, b, c, d, x[k + 4], 7, 0xf57c0faf);
+    d = FF(d, a, b, c, x[k + 5], 12, 0x4787c62a);
+    c = FF(c, d, a, b, x[k + 6], 17, 0xa8304613);
+    b = FF(b, c, d, a, x[k + 7], 22, 0xfd469501);
+    a = FF(a, b, c, d, x[k + 8], 7, 0x698098d8);
+    d = FF(d, a, b, c, x[k + 9], 12, 0x8b44f7af);
+    c = FF(c, d, a, b, x[k + 10], 17, 0xffff5bb1);
+    b = FF(b, c, d, a, x[k + 11], 22, 0x895cd7be);
+    a = FF(a, b, c, d, x[k + 12], 7, 0x6b901122);
+    d = FF(d, a, b, c, x[k + 13], 12, 0xfd987193);
+    c = FF(c, d, a, b, x[k + 14], 17, 0xa679438e);
+    b = FF(b, c, d, a, x[k + 15], 22, 0x49b40821);
+
+    a = GG(a, b, c, d, x[k + 1], 5, 0xf61e2562);
+    d = GG(d, a, b, c, x[k + 6], 9, 0xc040b340);
+    c = GG(c, d, a, b, x[k + 11], 14, 0x265e5a51);
+    b = GG(b, c, d, a, x[k + 0], 20, 0xe9b6c7aa);
+    a = GG(a, b, c, d, x[k + 5], 5, 0xd62f105d);
+    d = GG(d, a, b, c, x[k + 10], 9, 0x2441453);
+    c = GG(c, d, a, b, x[k + 15], 14, 0xd8a1e681);
+    b = GG(b, c, d, a, x[k + 4], 20, 0xe7d3fbc8);
+    a = GG(a, b, c, d, x[k + 9], 5, 0x21e1cde6);
+    d = GG(d, a, b, c, x[k + 14], 9, 0xc33707d6);
+    c = GG(c, d, a, b, x[k + 3], 14, 0xf4d50d87);
+    b = GG(b, c, d, a, x[k + 8], 20, 0x455a14ed);
+    a = GG(a, b, c, d, x[k + 13], 5, 0xa9e3e905);
+    d = GG(d, a, b, c, x[k + 2], 9, 0xfcefa3f8);
+    c = GG(c, d, a, b, x[k + 7], 14, 0x676f02d9);
+    b = GG(b, c, d, a, x[k + 12], 20, 0x8d2a4c8a);
+
+    a = HH(a, b, c, d, x[k + 5], 4, 0xfffa3942);
+    d = HH(d, a, b, c, x[k + 8], 11, 0x8771f681);
+    c = HH(c, d, a, b, x[k + 11], 16, 0x6d9d6122);
+    b = HH(b, c, d, a, x[k + 14], 23, 0xfde5380c);
+    a = HH(a, b, c, d, x[k + 1], 4, 0xa4beea44);
+    d = HH(d, a, b, c, x[k + 4], 11, 0x4bdecfa9);
+    c = HH(c, d, a, b, x[k + 7], 16, 0xf6bb4b60);
+    b = HH(b, c, d, a, x[k + 10], 23, 0xbebfbc70);
+    a = HH(a, b, c, d, x[k + 13], 4, 0x289b7ec6);
+    d = HH(d, a, b, c, x[k + 0], 11, 0xeaa127fa);
+    c = HH(c, d, a, b, x[k + 3], 16, 0xd4ef3085);
+    b = HH(b, c, d, a, x[k + 6], 23, 0x4881d05);
+    a = HH(a, b, c, d, x[k + 9], 4, 0xd9d4d039);
+    d = HH(d, a, b, c, x[k + 12], 11, 0xe6db99e5);
+    c = HH(c, d, a, b, x[k + 15], 16, 0x1fa27cf8);
+    b = HH(b, c, d, a, x[k + 2], 23, 0xc4ac5665);
+
+    a = II(a, b, c, d, x[k + 0], 6, 0xf4292244);
+    d = II(d, a, b, c, x[k + 7], 10, 0x432aff97);
+    c = II(c, d, a, b, x[k + 14], 15, 0xab9423a7);
+    b = II(b, c, d, a, x[k + 5], 21, 0xfc93a039);
+    a = II(a, b, c, d, x[k + 12], 6, 0x655b59c3);
+    d = II(d, a, b, c, x[k + 3], 10, 0x8f0ccc92);
+    c = II(c, d, a, b, x[k + 10], 15, 0xffeff47d);
+    b = II(b, c, d, a, x[k + 1], 21, 0x85845dd1);
+    a = II(a, b, c, d, x[k + 8], 6, 0x6fa87e4f);
+    d = II(d, a, b, c, x[k + 15], 10, 0xfe2ce6e0);
+    c = II(c, d, a, b, x[k + 6], 15, 0xa3014314);
+    b = II(b, c, d, a, x[k + 13], 21, 0x4e0811a1);
+    a = II(a, b, c, d, x[k + 4], 6, 0xf7537e82);
+    d = II(d, a, b, c, x[k + 11], 10, 0xbd3af235);
+    c = II(c, d, a, b, x[k + 2], 15, 0x2ad7d2bb);
+    b = II(b, c, d, a, x[k + 9], 21, 0xeb86d391);
+
+    a = addUnsigned(a, AA);
+    b = addUnsigned(b, BB);
+    c = addUnsigned(c, CC);
+    d = addUnsigned(d, DD);
+  }
+  return (wordToHex(a) + wordToHex(b) + wordToHex(c) + wordToHex(d)).toLowerCase();
+}
+
+type DimCache = {
+  vendedor: Map<string, number>;
+  tercero: Map<string, number>;
+  zona: Map<string, number>;
+  ciudad: Map<string, number>;
+  linea: Map<string, number>;
+  coleccion: Map<string, number>;
+  canal: Map<string, number>;
+  zona2: Map<string, number>;
+  pais: Map<string, number>;
+  zona_colombia: Map<string, number>;
+  correria: Map<string, number>;
+  marca: Map<string, number>;
+};
+
+let _dimCacheGlobal: DimCache | null = null;
+
+async function obtenerDimCache(): Promise<DimCache> {
+  if (_dimCacheGlobal) return _dimCacheGlobal;
+
+  const [
+    vendRes, tercRes, zonaRes, ciudadRes, lineaRes,
+    colRes, canalRes, zona2Res, paisRes, zonaColRes, corrRes, marcaRes
+  ] = await Promise.all([
+    supabase.from("dim_vendedor").select("id, nombre").not("nombre", "is", null).limit(10000),
+    supabase.from("dim_tercero").select("id, nombre").not("nombre", "is", null).limit(100000),
+    supabase.from("dim_zona").select("id, nombre").not("nombre", "is", null).limit(2000),
+    supabase.from("dim_ciudad").select("id, nombre").not("nombre", "is", null).limit(5000),
+    supabase.from("dim_linea").select("id, nombre").not("nombre", "is", null).limit(2000),
+    supabase.from("dim_coleccion").select("id, nombre").not("nombre", "is", null).limit(2000),
+    supabase.from("dim_canal").select("id, nombre").not("nombre", "is", null).limit(2000),
+    supabase.from("dim_zona2").select("id, nombre").not("nombre", "is", null).limit(2000),
+    supabase.from("dim_pais").select("id, nombre").not("nombre", "is", null).limit(2000),
+    supabase.from("dim_zona_colombia").select("id, nombre").not("nombre", "is", null).limit(2000),
+    supabase.from("dim_correria").select("id, nombre").not("nombre", "is", null).limit(2000),
+    supabase.from("dim_marca").select("id, nombre").not("nombre", "is", null).limit(2000),
+  ]);
+
+  const toMap = (rows: Array<{ id: number; nombre: string | null }> | null) => {
+    const m = new Map<string, number>();
+    if (rows) {
+      for (const r of rows) {
+        if (r.nombre && r.id) m.set(r.nombre.trim().toLowerCase(), r.id);
+      }
+    }
+    return m;
   };
+
+  _dimCacheGlobal = {
+    vendedor: toMap(vendRes.data),
+    tercero: toMap(tercRes.data),
+    zona: toMap(zonaRes.data),
+    ciudad: toMap(ciudadRes.data),
+    linea: toMap(lineaRes.data),
+    coleccion: toMap(colRes.data),
+    canal: toMap(canalRes.data),
+    zona2: toMap(zona2Res.data),
+    pais: toMap(paisRes.data),
+    zona_colombia: toMap(zonaColRes.data),
+    correria: toMap(corrRes.data),
+    marca: toMap(marcaRes.data),
+  };
+
+  return _dimCacheGlobal;
+}
+
+async function asegurarValoresDimension(
+  tabla: "dim_vendedor" | "dim_tercero" | "dim_zona" | "dim_ciudad" | "dim_linea" | "dim_coleccion" | "dim_canal" | "dim_zona2" | "dim_pais" | "dim_zona_colombia" | "dim_correria" | "dim_marca",
+  valores: Array<string | null | undefined>,
+  cache: Map<string, number>,
+  esTercero = false,
+  terceroCodigoMap?: Map<string, string>
+) {
+  const unicos = Array.from(new Set(
+    valores
+      .map((v) => (v || "").trim())
+      .filter((v) => v.length > 0 && !cache.has(v.toLowerCase()))
+  ));
+
+  if (unicos.length === 0) return;
+
+  const toInsert: Array<Record<string, unknown>> = unicos.map((nom) => {
+    if (esTercero) {
+      const cod = terceroCodigoMap?.get(nom.toLowerCase()) || null;
+      return { nombre: nom, codigo: cod };
+    }
+    return { nombre: nom };
+  });
+
+  for (let i = 0; i < toInsert.length; i += 100) {
+    const chunk = toInsert.slice(i, i + 100);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase.from(tabla) as any).insert(chunk).select("id, nombre");
+    if (data) {
+      for (const d of data) {
+        if (d.id && d.nombre) {
+          cache.set(d.nombre.trim().toLowerCase(), d.id);
+        }
+      }
+    }
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function ingestarLoteClienteDirecto(filas: any[]): Promise<{ recibidas: number; nuevas: number }> {
+  if (!Array.isArray(filas) || filas.length === 0) {
+    return { recibidas: 0, nuevas: 0 };
+  }
+
+  const cache = await obtenerDimCache();
+
+  // 1. Asegurar compradores y dimensiones en paralelo
+  const terceroCodigos = new Map<string, string>();
+  const compradores = filas.map((f) => {
+    const nom = (f.tercero || f.tercero_aux || "Sin Identificar").trim();
+    if (f.tercero_aux) {
+      terceroCodigos.set(nom.toLowerCase(), String(f.tercero_aux).trim());
+    }
+    return nom;
+  });
+
+  await Promise.all([
+    asegurarValoresDimension("dim_vendedor", filas.flatMap((f) => [f.vendedor, f.vendedor2]), cache.vendedor),
+    asegurarValoresDimension("dim_tercero", compradores, cache.tercero, true, terceroCodigos),
+    asegurarValoresDimension("dim_zona", filas.map((f) => f.zona), cache.zona),
+    asegurarValoresDimension("dim_ciudad", filas.map((f) => f.ciudad), cache.ciudad),
+    asegurarValoresDimension("dim_linea", filas.map((f) => f.linea), cache.linea),
+    asegurarValoresDimension("dim_coleccion", filas.map((f) => f.coleccion), cache.coleccion),
+    asegurarValoresDimension("dim_canal", filas.map((f) => f.canal), cache.canal),
+    asegurarValoresDimension("dim_zona2", filas.map((f) => f.zona2), cache.zona2),
+    asegurarValoresDimension("dim_pais", filas.map((f) => f.pais), cache.pais),
+    asegurarValoresDimension("dim_zona_colombia", filas.map((f) => f.zona_colombia), cache.zona_colombia),
+    asegurarValoresDimension("dim_correria", filas.map((f) => f.correria), cache.correria),
+    asegurarValoresDimension("dim_marca", filas.map((f) => f.marca), cache.marca),
+  ]);
+
+  // 2. Mapear filas a fact_ventas con row_hash idéntico al de PostgreSQL
+  const rowsToInsert = filas.map((f) => {
+    const compradorNom = (f.tercero || f.tercero_aux || "Sin Identificar").trim();
+    const hashString = [
+      f.transaccion ?? "",
+      f.anio ?? "",
+      f.mes ?? "",
+      f.dia ?? "",
+      f.fecha ?? "",
+      f.vendedor ?? "",
+      f.vendedor2 ?? "",
+      f.tercero_aux ?? "",
+      f.tercero ?? "",
+      f.zona ?? "",
+      f.ciudad ?? "",
+      f.linea ?? "",
+      f.coleccion ?? "",
+      f.canal ?? "",
+      f.zona2 ?? "",
+      f.pais ?? "",
+      f.zona_colombia ?? "",
+      f.correria ?? "",
+      f.marca ?? "",
+      f.producto_c ?? "",
+      f.prenda_hgi ?? "",
+      f.producto ?? "",
+      f.talla ?? "",
+      f.color ?? "",
+      f.cod_color ?? "",
+      f.sku ?? "",
+      f.anio_col ?? "",
+      f.cantidad ?? "",
+      f.valor ?? "",
+      f.fecha_compra ?? "",
+      f.tr ?? "",
+      f.costo ?? "",
+      f.costo_total ?? "",
+      f.ocurrencia ?? 1,
+    ].map((v) => (v === null || v === undefined ? "" : String(v).trim())).join("|");
+
+    const row_hash = calcularMD5(hashString);
+
+    return {
+      row_hash,
+      transaccion: f.transaccion ? String(f.transaccion) : null,
+      anio: f.anio !== null && f.anio !== undefined ? Number(f.anio) : null,
+      mes: f.mes !== null && f.mes !== undefined ? Number(f.mes) : null,
+      dia: f.dia !== null && f.dia !== undefined ? Number(f.dia) : null,
+      fecha: f.fecha ? String(f.fecha) : null,
+      vendedor_id: f.vendedor ? cache.vendedor.get(String(f.vendedor).trim().toLowerCase()) ?? null : null,
+      vendedor2_id: f.vendedor2 ? cache.vendedor.get(String(f.vendedor2).trim().toLowerCase()) ?? null : null,
+      tercero_id: cache.tercero.get(compradorNom.toLowerCase()) ?? null,
+      zona_id: f.zona ? cache.zona.get(String(f.zona).trim().toLowerCase()) ?? null : null,
+      ciudad_id: f.ciudad ? cache.ciudad.get(String(f.ciudad).trim().toLowerCase()) ?? null : null,
+      linea_id: f.linea ? cache.linea.get(String(f.linea).trim().toLowerCase()) ?? null : null,
+      coleccion_id: f.coleccion ? cache.coleccion.get(String(f.coleccion).trim().toLowerCase()) ?? null : null,
+      canal_id: f.canal ? cache.canal.get(String(f.canal).trim().toLowerCase()) ?? null : null,
+      zona2_id: f.zona2 ? cache.zona2.get(String(f.zona2).trim().toLowerCase()) ?? null : null,
+      pais_id: f.pais ? cache.pais.get(String(f.pais).trim().toLowerCase()) ?? null : null,
+      zona_colombia_id: f.zona_colombia ? cache.zona_colombia.get(String(f.zona_colombia).trim().toLowerCase()) ?? null : null,
+      correria_id: f.correria ? cache.correria.get(String(f.correria).trim().toLowerCase()) ?? null : null,
+      marca_id: f.marca ? cache.marca.get(String(f.marca).trim().toLowerCase()) ?? null : null,
+      producto_c: f.producto_c ? String(f.producto_c) : null,
+      prenda_hgi: f.prenda_hgi ? String(f.prenda_hgi) : null,
+      producto: f.producto ? String(f.producto) : null,
+      talla: f.talla ? String(f.talla) : null,
+      color: f.color ? String(f.color) : null,
+      cod_color: f.cod_color ? String(f.cod_color) : null,
+      sku: f.sku ? String(f.sku) : null,
+      anio_col: f.anio_col ? String(f.anio_col) : null,
+      cantidad: f.cantidad !== null && f.cantidad !== undefined ? Number(f.cantidad) : 0,
+      valor: f.valor !== null && f.valor !== undefined ? Number(f.valor) : 0,
+      fecha_compra: f.fecha_compra ? String(f.fecha_compra) : null,
+      tr: f.tr !== null && f.tr !== undefined ? Number(f.tr) : null,
+      costo: f.costo !== null && f.costo !== undefined ? Number(f.costo) : null,
+      costo_total: f.costo_total !== null && f.costo_total !== undefined ? Number(f.costo_total) : null,
+    };
+  });
+
+  // 3. Upsert en fact_ventas ignorando duplicados exactamente igual que Postgres
+  let nuevasCount = 0;
+  for (let i = 0; i < rowsToInsert.length; i += 500) {
+    const chunk = rowsToInsert.slice(i, i + 500);
+    const { data: insData, error: insErr } = await supabase
+      .from("fact_ventas")
+      .upsert(chunk, { onConflict: "row_hash", ignoreDuplicates: true })
+      .select("id");
+
+    if (insErr) {
+      console.warn("Error en upsert por lote, reintentando fila a fila:", insErr);
+      for (const row of chunk) {
+        const { data: singleData } = await supabase
+          .from("fact_ventas")
+          .upsert([row], { onConflict: "row_hash", ignoreDuplicates: true })
+          .select("id");
+        if (singleData && singleData.length > 0) nuevasCount++;
+      }
+    } else {
+      nuevasCount += insData?.length ?? chunk.length;
+    }
+  }
+
+  return { recibidas: filas.length, nuevas: nuevasCount };
+}
+
+export async function ingestarLoteCliente(filas: unknown[]) {
+  try {
+    const { data: res, error } = await supabase.rpc("ingest_ventas", {
+      payload: filas as never,
+    });
+
+    if (error) {
+      const msg = (error.message || "").toLowerCase();
+      if (
+        error.code === "42501" ||
+        msg.includes("permission denied") ||
+        msg.includes("no autorizado") ||
+        msg.includes("not found")
+      ) {
+        // Fallback resiliente directo a tablas Supabase
+        return await ingestarLoteClienteDirecto(filas as any[]);
+      }
+      throw new Error(error.message);
+    }
+
+    const fila = Array.isArray(res) ? res[0] : res;
+    return {
+      recibidas: Number(fila?.recibidas ?? 0),
+      nuevas: Number(fila?.nuevas ?? 0),
+    };
+  } catch (err: any) {
+    const msg = (err?.message || "").toLowerCase();
+    if (
+      err?.code === "42501" ||
+      msg.includes("permission denied") ||
+      msg.includes("no autorizado") ||
+      msg.includes("not found")
+    ) {
+      // Fallback resiliente directo a tablas Supabase
+      return await ingestarLoteClienteDirecto(filas as any[]);
+    }
+    throw err;
+  }
 }
 
 export async function registrarCargaCliente(
