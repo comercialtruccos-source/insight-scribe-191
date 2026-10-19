@@ -125,6 +125,7 @@ import {
   Eye,
   Lock,
   Sparkles,
+  RefreshCw,
   X,
   Check,
   ChevronDown,
@@ -1329,7 +1330,7 @@ function Panel() {
       await registrarCargaCliente(params.file.name, res.recibidas, res.nuevas);
       return res;
     },
-    onSuccess: (r) => {
+    onSuccess: async (r) => {
       setEstado(null);
       setProgreso(100);
       toast.success(
@@ -1337,16 +1338,15 @@ function Panel() {
           r.recibidas - r.nuevas
         ).toLocaleString("es-CO")} ya existentes.`
       );
-      queryClient.invalidateQueries({ queryKey: ["resumen"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-fact-ventas-multianual"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-multianual"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-d1-cumplimiento"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-d2-runrate"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-d3-digital"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-d4-fuerza"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-d5-marketplaces"] });
-      queryClient.invalidateQueries({ queryKey: ["catalogos-filtros"] });
-      queryClient.invalidateQueries({ queryKey: ["bi-transacciones-detalle"] });
+      await queryClient.invalidateQueries({ queryKey: ["bi-fact-ventas"] });
+      await queryClient.invalidateQueries({ queryKey: ["bi-rango-fechas-total"] });
+      await queryClient.invalidateQueries({ queryKey: ["bi-fact-ventas-yoy"] });
+      await queryClient.invalidateQueries({ queryKey: ["bi-fact-ventas-canal-d4"] });
+      await queryClient.invalidateQueries({ queryKey: ["bi-fact-ventas-canal-d4-yoy"] });
+      await queryClient.invalidateQueries({ queryKey: ["resumen"] });
+      await queryClient.invalidateQueries({ queryKey: ["catalogos-filtros"] });
+      await queryClient.invalidateQueries({ queryKey: ["bi-transacciones-detalle"] });
+      await queryClient.invalidateQueries();
     },
     onError: (e) => {
       setEstado(null);
@@ -1855,6 +1855,23 @@ function Panel() {
               <span className="hidden lg:inline px-1.5 py-0.2 bg-white/20 text-white rounded-full text-[9px] font-black">
                 IA
               </span>
+            </Button>
+
+            {/* Botón Refrescar Datos */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={cFetching}
+              onClick={async () => {
+                toast.info("Actualizando datos y gráficos...");
+                await queryClient.invalidateQueries();
+              }}
+              className="h-8 px-2.5 text-xs font-semibold rounded-xl border-border/80 hover:bg-muted/60 transition-all gap-1.5"
+              title="Refrescar métricas y gráficos"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", cFetching && "animate-spin text-primary")} />
+              <span className="hidden sm:inline">{cFetching ? "Cargando..." : "Actualizar"}</span>
             </Button>
 
             {hayFiltrosActivos && (

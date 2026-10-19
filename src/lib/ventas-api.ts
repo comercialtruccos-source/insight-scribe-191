@@ -101,15 +101,6 @@ export function deduplicarFilasVentas<T>(filas: T[]): T[] {
 export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or: any; not: any }>(query: T, filtros: FiltrosBI): T {
   let q = query;
 
-  // Filtrar para excluir órdenes de preventa y salidas logísticas
-  q = q
-    .not("transaccion", "ilike", "%PEDIDO%")
-    .not("transaccion", "ilike", "%SALIDA%")
-    .not("transaccion", "ilike", "%DESPACHO%")
-    .not("transaccion", "ilike", "%COTIZACION%")
-    .not("transaccion", "ilike", "%TRASLADO%")
-    .not("transaccion", "ilike", "%REMISION%");
-
   if (filtros.fecha_desde && filtros.fecha_hasta) {
     q = q.gte("fecha", filtros.fecha_desde).lte("fecha", filtros.fecha_hasta);
   } else if (filtros.fecha_desde) {
@@ -238,7 +229,7 @@ async function fetchChunksDirect<T>(
   maxRows: number
 ): Promise<T[]> {
   const CHUNK_SIZE = 1000;
-  const CONCURRENCY = 6;
+  const CONCURRENCY = 10;
   const allRows: T[] = [];
   let offset = 0;
   let hasMore = true;
@@ -258,6 +249,7 @@ async function fetchChunksDirect<T>(
 
     for (const res of results) {
       if (res.error) {
+        console.error("[ventas-api] Error en chunk de fact_ventas:", res.error);
         reachedEnd = true;
         break;
       }
@@ -319,8 +311,8 @@ export async function fetchAllFactVentas<T = Record<string, unknown>>(
     }
   } else if (!filtros.fecha_desde && !filtros.fecha_hasta && !filtros.anio) {
     // Cuando no hay rango de fecha ni año específico (Todo el Histórico):
-    // Segmentamos por años en paralelo para evitar escaneos lentos y timeouts en tablas grandes
-    const candidateYears = [2026, 2025, 2024, 2023, 2022];
+    // Segmentamos por los años con datos en paralelo para evitar escaneos lentos y timeouts en tablas grandes
+    const candidateYears = [2026, 2025];
     const yearResults = await Promise.all(
       candidateYears.map((yr) =>
         fetchChunksDirect<T>(columns, { ...filtros, anio: yr }, maxRows)
