@@ -883,15 +883,27 @@ export function normalizarFila(
   return fila;
 }
 
+export type InfoHojaExcel = {
+  nombre: string;
+  coincidencias: number;
+  totalFilasEstimadas: number;
+  esValida: boolean;
+  esPivot: boolean;
+  columnasDetectadas: string[];
+  filaEncabezados: number;
+};
+
 export type MetadataArchivo = {
   columnasDetectadas: string[];
   columnasFaltantes: string[];
   columnasIgnoradas: string[];
   esCSV: boolean;
   tamanoBytes: number;
+  totalFilasEstimadas?: number;
   esPivotOInvalido?: boolean;
+  advertenciaBloqueante?: string;
   hojaSeleccionada?: string;
-  hojasDisponibles?: string[];
+  hojasDisponibles?: InfoHojaExcel[];
   mensajeAviso?: string;
 };
 
@@ -1118,10 +1130,29 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
             return campo ? !detectados.has(campo) : false;
           });
 
+          // Detectar si el CSV es un resumen o tabla dinámica acotada (ej. 268 registros exportados desde Excel)
+          const tieneMarcasPivot = info.archivoTienePivot || rawHeaderList.some((h) => {
+            const l = h.toLowerCase();
+            return (
+              l.includes("varios elementos") ||
+              l.includes("(todas)") ||
+              l.includes("(todos)") ||
+              l.includes("cuenta de") ||
+              l.includes("etiquetas de") ||
+              l.includes("total general") ||
+              l.includes("total oficial")
+            );
+          });
+
+          const esInvalido = tieneMarcasPivot || detectados.size < 3;
+
+          let advertenciaBloqueante: string | undefined = undefined;
           let mensajeAviso: string | undefined = undefined;
-          if (info.archivoTienePivot || detectados.size < 3) {
-            mensajeAviso =
-              "💡 Nota: Se procesará este archivo. Si deseas registrar la base de datos detallada de ventas con todos los pedidos (fecha, vendedor, cliente, valor, etc.), puedes subir el archivo Excel (.xlsx) con la pestaña completa o el CSV detallado.";
+
+          if (esInvalido) {
+            advertenciaBloqueante = `⚠️ Tabla Dinámica o Resumen Detectado: Este archivo contiene marcas de tabla dinámica de Excel ("(Varios elementos)") y sólo ${detectados.size} columnas reconocidas (${[...detectados].join(", ") || "ninguna"}). No contiene la base de datos detallada de transacciones (+700.000 filas). Por favor sube directamente el archivo Excel (.xlsx / .xlsm) o exporta a CSV la pestaña con la base de datos detallada completa.`;
+          } else {
+            mensajeAviso = `✓ ${detectados.size} columnas reconocidas y listas para procesar.`;
           }
 
           resolve({
@@ -1130,7 +1161,8 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
             columnasIgnoradas: ignoradas,
             esCSV: true,
             tamanoBytes: file.size,
-            esPivotOInvalido: false,
+            esPivotOInvalido: esInvalido,
+            advertenciaBloqueante,
             mensajeAviso,
           });
         },
@@ -1139,53 +1171,110 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
     });
   }
 
-  // Si es Excel (.xlsx, .xls)
+  // Si es Excel (.xlsx, .xls, .xlsm)
   try {
     const buffer = await file.arrayBuffer();
     const wb = XLSX.read(buffer, { type: "array", dense: true, sheetRows: 60 });
     if (wb.SheetNames.length > 0) {
-      const analisisHojas: {
-        sheetName: string;
-        filaEncabezados: number;
-        coincidencias: number;
-        campos: Set<string>;
-        archivoTienePivot: boolean;
-        esValido: boolean;
-        headers: string[];
-      }[] = [];
+      const infoHojas: InfoHojaExcel[] = [];
 
       for (const sheetName of wb.SheetNames) {
         const sheet = wb.Sheets[sheetName];
         if (!sheet) continue;
         expandirRangoHoja(sheet);
-        const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 }) as unknown[][];
-        if (!rawRows || rawRows.length === 0) continue;
 
-        const info = encontrarFilaEncabezados(rawRows);
-        const headers = ((rawRows[info.filaEncabezados] as unknown[]) || [])
+        const sampleRows: unknown[][] = [];
+        if (Array.isArray(sheet)) {
+          for (let r = 0; r < Math.min(sheet.length, 60); r++) {
+            const row = sheet[r];
+            if (Array.isArray(row)) {
+              sampleRows.push(row.map((c) => (c && typeof c === "object" && "v" in c ? c.v : null)));
+            } else {
+              sampleRows.push([]);
+            }
+          }
+        }
+
+        if (sampleRows.length === 0) continue;
+
+        const info = encontrarFilaEncabezados(sampleRows);
+        const rawHeaders = ((sampleRows[info.filaEncabezados] as unknown[]) || [])
           .map((h) => String(h ?? "").trim())
           .filter(Boolean);
 
-        analisisHojas.push({
-          sheetName,
+        const sheetDetectados: string[] = [];
+        for (const h of rawHeaders) {
+          const normH = norm(h);
+          const campo = MAPA[normH];
+          if (campo) sheetDetectados.push(campo);
+          else if (normH.match(/\b(20\d{2})\b/)) sheetDetectados.push("anio");
+        }
+
+        let totalFilasEstimadas = 0;
+        if (sheet["!ref"]) {
+          try {
+            const range = XLSX.utils.decode_range(sheet["!ref"]);
+            totalFilasEstimadas = Math.max(0, range.e.r - info.filaEncabezados);
+          } catch {
+            totalFilasEstimadas = 0;
+          }
+        }
+
+        const esPivot = info.archivoTienePivot || rawHeaders.some((h) => {
+          const l = h.toLowerCase();
+          return (
+            l.includes("varios elementos") ||
+            l.includes("(todas)") ||
+            l.includes("(todos)") ||
+            l.includes("cuenta de") ||
+            l.includes("etiquetas de") ||
+            l.includes("total general") ||
+            l.includes("total oficial")
+          );
+        });
+
+        infoHojas.push({
+          nombre: sheetName,
+          coincidencias: sheetDetectados.length,
+          totalFilasEstimadas,
+          esValida: sheetDetectados.length >= 3 && !esPivot,
+          esPivot,
+          columnasDetectadas: sheetDetectados,
           filaEncabezados: info.filaEncabezados,
-          coincidencias: info.coincidencias,
-          campos: info.campos,
-          archivoTienePivot: info.archivoTienePivot,
-          esValido: info.esValido,
-          headers,
         });
       }
 
-      if (analisisHojas.length > 0) {
-        // Ordenar por cantidad de coincidencias únicas descendentemente
-        analisisHojas.sort((a, b) => b.coincidencias - a.coincidencias);
-        const mejor = analisisHojas[0]!;
+      if (infoHojas.length > 0) {
+        // Ordenar hojas: primero las válidas (>= 3 columnas y sin marcas de pivot), luego por mayor cantidad de coincidencias
+        infoHojas.sort((a, b) => {
+          if (a.esValida !== b.esValida) return a.esValida ? -1 : 1;
+          if (b.coincidencias !== a.coincidencias) return b.coincidencias - a.coincidencias;
+          return b.totalFilasEstimadas - a.totalFilasEstimadas;
+        });
+
+        const mejor = infoHojas[0]!;
+
+        const sheet = wb.Sheets[mejor.nombre]!;
+        const sampleRows: unknown[][] = [];
+        if (Array.isArray(sheet)) {
+          for (let r = 0; r < Math.min(sheet.length, 60); r++) {
+            const row = sheet[r];
+            if (Array.isArray(row)) {
+              sampleRows.push(row.map((c) => (c && typeof c === "object" && "v" in c ? c.v : null)));
+            } else {
+              sampleRows.push([]);
+            }
+          }
+        }
+
+        const rawHeaderList = ((sampleRows[mejor.filaEncabezados] as unknown[]) || [])
+          .map((h) => String(h ?? "").trim())
+          .filter(Boolean);
 
         const detectados = new Set<string>();
         const ignoradas: string[] = [];
 
-        for (const h of mejor.headers) {
+        for (const h of rawHeaderList) {
           const normH = norm(h);
           const campo = MAPA[normH];
           if (campo) {
@@ -1204,43 +1293,32 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
           return campo ? !detectados.has(campo) : false;
         });
 
-        // Caso: Libro donde la mejor hoja es válida
-        if (mejor.esValido) {
-          let mensajeAviso: string | undefined = undefined;
-          if (wb.SheetNames.length > 1) {
-            mensajeAviso = `📄 Hoja seleccionada para procesar: "${mejor.sheetName}" (${mejor.coincidencias} columnas de ventas reconocidas).`;
-          }
+        let advertenciaBloqueante: string | undefined = undefined;
+        let mensajeAviso: string | undefined = undefined;
 
-          return {
-            columnasDetectadas: [...detectados],
-            columnasFaltantes: faltantes,
-            columnasIgnoradas: ignoradas,
-            esCSV: false,
-            tamanoBytes: file.size,
-            hojaSeleccionada: mejor.sheetName,
-            hojasDisponibles: wb.SheetNames,
-            mensajeAviso,
-            esPivotOInvalido: false,
-          };
+        if (!mejor.esValida) {
+          advertenciaBloqueante = `⚠️ Ninguna de las hojas de este libro Excel contiene una base de datos detallada de ventas válida (sólo se detectaron tablas dinámicas o resúmenes con ${mejor.coincidencias} columnas). Asegúrate de incluir la hoja con las transacciones completas.`;
+        } else if (infoHojas.length > 1) {
+          mensajeAviso = `📄 Hoja seleccionada automáticamente: "${mejor.nombre}" (${detectados.size} columnas de ventas reconocidas). Si deseas cambiar de pestaña, puedes seleccionarla en el menú.`;
         }
 
-        // Caso: El libro entero solo contiene tablas dinámicas o ninguna hoja tiene columnas de venta válidas
         return {
           columnasDetectadas: [...detectados],
           columnasFaltantes: faltantes,
           columnasIgnoradas: ignoradas,
           esCSV: false,
           tamanoBytes: file.size,
-          esPivotOInvalido: false,
-          hojaSeleccionada: mejor.sheetName,
-          hojasDisponibles: wb.SheetNames,
-          mensajeAviso:
-            "💡 Nota: Se procesará la hoja disponible. Para cargar las transacciones completas con fecha y cliente, asegúrate de que el libro contenga la hoja con la base de datos detallada.",
+          totalFilasEstimadas: mejor.totalFilasEstimadas,
+          esPivotOInvalido: !mejor.esValida,
+          advertenciaBloqueante,
+          hojaSeleccionada: mejor.nombre,
+          hojasDisponibles: infoHojas,
+          mensajeAviso,
         };
       }
     }
   } catch {
-    // Fallback silencioso si el slice no es un zip válido
+    // Fallback silencioso si no es un archivo procesable
   }
 
   return {
@@ -1249,12 +1327,113 @@ export async function inspeccionarEncabezados(file: File): Promise<MetadataArchi
     columnasIgnoradas: [],
     esCSV: false,
     tamanoBytes: file.size,
+    esPivotOInvalido: true,
+    advertenciaBloqueante: "No se pudieron reconocer columnas válidas en el archivo seleccionado.",
   };
+}
+
+export async function inspeccionarHojaEspecifica(file: File, hojaNombre: string): Promise<MetadataArchivo> {
+  const metaGeneral = await inspeccionarEncabezados(file);
+  if (metaGeneral.esCSV || !metaGeneral.hojasDisponibles) return metaGeneral;
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: "array", dense: true, sheetRows: 60, sheets: [hojaNombre] });
+    const sheet = wb.Sheets[hojaNombre];
+    if (!sheet) return metaGeneral;
+
+    expandirRangoHoja(sheet);
+
+    const sampleRows: unknown[][] = [];
+    if (Array.isArray(sheet)) {
+      for (let r = 0; r < Math.min(sheet.length, 60); r++) {
+        const row = sheet[r];
+        if (Array.isArray(row)) {
+          sampleRows.push(row.map((c) => (c && typeof c === "object" && "v" in c ? c.v : null)));
+        } else {
+          sampleRows.push([]);
+        }
+      }
+    }
+
+    const info = encontrarFilaEncabezados(sampleRows);
+    const rawHeaderList = ((sampleRows[info.filaEncabezados] as unknown[]) || [])
+      .map((h) => String(h ?? "").trim())
+      .filter(Boolean);
+
+    const detectados = new Set<string>();
+    const ignoradas: string[] = [];
+
+    for (const h of rawHeaderList) {
+      const normH = norm(h);
+      const campo = MAPA[normH];
+      if (campo) {
+        detectados.add(campo);
+      } else if (normH.match(/\b(20\d{2})\b/)) {
+        detectados.add("anio");
+      } else {
+        if (!esEncabezadoTecnicoOIgnorable(h)) {
+          ignoradas.push(h);
+        }
+      }
+    }
+
+    const faltantes = COLUMNAS_ESPERADAS.filter((c) => {
+      const campo = MAPA[norm(c)];
+      return campo ? !detectados.has(campo) : false;
+    });
+
+    const esPivot = info.archivoTienePivot || rawHeaderList.some((h) => {
+      const l = h.toLowerCase();
+      return (
+        l.includes("varios elementos") ||
+        l.includes("(todas)") ||
+        l.includes("(todos)") ||
+        l.includes("cuenta de") ||
+        l.includes("etiquetas de") ||
+        l.includes("total general") ||
+        l.includes("total oficial")
+      );
+    });
+
+    const esInvalido = esPivot || detectados.size < 3;
+    let advertenciaBloqueante: string | undefined = undefined;
+    if (esInvalido) {
+      advertenciaBloqueante = `⚠️ La pestaña "${hojaNombre}" parece ser una tabla dinámica o resumen (${detectados.size} columnas reconocidas). Te recomendamos seleccionar la pestaña con la base de datos detallada de transacciones.`;
+    }
+
+    let totalFilasEstimadas = 0;
+    if (sheet["!ref"]) {
+      try {
+        const range = XLSX.utils.decode_range(sheet["!ref"]);
+        totalFilasEstimadas = Math.max(0, range.e.r - info.filaEncabezados);
+      } catch {
+        totalFilasEstimadas = 0;
+      }
+    }
+
+    return {
+      columnasDetectadas: [...detectados],
+      columnasFaltantes: faltantes,
+      columnasIgnoradas: ignoradas,
+      esCSV: false,
+      tamanoBytes: file.size,
+      totalFilasEstimadas,
+      esPivotOInvalido: esInvalido,
+      advertenciaBloqueante,
+      hojaSeleccionada: hojaNombre,
+      hojasDisponibles: metaGeneral.hojasDisponibles,
+      mensajeAviso: `📄 Hoja activa seleccionada: "${hojaNombre}" (${detectados.size} columnas detectadas).`,
+    };
+  } catch {
+    return metaGeneral;
+  }
 }
 
 export type OpcionesProcesamiento = {
   file: File;
   tamanoLote?: number;
+  hojaSeleccionada?: string;
   onProgreso?: (progreso: {
     filasLeidas: number;
     filasNuevas: number;
@@ -1275,6 +1454,7 @@ export type ResumenIngesta = {
 export async function procesarArchivoPorStreaming({
   file,
   tamanoLote = 1000,
+  hojaSeleccionada,
   onProgreso,
   onLote,
 }: OpcionesProcesamiento): Promise<ResumenIngesta> {
@@ -1464,10 +1644,10 @@ export async function procesarArchivoPorStreaming({
     });
   }
 
-  // Si es Excel (.xlsx, .xls)
-  if (file.size > 150 * 1024 * 1024) {
+  // Si es Excel (.xlsx, .xls, .xlsm)
+  if (file.size > 200 * 1024 * 1024) {
     throw new Error(
-      "El archivo Excel supera los 150 MB. Por favor guárdalo/expórtalo en formato .CSV (delimitado por comas) para procesarlo de manera óptima."
+      "El archivo Excel supera los 200 MB. Por favor guárdalo/expórtalo en formato .CSV (delimitado por comas) para procesarlo de manera óptima."
     );
   }
 
@@ -1479,7 +1659,10 @@ export async function procesarArchivoPorStreaming({
   });
 
   const buffer = await file.arrayBuffer();
-  const wb = XLSX.read(buffer, {
+
+  // Para optimizar memoria drásticamente con archivos de +700k filas,
+  // si se especificó una hoja, parseamos únicamente esa hoja.
+  const parsingOptions: XLSX.ParsingOptions = {
     type: "array",
     dense: true,
     raw: true,
@@ -1487,120 +1670,113 @@ export async function procesarArchivoPorStreaming({
     cellFormula: false,
     cellHTML: false,
     cellText: false,
-  });
+  };
+  if (hojaSeleccionada) {
+    parsingOptions.sheets = [hojaSeleccionada];
+  }
+
+  const wb = XLSX.read(buffer, parsingOptions);
 
   if (wb.SheetNames.length === 0) throw new Error("El archivo no contiene hojas de datos.");
 
-  // Pre-inspeccionar todas las hojas para seleccionar inteligentemente las que tienen datos reales
-  const analisisHojas: {
-    sheetName: string;
-    rawRows: unknown[][];
-    filaEncabezados: number;
-    coincidencias: number;
-    archivoTienePivot: boolean;
-    esValido: boolean;
-    headers: string[];
-  }[] = [];
+  // Seleccionar la hoja objetivo
+  const sheetName = hojaSeleccionada && wb.Sheets[hojaSeleccionada]
+    ? hojaSeleccionada
+    : wb.SheetNames[0]!;
 
-  for (const sheetName of wb.SheetNames) {
-    const hoja = wb.Sheets[sheetName];
-    if (!hoja) continue;
+  const hoja = wb.Sheets[sheetName];
+  if (!hoja) throw new Error(`No se pudo encontrar la hoja "${sheetName}" en el archivo.`);
 
-    // CRÍTICO: Recalcular rango real de la hoja para no truncar a 268 registros
-    expandirRangoHoja(hoja);
+  // Recalcular rango real para abarcar el 100% de las filas
+  expandirRangoHoja(hoja);
 
-    const rawRows = XLSX.utils.sheet_to_json<unknown[]>(hoja, { header: 1, defval: null, raw: true }) as unknown[][];
-    if (!rawRows || rawRows.length === 0) continue;
+  const totalRows = Array.isArray(hoja) ? hoja.length : 0;
+  if (totalRows === 0) throw new Error(`La hoja "${sheetName}" no contiene registros de datos.`);
 
-    const info = encontrarFilaEncabezados(rawRows);
-    const headers = ((rawRows[info.filaEncabezados] as unknown[]) || []).map((h) => String(h ?? "").trim());
-
-    analisisHojas.push({
-      sheetName,
-      rawRows,
-      filaEncabezados: info.filaEncabezados,
-      coincidencias: info.coincidencias,
-      archivoTienePivot: info.archivoTienePivot,
-      esValido: info.esValido,
-      headers,
-    });
-  }
-
-  const maxCoincidencias = Math.max(...analisisHojas.map((h) => h.coincidencias), 0);
-
-  // Filtrar hojas procesables:
-  // Si encontramos hojas válidas con datos de ventas (>= 3 columnas),
-  // descartamos hojas de resumen / tablas dinámicas que tengan menos columnas o marcas de pivot.
-  const hojasAProcesar = analisisHojas.filter((h) => {
-    if (maxCoincidencias >= 3) {
-      return h.coincidencias >= 3 && h.coincidencias >= maxCoincidencias * 0.5;
-    }
-    return h.coincidencias > 0;
-  });
-
-  if (hojasAProcesar.length === 0) {
-    if (analisisHojas.length > 0) {
-      hojasAProcesar.push(analisisHojas[0]!);
+  // Extraer muestra de hasta 60 filas directamente del arreglo denso para detectar encabezados (0 MB de sobrecarga)
+  const sampleRows: unknown[][] = [];
+  const sampleLimit = Math.min(totalRows, 60);
+  for (let r = 0; r < sampleLimit; r++) {
+    const row = hoja[r];
+    if (Array.isArray(row)) {
+      sampleRows.push(row.map((c) => (c && typeof c === "object" && "v" in c ? c.v : null)));
     } else {
-      throw new Error("El archivo no contiene filas o datos para procesar.");
+      sampleRows.push([]);
     }
   }
 
-  for (const { sheetName, rawRows, filaEncabezados, headers } of hojasAProcesar) {
-    const matchSheetYear = sheetName.match(/\b(20\d{2})\b/);
-    const sheetDefaultYear = matchSheetYear ? parseInt(matchSheetYear[1]!, 10) : fileDefaultYear;
+  const info = encontrarFilaEncabezados(sampleRows);
+  const filaEncabezados = info.filaEncabezados;
+  const headerRow = hoja[filaEncabezados];
+  const headers: string[] = [];
+  if (Array.isArray(headerRow)) {
+    for (let c = 0; c < headerRow.length; c++) {
+      const cell = headerRow[c];
+      const val = cell && typeof cell === "object" && "v" in cell ? cell.v : "";
+      headers.push(String(val ?? "").trim());
+    }
+  }
 
-    const headerMap = new Map<string, keyof VentaRow>();
-    for (const h of headers) {
-      const normH = norm(h);
-      const campo = MAPA[normH];
-      if (campo) {
-        headerMap.set(h, campo);
-        detectados.add(campo);
-      } else if (normH.match(/\b(20\d{2})\b/)) {
-        headerMap.set(h, "anio");
-        detectados.add("anio");
-      } else {
-        if (!esEncabezadoTecnicoOIgnorable(h)) {
-          ignoradasSet.add(h);
-        }
+  const matchSheetYear = sheetName.match(/\b(20\d{2})\b/);
+  const sheetDefaultYear = matchSheetYear ? parseInt(matchSheetYear[1]!, 10) : fileDefaultYear;
+
+  const headerMap = new Map<string, keyof VentaRow>();
+  for (let c = 0; c < headers.length; c++) {
+    const h = headers[c];
+    if (!h) continue;
+    const normH = norm(h);
+    const campo = MAPA[normH];
+    if (campo) {
+      headerMap.set(h, campo);
+      detectados.add(campo);
+    } else if (normH.match(/\b(20\d{2})\b/)) {
+      headerMap.set(h, "anio");
+      detectados.add("anio");
+    } else {
+      if (!esEncabezadoTecnicoOIgnorable(h)) {
+        ignoradasSet.add(h);
       }
     }
+  }
 
-    const dataRows = rawRows.slice(filaEncabezados + 1);
-    const totalDataRows = dataRows.length;
+  const dataStart = filaEncabezados + 1;
+  const totalDataRows = Math.max(0, totalRows - dataStart);
 
-    for (let i = 0; i < totalDataRows; i += tamanoLote) {
-      const loteFilas: VentaRow[] = [];
-      const chunk = dataRows.slice(i, i + tamanoLote);
+  // Streaming directo sobre las filas densas de la hoja sin duplicación en memoria
+  for (let i = dataStart; i < totalRows; i += tamanoLote) {
+    const loteFilas: VentaRow[] = [];
+    const limit = Math.min(i + tamanoLote, totalRows);
 
-      for (const arr of chunk) {
-        if (!Array.isArray(arr) || arr.length === 0) continue;
-        const r: Record<string, unknown> = {};
-        for (let c = 0; c < headers.length; c++) {
-          const key = headers[c];
-          if (key === undefined) continue;
-          r[key] = arr[c] ?? null;
-        }
-        globalRowCounter++;
-        const fila = normalizarFila(r, headerMap, detectados, ignoradasSet, globalRowCounter, sheetDefaultYear);
-        if (fila) loteFilas.push(asignarOcurrencia(fila, contadorOcurrencias));
+    for (let r = i; r < limit; r++) {
+      const row = hoja[r];
+      if (!Array.isArray(row) || row.length === 0) continue;
+
+      const rObj: Record<string, unknown> = {};
+      for (let c = 0; c < headers.length; c++) {
+        const key = headers[c];
+        if (!key) continue;
+        const cell = row[c];
+        rObj[key] = cell && typeof cell === "object" && "v" in cell ? cell.v : null;
       }
 
-      if (loteFilas.length > 0) {
-        const res = await onLote(loteFilas);
-        recibidas += res.recibidas;
-        nuevas += res.nuevas;
-      }
-
-      const porcentaje = totalDataRows > 0 ? Math.min(100, Math.round(((i + chunk.length) / totalDataRows) * 100)) : 100;
-      onProgreso?.({
-        filasLeidas: recibidas,
-        filasNuevas: nuevas,
-        porcentaje,
-        mensaje: `Hoja "${sheetName}": ${recibidas.toLocaleString("es-CO")} filas procesadas (${nuevas.toLocaleString("es-CO")} nuevas)...`,
-      });
+      globalRowCounter++;
+      const fila = normalizarFila(rObj, headerMap, detectados, ignoradasSet, globalRowCounter, sheetDefaultYear);
+      if (fila) loteFilas.push(asignarOcurrencia(fila, contadorOcurrencias));
     }
+
+    if (loteFilas.length > 0) {
+      const res = await onLote(loteFilas);
+      recibidas += res.recibidas;
+      nuevas += res.nuevas;
+    }
+
+    const porcentaje = totalDataRows > 0 ? Math.min(100, Math.round(((i - dataStart + (limit - i)) / totalDataRows) * 100)) : 100;
+    onProgreso?.({
+      filasLeidas: recibidas,
+      filasNuevas: nuevas,
+      porcentaje,
+      mensaje: `Hoja "${sheetName}": ${recibidas.toLocaleString("es-CO")} filas procesadas (${nuevas.toLocaleString("es-CO")} nuevas)...`,
+    });
   }
 
   const faltantes = COLUMNAS_ESPERADAS.filter((c) => {

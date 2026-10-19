@@ -28,10 +28,13 @@ import {
 import {
   procesarArchivoPorStreaming,
   inspeccionarEncabezados,
+  inspeccionarHojaEspecifica,
   esEncabezadoTecnicoOIgnorable,
   COLUMNAS_ESPERADAS,
   COLUMNAS_DIMENSION,
+  type MetadataArchivo,
 } from "@/lib/parse-ventas";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { VisorPedidosDespachos } from "@/components/pedidos/VisorPedidosDespachos";
 import { MapaVentasZonas } from "@/components/dashboard/MapaVentasZonas";
@@ -370,6 +373,9 @@ function Panel() {
   const [estado, setEstado] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string[]>([]);
   const [esCSV, setEsCSV] = useState(false);
+  const [metaArchivo, setMetaArchivo] = useState<MetadataArchivo | null>(null);
+  const [hojaSeleccionada, setHojaSeleccionada] = useState<string | null>(null);
+  const [esPivotOInvalido, setEsPivotOInvalido] = useState(false);
 
   // Queries iniciales para metadatos y rangos
   const { data: resumen } = useQuery({
@@ -1228,6 +1234,9 @@ function Panel() {
     setAviso([]);
     setProgreso(0);
     setEstado(null);
+    setMetaArchivo(null);
+    setHojaSeleccionada(null);
+    setEsPivotOInvalido(false);
 
     if (!file) return;
 
@@ -1236,10 +1245,14 @@ function Panel() {
 
     try {
       const meta = await inspeccionarEncabezados(file);
+      setMetaArchivo(meta);
+      setHojaSeleccionada(meta.hojaSeleccionada || null);
+      setEsPivotOInvalido(Boolean(meta.esPivotOInvalido));
+
       const avisos: string[] = [];
 
       if (meta.hojaSeleccionada && !meta.esCSV) {
-        avisos.push(`📄 Hoja seleccionada para procesar: "${meta.hojaSeleccionada}"`);
+        avisos.push(`📄 Pestaña seleccionada: "${meta.hojaSeleccionada}"`);
       }
 
       if (meta.columnasDetectadas.length > 0) {
@@ -1265,13 +1278,44 @@ function Panel() {
     }
   };
 
+  const alCambiarHoja = async (nombreHoja: string) => {
+    if (!archivo) return;
+    setHojaSeleccionada(nombreHoja);
+    try {
+      const meta = await inspeccionarHojaEspecifica(archivo, nombreHoja);
+      setMetaArchivo(meta);
+      setEsPivotOInvalido(Boolean(meta.esPivotOInvalido));
+
+      const avisos: string[] = [];
+      avisos.push(`📄 Pestaña seleccionada: "${nombreHoja}"`);
+      if (meta.columnasDetectadas.length > 0) {
+        avisos.push(`✓ ${meta.columnasDetectadas.length} columnas reconocidas y listas para procesar.`);
+      }
+      if (meta.mensajeAviso) {
+        avisos.push(meta.mensajeAviso);
+      }
+      if (meta.columnasIgnoradas.length > 0) {
+        const ignoradasLimpias = meta.columnasIgnoradas.filter(
+          (c) => !esEncabezadoTecnicoOIgnorable(c)
+        );
+        if (ignoradasLimpias.length > 0) {
+          avisos.push(`Columnas adicionales no mapeadas: ${ignoradasLimpias.join(", ")}`);
+        }
+      }
+      setAviso(avisos);
+    } catch {
+      // Continuar
+    }
+  };
+
   const carga = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async (params: { file: File; hojaSeleccionada?: string }) => {
       setProgreso(0);
       setEstado("Iniciando procesamiento por streaming...");
 
       const res = await procesarArchivoPorStreaming({
-        file,
+        file: params.file,
+        hojaSeleccionada: params.hojaSeleccionada,
         tamanoLote: TAMANO_LOTE,
         onProgreso: (p) => {
           setProgreso(p.porcentaje);
@@ -1282,7 +1326,7 @@ function Panel() {
         },
       });
 
-      await registrarCargaCliente(file.name, res.recibidas, res.nuevas);
+      await registrarCargaCliente(params.file.name, res.recibidas, res.nuevas);
       return res;
     },
     onSuccess: (r) => {
@@ -1336,6 +1380,9 @@ function Panel() {
       setAviso([]);
       setProgreso(0);
       setEstado(null);
+      setMetaArchivo(null);
+      setHojaSeleccionada(null);
+      setEsPivotOInvalido(false);
     },
     onError: (err: Error) => {
       toast.error(`Error al purgar datos: ${err.message}`);
@@ -6606,10 +6653,71 @@ function Panel() {
                   />
                 </label>
 
-                {archivo && !esCSV && (
-                  <div className="rounded-lg border border-border/80 bg-muted/20 p-3 text-xs text-muted-foreground">
-                    💡 <strong className="text-foreground">Consejo de rendimiento:</strong> Si tu histórico tiene más de 50.000 filas, guardarlo en formato <strong className="text-foreground">.CSV</strong> permite procesamiento en streaming instantáneo consumiendo menos de 20 MB de memoria.
+                {/* Selector de Pestaña para archivos Excel con múltiples hojas */}
+                {archivo && !esCSV && metaArchivo?.hojasDisponibles && metaArchivo.hojasDisponibles.length > 1 && (
+                  <div className="rounded-lg border border-border bg-muted/20 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <FileSpreadsheet className="h-4 w-4 text-primary" />
+                        Pestaña de Excel a procesar:
+                      </span>
+                      <Badge variant="outline" className="text-[10px]">
+                        {metaArchivo.hojasDisponibles.length} pestañas detectadas
+                      </Badge>
+                    </div>
+                    <Select
+                      value={hojaSeleccionada || ""}
+                      onValueChange={(val) => alCambiarHoja(val)}
+                      disabled={carga.isPending}
+                    >
+                      <SelectTrigger className="w-full text-xs bg-background">
+                        <SelectValue placeholder="Selecciona la pestaña de la base de datos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {metaArchivo.hojasDisponibles.map((h) => (
+                          <SelectItem key={h.nombre} value={h.nombre} className="text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{h.nombre}</span>
+                              {h.esValida ? (
+                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                                  (✓ {h.coincidencias} columnas de venta {h.coincidencias >= 20 ? "— RECOMENDADA" : ""})
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                                  ({h.esPivot ? "Tabla Dinámica / Resumen" : `${h.coincidencias} columnas`} - No recomendada)
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+                )}
+
+                {/* Advertencia preventiva contra Tablas Dinámicas o Resúmenes Incompletos */}
+                {esPivotOInvalido && (
+                  <Alert variant="destructive" className="border-amber-500/50 bg-amber-500/10 text-amber-900 dark:text-amber-200">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <AlertTitle className="font-semibold text-amber-800 dark:text-amber-300">
+                      Archivo Incompleto o Tabla Dinámica Detectada
+                    </AlertTitle>
+                    <AlertDescription className="mt-1 text-xs space-y-2">
+                      <p>
+                        {metaArchivo?.advertenciaBloqueante ||
+                          "Este archivo no contiene la base de datos detallada de ventas con las 32 columnas requeridas. Parece ser un resumen acotado o tabla dinámica exportada."}
+                      </p>
+                      <div className="rounded border border-amber-500/20 bg-background/50 p-2 text-[11px] text-muted-foreground space-y-1">
+                        <p className="font-medium text-foreground">💡 ¿Cómo cargar tus más de 700.000 registros completos?</p>
+                        <p>
+                          1. <strong>Sube el archivo Excel original (.xlsx o .xlsm)</strong> directamente: La plataforma detectará automáticamente la pestaña que contiene los 700.000 registros de ventas sin necesidad de convertirlo.
+                        </p>
+                        <p>
+                          2. <strong>O si usas CSV</strong>: Abre Excel, haz clic sobre la pestaña que contiene todas las filas de ventas detalladas y luego selecciona <em>Archivo &gt; Guardar como &gt; CSV</em> (evitando exportar la hoja de la tabla dinámica).
+                        </p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 {carga.isPending && (
@@ -6622,7 +6730,7 @@ function Panel() {
                   </div>
                 )}
 
-                {aviso.length > 0 && (
+                {aviso.length > 0 && !esPivotOInvalido && (
                   <ul className="space-y-1 text-xs text-muted-foreground">
                     {aviso.map((a) => (
                       <li key={a}>• {a}</li>
@@ -6631,8 +6739,20 @@ function Panel() {
                 )}
 
                 <Button
-                  disabled={!archivo || carga.isPending}
-                  onClick={() => archivo && carga.mutate(archivo)}
+                  disabled={
+                    !archivo ||
+                    carga.isPending ||
+                    esPivotOInvalido ||
+                    (metaArchivo?.columnasDetectadas?.length || 0) < 3
+                  }
+                  onClick={() =>
+                    archivo &&
+                    carga.mutate({
+                      file: archivo,
+                      hojaSeleccionada: hojaSeleccionada || undefined,
+                    })
+                  }
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm"
                 >
                   {carga.isPending ? "Procesando en streaming..." : "Procesar archivo"}
                 </Button>
