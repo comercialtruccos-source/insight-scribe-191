@@ -862,6 +862,35 @@ export function normalizarFila(
     fila.costo_total = fila.costo * fila.cantidad;
   }
 
+  // Filtrar valores de vendedor que sean números (ej: días 1..31) o etiquetas de tablas dinámicas
+  const esVendedorTextoValido = (v: string | null): boolean => {
+    if (!v) return false;
+    const s = v.trim();
+    if (!s || /^\d+$/.test(s)) return false;
+    const low = s.toLowerCase();
+    if (
+      low.includes("etiquetas de") ||
+      low.includes("cuenta de") ||
+      low.includes("suma de") ||
+      low.includes("total general") ||
+      low.includes("total oficial") ||
+      low === "#n/d" ||
+      low === "n/d" ||
+      low.startsWith("probe_") ||
+      low.includes("publicidad")
+    ) {
+      return false;
+    }
+    return true;
+  };
+
+  if (fila.vendedor && !esVendedorTextoValido(fila.vendedor)) {
+    fila.vendedor = null;
+  }
+  if (fila.vendedor2 && !esVendedorTextoValido(fila.vendedor2)) {
+    fila.vendedor2 = null;
+  }
+
   for (const k of Object.values(MAPA)) {
     if (!(k in fila)) (fila as Record<string, unknown>)[k] = null;
   }

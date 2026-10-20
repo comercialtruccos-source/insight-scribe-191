@@ -680,7 +680,13 @@ async function asegurarValoresDimension(
   const unicos = Array.from(new Set(
     valores
       .map((v) => (v || "").trim())
-      .filter((v) => v.length > 0 && !cache.has(v.toLowerCase()))
+      .filter((v) => {
+        if (v.length === 0 || cache.has(v.toLowerCase())) return false;
+        if (tabla === "dim_vendedor") {
+          if (!esVendedorValido(1, v)) return false;
+        }
+        return true;
+      })
   ));
 
   if (unicos.length === 0) return;
@@ -975,7 +981,45 @@ export async function eliminarCarga(cargaId: number): Promise<{ ok: boolean }> {
   return { ok: true };
 }
 
-const sanitizeCatalogo = (data: unknown[] | null | undefined): CatalogoItem[] => {
+/**
+ * Determina si un registro de dim_vendedor corresponde a un asesor comercial real.
+ * Excluye días numéricos (1..31), encabezados de tablas dinámicas, pruebas y roles no comerciales.
+ */
+export function esVendedorValido(id: number, nombre?: string | null): boolean {
+  if (!id || id <= 0) return false;
+  // Excluir IDs de artefactos no válidos conocidos (60928 a 60966)
+  if (id >= 60928 && id <= 60966) return false;
+  if (id === 25) return false; // JOHN FREDY SANCHEZ inexistente
+
+  if (!nombre) return false;
+  const n = String(nombre).trim();
+  if (n.length === 0) return false;
+
+  // Excluir nombres puramente numéricos (ej. días de mes como "1", "4", "7", "31")
+  if (/^\d+$/.test(n)) return false;
+
+  const low = n.toLowerCase();
+  if (low === "john fredy sanchez") return false;
+  if (low.includes("publicidad") || low.includes("publicada")) return false;
+  if (low.startsWith("probe_") || low.includes("test_probe")) return false;
+  if (
+    low.includes("etiquetas de") ||
+    low.includes("cuenta de") ||
+    low.includes("suma de") ||
+    low.includes("total general") ||
+    low.includes("total oficial") ||
+    low === "#n/d" ||
+    low === "n/d" ||
+    low.includes("varios elementos") ||
+    low.includes("multiple items")
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+const sanitizeCatalogo = (data: unknown[] | null | undefined, tipo?: "vendedor" | "otro"): CatalogoItem[] => {
   if (!Array.isArray(data)) return [];
   const map = new Map<number, string>();
   for (const item of data) {
@@ -984,17 +1028,21 @@ const sanitizeCatalogo = (data: unknown[] | null | undefined): CatalogoItem[] =>
       const id = Number(record["id"]);
       const nombre = String(record["nombre"] || "").trim();
       const lower = nombre.toLowerCase();
-      // Excluir registros vacíos, no comerciales o inválidos como publicidad
-      // Excluir vendedor inexistente JOHN FREDY SANCHEZ (ID 25)
-      if (
-        id > 0 &&
-        nombre.length > 0 &&
-        !map.has(id) &&
-        !lower.includes("publicidad") &&
-        !lower.includes("publicada") &&
-        id !== 25 &&
-        lower !== "john fredy sanchez"
-      ) {
+
+      if (tipo === "vendedor") {
+        if (!esVendedorValido(id, nombre)) continue;
+      } else {
+        if (
+          id <= 0 ||
+          nombre.length === 0 ||
+          lower.includes("publicidad") ||
+          lower.includes("publicada")
+        ) {
+          continue;
+        }
+      }
+
+      if (!map.has(id)) {
         map.set(id, nombre);
       }
     }
@@ -1058,7 +1106,7 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
 
   return {
     anios,
-    vendedores: sanitizeCatalogo(vendRes.data),
+    vendedores: sanitizeCatalogo(vendRes.data, "vendedor"),
     canales: sanitizeCatalogo(canalRes.data),
     marcas: sanitizeCatalogo(marcaRes.data),
     lineas: sanitizeCatalogo(lineaRes.data),

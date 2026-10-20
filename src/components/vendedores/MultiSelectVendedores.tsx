@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { CatalogoItem } from "@/lib/ventas-api";
+import { CatalogoItem, esVendedorValido } from "@/lib/ventas-api";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,17 +30,22 @@ export function MultiSelectVendedores({
   const [open, setOpen] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
+  // Filtrar estrictamente asesores válidos
+  const vendedoresValidos = useMemo(() => {
+    return vendedores.filter((v) => esVendedorValido(v.id, v.nombre));
+  }, [vendedores]);
+
   // Mapa de IDs disponibles
-  const todosIds = useMemo(() => vendedores.map((v) => String(v.id)), [vendedores]);
+  const todosIds = useMemo(() => vendedoresValidos.map((v) => String(v.id)), [vendedoresValidos]);
 
   // Vendedores filtrados por búsqueda
   const vendedoresFiltrados = useMemo(() => {
-    if (!busqueda.trim()) return vendedores;
+    if (!busqueda.trim()) return vendedoresValidos;
     const b = busqueda.trim().toLowerCase();
-    return vendedores.filter(
+    return vendedoresValidos.filter(
       (v) => v.nombre.toLowerCase().includes(b) || String(v.id).includes(b)
     );
-  }, [vendedores, busqueda]);
+  }, [vendedoresValidos, busqueda]);
 
   // Manejo de toggle individual
   const toggleVendedor = (idStr: string) => {
