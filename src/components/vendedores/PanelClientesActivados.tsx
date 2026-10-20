@@ -32,6 +32,8 @@ interface PanelClientesActivadosProps {
   vendedoresDisponibles?: CatalogoItem[];
   vendedorSeleccionadoId?: number | null;
   onSelectVendedor?: (vendedorId: number | null) => void;
+  terceroSeleccionadoId?: number | null;
+  onSelectTercero?: (terceroId: number | null) => void;
 }
 
 export function PanelClientesActivados({
@@ -39,11 +41,16 @@ export function PanelClientesActivados({
   vendedoresDisponibles = [],
   vendedorSeleccionadoId,
   onSelectVendedor,
+  terceroSeleccionadoId,
+  onSelectTercero,
 }: PanelClientesActivadosProps) {
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<"todos" | "Nuevo" | "Crecimiento" | "Decrecimiento">("todos");
   const [vendedorFiltroLocal, setVendedorFiltroLocal] = useState<string>(
     vendedorSeleccionadoId ? String(vendedorSeleccionadoId) : "todos"
+  );
+  const [clienteFiltroLocal, setClienteFiltroLocal] = useState<string>(
+    terceroSeleccionadoId ? String(terceroSeleccionadoId) : (filtros.tercero_id ? String(filtros.tercero_id) : "todos")
   );
 
   React.useEffect(() => {
@@ -54,24 +61,55 @@ export function PanelClientesActivados({
     }
   }, [vendedorSeleccionadoId]);
 
+  React.useEffect(() => {
+    if (terceroSeleccionadoId) {
+      setClienteFiltroLocal(String(terceroSeleccionadoId));
+    } else if (filtros.tercero_id) {
+      setClienteFiltroLocal(String(filtros.tercero_id));
+    } else {
+      setClienteFiltroLocal("todos");
+    }
+  }, [terceroSeleccionadoId, filtros.tercero_id]);
+
   // Filtros combinados para la consulta
   const filtrosEfectivos = useMemo<FiltrosBI>(() => {
     const vId = vendedorFiltroLocal !== "todos" ? Number(vendedorFiltroLocal) : filtros.vendedor_id;
+    const tId = clienteFiltroLocal !== "todos" ? Number(clienteFiltroLocal) : filtros.tercero_id;
     return {
       ...filtros,
       vendedor_id: vId,
+      tercero_id: tId,
     };
-  }, [filtros, vendedorFiltroLocal]);
+  }, [filtros, vendedorFiltroLocal, clienteFiltroLocal]);
 
   const { data, isLoading, isFetching, refetch } = useQuery<ResumenClientesVendedor>({
     queryKey: ["clientes-activados-vendedor", filtrosEfectivos],
     queryFn: () => obtenerClientesPorVendedor(filtrosEfectivos),
   });
 
-  // Filtrado local por búsqueda y estado
+  // Lista única de clientes disponibles para el selector
+  const clientesDisponibles = useMemo(() => {
+    if (!data?.clientes) return [];
+    const map = new Map<number, string>();
+    for (const c of data.clientes) {
+      if (c.terceroId && !map.has(c.terceroId)) {
+        map.set(c.terceroId, c.terceroNombre);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, nombre]) => ({ id, nombre }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  }, [data?.clientes]);
+
+  // Filtrado local por búsqueda, cliente y estado
   const clientesFiltrados = useMemo(() => {
     if (!data?.clientes) return [];
     let list = data.clientes;
+
+    if (clienteFiltroLocal !== "todos") {
+      const cId = Number(clienteFiltroLocal);
+      list = list.filter((c) => c.terceroId === cId);
+    }
 
     if (filtroEstado !== "todos") {
       list = list.filter((c) => c.estadoCliente === filtroEstado);
@@ -88,7 +126,7 @@ export function PanelClientesActivados({
     }
 
     return list;
-  }, [data?.clientes, filtroEstado, busqueda]);
+  }, [data?.clientes, clienteFiltroLocal, filtroEstado, busqueda]);
 
   // Exportar a CSV
   const exportarCSV = () => {
@@ -242,6 +280,29 @@ export function PanelClientesActivados({
               {(data?.vendedoresLista || vendedoresDisponibles).map((v) => (
                 <option key={v.id} value={String(v.id)}>
                   {v.nombre}
+                </option>
+              ))}
+            </select>
+
+            {/* Selector de Cliente / Tercero */}
+            <select
+              value={clienteFiltroLocal}
+              onChange={(e) => {
+                const val = e.target.value;
+                setClienteFiltroLocal(val);
+                if (onSelectTercero) {
+                  onSelectTercero(val === "todos" ? null : Number(val));
+                }
+              }}
+              className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border/80 text-foreground font-medium focus:outline-hidden max-w-[220px] truncate"
+              title="Filtrar por Cliente (Tercero)"
+            >
+              <option value="todos">
+                {clientesDisponibles.length > 0 ? `Todos los Clientes (${clientesDisponibles.length})` : "Todos los Clientes"}
+              </option>
+              {clientesDisponibles.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.nombre}
                 </option>
               ))}
             </select>

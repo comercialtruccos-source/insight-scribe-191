@@ -8,6 +8,7 @@ import {
   GrupoTerceroPedidoDespacho,
   ItemProductoPedidoDespacho,
   CatalogoItem,
+  fetchAllDimTercero,
 } from "@/lib/ventas-api";
 import { formatoCOPFull, formatoHGI } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -56,6 +57,8 @@ interface VisorPedidosDespachosProps {
   vendedorIdsPermitidos?: number[];
   vendedorIds?: number[];
   esAdmin?: boolean;
+  terceroIdFiltro?: number | "todos";
+  onSelectTercero?: (terceroId: number | null) => void;
 }
 
 export function VisorPedidosDespachos({
@@ -63,6 +66,8 @@ export function VisorPedidosDespachos({
   vendedorIdsPermitidos,
   vendedorIds,
   esAdmin = false,
+  terceroIdFiltro = "todos",
+  onSelectTercero,
 }: VisorPedidosDespachosProps) {
   // Filtros de encabezado HGI
   const [fechaDesde, setFechaDesde] = useState("2026-07-01");
@@ -74,10 +79,19 @@ export function VisorPedidosDespachos({
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState<number | "todos">(
     vendedorIdFiltro
   );
+  const [terceroSeleccionado, setTerceroSeleccionado] = useState<number | "todos">(
+    terceroIdFiltro || "todos"
+  );
 
   React.useEffect(() => {
     setVendedorSeleccionado(vendedorIdFiltro);
   }, [vendedorIdFiltro]);
+
+  React.useEffect(() => {
+    if (terceroIdFiltro) {
+      setTerceroSeleccionado(terceroIdFiltro);
+    }
+  }, [terceroIdFiltro]);
 
   // Cargar catálogo de correrías de dim_correria
   const { data: correriasData } = useQuery<CatalogoItem[]>({
@@ -90,6 +104,13 @@ export function VisorPedidosDespachos({
         .order("nombre");
       return (data || []).map((c) => ({ id: Number(c.id), nombre: String(c.nombre) }));
     },
+    staleTime: 1000 * 60 * 30,
+  });
+
+  // Cargar catálogo de clientes / terceros
+  const { data: tercerosData } = useQuery<CatalogoItem[]>({
+    queryKey: ["visor-terceros-catalogo"],
+    queryFn: () => fetchAllDimTercero(),
     staleTime: 1000 * 60 * 30,
   });
 
@@ -111,6 +132,7 @@ export function VisorPedidosDespachos({
       vendedorSeleccionado,
       vendedorIds,
       vendedorIdsPermitidos,
+      terceroSeleccionado,
       correriaSeleccionada,
       soloPendientes,
     ],
@@ -125,43 +147,57 @@ export function VisorPedidosDespachos({
             : vendedorSeleccionado === "todos" && vendedorIdsPermitidos?.length
             ? vendedorIdsPermitidos
             : undefined,
+        tercero_id: terceroSeleccionado !== "todos" ? Number(terceroSeleccionado) : undefined,
         correria_id: correriaSeleccionada !== "todas" ? Number(correriaSeleccionada) : undefined,
         solo_pendientes: soloPendientes,
       }),
   });
 
-  // Filtro de búsqueda local por texto (Tercero, Vendedor o Producto)
+  // Filtro de búsqueda local por texto (Tercero, Vendedor o Producto) y filtro de cliente
   const vendedoresFiltrados = useMemo(() => {
     if (!data?.vendedores) return [];
-    if (!busqueda.trim()) return data.vendedores;
+    let list = data.vendedores;
 
-    const b = busqueda.trim().toLowerCase();
-    return data.vendedores
-      .map((v) => {
-        const coincideVendedor = v.vendedorNombre.toLowerCase().includes(b);
-        const tercerosFiltrados = v.terceros.filter((t) => {
-          const coincideTercero =
-            t.terceroNombre.toLowerCase().includes(b) ||
-            (t.terceroCodigo && t.terceroCodigo.toLowerCase().includes(b));
-          const coincideProducto = t.productos.some(
-            (p) =>
-              p.producto.toLowerCase().includes(b) ||
-              (p.descripcion && p.descripcion.toLowerCase().includes(b)) ||
-              (p.sku && p.sku.toLowerCase().includes(b))
-          );
-          return coincideTercero || coincideProducto || coincideVendedor;
-        });
+    if (terceroSeleccionado !== "todos") {
+      list = list
+        .map((v) => ({
+          ...v,
+          terceros: v.terceros.filter((t) => Number(t.terceroId) === Number(terceroSeleccionado)),
+        }))
+        .filter((v) => v.terceros.length > 0);
+    }
 
-        if (coincideVendedor || tercerosFiltrados.length > 0) {
-          return {
-            ...v,
-            terceros: coincideVendedor ? v.terceros : tercerosFiltrados,
-          };
-        }
-        return null;
-      })
-      .filter((v): v is GrupoVendedorPedidoDespacho => v !== null);
-  }, [data?.vendedores, busqueda]);
+    if (busqueda.trim()) {
+      const b = busqueda.trim().toLowerCase();
+      list = list
+        .map((v) => {
+          const coincideVendedor = v.vendedorNombre.toLowerCase().includes(b);
+          const tercerosFiltrados = v.terceros.filter((t) => {
+            const coincideTercero =
+              t.terceroNombre.toLowerCase().includes(b) ||
+              (t.terceroCodigo && t.terceroCodigo.toLowerCase().includes(b));
+            const coincideProducto = t.productos.some(
+              (p) =>
+                p.producto.toLowerCase().includes(b) ||
+                (p.descripcion && p.descripcion.toLowerCase().includes(b)) ||
+                (p.sku && p.sku.toLowerCase().includes(b))
+            );
+            return coincideTercero || coincideProducto || coincideVendedor;
+          });
+
+          if (coincideVendedor || tercerosFiltrados.length > 0) {
+            return {
+              ...v,
+              terceros: coincideVendedor ? v.terceros : tercerosFiltrados,
+            };
+          }
+          return null;
+        })
+        .filter((v): v is GrupoVendedorPedidoDespacho => v !== null);
+    }
+
+    return list;
+  }, [data?.vendedores, terceroSeleccionado, busqueda]);
 
   // Manejo de expansión / colapso
   const toggleExpandir = (clave: string) => {
@@ -328,6 +364,31 @@ export function VisorPedidosDespachos({
                 {(correriasData || []).map((c) => (
                   <option key={c.id} value={String(c.id)}>
                     {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Selector de Cliente / Comprador (Tercero) */}
+            <div className="flex items-center gap-1 px-2 py-1 bg-background border rounded-md">
+              <Users className="h-3 w-3 text-indigo-500 shrink-0" />
+              <span className="text-muted-foreground text-[10.5px]">Cliente:</span>
+              <select
+                value={terceroSeleccionado}
+                onChange={(e) => {
+                  const val = e.target.value === "todos" ? "todos" : Number(e.target.value);
+                  setTerceroSeleccionado(val);
+                  if (onSelectTercero) {
+                    onSelectTercero(val === "todos" ? null : val);
+                  }
+                }}
+                className="bg-transparent border-0 text-[11px] font-bold text-foreground focus:outline-hidden cursor-pointer max-w-[190px] truncate"
+                title="Filtrar por Cliente / Comprador"
+              >
+                <option value="todos">Todos los Clientes ({(tercerosData || []).length})</option>
+                {(tercerosData || []).map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
                   </option>
                 ))}
               </select>

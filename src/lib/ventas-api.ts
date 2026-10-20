@@ -18,6 +18,8 @@ export type FiltrosBI = {
   vendedor_ids?: number[] | null | undefined;
   zona_id?: number | null | undefined;
   ciudad_id?: number | null | undefined;
+  tercero_id?: number | null | undefined;
+  tercero_ids?: number[] | null | undefined;
 };
 
 export type CatalogoItem = {
@@ -134,6 +136,12 @@ export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or:
   if (filtros.ciudad_id) {
     q = q.eq("ciudad_id", filtros.ciudad_id);
   }
+  if (filtros.tercero_id) {
+    q = q.eq("tercero_id", filtros.tercero_id);
+  } else if (filtros.tercero_ids && filtros.tercero_ids.length > 0) {
+    const listStr = filtros.tercero_ids.join(",");
+    q = q.in("tercero_id", filtros.tercero_ids);
+  }
 
   return q;
 }
@@ -184,6 +192,12 @@ export function cumpleFiltros(r: any, filtros: FiltrosBI): boolean {
   }
   if (filtros.ciudad_id && "ciudad_id" in r && r.ciudad_id !== null && r.ciudad_id !== undefined) {
     if (Number(r.ciudad_id) !== filtros.ciudad_id) return false;
+  }
+  if (filtros.tercero_id && "tercero_id" in r && r.tercero_id !== null && r.tercero_id !== undefined) {
+    if (Number(r.tercero_id) !== filtros.tercero_id) return false;
+  } else if (filtros.tercero_ids && filtros.tercero_ids.length > 0 && "tercero_id" in r) {
+    const tId = r.tercero_id ? Number(r.tercero_id) : null;
+    if (tId === null || !filtros.tercero_ids.includes(tId)) return false;
   }
   return true;
 }
@@ -619,17 +633,44 @@ type DimCache = {
   marca: Map<string, number>;
 };
 
+export async function fetchAllDimTercero(): Promise<CatalogoItem[]> {
+  const all: CatalogoItem[] = [];
+  let offset = 0;
+  const CHUNK = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from("dim_tercero")
+      .select("id, nombre, codigo")
+      .not("nombre", "is", null)
+      .order("nombre", { ascending: true })
+      .range(offset, offset + CHUNK - 1);
+    if (error || !data || data.length === 0) break;
+    for (const t of data) {
+      if (t.id && t.nombre) {
+        all.push({
+          id: Number(t.id),
+          nombre: String(t.nombre).trim(),
+          codigo: t.codigo ? String(t.codigo).trim() : null,
+        });
+      }
+    }
+    if (data.length < CHUNK) break;
+    offset += CHUNK;
+  }
+  return all;
+}
+
 let _dimCacheGlobal: DimCache | null = null;
 
 async function obtenerDimCache(): Promise<DimCache> {
   if (_dimCacheGlobal) return _dimCacheGlobal;
 
   const [
-    vendRes, tercRes, zonaRes, ciudadRes, lineaRes,
+    vendRes, tercRows, zonaRes, ciudadRes, lineaRes,
     colRes, canalRes, zona2Res, paisRes, zonaColRes, corrRes, marcaRes
   ] = await Promise.all([
     supabase.from("dim_vendedor").select("id, nombre").not("nombre", "is", null).limit(10000),
-    supabase.from("dim_tercero").select("id, nombre").not("nombre", "is", null).limit(100000),
+    fetchAllDimTercero(),
     supabase.from("dim_zona").select("id, nombre").not("nombre", "is", null).limit(2000),
     supabase.from("dim_ciudad").select("id, nombre").not("nombre", "is", null).limit(5000),
     supabase.from("dim_linea").select("id, nombre").not("nombre", "is", null).limit(2000),
@@ -652,9 +693,14 @@ async function obtenerDimCache(): Promise<DimCache> {
     return m;
   };
 
+  const tercMap = new Map<string, number>();
+  for (const t of tercRows) {
+    if (t.id && t.nombre) tercMap.set(t.nombre.trim().toLowerCase(), t.id);
+  }
+
   _dimCacheGlobal = {
     vendedor: toMap(vendRes.data),
-    tercero: toMap(tercRes.data),
+    tercero: tercMap,
     zona: toMap(zonaRes.data),
     ciudad: toMap(ciudadRes.data),
     linea: toMap(lineaRes.data),
@@ -693,11 +739,28 @@ async function asegurarValoresDimension(
 
   const toInsert: Array<Record<string, unknown>> = unicos.map((nom) => {
     if (esTercero) {
-      const cod = terceroCodigoMap?.get(nom.toLowerCase()) || null;
+      let cod = terceroCodigoMap?.get(nom.toLowerCase()) || null;
+      const codUpper = (cod || "").toUpperCase().trim();
+      const esGen = !cod || codUpper === "NO APLICA" || codUpper === "GENERAL" || codUpper === "0" || codUpper === "CONSUMIDOR FINAL";
+      if (esGen) {
+        cod = nom;
+      }
       return { nombre: nom, codigo: cod };
     }
     return { nombre: nom };
   });
+
+  const seenCodes = new Set<string>();
+  for (const item of toInsert) {
+    if (item.codigo) {
+      let codeStr = String(item.codigo).trim();
+      if (seenCodes.has(codeStr)) {
+        codeStr = `${codeStr}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        item.codigo = codeStr;
+      }
+      seenCodes.add(codeStr);
+    }
+  }
 
   for (let i = 0; i < toInsert.length; i += 100) {
     const chunk = toInsert.slice(i, i + 100);
@@ -712,7 +775,24 @@ async function asegurarValoresDimension(
         }
       }
       if (error) {
-        // En caso de que algunos nombres ya existan, consultar los existentes para actualizar la caché
+        // En caso de conflicto de código o duplicidad, insertar uno por uno con código seguro
+        for (const item of chunk) {
+          try {
+            const safeCode = esTercero
+              ? `${String(item.codigo || item.nombre).trim()}_${Date.now()}_${Math.floor(Math.random() * 10000)}`
+              : undefined;
+            const payload = esTercero ? { ...item, codigo: safeCode } : item;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: sData } = await (supabase.from(tabla) as any).insert(payload).select("id, nombre");
+            if (sData && sData[0]) {
+              cache.set(String(sData[0].nombre).trim().toLowerCase(), sData[0].id);
+            }
+          } catch {
+            // omitir
+          }
+        }
+
+        // Consultar los existentes para asegurar la caché
         const nombresChunk = chunk.map((c) => String(c.nombre));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: existing } = await (supabase.from(tabla) as any)
@@ -1065,7 +1145,7 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
       supabase.from("dim_ciudad").select("id, nombre").not("nombre", "is", null).order("nombre").limit(1000),
       supabase.from("dim_correria").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
       supabase.from("dim_pais").select("id, nombre").not("nombre", "is", null).order("nombre").limit(500),
-      supabase.from("dim_tercero").select("id, nombre, codigo").not("nombre", "is", null).order("nombre").limit(50000),
+      fetchAllDimTercero(),
       supabase.from("fact_ventas").select("fecha, anio, anio_col").not("fecha", "is", null).order("fecha", { ascending: true }).limit(1),
       supabase.from("fact_ventas").select("fecha, anio, anio_col").not("fecha", "is", null).order("fecha", { ascending: false }).limit(1),
     ]);
@@ -1114,11 +1194,7 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
     ciudades: sanitizeCatalogo(ciudadRes.data),
     correrias: sanitizeCatalogo(correriaRes.data),
     paises: sanitizeCatalogo(paisRes.data),
-    terceros: (tercRes.data || []).map((t: any) => ({
-      id: Number(t.id),
-      nombre: String(t.nombre || t.codigo || `Cliente #${t.id}`).trim(),
-      codigo: t.codigo ? String(t.codigo).trim() : null,
-    })),
+    terceros: tercRes,
   };
 }
 
@@ -4482,6 +4558,8 @@ export type FiltrosPedidosDespachos = {
   fecha_hasta?: string | null;
   vendedor_id?: number | null;
   vendedor_ids?: number[] | null;
+  tercero_id?: number | null;
+  tercero_ids?: number[] | null;
   correria_id?: number | string | null;
   tercero_busqueda?: string | null;
   producto_busqueda?: string | null;
@@ -4553,14 +4631,14 @@ export async function obtenerPedidosVsDespachos(
   const fechaDesde = filtros.fecha_desde || "2026-07-01";
   const fechaHasta = filtros.fecha_hasta || "2026-12-31";
 
-  const [vendsRes, tercsRes] = await Promise.all([
+  const [vendsRes, tercs] = await Promise.all([
     supabase.from("dim_vendedor").select("id, nombre"),
-    supabase.from("dim_tercero").select("id, codigo, nombre").limit(50000),
+    fetchAllDimTercero(),
   ]);
 
   const vMap = new Map<number, string>((vendsRes.data || []).map((v) => [v.id, v.nombre]));
   const tMap = new Map<number, { nombre: string; codigo?: string | null }>(
-    (tercsRes.data || []).map((t) => [t.id, { nombre: t.nombre || t.codigo || `Tercero #${t.id}`, codigo: t.codigo }])
+    tercs.map((t) => [t.id, { nombre: t.nombre || t.codigo || `Tercero #${t.id}`, codigo: t.codigo }])
   );
 
   // Consulta por lotes para fact_ventas
@@ -4587,6 +4665,13 @@ export async function obtenerPedidosVsDespachos(
     } else if (filtros.vendedor_ids && filtros.vendedor_ids.length > 0) {
       const listStr = filtros.vendedor_ids.join(",");
       q = q.or(`vendedor_id.in.(${listStr}),vendedor2_id.in.(${listStr})`);
+    }
+
+    if (filtros.tercero_id) {
+      q = q.eq("tercero_id", filtros.tercero_id);
+    } else if (filtros.tercero_ids && filtros.tercero_ids.length > 0) {
+      const listStr = filtros.tercero_ids.join(",");
+      q = q.in("tercero_id", filtros.tercero_ids);
     }
 
     const { data, error } = await q
@@ -4636,8 +4721,9 @@ export async function obtenerPedidosVsDespachos(
 
     const tId = Number(r.tercero_id) || 0;
     const tInfo = tId ? tMap.get(tId) : null;
-    const tNombre = tInfo?.nombre || (tInfo?.codigo ? tInfo.codigo : "CONSUMIDOR FINAL");
-    const tCodigo = tInfo?.codigo || null;
+    const infoT = resolverInfoTercero(tId, tInfo);
+    const tNombre = infoT.nombre;
+    const tCodigo = infoT.codigo;
 
     if (tBusq && !tNombre.toLowerCase().includes(tBusq) && !(tCodigo && tCodigo.toLowerCase().includes(tBusq))) {
       continue;
@@ -4878,13 +4964,13 @@ export type ResumenClientesVendedor = {
 export async function obtenerClientesPorVendedor(
   filtros: FiltrosBI
 ): Promise<ResumenClientesVendedor> {
-  const [tercRes, vendRes] = await Promise.all([
-    supabase.from("dim_tercero").select("id, codigo, nombre").limit(50000),
+  const [tercs, vendRes] = await Promise.all([
+    fetchAllDimTercero(),
     supabase.from("dim_vendedor").select("id, nombre").limit(1000),
   ]);
 
   const tMap = new Map<number, { nombre: string; codigo?: string | null }>(
-    (tercRes.data || []).map((t) => [t.id, { nombre: t.nombre || t.codigo || `Cliente #${t.id}`, codigo: t.codigo }])
+    tercs.map((t) => [t.id, { nombre: t.nombre || t.codigo || `Cliente #${t.id}`, codigo: t.codigo }])
   );
   const vMap = new Map<number, string>(
     (vendRes.data || []).map((v) => [v.id, v.nombre])

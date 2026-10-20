@@ -332,6 +332,7 @@ function Panel() {
   const [vendedorIds, setVendedorIds] = useState<string[]>([]);
   const [zonaId, setZonaId] = useState<string>("todos");
   const [ciudadId, setCiudadId] = useState<string>("todos");
+  const [terceroId, setTerceroId] = useState<string>("todos");
   const [canalRankingOverride, setCanalRankingOverride] = useState<number | null>(null);
 
   // Sub-filtro de canal digital y búsqueda de SKU para Dashboard 3
@@ -596,8 +597,9 @@ function Panel() {
       vendedor_ids: fVendedorIds,
       zona_id: zonaId !== "todos" ? Number(zonaId) : null,
       ciudad_id: ciudadId !== "todos" ? Number(ciudadId) : null,
+      tercero_id: terceroId !== "todos" ? Number(terceroId) : null,
     };
-  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, vendedorIds, zonaId, ciudadId, rangoTotal?.fechaMax, esAdmin, vendedorIdsPermitidos, canalesDisponibles]);
+  }, [tipoRango, fechaDesde, fechaHasta, anio, mes, canalId, marcaId, vendedorId, vendedorIds, zonaId, ciudadId, terceroId, rangoTotal?.fechaMax, esAdmin, vendedorIdsPermitidos, canalesDisponibles]);
 
   const hayFiltrosActivos =
     tabActivo === "d3"
@@ -606,6 +608,7 @@ function Panel() {
         mes !== "todos" ||
         marcaId !== "todos" ||
         ciudadId !== "todos" ||
+        terceroId !== "todos" ||
         filtroCanalDigital !== "todos" ||
         Boolean(busquedaSkuD3) ||
         Boolean(fechaDesde) ||
@@ -619,6 +622,7 @@ function Panel() {
         vendedorIds.length > 0 ||
         zonaId !== "todos" ||
         ciudadId !== "todos" ||
+        terceroId !== "todos" ||
         filtroRefEscalaD6 !== "todas" ||
         Boolean(fechaDesde) ||
         Boolean(fechaHasta);
@@ -635,6 +639,7 @@ function Panel() {
     setVendedorIds([]);
     setZonaId("todos");
     setCiudadId("todos");
+    setTerceroId("todos");
     setFiltroCanalDigital("todos");
     setBusquedaSkuD3("");
     setFiltroRefEscalaD6("todas");
@@ -1798,6 +1803,23 @@ function Panel() {
                     ))}
                   </SelectContent>
                 </Select>
+
+                {/* Cliente / Comprador (Tercero) */}
+                {catalogos?.terceros && catalogos.terceros.length > 0 && (
+                  <Select value={terceroId} onValueChange={setTerceroId}>
+                    <SelectTrigger className={`h-8 w-[160px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs hover:border-primary/50 transition-all font-medium ${terceroId !== "todos" ? "border-indigo-500 font-semibold text-indigo-700 dark:text-indigo-300" : ""}`}>
+                      <SelectValue placeholder="Cliente (Tercero)" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72 overflow-y-auto rounded-xl border-border/80 shadow-lg">
+                      <SelectItem value="todos">Todos los Clientes ({catalogos.terceros.length})</SelectItem>
+                      {catalogos.terceros.map((t) => (
+                        <SelectItem key={t.id} value={String(t.id)}>
+                          {t.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </>
             )}
 
@@ -5020,6 +5042,10 @@ function Panel() {
                     setVendedorId("todos");
                   }
                 }}
+                terceroSeleccionadoId={terceroId !== "todos" ? Number(terceroId) : null}
+                onSelectTercero={(id) => {
+                  setTerceroId(id ? String(id) : "todos");
+                }}
               />
             ) : (
               <>
@@ -6571,6 +6597,10 @@ function Panel() {
               vendedorIds={vendedorIds.length > 0 ? vendedorIds.map(Number) : undefined}
               vendedorIdsPermitidos={vendedorIdsPermitidos || undefined}
               esAdmin={esAdmin}
+              terceroIdFiltro={terceroId !== "todos" ? Number(terceroId) : "todos"}
+              onSelectTercero={(id) => {
+                setTerceroId(id ? String(id) : "todos");
+              }}
             />
           </TabsContent>
 
