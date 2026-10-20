@@ -5270,8 +5270,6 @@ function Panel() {
                         <th className="py-3 px-3">Asesor Comercial</th>
                         <th className="py-3 px-3 text-right">Prendas (Unds)</th>
                         <th className="py-3 px-3 text-left w-36">% Cuota Canal</th>
-                        <th className="py-3 px-3 text-right">Facturas / Pedidos</th>
-                        <th className="py-3 px-3 text-right">Prendas / Factura</th>
                         {compararAnioAnterior && <th className="py-3 px-3 text-right">Vs. Año Ant. (Prendas)</th>}
                         <th className="py-3 px-3 text-center">Acción</th>
                       </tr>
@@ -5327,12 +5325,6 @@ function Panel() {
                                 </div>
                                 <span className="font-semibold text-[11px] text-muted-foreground">{Number(a.cuotaCanalPct).toFixed(1)}%</span>
                               </div>
-                            </td>
-                            <td className="py-3 px-3 text-right text-muted-foreground font-medium font-mono">
-                              {a.transacciones.toLocaleString("es-CO")}
-                            </td>
-                            <td className="py-3 px-3 text-right font-medium text-muted-foreground font-mono">
-                              {Math.round(a.prendasPorTransaccion).toLocaleString("es-CO")} unds
                             </td>
                             {compararAnioAnterior && (
                               <td className="py-3 px-3 text-right font-mono">
