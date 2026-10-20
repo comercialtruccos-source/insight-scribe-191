@@ -71,16 +71,16 @@ export function PanelClientesActivados({
     }
   }, [terceroSeleccionadoId, filtros.tercero_id]);
 
-  // Filtros combinados para la consulta
+  // Filtros para la consulta (obtiene todos los clientes del asesor para permitir filtrado local instantáneo)
   const filtrosEfectivos = useMemo<FiltrosBI>(() => {
     const vId = vendedorFiltroLocal !== "todos" ? Number(vendedorFiltroLocal) : filtros.vendedor_id;
-    const tId = clienteFiltroLocal !== "todos" ? Number(clienteFiltroLocal) : filtros.tercero_id;
     return {
       ...filtros,
       vendedor_id: vId,
-      tercero_id: tId,
+      tercero_id: undefined,
+      tercero_ids: undefined,
     };
-  }, [filtros, vendedorFiltroLocal, clienteFiltroLocal]);
+  }, [filtros, vendedorFiltroLocal]);
 
   const { data, isLoading, isFetching, refetch } = useQuery<ResumenClientesVendedor>({
     queryKey: ["clientes-activados-vendedor", filtrosEfectivos],
@@ -151,7 +151,35 @@ export function PanelClientesActivados({
     URL.revokeObjectURL(url);
   };
 
-  const kpis = data?.kpis;
+  const kpis = useMemo(() => {
+    if (!data?.kpis) return null;
+    if (clienteFiltroLocal === "todos" && filtroEstado === "todos" && !busqueda.trim()) {
+      return data.kpis;
+    }
+    const totalClientes = clientesFiltrados.length;
+    const clientesNuevos = clientesFiltrados.filter((c) => c.estadoCliente === "NUEVO").length;
+    const ventaTotal = clientesFiltrados.reduce((acc, c) => acc + c.ventaActual, 0);
+    const ventaAnteriorTotal = clientesFiltrados.reduce((acc, c) => acc + c.ventaAnterior, 0);
+    const crecimientoYoYPct = ventaAnteriorTotal > 0
+      ? ((ventaTotal - ventaAnteriorTotal) / ventaAnteriorTotal) * 100
+      : ventaTotal > 0 ? 100 : 0;
+    const unidadesTotal = clientesFiltrados.reduce((acc, c) => acc + c.unidadesActuales, 0);
+    const transaccionesTotal = clientesFiltrados.reduce((acc, c) => acc + c.transacciones, 0);
+    const ticketPromedioGlobal = transaccionesTotal > 0 ? Math.round(ventaTotal / transaccionesTotal) : 0;
+
+    return {
+      totalClientes,
+      clientesNuevos,
+      clientesCrecimiento: clientesFiltrados.filter((c) => c.estadoCliente === "CRECIMIENTO").length,
+      clientesDecrecimiento: clientesFiltrados.filter((c) => c.estadoCliente === "DECRECIMIENTO").length,
+      ventaTotal,
+      ventaAnteriorTotal,
+      crecimientoYoYPct,
+      unidadesTotal,
+      unidadesAnteriorTotal: clientesFiltrados.reduce((acc, c) => acc + c.unidadesAnteriores, 0),
+      ticketPromedioGlobal,
+    };
+  }, [data?.kpis, clientesFiltrados, clienteFiltroLocal, filtroEstado, busqueda]);
 
   return (
     <Card className="border border-border/80 shadow-sm bg-card/95 backdrop-blur-sm overflow-hidden">
