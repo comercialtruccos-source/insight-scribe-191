@@ -108,14 +108,9 @@ export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or:
   } else if (filtros.fecha_hasta) {
     q = q.lte("fecha", filtros.fecha_hasta);
   } else if (filtros.anio) {
+    q = q.eq("anio", filtros.anio);
     if (filtros.mes) {
-      const mPad = String(filtros.mes).padStart(2, "0");
-      const diasEnMes = new Date(filtros.anio, filtros.mes, 0).getDate();
-      q = q
-        .gte("fecha", `${filtros.anio}-${mPad}-01`)
-        .lte("fecha", `${filtros.anio}-${mPad}-${String(diasEnMes).padStart(2, "0")}`);
-    } else {
-      q = q.gte("fecha", `${filtros.anio}-01-01`).lte("fecha", `${filtros.anio}-12-31`);
+      q = q.eq("mes", filtros.mes);
     }
   } else if (filtros.mes) {
     q = q.eq("mes", filtros.mes);
@@ -283,7 +278,7 @@ async function fetchChunksDirect<T>(
 export async function fetchAllFactVentas<T = Record<string, unknown>>(
   columns: string,
   filtros: FiltrosBI,
-  maxRows = 500000
+  maxRows = 1500000
 ): Promise<T[]> {
   const rows: T[] = [];
 
@@ -312,7 +307,7 @@ export async function fetchAllFactVentas<T = Record<string, unknown>>(
   } else if (!filtros.fecha_desde && !filtros.fecha_hasta && !filtros.anio) {
     // Cuando no hay rango de fecha ni año específico (Todo el Histórico):
     // Segmentamos por los años con datos en paralelo para evitar escaneos lentos y timeouts en tablas grandes
-    const candidateYears = [2026, 2025];
+    const candidateYears = [2026, 2025, 2024];
     const yearResults = await Promise.all(
       candidateYears.map((yr) =>
         fetchChunksDirect<T>(columns, { ...filtros, anio: yr }, maxRows)
@@ -1254,15 +1249,13 @@ export function calcularHistoricoMultianual(
   if (cmiMatriz && cmiMatriz.length > 0) {
     for (const cmiM of cmiMatriz) {
       const idx = matrizMesAnio.findIndex((m) => m.anio === cmiM.anio);
-      if (idx !== -1) {
-        matrizMesAnio[idx] = cmiM;
-      } else {
+      if (idx === -1) {
         matrizMesAnio.push(cmiM);
-      }
-      const rIdx = aniosResumen.findIndex((r) => r.anio === cmiM.anio);
-      if (rIdx !== -1) {
-        aniosResumen[rIdx].totalVentas = cmiM.totalAnio;
-        aniosResumen[rIdx].totalUnidades = cmiM.unidadesAnio;
+        const rIdx = aniosResumen.findIndex((r) => r.anio === cmiM.anio);
+        if (rIdx !== -1) {
+          aniosResumen[rIdx].totalVentas = cmiM.totalAnio;
+          aniosResumen[rIdx].totalUnidades = cmiM.unidadesAnio;
+        }
       }
     }
     for (let i = 0; i < aniosResumen.length; i++) {
@@ -1277,8 +1270,12 @@ export function calcularHistoricoMultianual(
       const m2026 = cmiMatriz.find((m) => m.anio === 2026)?.meses[idx] || 0;
       const m2025 = cmiMatriz.find((m) => m.anio === 2025)?.meses[idx] || 0;
       if (estacionalidadCurvas[idx]) {
-        estacionalidadCurvas[idx]["anio_2026"] = m2026;
-        estacionalidadCurvas[idx]["anio_2025"] = m2025;
+        if (!estacionalidadCurvas[idx]["anio_2026"] && m2026 > 0) {
+          estacionalidadCurvas[idx]["anio_2026"] = m2026;
+        }
+        if (!estacionalidadCurvas[idx]["anio_2025"] && m2025 > 0) {
+          estacionalidadCurvas[idx]["anio_2025"] = m2025;
+        }
       }
     }
   }
@@ -1995,13 +1992,15 @@ export function calcularDashboard1Cumplimiento(
     const promedioVentaMes = mesesConVenta.length > 0 ? totalVentasAnio / mesesConVenta.length : 0;
     const metaBaseMensual = promedioVentaMes > 0 ? Math.round(promedioVentaMes * 1.05) : 0;
 
+    const cmiMeses = obtenerMesesCalibradosCMI(filtros);
     meses = nombresMes.map((nombre, idx) => {
       const mNum = idx + 1;
       const d = periodoMap.get(String(mNum)) || { anio: filtros.anio!, mes: mNum, venta: 0, unidades: 0, dev: 0 };
-      const ppto = d.venta > 0 ? metaBaseMensual : 0;
+      const cmiPpto = cmiMeses?.[idx]?.ppto || cmiMeses?.[idx]?.ppto2026 || 0;
+      const ppto = cmiPpto > 0 ? cmiPpto : (d.venta > 0 ? metaBaseMensual : 0);
       const ventaBrutaMes = d.venta + d.dev;
       const cumplimientoPct = ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 10000) / 100 : (d.venta > 0 ? 100 : 0);
-      const vAnt = periodoAntMap.get(String(mNum))?.venta || 0;
+      const vAnt = periodoAntMap.get(String(mNum))?.venta || cmiMeses?.[idx]?.v2025 || 0;
       const uAnt = periodoAntMap.get(String(mNum))?.unidades || 0;
       const yoy = vAnt > 0 ? Math.round(((d.venta - vAnt) / vAnt) * 10000) / 100 : 0;
 
@@ -2342,47 +2341,35 @@ export function calcularDashboard1Cumplimiento(
   const cmiKpis = obtenerKpisCalibradosCMI(filtros);
   const cmiMeses = obtenerMesesCalibradosCMI(filtros);
 
-  const mesesFinal = cmiMeses || meses;
-  const kpisFinal = cmiKpis
-    ? {
-        ...cmiKpis,
-        pptoAnteriorTotal: totalPptoAnterior > 0 ? totalPptoAnterior : 0,
-        cumplimientoAnteriorPct: cmiKpis.ventaAnteriorTotal > 0 ? 100 : 0,
-        devolucionesAnteriorTotal: totalDevolucionesAnterior,
-        tasaDevolucionAnteriorPct,
-        ticketPromedio: cmiKpis.volumenUnidades > 0 ? Math.round(cmiKpis.ventaYTD / cmiKpis.volumenUnidades) : ticketPromedio,
-        ticketPromedioAnterior: cmiKpis.unidadesAnteriorTotal > 0 ? Math.round(cmiKpis.ventaAnteriorTotal / cmiKpis.unidadesAnteriorTotal) : ticketPromedioAnterior,
-        precioPromedioPrenda: cmiKpis.volumenUnidades > 0 ? Math.round(cmiKpis.ventaYTD / cmiKpis.volumenUnidades) : precioPromedioPrenda,
-        precioPromedioPrendaAnterior: cmiKpis.unidadesAnteriorTotal > 0 ? Math.round(cmiKpis.ventaAnteriorTotal / cmiKpis.unidadesAnteriorTotal) : precioPromedioPrendaAnterior,
-        totalTransacciones: numTransacciones > 0 ? numTransacciones : cmiKpis.volumenUnidades,
-        totalTransaccionesAnterior: numTransaccionesAnterior > 0 ? numTransaccionesAnterior : cmiKpis.unidadesAnteriorTotal,
-      }
-    : {
-        ventaYTD: totalVentas,
-        ventaBrutaTotal: totalVentaBruta,
-        ventaAnteriorTotal: totalVentasAnterior,
-        ventaBrutaAnteriorTotal: totalVentaBrutaAnterior,
-        pptoYTD: totalPpto > 0 ? totalPpto : (totalVentas > 0 ? Math.round(totalVentas * 1.05) : 0),
-        pptoAnteriorTotal: totalPptoAnterior > 0 ? totalPptoAnterior : (totalVentasAnterior > 0 ? Math.round(totalVentasAnterior * 1.05) : 0),
-        cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 10000) / 100 : (totalVentas > 0 ? 100 : 0),
-        cumplimientoAnteriorPct,
-        crecimientoYoYPct: crecimientoYoYGlobal,
-        devolucionesTotal: totalDevoluciones,
-        devolucionesAnteriorTotal: totalDevolucionesAnterior,
-        tasaDevolucionGlobalPct: totalVentas > 0 ? Math.round((totalDevoluciones / totalVentas) * 10000) / 100 : 0,
-        tasaDevolucionAnteriorPct,
-        volumenUnidades: totalUnidades,
-        unidadesAnteriorTotal: totalUnidadesAnterior,
-        ticketPromedio,
-        ticketPromedioAnterior,
-        precioPromedioPrenda,
-        precioPromedioPrendaAnterior,
-        totalTransacciones: numTransacciones,
-        totalTransaccionesAnterior: numTransaccionesAnterior,
-        carteraTotal: 0,
-        carteraMayor90Dias: 0,
-        carteraPct90Dias: 0,
-      };
+  // Preservamos las ventas reales calculadas directamente de fact_ventas (incluyendo meses 9 y 10).
+  const mesesFinal = meses;
+
+  const kpisFinal = {
+    ventaYTD: totalVentas,
+    ventaBrutaTotal: totalVentaBruta,
+    ventaAnteriorTotal: totalVentasAnterior > 0 ? totalVentasAnterior : (cmiKpis?.ventaAnteriorTotal || 0),
+    ventaBrutaAnteriorTotal: totalVentaBrutaAnterior,
+    pptoYTD: totalPpto > 0 ? totalPpto : (cmiKpis?.pptoYTD || (totalVentas > 0 ? Math.round(totalVentas * 1.05) : 0)),
+    pptoAnteriorTotal: totalPptoAnterior > 0 ? totalPptoAnterior : (totalVentasAnterior > 0 ? Math.round(totalVentasAnterior * 1.05) : 0),
+    cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 10000) / 100 : (totalVentas > 0 ? 100 : 0),
+    cumplimientoAnteriorPct,
+    crecimientoYoYPct: totalVentasAnterior > 0 ? Math.round(((totalVentas - totalVentasAnterior) / totalVentasAnterior) * 10000) / 100 : (cmiKpis?.crecimientoYoYPct || 0),
+    devolucionesTotal: totalDevoluciones,
+    devolucionesAnteriorTotal: totalDevolucionesAnterior,
+    tasaDevolucionGlobalPct: totalVentas > 0 ? Math.round((totalDevoluciones / totalVentas) * 10000) / 100 : 0,
+    tasaDevolucionAnteriorPct,
+    volumenUnidades: totalUnidades,
+    unidadesAnteriorTotal: totalUnidadesAnterior,
+    ticketPromedio,
+    ticketPromedioAnterior,
+    precioPromedioPrenda,
+    precioPromedioPrendaAnterior,
+    totalTransacciones: numTransacciones,
+    totalTransaccionesAnterior: numTransaccionesAnterior,
+    carteraTotal: cmiKpis?.carteraTotal || 0,
+    carteraMayor90Dias: cmiKpis?.carteraMayor90Dias || 0,
+    carteraPct90Dias: cmiKpis?.carteraPct90Dias || 0,
+  };
 
   if (kpisFinal.ventaYTD > 0 && rankingVendedores.length > 0) {
     for (const rv of rankingVendedores) {
@@ -2464,17 +2451,23 @@ export function calcularDashboard2RunRate(
 
   if (!anioTarget || !mesTarget) {
     if (data.length > 0) {
-      const last = data[data.length - 1];
-      if (!anioTarget) {
-        anioTarget = last?.anio || (last?.fecha ? parseInt(last.fecha.slice(0, 4), 10) : 2025);
+      let maxAnio = 0;
+      let maxMes = 0;
+      for (const r of data) {
+        const y = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : 0);
+        const m = Number(r.mes) || (r.fecha ? parseInt(String(r.fecha).slice(5, 7), 10) : 0);
+        if (y > maxAnio) {
+          maxAnio = y;
+          maxMes = m;
+        } else if (y === maxAnio && m > maxMes) {
+          maxMes = m;
+        }
       }
-      if (!mesTarget) {
-        mesTarget = last?.mes || (last?.fecha ? parseInt(last.fecha.slice(5, 7), 10) : 1);
-      }
-    } else {
-      anioTarget = 2025;
-      mesTarget = 1;
+      if (!anioTarget && maxAnio > 0) anioTarget = maxAnio;
+      if (!mesTarget && maxMes > 0) mesTarget = maxMes;
     }
+    if (!anioTarget) anioTarget = 2026;
+    if (!mesTarget) mesTarget = 10;
   }
 
   const anio = anioTarget || 2025;
