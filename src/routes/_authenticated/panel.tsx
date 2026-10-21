@@ -85,6 +85,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   TrendingUp,
+  TrendingDown,
   DollarSign,
   Package,
   Users,
@@ -203,6 +204,173 @@ function colorSemaforo(pct: number) {
   if (pct >= 100) return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
   if (pct >= 90) return "bg-amber-500/15 text-amber-600 border-amber-500/30";
   return "bg-rose-500/15 text-rose-600 border-rose-500/30";
+}
+
+function TooltipVentaPresupuesto({
+  active,
+  payload,
+  label,
+  anioActual,
+}: {
+  active?: boolean;
+  payload?: any[];
+  label?: string | number;
+  anioActual?: string | number;
+}) {
+  if (!active || !payload || !payload.length) return null;
+  const item = payload[0]?.payload;
+  if (!item) return null;
+
+  const ventaReal = Number(item.ventaReal ?? 0);
+  const ppto = Number(item.ppto ?? 0);
+  const tienePpto = ppto > 0;
+  const diferenciaPpto = ventaReal - ppto;
+  const cumplimientoPct = Number(
+    item.cumplimientoPct ?? (tienePpto ? (ventaReal / ppto) * 100 : 100)
+  );
+
+  const ventaAnterior = Number(item.ventaAnterior ?? 0);
+  let crecimientoYoY = item.crecimientoYoY;
+  if (crecimientoYoY === undefined || crecimientoYoY === null || isNaN(crecimientoYoY)) {
+    crecimientoYoY = ventaAnterior > 0 ? ((ventaReal - ventaAnterior) / ventaAnterior) * 100 : 0;
+  }
+
+  const difSign = diferenciaPpto > 0 ? "+" : "";
+  const difTexto = `${difSign}${formatoCOPFull(diferenciaPpto)}`;
+  const esSuperavit = diferenciaPpto >= 0;
+  const esCrecimientoPositivo = Number(crecimientoYoY) >= 0;
+
+  return (
+    <div className="bg-popover/95 backdrop-blur-md border border-border p-3.5 rounded-xl shadow-xl text-xs space-y-2.5 min-w-[270px] pointer-events-none z-50">
+      {/* Encabezado: Periodo / Mes */}
+      <div className="flex items-center justify-between pb-1.5 border-b border-border/60">
+        <span className="font-bold text-foreground text-sm flex items-center gap-1.5">
+          <Calendar className="h-4 w-4 text-primary" />
+          <span>{item.periodo || `${item.nombreMes || label} ${item.anio || (anioActual !== "todos" ? anioActual : "")}`}</span>
+        </span>
+        {tienePpto && (
+          <span
+            className={cn(
+              "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+              cumplimientoPct >= 100
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+            )}
+          >
+            {cumplimientoPct >= 100 ? "Meta Superada" : "En Brecha"}
+          </span>
+        )}
+      </div>
+
+      {/* Bloque 1: Métricas de Venta Real vs Presupuesto */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="h-2.5 w-2.5 rounded-xs bg-blue-600 inline-block" />
+            <span className="font-medium text-foreground">Venta Real:</span>
+          </span>
+          <span className="font-bold text-blue-600 dark:text-blue-400 font-mono text-[13px]">
+            {formatoCOPFull(ventaReal)}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="h-2.5 w-2.5 rounded-xs bg-slate-400 inline-block" />
+            <span>Presupuesto (PPTO):</span>
+          </span>
+          <span className="font-semibold text-foreground font-mono">
+            {tienePpto ? formatoCOPFull(ppto) : "Sin meta asignada"}
+          </span>
+        </div>
+
+        {/* 1. Diferencia en valor versus presupuesto */}
+        {tienePpto && (
+          <div className="flex items-center justify-between gap-4 pt-0.5">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              {esSuperavit ? (
+                <TrendingUp className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+              ) : (
+                <TrendingDown className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+              )}
+              <span className="font-semibold text-foreground">Diferencia vs. Presupuesto:</span>
+            </span>
+            <span
+              className={cn(
+                "font-bold font-mono",
+                esSuperavit
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-rose-600 dark:text-rose-400"
+              )}
+            >
+              {difTexto}
+            </span>
+          </div>
+        )}
+
+        {/* % Cumplimiento */}
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />
+            <span>% Cumplimiento:</span>
+          </span>
+          <span
+            className={cn(
+              "font-extrabold font-mono",
+              cumplimientoPct >= 100
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-amber-600 dark:text-amber-400"
+            )}
+          >
+            {tienePpto ? `${cumplimientoPct.toFixed(2)}%` : "100.00%"}
+          </span>
+        </div>
+      </div>
+
+      {/* Bloque 2: Comparativa vs Año Anterior (% Crecimiento vs Año Anterior) */}
+      <div className="border-t border-border/60 pt-2 space-y-1.5 bg-muted/40 -mx-3.5 -mb-3.5 p-3 rounded-b-xl">
+        {ventaAnterior > 0 && (
+          <div className="flex items-center justify-between gap-4 text-muted-foreground text-[11px]">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-amber-500 inline-block" />
+              <span>Venta Año Anterior:</span>
+            </span>
+            <span className="font-medium text-foreground font-mono">
+              {formatoCOPFull(ventaAnterior)}
+            </span>
+          </div>
+        )}
+
+        {/* 2. % de crecimiento versus el año anterior */}
+        <div className="flex items-center justify-between gap-4 text-[11px]">
+          <span className="font-semibold text-foreground flex items-center gap-1.5">
+            {esCrecimientoPositivo ? (
+              <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+            ) : (
+              <ArrowDownRight className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+            )}
+            <span>% Crecimiento vs. Año Anterior:</span>
+          </span>
+          <span
+            className={cn(
+              "font-extrabold font-mono text-xs",
+              ventaAnterior <= 0 && ventaReal <= 0
+                ? "text-muted-foreground"
+                : esCrecimientoPositivo
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-rose-600 dark:text-rose-400"
+            )}
+          >
+            {ventaAnterior <= 0 && ventaReal > 0
+              ? "+100.00% (Sin base previa)"
+              : ventaAnterior <= 0 && ventaReal <= 0
+              ? "0.00%"
+              : `${Number(crecimientoYoY) > 0 ? "+" : ""}${Number(crecimientoYoY).toFixed(2)}%`}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function BadgeYoY({
@@ -645,9 +813,9 @@ function Panel() {
     setFiltroRefEscalaD6("todas");
   };
 
-  // Modo Comparativa vs Año Anterior (YoY) - Activación On-Demand para Admin, Activo por Defecto para Vendedores
+  // Modo Comparativa vs Año Anterior (YoY) - Superposición visual configurable para Admin, carga continua para métricas YoY
   const [compararAnioAnterior, setCompararAnioAnterior] = useState<boolean>(false);
-  const habilitarYoY = esAdmin ? compararAnioAnterior : true;
+  const habilitarYoY = true;
 
   const filtrosYoY = useMemo(() => {
     if (!habilitarYoY) return null;
@@ -2586,20 +2754,20 @@ function Panel() {
                   <div className="h-[340px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       {esAdmin ? (
-                        <ComposedChart data={d1.meses} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+                        <ComposedChart
+                          data={d1.meses}
+                          margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
+                          onClick={(state: any) => {
+                            if (state?.activePayload?.[0]?.payload?.mes) {
+                              setMes(String(state.activePayload[0].payload.mes));
+                            }
+                          }}
+                        >
                           <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                           <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
                           <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
                           <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
-                          <Tooltip
-                            formatter={(value: number, name: string) => {
-                              if (name === "cumplimientoPct" || name === "% Cumplimiento") return [`${Number(value).toFixed(2)}%`, "% Cumplimiento"];
-                              if (name === "ventaAnterior" || name === "Venta Año Anterior ($)") return [formatoCOPFull(value), "Venta Año Anterior"];
-                              if (name === "ventaReal" || name === "Venta Real ($)") return [formatoCOPFull(value), "Venta Real"];
-                              if (name === "ppto" || name === "Presupuesto ($ PPTO)") return [formatoCOPFull(value), "Presupuesto (PPTO)"];
-                              return [formatoCOPFull(value), name];
-                            }}
-                          />
+                          <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
                           <Legend
                             formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ventaAnterior" ? "Venta Año Anterior ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
                           />
@@ -2646,14 +2814,7 @@ function Panel() {
                           <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
                           <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
                           <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
-                          <Tooltip
-                            formatter={(value: number, name: string) => {
-                              if (name === "crecimientoYoY" || name === "% Crecimiento YoY") return [`${Number(value).toFixed(2)}%`, "% Crecimiento YoY"];
-                              if (name === "ventaAnterior" || name === "Facturación Año Anterior ($)") return [formatoCOPFull(value), "Facturación Año Anterior"];
-                              if (name === "ventaReal" || name === "Facturación Real Actual ($)") return [formatoCOPFull(value), "Facturación Real Actual"];
-                              return [formatoCOPFull(value), name];
-                            }}
-                          />
+                          <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
                           <Legend
                             formatter={(v) => (v === "ventaReal" ? "Facturación Real Actual ($)" : v === "ventaAnterior" ? "Facturación Año Anterior ($)" : "% Crecimiento YoY")}
                           />
