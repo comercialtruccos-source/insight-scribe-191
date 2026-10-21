@@ -4643,8 +4643,8 @@ export type ResultadoPedidosDespachos = {
 export async function obtenerPedidosVsDespachos(
   filtros: FiltrosPedidosDespachos
 ): Promise<ResultadoPedidosDespachos> {
-  const fechaDesde = filtros.fecha_desde || "2026-07-01";
-  const fechaHasta = filtros.fecha_hasta || "2026-12-31";
+  const fechaDesde = filtros.fecha_desde || "2025-01-01";
+  const fechaHasta = filtros.fecha_hasta || "2025-12-31";
 
   const [vendsRes, tercs] = await Promise.all([
     supabase.from("dim_vendedor").select("id, nombre"),
@@ -4656,55 +4656,96 @@ export async function obtenerPedidosVsDespachos(
     tercs.map((t) => [t.id, { nombre: t.nombre || t.codigo || `Tercero #${t.id}`, codigo: t.codigo }])
   );
 
-  // Consulta por lotes para fact_ventas
+  // Determinar meses comprendidos en el rango [fechaDesde, fechaHasta]
+  const dStart = new Date(fechaDesde);
+  const dEnd = new Date(fechaHasta);
+  const anioStart = isNaN(dStart.getFullYear()) ? 2025 : dStart.getFullYear();
+  const mesStart = isNaN(dStart.getMonth()) ? 1 : dStart.getMonth() + 1;
+  const anioEnd = isNaN(dEnd.getFullYear()) ? 2025 : dEnd.getFullYear();
+  const mesEnd = isNaN(dEnd.getMonth()) ? 12 : dEnd.getMonth() + 1;
+
+  const mesesEnRango: { anio: number; mes: number }[] = [];
+  for (let y = anioStart; y <= anioEnd; y++) {
+    const mIni = y === anioStart ? mesStart : 1;
+    const mFin = y === anioEnd ? mesEnd : 12;
+    for (let m = mIni; m <= mFin; m++) {
+      mesesEnRango.push({ anio: y, mes: m });
+    }
+  }
+
   const CHUNK_SIZE = 1000;
-  const MAX_ROWS = 25000;
   const rawRows: Record<string, unknown>[] = [];
-  let offset = 0;
-  let hasMore = true;
 
-  while (hasMore && rawRows.length < MAX_ROWS) {
-    let q = supabase
-      .from("fact_ventas")
-      .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
-      .in("transaccion", ["PEDIDOS", "SALIDA POR DESPACHO", "PEDIDO", "SALIDA POR DESPACHOS", "DESPACHO", "DESPACHOS"])
-      .gte("fecha", fechaDesde)
-      .lte("fecha", fechaHasta);
+  async function fetchMes(anio: number, mes: number): Promise<Record<string, unknown>[]> {
+    const rows: Record<string, unknown>[] = [];
+    let offset = 0;
+    while (true) {
+      let q = supabase
+        .from("fact_ventas")
+        .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
+        .eq("anio", anio)
+        .eq("mes", mes)
+        .in("transaccion", ["PEDIDOS", "SALIDA POR DESPACHO", "PEDIDO", "SALIDA POR DESPACHOS", "DESPACHO", "DESPACHOS"])
+        .gte("fecha", fechaDesde)
+        .lte("fecha", fechaHasta);
 
-    if (filtros.correria_id && filtros.correria_id !== "todas") {
-      q = q.eq("correria_id", Number(filtros.correria_id));
+      if (filtros.correria_id && filtros.correria_id !== "todas") {
+        q = q.eq("correria_id", Number(filtros.correria_id));
+      }
+
+      if (filtros.vendedor_id) {
+        q = q.or(`vendedor_id.eq.${filtros.vendedor_id},vendedor2_id.eq.${filtros.vendedor_id}`);
+      } else if (filtros.vendedor_ids && filtros.vendedor_ids.length > 0) {
+        const listStr = filtros.vendedor_ids.join(",");
+        q = q.or(`vendedor_id.in.(${listStr}),vendedor2_id.in.(${listStr})`);
+      }
+
+      if (filtros.tercero_id) {
+        q = q.eq("tercero_id", filtros.tercero_id);
+      } else if (filtros.tercero_ids && filtros.tercero_ids.length > 0) {
+        const listStr = filtros.tercero_ids.join(",");
+        q = q.in("tercero_id", filtros.tercero_ids);
+      }
+
+      const { data, error } = await q.range(offset, offset + CHUNK_SIZE - 1);
+      if (error || !data || data.length === 0) break;
+      for (const r of data) {
+        rows.push(r as Record<string, unknown>);
+      }
+      if (data.length < CHUNK_SIZE) break;
+      offset += CHUNK_SIZE;
     }
+    return rows;
+  }
 
-    if (filtros.vendedor_id) {
-      q = q.or(`vendedor_id.eq.${filtros.vendedor_id},vendedor2_id.eq.${filtros.vendedor_id}`);
-    } else if (filtros.vendedor_ids && filtros.vendedor_ids.length > 0) {
-      const listStr = filtros.vendedor_ids.join(",");
-      q = q.or(`vendedor_id.in.(${listStr}),vendedor2_id.in.(${listStr})`);
+  if (mesesEnRango.length > 0) {
+    const BATCH_CONCURRENCY = 6;
+    for (let i = 0; i < mesesEnRango.length; i += BATCH_CONCURRENCY) {
+      const batch = mesesEnRango.slice(i, i + BATCH_CONCURRENCY);
+      const results = await Promise.all(batch.map((bm) => fetchMes(bm.anio, bm.mes)));
+      for (const list of results) {
+        for (const r of list) {
+          rawRows.push(r);
+        }
+      }
     }
+  } else {
+    // Fallback general
+    let offset = 0;
+    while (true) {
+      let q = supabase
+        .from("fact_ventas")
+        .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
+        .in("transaccion", ["PEDIDOS", "SALIDA POR DESPACHO", "PEDIDO", "SALIDA POR DESPACHOS", "DESPACHO", "DESPACHOS"])
+        .gte("fecha", fechaDesde)
+        .lte("fecha", fechaHasta);
 
-    if (filtros.tercero_id) {
-      q = q.eq("tercero_id", filtros.tercero_id);
-    } else if (filtros.tercero_ids && filtros.tercero_ids.length > 0) {
-      const listStr = filtros.tercero_ids.join(",");
-      q = q.in("tercero_id", filtros.tercero_ids);
-    }
-
-    const { data, error } = await q
-      .order("id", { ascending: true })
-      .range(offset, offset + CHUNK_SIZE - 1);
-
-    if (error || !data || data.length === 0) {
-      hasMore = false;
-      break;
-    }
-
-    for (const r of data) {
-      rawRows.push(r as Record<string, unknown>);
-    }
-
-    if (data.length < CHUNK_SIZE) {
-      hasMore = false;
-    } else {
+      const { data, error } = await q.range(offset, offset + CHUNK_SIZE - 1);
+      if (error || !data || data.length === 0) break;
+      for (const r of data) {
+        rawRows.push(r as Record<string, unknown>);
+      }
+      if (data.length < CHUNK_SIZE) break;
       offset += CHUNK_SIZE;
     }
   }
@@ -4760,8 +4801,9 @@ export async function obtenerPedidosVsDespachos(
     }
 
     const vend = vendedoresMap.get(vNombre)!;
-    if (!vend.tercerosMap.has(tNombre)) {
-      vend.tercerosMap.set(tNombre, {
+    const tKey = tId ? String(tId) : tNombre;
+    if (!vend.tercerosMap.has(tKey)) {
+      vend.tercerosMap.set(tKey, {
         terceroId: tId || tNombre,
         terceroNombre: tNombre,
         terceroCodigo: tCodigo,
@@ -4769,7 +4811,7 @@ export async function obtenerPedidosVsDespachos(
       });
     }
 
-    const terc = vend.tercerosMap.get(tNombre)!;
+    const terc = vend.tercerosMap.get(tKey)!;
     if (!terc.productosMap.has(prodCodigo)) {
       terc.productosMap.set(prodCodigo, {
         producto: prodCodigo,

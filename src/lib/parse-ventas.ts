@@ -779,7 +779,26 @@ export function normalizarFila(
     } else if ((NUMERICOS as readonly string[]).includes(campo)) {
       out[campo] = toNumber(val);
     } else {
-      out[campo] = toText(val);
+      const textVal = toText(val);
+      if (campo === "transaccion") {
+        if (textVal) {
+          const upper = textVal.toUpperCase();
+          const esTipoTransaccion =
+            upper.includes("PEDIDO") ||
+            upper.includes("DESPACHO") ||
+            upper.includes("SALIDA") ||
+            upper.includes("FACTURA") ||
+            upper.includes("NOTA") ||
+            upper.includes("COTIZACION");
+          if (esTipoTransaccion || !out["transaccion"]) {
+            out["transaccion"] = textVal;
+          }
+        }
+      } else {
+        if (textVal !== null || out[campo] === undefined) {
+          out[campo] = textVal;
+        }
+      }
     }
   }
 

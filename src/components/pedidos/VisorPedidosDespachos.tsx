@@ -70,8 +70,8 @@ export function VisorPedidosDespachos({
   onSelectTercero,
 }: VisorPedidosDespachosProps) {
   // Filtros de encabezado HGI
-  const [fechaDesde, setFechaDesde] = useState("2026-07-01");
-  const [fechaHasta, setFechaHasta] = useState("2026-12-31");
+  const [fechaDesde, setFechaDesde] = useState("2025-01-01");
+  const [fechaHasta, setFechaHasta] = useState("2025-12-31");
   const [modoVista, setModoVista] = useState<"datos" | "grafico" | "ambos">("datos");
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [correriaSeleccionada, setCorreriaSeleccionada] = useState<string>("todas");
@@ -290,7 +290,7 @@ export function VisorPedidosDespachos({
             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background rounded-lg border border-border text-[11px] text-muted-foreground">
               <Clock className="h-3.5 w-3.5 text-amber-500" />
               <span>Periodo:</span>
-              <span className="font-semibold text-foreground">9 de 2026 (Abierto)</span>
+              <span className="font-semibold text-foreground">{fechaDesde} al {fechaHasta}</span>
               <span className="text-muted-foreground/50">|</span>
               <span>Modo:</span>
               <span className="font-semibold text-foreground">PCGA</span>
@@ -395,34 +395,84 @@ export function VisorPedidosDespachos({
             </div>
           </div>
 
-          {/* Rango de Fechas */}
-          <div className="md:col-span-4 flex items-center gap-2 justify-center">
-            <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1">
-              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                type="date"
-                value={fechaDesde}
-                onChange={(e) => setFechaDesde(e.target.value)}
-                className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden"
-              />
-              <span className="text-muted-foreground font-semibold">y</span>
-              <input
-                type="date"
-                value={fechaHasta}
-                onChange={(e) => setFechaHasta(e.target.value)}
-                className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden"
-              />
+          {/* Rango de Fechas y Accesos Rápidos */}
+          <div className="md:col-span-4 flex flex-col items-center gap-1.5 justify-center">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  type="date"
+                  value={fechaDesde}
+                  onChange={(e) => setFechaDesde(e.target.value)}
+                  className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden"
+                />
+                <span className="text-muted-foreground font-semibold">y</span>
+                <input
+                  type="date"
+                  value={fechaHasta}
+                  onChange={(e) => setFechaHasta(e.target.value)}
+                  className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                className="h-8 px-2"
+                title="Refrescar datos"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              className="h-8 px-2"
-              title="Refrescar datos"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
-            </Button>
+            {/* Botones de Periodo Rápido */}
+            <div className="flex items-center gap-1 text-[10px]">
+              <span className="text-muted-foreground font-medium">Periodos:</span>
+              <button
+                type="button"
+                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2025-12-31"); }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  fechaDesde === "2025-01-01" && fechaHasta === "2025-12-31"
+                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                2025 (Año Macro)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2025-06-30"); }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  fechaDesde === "2025-01-01" && fechaHasta === "2025-06-30"
+                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                S1 2025
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFechaDesde("2026-01-01"); setFechaHasta("2026-12-31"); }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  fechaDesde === "2026-01-01" && fechaHasta === "2026-12-31"
+                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                2026
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2026-12-31"); }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  fechaDesde === "2025-01-01" && fechaHasta === "2026-12-31"
+                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Todo
+              </button>
+            </div>
           </div>
 
           {/* Opciones de Totales y Subtotales (Checkboxes HGI) */}
