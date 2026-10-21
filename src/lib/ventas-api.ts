@@ -4657,12 +4657,12 @@ export async function obtenerPedidosVsDespachos(
   );
 
   // Determinar meses comprendidos en el rango [fechaDesde, fechaHasta]
-  const dStart = new Date(fechaDesde);
-  const dEnd = new Date(fechaHasta);
-  const anioStart = isNaN(dStart.getFullYear()) ? 2025 : dStart.getFullYear();
-  const mesStart = isNaN(dStart.getMonth()) ? 1 : dStart.getMonth() + 1;
-  const anioEnd = isNaN(dEnd.getFullYear()) ? 2025 : dEnd.getFullYear();
-  const mesEnd = isNaN(dEnd.getMonth()) ? 12 : dEnd.getMonth() + 1;
+  const [startY, startM] = (fechaDesde || "").split("-").map(Number);
+  const [endY, endM] = (fechaHasta || "").split("-").map(Number);
+  const anioStart = startY || 2025;
+  const mesStart = startM || 1;
+  const anioEnd = endY || 2026;
+  const mesEnd = endM || 12;
 
   const mesesEnRango: { anio: number; mes: number }[] = [];
   for (let y = anioStart; y <= anioEnd; y++) {
@@ -4685,7 +4685,7 @@ export async function obtenerPedidosVsDespachos(
         .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
         .eq("anio", anio)
         .eq("mes", mes)
-        .in("transaccion", ["PEDIDOS", "SALIDA POR DESPACHO", "PEDIDO", "SALIDA POR DESPACHOS", "DESPACHO", "DESPACHOS"])
+        .or("transaccion.in.(PEDIDOS,SALIDA POR DESPACHO,PEDIDO,SALIDA POR DESPACHOS,DESPACHO,DESPACHOS),transaccion.is.null")
         .gte("fecha", fechaDesde)
         .lte("fecha", fechaHasta);
 
@@ -4736,7 +4736,7 @@ export async function obtenerPedidosVsDespachos(
       let q = supabase
         .from("fact_ventas")
         .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
-        .in("transaccion", ["PEDIDOS", "SALIDA POR DESPACHO", "PEDIDO", "SALIDA POR DESPACHOS", "DESPACHO", "DESPACHOS"])
+        .or("transaccion.in.(PEDIDOS,SALIDA POR DESPACHO,PEDIDO,SALIDA POR DESPACHOS,DESPACHO,DESPACHOS),transaccion.is.null")
         .gte("fecha", fechaDesde)
         .lte("fecha", fechaHasta);
 
@@ -4834,11 +4834,15 @@ export async function obtenerPedidosVsDespachos(
     const val = Number(r.valor || 0);
     const trans = String(r.transaccion || "").toUpperCase();
 
-    if (trans.includes("PEDIDO")) {
+    // En HGI: Los pedidos tienen cantidad positiva y las salidas por despacho tienen cantidad negativa.
+    // Si la transacción está explícitamente etiquetada, se respeta; si es null o genérica, se clasifica por el signo de la cantidad.
+    const esPedido = trans.includes("PEDIDO") || (!r.transaccion && cant > 0);
+    const esDespacho = trans.includes("DESPACHO") || trans.includes("SALIDA") || (!r.transaccion && cant < 0);
+
+    if (esPedido) {
       prod.pedidosCantidad += cant;
       prod.pedidosValor += val;
-    } else {
-      // SALIDA POR DESPACHO o DESPACHO
+    } else if (esDespacho) {
       prod.despachosCantidad += cant;
       prod.despachosValor += val;
     }

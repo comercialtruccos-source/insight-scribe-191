@@ -463,6 +463,28 @@ export function VisorPedidosDespachos({
               </button>
               <button
                 type="button"
+                onClick={() => { setFechaDesde("2026-01-01"); setFechaHasta("2026-06-30"); }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  fechaDesde === "2026-01-01" && fechaHasta === "2026-06-30"
+                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                S1 2026
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFechaDesde("2026-07-01"); setFechaHasta("2026-12-31"); }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  fechaDesde === "2026-07-01" && fechaHasta === "2026-12-31"
+                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                S2 2026
+              </button>
+              <button
+                type="button"
                 onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2026-12-31"); }}
                 className={`px-1.5 py-0.5 rounded border transition-colors ${
                   fechaDesde === "2025-01-01" && fechaHasta === "2026-12-31"
