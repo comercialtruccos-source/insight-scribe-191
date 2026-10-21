@@ -696,6 +696,9 @@ async function obtenerDimCache(): Promise<DimCache> {
   const tercMap = new Map<string, number>();
   for (const t of tercRows) {
     if (t.id && t.nombre) tercMap.set(t.nombre.trim().toLowerCase(), t.id);
+    if (t.id && t.codigo && t.codigo.trim() && !tercMap.has(t.codigo.trim().toLowerCase())) {
+      tercMap.set(t.codigo.trim().toLowerCase(), t.id);
+    }
   }
 
   _dimCacheGlobal = {
@@ -766,11 +769,21 @@ async function asegurarValoresDimension(
     const chunk = toInsert.slice(i, i + 100);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.from(tabla) as any).insert(chunk).select("id, nombre");
+      const onConflict = tabla === "dim_tercero" ? "codigo" : undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = onConflict
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? await (supabase.from(tabla) as any).upsert(chunk, { onConflict }).select("id, nombre, codigo")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        : await (supabase.from(tabla) as any).insert(chunk).select("id, nombre");
+
       if (data) {
         for (const d of data) {
           if (d.id && d.nombre) {
             cache.set(d.nombre.trim().toLowerCase(), d.id);
+          }
+          if (d.id && d.codigo && typeof d.codigo === "string") {
+            cache.set(d.codigo.trim().toLowerCase(), d.id);
           }
         }
       }
@@ -793,16 +806,18 @@ async function asegurarValoresDimension(
         }
 
         // Consultar los existentes para asegurar la caché
-        const nombresChunk = chunk.map((c) => String(c.nombre));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: existing } = await (supabase.from(tabla) as any)
-          .select("id, nombre")
-          .in("nombre", nombresChunk);
-        if (existing) {
-          for (const ex of existing) {
-            if (ex.id && ex.nombre) {
-              cache.set(String(ex.nombre).trim().toLowerCase(), ex.id);
+        for (const item of chunk) {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: existing } = await (supabase.from(tabla) as any)
+              .select("id, nombre")
+              .eq("nombre", String(item.nombre))
+              .limit(1);
+            if (existing && existing[0]?.id) {
+              cache.set(String(existing[0].nombre).trim().toLowerCase(), existing[0].id);
             }
+          } catch {
+            // omitir
           }
         }
       }
