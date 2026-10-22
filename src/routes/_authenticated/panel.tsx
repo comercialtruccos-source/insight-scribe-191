@@ -1372,6 +1372,78 @@ function Panel() {
     esAdmin,
     vendedorIdsPermitidos,
   ]);
+
+  // Estado para alternar entre vista de mes puntual o desglose diario en móvil (Dashboard 4)
+  const [vistaMovilD4Evolucion, setVistaMovilD4Evolucion] = useState<"mes" | "dias">("mes");
+
+  // Registro del mes activo puntual en D4
+  const mesActivoD4 = useMemo(() => {
+    if (!d4?.evolucionMensualEquipo) return null;
+    if (mes !== "todos") {
+      const targetNum = Number(mes);
+      return d4.evolucionMensualEquipo.find((m) => m.mesNum === targetNum) || null;
+    }
+    if (tipoRango === "mesActual") {
+      return d4.evolucionMensualEquipo.find((m) => m.venta > 0) || null;
+    }
+    return null;
+  }, [d4?.evolucionMensualEquipo, mes, tipoRango]);
+
+  // Datos para la evolución móvil en Dashboard 4:
+  // - Si está seleccionado un mes puntual: ajusta SOLO al mes seleccionado.
+  // - Si está seleccionado el año (mes === "todos"): ajusta a los 12 meses del año en móvil.
+  const dataMovilD4 = useMemo(() => {
+    if (!d4?.evolucionMensualEquipo) return [];
+    if (esMesPuntual) {
+      if (mesActivoD4) {
+        return [
+          {
+            ...mesActivoD4,
+            mesNombre: nombreMesPuntual || mesActivoD4.mesNombre,
+          },
+        ];
+      }
+      return [];
+    }
+    return d4.evolucionMensualEquipo;
+  }, [d4?.evolucionMensualEquipo, esMesPuntual, mesActivoD4, nombreMesPuntual]);
+
+  // Desglose diario en móvil para el mes puntual seleccionado en D4
+  const evolucionDiariaEquipoD4 = useMemo(() => {
+    if (!esMesPuntual || !rawVentas || rawVentas.length === 0) return [];
+    const diasMap = new Map<number, { dia: number; diaLabel: string; venta: number; ventaAnterior?: number; unidades: number }>();
+
+    const diasAntMap = new Map<number, number>();
+    if (compararAnioAnterior && rawVentasYoY) {
+      for (const r of rawVentasYoY) {
+        const d = Number(r.dia);
+        if (d >= 1 && d <= 31) {
+          diasAntMap.set(d, (diasAntMap.get(d) || 0) + Number(r.valor || 0));
+        }
+      }
+    }
+
+    for (const r of rawVentas) {
+      const d = Number(r.dia);
+      if (d >= 1 && d <= 31) {
+        if (!diasMap.has(d)) {
+          diasMap.set(d, {
+            dia: d,
+            diaLabel: `${d}`,
+            venta: 0,
+            unidades: 0,
+            ventaAnterior: diasAntMap.get(d) || 0,
+          });
+        }
+        const item = diasMap.get(d)!;
+        item.venta += Number(r.valor || 0);
+        item.unidades += Math.round(Number(r.cantidad || 0));
+      }
+    }
+
+    return Array.from(diasMap.values()).sort((a, b) => a.dia - b.dia);
+  }, [rawVentas, rawVentasYoY, esMesPuntual, compararAnioAnterior]);
+
   const d5 = useMemo(
     () => calcularDashboard5Marketplaces(rawVentas || [], filtros, catalogos?.canales, compararAnioAnterior ? rawVentasYoY : undefined),
     [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]
@@ -6920,61 +6992,293 @@ function Panel() {
               {/* Evolución Mensual del Equipo */}
               <Card>
                 <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <CardTitle className="text-base font-semibold">Evolución Mensual de Ventas y Unidades</CardTitle>
-                      <CardDescription>Comportamiento cronológico de la fuerza comercial {compararAnioAnterior && "• Superposición de Venta Año Anterior activada"}</CardDescription>
+                      <CardTitle className="text-base font-semibold">
+                        <span className="sm:hidden">
+                          {esMesPuntual
+                            ? `Ventas y Unidades — ${nombreMesPuntual} ${anio !== "todos" ? anio : ""}`
+                            : `Evolución Mensual (${anio !== "todos" ? `Año ${anio}` : "Histórico"})`}
+                        </span>
+                        <span className="hidden sm:inline">Evolución Mensual de Ventas y Unidades</span>
+                      </CardTitle>
+                      <CardDescription>
+                        <span className="sm:hidden text-xs">
+                          {esMesPuntual
+                            ? `Métrica ajustada exclusivamente a ${nombreMesPuntual}`
+                            : "Ajustado al año en móvil • 12 meses consolidados"}
+                        </span>
+                        <span className="hidden sm:inline">
+                          Comportamiento cronológico de la fuerza comercial {compararAnioAnterior && "• Superposición de Venta Año Anterior activada"}
+                        </span>
+                      </CardDescription>
                     </div>
-                    <InfoGrafica
-                      titulo="Evolución Mensual de la Fuerza Comercial"
-                      descripcion="Histórico mes a mes de los ingresos en pesos colombianos, la venta del año anterior y el volumen de prendas comercializadas por la fuerza de ventas."
-                      metrica="Barras Moradas: Facturación ($) • Línea Ámbar Punteada: Facturación Año Anterior ($) • Línea Verde: Cantidad total de prendas (Unidades)."
-                      interpretacion="Permite evaluar la estacionalidad de la demanda en canales tradicionales mayoristas e institucionales y el crecimiento interanual."
-                    />
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Controles exclusivos en móvil */}
+                      <div className="flex sm:hidden items-center gap-1.5">
+                        {esMesPuntual && mes !== "todos" && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setMes("todos")}
+                            className="h-7 text-[11px] px-2 rounded-lg font-semibold border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10"
+                            title="Ver comparativa de todos los meses del año"
+                          >
+                            <Calendar className="h-3 w-3 mr-1" />
+                            Ver Año
+                          </Button>
+                        )}
+                        {esMesPuntual && evolucionDiariaEquipoD4.length > 0 && (
+                          <div className="flex items-center p-0.5 bg-muted/60 rounded-lg border border-border/60">
+                            <button
+                              type="button"
+                              onClick={() => setVistaMovilD4Evolucion("mes")}
+                              className={cn(
+                                "px-2 py-0.5 text-[11px] font-bold rounded-md transition-all",
+                                vistaMovilD4Evolucion === "mes" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"
+                              )}
+                            >
+                              Mes
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setVistaMovilD4Evolucion("dias")}
+                              className={cn(
+                                "px-2 py-0.5 text-[11px] font-bold rounded-md transition-all",
+                                vistaMovilD4Evolucion === "dias" ? "bg-background text-foreground shadow-2xs" : "text-muted-foreground"
+                              )}
+                            >
+                              Días ({evolucionDiariaEquipoD4.length})
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <InfoGrafica
+                        titulo="Evolución Mensual de la Fuerza Comercial"
+                        descripcion="Histórico mes a mes de los ingresos en pesos colombianos, la venta del año anterior y el volumen de prendas comercializadas por la fuerza de ventas."
+                        metrica="Barras Moradas: Facturación ($) • Línea Ámbar Punteada: Facturación Año Anterior ($) • Línea Verde: Cantidad total de prendas (Unidades)."
+                        interpretacion="Permite evaluar la estacionalidad de la demanda en canales tradicionales mayoristas e institucionales y el crecimiento interanual."
+                      />
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="w-full overflow-x-auto touch-pan scrollbar-none">
-                    <p className="text-[10px] text-muted-foreground/70 mb-1 sm:hidden">
-                      ← Desliza horizontalmente para ver los meses →
-                    </p>
-                    <div className="h-[280px] min-w-[500px] sm:min-w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={d4?.evolucionMensualEquipo || []} margin={{ left: 10, right: 10 }}>
-                          <XAxis dataKey="mesNombre" tick={{ fontSize: 11 }} />
-                          <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} width={70} />
-                          <YAxis
-                            yAxisId="right"
-                            orientation="right"
-                            allowDecimals={false}
-                            tickFormatter={(v) => Math.round(v).toLocaleString("es-CO")}
-                            tick={{ fontSize: 11 }}
-                            width={55}
-                          />
-                          <Tooltip
-                            formatter={(v: number, name: string) => [
-                              name === "venta" || name === "ventaAnterior" ? formatoCOPFull(v) : `${Math.round(v).toLocaleString("es-CO")} unds`,
-                              name === "venta" ? "Facturación ($)" : name === "ventaAnterior" ? "Facturación Año Anterior ($)" : "Prendas (Unds)",
-                            ]}
-                          />
-                          <Legend
-                            formatter={(v) =>
-                              v === "venta"
-                                ? "Facturación ($)"
-                                : v === "ventaAnterior"
-                                ? "Facturación Año Anterior ($)"
-                                : "Prendas (Unds)"
-                            }
-                            wrapperStyle={{ fontSize: "11px" }}
-                          />
-                          <Bar yAxisId="left" dataKey="venta" name="venta" fill="#4f46e5" radius={[6, 6, 0, 0]} />
-                          {compararAnioAnterior && (
-                            <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" name="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3, fill: "#f59e0b" }} />
-                          )}
-                          <Line yAxisId="right" type="monotone" dataKey="unidades" name="unidades" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
-                        </ComposedChart>
-                      </ResponsiveContainer>
+                  {/* VISTA ESCRITORIO (hidden sm:block): Estructura original sin ninguna alteración */}
+                  <div className="hidden sm:block">
+                    <div className="w-full overflow-x-auto touch-pan scrollbar-none">
+                      <div className="h-[280px] min-w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart data={d4?.evolucionMensualEquipo || []} margin={{ left: 10, right: 10 }}>
+                            <XAxis dataKey="mesNombre" tick={{ fontSize: 11 }} />
+                            <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} width={70} />
+                            <YAxis
+                              yAxisId="right"
+                              orientation="right"
+                              allowDecimals={false}
+                              tickFormatter={(v) => Math.round(v).toLocaleString("es-CO")}
+                              tick={{ fontSize: 11 }}
+                              width={55}
+                            />
+                            <Tooltip
+                              formatter={(v: number, name: string) => [
+                                name === "venta" || name === "ventaAnterior" ? formatoCOPFull(v) : `${Math.round(v).toLocaleString("es-CO")} unds`,
+                                name === "venta" ? "Facturación ($)" : name === "ventaAnterior" ? "Facturación Año Anterior ($)" : "Prendas (Unds)",
+                              ]}
+                            />
+                            <Legend
+                              formatter={(v) =>
+                                v === "venta"
+                                  ? "Facturación ($)"
+                                  : v === "ventaAnterior"
+                                  ? "Facturación Año Anterior ($)"
+                                  : "Prendas (Unds)"
+                              }
+                              wrapperStyle={{ fontSize: "11px" }}
+                            />
+                            <Bar yAxisId="left" dataKey="venta" name="venta" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                            {compararAnioAnterior && (
+                              <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" name="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3, fill: "#f59e0b" }} />
+                            )}
+                            <Line yAxisId="right" type="monotone" dataKey="unidades" name="unidades" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
+                  </div>
+
+                  {/* VISTA MÓVIL (sm:hidden): Ajustada exclusivamente según selección de Mes o Año */}
+                  <div className="sm:hidden space-y-3">
+                    {esMesPuntual ? (
+                      /* CASO 1: MES SELECCIONADO -> La métrica se ajusta SOLO al mes seleccionado */
+                      vistaMovilD4Evolucion === "dias" && evolucionDiariaEquipoD4.length > 0 ? (
+                        /* Sub-vista por Días del mes seleccionado */
+                        <div className="space-y-2">
+                          <div className="h-[230px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <ComposedChart data={evolucionDiariaEquipoD4} margin={{ left: -10, right: 8, top: 10, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                                <XAxis dataKey="diaLabel" tick={{ fontSize: 10 }} />
+                                <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 9 }} width={48} />
+                                <YAxis
+                                  yAxisId="right"
+                                  orientation="right"
+                                  allowDecimals={false}
+                                  tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)}
+                                  tick={{ fontSize: 9 }}
+                                  width={34}
+                                />
+                                <Tooltip
+                                  formatter={(v: number, name: string) => [
+                                    name === "venta" || name === "ventaAnterior" ? formatoCOPFull(v) : `${Math.round(v).toLocaleString("es-CO")} unds`,
+                                    name === "venta" ? "Facturación ($)" : name === "ventaAnterior" ? "Facturación Año Ant. ($)" : "Prendas (Unds)",
+                                  ]}
+                                />
+                                <Bar yAxisId="left" dataKey="venta" name="venta" fill="#4f46e5" radius={[3, 3, 0, 0]} maxBarSize={18} />
+                                {compararAnioAnterior && (
+                                  <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" name="ventaAnterior" stroke="#f59e0b" strokeWidth={2} strokeDasharray="3 3" dot={{ r: 2 }} />
+                                )}
+                                <Line yAxisId="right" type="monotone" dataKey="unidades" name="unidades" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} />
+                              </ComposedChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <p className="text-[10px] text-center text-muted-foreground">
+                            Mostrando la evolución diaria de los {evolucionDiariaEquipoD4.length} días con venta en {nombreMesPuntual}.
+                          </p>
+                        </div>
+                      ) : (
+                        /* Vista Mes Puntual: Ajustada exclusivamente al mes seleccionado */
+                        <div className="space-y-3">
+                          <div className="h-[210px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <ComposedChart data={dataMovilD4} margin={{ left: -5, right: 10, top: 10, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                                <XAxis dataKey="mesNombre" tick={{ fontSize: 11, fontWeight: "bold" }} />
+                                <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 10 }} width={56} />
+                                <YAxis
+                                  yAxisId="right"
+                                  orientation="right"
+                                  allowDecimals={false}
+                                  tickFormatter={(v) => Math.round(v).toLocaleString("es-CO")}
+                                  tick={{ fontSize: 10 }}
+                                  width={45}
+                                />
+                                <Tooltip
+                                  formatter={(v: number, name: string) => [
+                                    name === "venta" || name === "ventaAnterior" ? formatoCOPFull(v) : `${Math.round(v).toLocaleString("es-CO")} unds`,
+                                    name === "venta" ? "Facturación ($)" : name === "ventaAnterior" ? "Facturación Año Anterior ($)" : "Prendas (Unds)",
+                                  ]}
+                                />
+                                <Legend
+                                  formatter={(v) =>
+                                    v === "venta"
+                                      ? "Facturación ($)"
+                                      : v === "ventaAnterior"
+                                      ? "Facturación Año Ant. ($)"
+                                      : "Prendas (Unds)"
+                                  }
+                                  wrapperStyle={{ fontSize: "11px" }}
+                                />
+                                <Bar yAxisId="left" dataKey="venta" name="venta" fill="#4f46e5" radius={[6, 6, 0, 0]} maxBarSize={56} />
+                                {compararAnioAnterior && (
+                                  <Bar yAxisId="left" dataKey="ventaAnterior" name="ventaAnterior" fill="#f59e0b" radius={[6, 6, 0, 0]} maxBarSize={56} />
+                                )}
+                                <Line yAxisId="right" type="monotone" dataKey="unidades" name="unidades" stroke="#10b981" strokeWidth={3} dot={{ r: 5, fill: "#10b981" }} />
+                              </ComposedChart>
+                            </ResponsiveContainer>
+                          </div>
+
+                          {/* Resumen ejecutivo exclusivo del mes en móvil */}
+                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/60">
+                            <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                              <p className="text-[10px] uppercase font-bold text-indigo-700 dark:text-indigo-300">
+                                Facturación {nombreMesPuntual}
+                              </p>
+                              <p className="text-sm font-black text-foreground font-mono mt-0.5">
+                                {formatoCOPFull(mesActivoD4?.venta ?? 0)}
+                              </p>
+                              {compararAnioAnterior && mesActivoD4?.ventaAnterior !== undefined && (
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  Ant: {formatoCOP(mesActivoD4.ventaAnterior)} (
+                                  <span className={cn("font-bold", (mesActivoD4.crecimientoYoY ?? 0) >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                                    {(mesActivoD4.crecimientoYoY ?? 0) >= 0 ? "+" : ""}{(mesActivoD4.crecimientoYoY ?? 0).toFixed(1)}%
+                                  </span>
+                                  )
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                              <p className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300">
+                                Prendas Comercializadas
+                              </p>
+                              <p className="text-sm font-black text-foreground font-mono mt-0.5">
+                                {Number(mesActivoD4?.unidades ?? 0).toLocaleString("es-CO")} unds
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                Promedio: {formatoCOP((mesActivoD4?.unidades ?? 0) > 0 ? (mesActivoD4?.venta ?? 0) / mesActivoD4!.unidades : 0)}/prenda
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    ) : (
+                      /* CASO 2: AÑO SELECCIONADO -> La métrica se ajusta al AÑO en móvil (w-full, sin scroll horizontal) */
+                      <div className="space-y-2">
+                        <div className="h-[250px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart
+                              data={dataMovilD4}
+                              margin={{ left: -14, right: 8, top: 10, bottom: 0 }}
+                              onClick={(state: any) => {
+                                if (state?.activePayload?.[0]?.payload?.mesNum) {
+                                  setMes(String(state.activePayload[0].payload.mesNum));
+                                }
+                              }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                              <XAxis dataKey="mesNombre" tick={{ fontSize: 9 }} interval={0} />
+                              <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 9 }} width={48} />
+                              <YAxis
+                                yAxisId="right"
+                                orientation="right"
+                                allowDecimals={false}
+                                tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)}
+                                tick={{ fontSize: 9 }}
+                                width={34}
+                              />
+                              <Tooltip
+                                formatter={(v: number, name: string) => [
+                                  name === "venta" || name === "ventaAnterior" ? formatoCOPFull(v) : `${Math.round(v).toLocaleString("es-CO")} unds`,
+                                  name === "venta" ? "Facturación ($)" : name === "ventaAnterior" ? "Facturación Año Anterior ($)" : "Prendas (Unds)",
+                                ]}
+                              />
+                              <Legend
+                                formatter={(v) =>
+                                  v === "venta"
+                                    ? "Facturación ($)"
+                                    : v === "ventaAnterior"
+                                    ? "Fact. Año Ant."
+                                    : "Prendas (Unds)"
+                                }
+                                wrapperStyle={{ fontSize: "10px" }}
+                              />
+                              <Bar yAxisId="left" dataKey="venta" name="venta" fill="#4f46e5" radius={[3, 3, 0, 0]} maxBarSize={15} />
+                              {compararAnioAnterior && (
+                                <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" name="ventaAnterior" stroke="#f59e0b" strokeWidth={2} strokeDasharray="3 3" dot={{ r: 2 }} />
+                              )}
+                              <Line yAxisId="right" type="monotone" dataKey="unidades" name="unidades" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} />
+                            </ComposedChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <p className="text-[10px] text-center text-muted-foreground flex items-center justify-center gap-1">
+                          <span>💡</span>
+                          <span>Toca cualquier barra mensual para enfocar el análisis en ese mes.</span>
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
