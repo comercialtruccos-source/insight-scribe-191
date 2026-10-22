@@ -20,6 +20,7 @@ export type FiltrosBI = {
   ciudad_id?: number | null | undefined;
   tercero_id?: number | null | undefined;
   tercero_ids?: number[] | null | undefined;
+  correria_id?: number | null | undefined;
 };
 
 export type CatalogoItem = {
@@ -142,6 +143,9 @@ export function aplicarFiltrosQuery<T extends { eq: any; gte: any; lte: any; or:
     const listStr = filtros.tercero_ids.join(",");
     q = q.in("tercero_id", filtros.tercero_ids);
   }
+  if (filtros.correria_id) {
+    q = q.eq("correria_id", filtros.correria_id);
+  }
 
   return q;
 }
@@ -198,6 +202,9 @@ export function cumpleFiltros(r: any, filtros: FiltrosBI): boolean {
   } else if (filtros.tercero_ids && filtros.tercero_ids.length > 0 && "tercero_id" in r) {
     const tId = r.tercero_id ? Number(r.tercero_id) : null;
     if (tId === null || !filtros.tercero_ids.includes(tId)) return false;
+  }
+  if (filtros.correria_id && "correria_id" in r && r.correria_id !== null && r.correria_id !== undefined) {
+    if (Number(r.correria_id) !== filtros.correria_id) return false;
   }
   return true;
 }
@@ -1214,7 +1221,7 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
 }
 
 export const COLUMNAS_ALL_FACT_VENTAS =
-  "id, anio, anio_col, mes, dia, fecha, transaccion, valor, cantidad, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, ciudad_id, pais_id, tercero_id, producto_c, sku, producto, prenda_hgi, talla, color, cod_color";
+  "id, anio, anio_col, mes, dia, fecha, transaccion, valor, cantidad, costo_total, vendedor_id, vendedor2_id, canal_id, marca_id, linea_id, zona_id, zona_colombia_id, ciudad_id, pais_id, tercero_id, correria_id, producto_c, sku, producto, prenda_hgi, talla, color, cod_color";
 
 export type FilaFactVentas = {
   id: number;
@@ -1237,6 +1244,7 @@ export type FilaFactVentas = {
   ciudad_id: number | null;
   pais_id: number | null;
   tercero_id: number | null;
+  correria_id: number | null;
   producto_c: string | null;
   sku: string | null;
   producto: string | null;

@@ -43,6 +43,7 @@ import { PanelClientesActivados } from "@/components/vendedores/PanelClientesAct
 import { MultiSelectVendedores } from "@/components/vendedores/MultiSelectVendedores";
 import { BotonVolverInicio } from "@/components/dashboard/BotonVolverInicio";
 import { VentanaInicialDashboardsMovil } from "@/components/dashboard/VentanaInicialDashboardsMovil";
+import { DashboardCorrerias } from "@/components/correrias/DashboardCorrerias";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -1382,6 +1383,8 @@ function Panel() {
     if (tabActivo === "multianual") {
       setTabActivo("d1");
     } else if (tabActivo === "carga" && !puedeVerCargar) {
+      setTabActivo("d1");
+    } else if (tabActivo === "correrias" && !esAdmin) {
       setTabActivo("d1");
     } else if (tabActivo === "d3" && !puedeVerDigital) {
       setTabActivo("d1");
@@ -2971,6 +2974,15 @@ function Panel() {
                 </TabsTrigger>
                 {esAdmin && (
                   <TabsTrigger
+                    value="correrias"
+                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-rose-500/15 data-[state=active]:text-rose-700 dark:data-[state=active]:text-rose-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
+                  >
+                    <Layers className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                    9. Correrías
+                  </TabsTrigger>
+                )}
+                {esAdmin && (
+                  <TabsTrigger
                     value="carga"
                     className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
                   >
@@ -3064,6 +3076,15 @@ function Panel() {
                 </TabsTrigger>
                 {esAdmin && (
                   <TabsTrigger
+                    value="correrias"
+                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-rose-500/15 data-[state=active]:text-rose-700 dark:data-[state=active]:text-rose-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  >
+                    <Layers className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                    9. Correrías
+                  </TabsTrigger>
+                )}
+                {esAdmin && (
+                  <TabsTrigger
                     value="carga"
                     className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200"
                   >
@@ -3135,6 +3156,15 @@ function Panel() {
                 <Users className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                 8. Clientes Activados
               </TabsTrigger>
+              {esAdmin && (
+                <TabsTrigger
+                  value="correrias"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-rose-500/15 data-[state=active]:text-rose-700 dark:data-[state=active]:text-rose-300 data-[state=active]:shadow-xs transition-all duration-200"
+                >
+                  <Layers className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                  9. Correrías
+                </TabsTrigger>
+              )}
               {esAdmin && (
                 <TabsTrigger
                   value="carga"
@@ -9578,6 +9608,21 @@ function Panel() {
               }}
             />
           </TabsContent>
+
+          {/* ========================================================================= */}
+          {/* DASHBOARD 9: ANÁLISIS DE CORRERÍAS Y TRAZABILIDAD (SOLO ADMINS) */}
+          {/* ========================================================================= */}
+          {esAdmin && (
+            <TabsContent value="correrias" className="space-y-6">
+              <DashboardCorrerias
+                ventas={rawVentas || []}
+                catalogos={catalogos}
+                cargandoVentas={cVentas}
+                esAdmin={esAdmin}
+                filtrosGlobales={filtros}
+              />
+            </TabsContent>
+          )}
 
           {/* ========================================================================= */}
           {/* TAB: CARGA DE ARCHIVOS E HISTORIAL */}

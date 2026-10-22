@@ -173,6 +173,19 @@ export function VentanaInicialDashboardsMovil({
     ...(esAdmin
       ? [
           {
+            id: "correrias",
+            numero: "9",
+            titulo: "Análisis de Correrías",
+            subtitulo: "Trazabilidad de referencias vendidas por correría, PVM, PVP y diseño",
+            badge: "Solo Admin",
+            icono: Layers,
+            colorGradiente: "from-rose-600 to-indigo-600",
+            colorTexto: "text-rose-700 dark:text-rose-300",
+            colorBorde: "border-rose-500/30 active:border-rose-500/60",
+            colorFondo: "bg-rose-500/5 active:bg-rose-500/10",
+            colorBadge: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
+          },
+          {
             id: "carga",
             numero: "⚙️",
             titulo: "Carga de Datos",
