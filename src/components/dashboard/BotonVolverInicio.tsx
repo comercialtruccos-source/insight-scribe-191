@@ -63,7 +63,7 @@ export function BotonVolverInicio({
   return (
     <div
       className={cn(
-        "fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40 transition-all duration-300 ease-out",
+        "fixed bottom-5 left-5 sm:bottom-6 sm:left-6 z-40 transition-all duration-300 ease-out",
         visible
           ? "opacity-100 translate-y-0 pointer-events-auto scale-100"
           : "opacity-0 translate-y-6 pointer-events-none scale-95",
@@ -91,7 +91,7 @@ export function BotonVolverInicio({
             </button>
           </TooltipTrigger>
           <TooltipContent
-            side="left"
+            side="right"
             align="center"
             sideOffset={12}
             className="p-3 max-w-[280px] rounded-xl shadow-2xl border border-border/80 bg-popover text-popover-foreground z-50 animate-in fade-in zoom-in-95"
