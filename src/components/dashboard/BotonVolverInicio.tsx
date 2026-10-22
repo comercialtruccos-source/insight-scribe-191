@@ -15,6 +15,8 @@ interface BotonVolverInicioProps {
   tabActivo?: string;
   /** Umbral de scroll en píxeles para mostrar el botón flotante (por defecto: 280) */
   threshold?: number;
+  /** Acción opcional para regresar al menú inicial de selección en móvil */
+  onVolverMenuMovil?: () => void;
   /** Clases CSS adicionales */
   className?: string;
 }
@@ -34,6 +36,7 @@ const NOMBRES_DASHBOARDS: Record<string, string> = {
 export function BotonVolverInicio({
   tabActivo,
   threshold = 280,
+  onVolverMenuMovil,
   className,
 }: BotonVolverInicioProps) {
   const [visible, setVisible] = useState(false);
@@ -51,11 +54,14 @@ export function BotonVolverInicio({
     return () => window.removeEventListener("scroll", handleScroll);
   }, [threshold]);
 
-  const scrollToTop = () => {
+  const handleClick = () => {
     window.scrollTo({
       top: 0,
       behavior: "smooth",
     });
+    if (onVolverMenuMovil && typeof window !== "undefined" && window.innerWidth < 640) {
+      onVolverMenuMovil();
+    }
   };
 
   const nombreDashboard = tabActivo ? NOMBRES_DASHBOARDS[tabActivo] || tabActivo : null;
@@ -75,7 +81,7 @@ export function BotonVolverInicio({
           <TooltipTrigger asChild>
             <button
               type="button"
-              onClick={scrollToTop}
+              onClick={handleClick}
               aria-label="Volver al inicio de la página para cambiar de dashboard"
               className={cn(
                 "group grid h-11 w-11 sm:h-12 sm:w-12 place-items-center rounded-full shadow-lg",

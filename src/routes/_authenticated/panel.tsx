@@ -42,6 +42,7 @@ import { DesgloseSkusTabla } from "@/components/dashboard/DesgloseSkusTabla";
 import { PanelClientesActivados } from "@/components/vendedores/PanelClientesActivados";
 import { MultiSelectVendedores } from "@/components/vendedores/MultiSelectVendedores";
 import { BotonVolverInicio } from "@/components/dashboard/BotonVolverInicio";
+import { VentanaInicialDashboardsMovil } from "@/components/dashboard/VentanaInicialDashboardsMovil";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -502,12 +503,25 @@ function Panel() {
     return "d1";
   });
 
+  // Modo de visualización exclusivo en móvil:
+  // - "menu": Muestra la ventana inicial de selección de dashboards para que el vendedor elija primero.
+  // - "dashboard": Muestra el dashboard seleccionado con sus gráficos, tablas y métricas completas.
+  // Si la URL contiene ?tab=..., iniciamos directamente en "dashboard" para soportar enlaces directos (ej. desde documentación).
+  const [modoVistaMovil, setModoVistaMovil] = useState<"menu" | "dashboard">(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("tab")) return "dashboard";
+    }
+    return "menu";
+  });
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
       if (tabParam && tabParam !== tabActivo) {
         setTabActivo(tabParam);
+        setModoVistaMovil("dashboard");
       }
     }
   }, []);
@@ -968,6 +982,26 @@ function Panel() {
     }
     return "Mismo periodo del año anterior";
   }, [filtrosYoY]);
+
+  // Etiqueta legible del periodo actualmente seleccionado (usada en la ventana inicial móvil y badges)
+  const periodoEtiqueta = useMemo(() => {
+    if (tipoRango === "mesActual") return "Mes Actual";
+    if (tipoRango === "ultimos12") return "Últimos 12 Meses";
+    if (tipoRango === "ultimos6") return "Últimos 6 Meses";
+    if (tipoRango === "personalizado" && (fechaDesde || fechaHasta)) {
+      return `${fechaDesde || "Inicio"} a ${fechaHasta || "Fin"}`;
+    }
+    const partes: string[] = [];
+    if (mes !== "todos") {
+      const nomMes = MESES.find((m) => m.num === Number(mes))?.nombre;
+      if (nomMes) partes.push(nomMes);
+    }
+    if (anio !== "todos") {
+      partes.push(anio);
+    }
+    if (partes.length === 0) return "Histórico Completo";
+    return partes.join(" ");
+  }, [tipoRango, fechaDesde, fechaHasta, mes, anio]);
 
   const cMultianual = cVentas || (habilitarYoY && cYoYLoading);
   const cD1 = cVentas || (habilitarYoY && cYoYLoading);
@@ -1795,8 +1829,8 @@ function Panel() {
           </div>
         </div>
 
-        {/* Barra de Filtros Globales (Slicers) con Glassmorphism */}
-        <div className="border-t border-border/50 bg-card/50 backdrop-blur-xl px-3 py-2 sm:px-6 sm:py-2.5 shadow-2xs">
+        {/* Barra de Filtros Globales (Slicers) con Glassmorphism: En móvil se muestra solo al entrar a un dashboard */}
+        <div className={cn("border-t border-border/50 bg-card/50 backdrop-blur-xl px-3 py-2 sm:px-6 sm:py-2.5 shadow-2xs", modoVistaMovil === "menu" ? "hidden sm:block" : "block")}>
           {/* VISTA MÓVIL (sm:hidden): Barra Rápida Compacta + Cajón Desplegable */}
           <div className="sm:hidden space-y-2">
             {/* Barra Rápida Superior */}
@@ -2514,7 +2548,7 @@ function Panel() {
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 space-y-6">
         {/* Banner Informativo de Comparación YoY Activa */}
         {compararAnioAnterior && (
-          <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-indigo-500/10 to-amber-500/15 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-in fade-in duration-200">
+          <div className={cn("p-3.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-indigo-500/10 to-amber-500/15 border border-amber-500/40 justify-between gap-3 shadow-xs animate-in fade-in duration-200", modoVistaMovil === "menu" ? "hidden sm:flex" : "flex flex-col sm:flex-row sm:items-center")}>
             <div className="flex items-center gap-2.5">
               <div className="h-8 w-8 rounded-lg bg-amber-500/20 border border-amber-500/40 grid place-items-center shrink-0">
                 <TrendingUp className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -2543,7 +2577,7 @@ function Panel() {
         )}
 
         {!esAdmin && vendedoresDisponibles.length === 0 && (
-          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 shadow-2xs">
+          <div className={cn("p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 items-start gap-3 shadow-2xs", modoVistaMovil === "menu" ? "hidden sm:flex" : "flex")}>
             <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">
@@ -2556,7 +2590,67 @@ function Panel() {
           </div>
         )}
 
-        <Tabs id="selector-dashboards" value={tabActivo} onValueChange={setTabActivo} className="space-y-6">
+        {/* =========================================================================
+            VENTANA INICIAL DE SELECCIÓN DE DASHBOARDS (SOLO MÓVIL)
+            En pantallas móviles (< 640px) y cuando modoVistaMovil === "menu",
+            muestra la ventana inicial tipo hub para que el vendedor seleccione
+            primero qué dashboard desea consultar.
+            En escritorio (sm:), siempre permanece oculta (sm:hidden).
+           ========================================================================= */}
+        {modoVistaMovil === "menu" && (
+          <VentanaInicialDashboardsMovil
+            onSeleccionarDashboard={(nuevoTab) => {
+              setTabActivo(nuevoTab);
+              setModoVistaMovil("dashboard");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            puedeVerDigital={puedeVerDigital}
+            puedeVerMarketplaces={puedeVerMarketplaces}
+            esAdmin={esAdmin}
+            vendedorNombre={
+              permisoActual?.nombre ||
+              currentUser?.user_metadata?.nombre ||
+              currentUser?.email?.split("@")[0] ||
+              "Asesor Comercial"
+            }
+            periodoEtiqueta={periodoEtiqueta}
+            onAbrirMentor={() => setMentorOpen(true)}
+            onAbrirDocs={() => navigate({ to: "/documentacion" })}
+          />
+        )}
+
+        <Tabs
+          id="selector-dashboards"
+          value={tabActivo}
+          onValueChange={setTabActivo}
+          className={cn("space-y-6", modoVistaMovil === "dashboard" ? "block" : "hidden sm:block")}
+        >
+          {/* Barra superior de retorno al Hub Inicial de Dashboards (Exclusiva para Móvil) */}
+          <div className="sm:hidden -mt-2 mb-3 p-2.5 rounded-2xl bg-card/90 border border-border/80 backdrop-blur-md flex items-center justify-between shadow-xs">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setModoVistaMovil("menu");
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className="h-8 px-2.5 text-xs font-bold text-primary hover:bg-primary/10 gap-1.5 rounded-xl active:scale-95 transition-all"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Cambiar Dashboard</span>
+            </Button>
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline" className="text-[10px] font-bold px-2 py-0.5 border-border/80 bg-muted/40 text-muted-foreground uppercase">
+                {tabActivo.toUpperCase()}
+              </Badge>
+              {periodoEtiqueta && (
+                <Badge variant="secondary" className="text-[10px] font-medium px-2 py-0.5 max-w-[130px] truncate">
+                  {periodoEtiqueta}
+                </Badge>
+              )}
+            </div>
+          </div>
           {tabActivo === "d3" ? (
             /* Barra de Enfoque Exclusivo Digital: Oculta y desactiva todos los demás dashboards */
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-indigo-500/10 dark:bg-indigo-950/40 rounded-xl border border-indigo-500/30 shadow-xs">
@@ -9064,7 +9158,11 @@ function Panel() {
       </main>
 
       {/* Botón Flotante con Tooltip para Volver al Inicio y Cambiar de Dashboard */}
-      <BotonVolverInicio tabActivo={tabActivo} />
+      <BotonVolverInicio
+        tabActivo={tabActivo}
+        onVolverMenuMovil={() => setModoVistaMovil("menu")}
+        className={modoVistaMovil === "menu" ? "hidden sm:block" : undefined}
+      />
 
       {/* Modal de Administración de Permisos de Vendedores */}
       <AdminPermisosVendedoresDialog
