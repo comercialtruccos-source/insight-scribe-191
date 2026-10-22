@@ -10,7 +10,7 @@ import {
   CatalogoItem,
   fetchAllDimTercero,
 } from "@/lib/ventas-api";
-import { formatoCOPFull, formatoHGI } from "@/lib/utils";
+import { cn, formatoCOPFull, formatoHGI } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +82,7 @@ export function VisorPedidosDespachos({
   const [terceroSeleccionado, setTerceroSeleccionado] = useState<number | "todos">(
     terceroIdFiltro || "todos"
   );
+  const [vistaMovil, setVistaMovil] = useState<"tarjetas" | "tabla">("tarjetas");
 
   React.useEffect(() => {
     setVendedorSeleccionado(vendedorIdFiltro);
@@ -750,10 +751,237 @@ export function VisorPedidosDespachos({
       {/* 6. Matriz Pivot Jerárquica: Visor de Datos - PEDIDOS VS. DESPACHOS */}
       {(modoVista === "datos" || modoVista === "ambos") && (
         <Card className="overflow-hidden border border-border">
-          <div className="sm:hidden px-3 py-1.5 bg-muted/40 border-b border-border/60 text-[10.5px] text-muted-foreground flex items-center justify-between font-medium">
-            <span>← Desliza horizontalmente para ver la matriz completa →</span>
+          {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+          <div className="sm:hidden px-3 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setVistaMovil("tarjetas")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                  vistaMovil === "tarjetas"
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                🗂️ Tarjetas
+              </button>
+              <button
+                type="button"
+                onClick={() => setVistaMovil("tabla")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                  vistaMovil === "tabla"
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                📊 Tabla
+              </button>
+            </div>
+            <span className="font-mono text-xs font-bold text-foreground">
+              {vendedoresFiltrados.reduce((acc, v) => acc + v.terceros.length, 0)} clientes
+            </span>
           </div>
-          <div className="overflow-x-auto touch-pan">
+
+          {/* Aviso deslizar en vista tabla móvil */}
+          {vistaMovil === "tabla" && (
+            <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+              ← Desliza horizontalmente para ver la matriz completa →
+            </div>
+          )}
+
+          {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovil === 'tarjetas') */}
+          {vistaMovil === "tarjetas" && (
+            <div className="sm:hidden divide-y divide-border/60 max-h-[620px] overflow-y-auto">
+              {isLoading ? (
+                <div className="py-16 text-center text-sm text-muted-foreground flex flex-col items-center justify-center gap-2">
+                  <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+                  <span>Cargando matriz de pedidos y salidas por despacho...</span>
+                </div>
+              ) : vendedoresFiltrados.length === 0 ? (
+                <div className="py-16 text-center text-sm text-muted-foreground">
+                  No se encontraron pedidos o despachos para los filtros seleccionados.
+                </div>
+              ) : (
+                vendedoresFiltrados.map((v) => (
+                  <div key={`movil-vendedor-${v.vendedorNombre}`} className="p-3 bg-muted/10 space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-foreground bg-muted/40 px-2.5 py-1.5 rounded-lg border border-border/50">
+                      <div className="flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5 text-primary" />
+                        <span>{v.vendedorNombre}</span>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        {v.terceros.length} {v.terceros.length === 1 ? "cliente" : "clientes"}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {v.terceros.map((t) => {
+                        const clave = `${v.vendedorNombre}|${t.terceroNombre}`;
+                        const estaExpandido = expandidos[clave] ?? false;
+                        const pctDespacho = t.pedidosCantidad > 0
+                          ? Math.min(100, Math.round((t.despachosCantidad / t.pedidosCantidad) * 100))
+                          : 0;
+
+                        return (
+                          <div
+                            key={`movil-card-${clave}`}
+                            className="bg-card rounded-xl p-3 border border-border/60 shadow-2xs space-y-2.5"
+                          >
+                            {/* Fila 1: Cliente & Badge Estado */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <h4 className="font-bold text-xs text-foreground leading-snug">
+                                  {t.terceroNombre}
+                                </h4>
+                                <span className="text-[10.5px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                                  <Building2 className="h-3 w-3 text-indigo-500 shrink-0" />
+                                  {t.productos.length} {t.productos.length === 1 ? "producto" : "productos"}
+                                </span>
+                              </div>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full",
+                                  t.esPendiente
+                                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                    : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                )}
+                              >
+                                {t.esPendiente ? "Pendiente" : "Completado"}
+                              </Badge>
+                            </div>
+
+                            {/* Fila 2: Cifras Principales */}
+                            <div className="flex items-baseline justify-between pt-0.5">
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                  Valor Pedido
+                                </span>
+                                <span className="text-sm font-extrabold font-mono text-purple-700 dark:text-purple-300">
+                                  {formatoHGI(t.pedidosValor)}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                  Saldo Pendiente
+                                </span>
+                                <span
+                                  className={cn(
+                                    "font-mono font-bold text-xs",
+                                    t.esPendiente ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
+                                  )}
+                                >
+                                  {formatoHGI(t.totalGeneralValor)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Fila 3: Barra de Comparación de Despacho (100% width) */}
+                            <div className="bg-muted/30 rounded-xl p-2.5 space-y-1.5 border border-border/50">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-muted-foreground font-medium flex items-center gap-1">
+                                  <Truck className="h-3 w-3 text-blue-500" />
+                                  Despacho: {pctDespacho}%
+                                </span>
+                                <span className="font-mono text-foreground font-bold">
+                                  {t.despachosCantidad.toLocaleString("es-CO")} de {t.pedidosCantidad.toLocaleString("es-CO")} unds
+                                </span>
+                              </div>
+                              <div className="w-full bg-muted/70 h-2.5 rounded-full overflow-hidden flex">
+                                <div
+                                  className="bg-blue-500 h-full transition-all"
+                                  style={{ width: `${pctDespacho}%` }}
+                                />
+                                {pctDespacho < 100 && (
+                                  <div
+                                    className="bg-amber-500/60 h-full transition-all"
+                                    style={{ width: `${100 - pctDespacho}%` }}
+                                  />
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Fila 4: Chips Resumen */}
+                            <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-border/40 text-[10px]">
+                              <div className="bg-purple-500/10 p-1.5 rounded-lg border border-purple-500/20 text-center">
+                                <span className="text-muted-foreground block text-[9px] uppercase font-bold">Pedidos</span>
+                                <span className="font-mono font-bold text-purple-700 dark:text-purple-300">
+                                  {t.pedidosCantidad.toLocaleString("es-CO")} und
+                                </span>
+                              </div>
+                              <div className="bg-blue-500/10 p-1.5 rounded-lg border border-blue-500/20 text-center">
+                                <span className="text-muted-foreground block text-[9px] uppercase font-bold">Despacho</span>
+                                <span className="font-mono font-bold text-blue-700 dark:text-blue-300">
+                                  {t.despachosCantidad.toLocaleString("es-CO")} und
+                                </span>
+                              </div>
+                              <div className={cn(
+                                "p-1.5 rounded-lg border text-center",
+                                t.esPendiente
+                                  ? "bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300"
+                                  : "bg-muted/40 border-border text-muted-foreground"
+                              )}>
+                                <span className="block text-[9px] uppercase font-bold">Pendiente</span>
+                                <span className="font-mono font-bold">
+                                  {t.totalGeneralCantidad.toLocaleString("es-CO")} und
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Fila 5: Botón Desplegable para ver Productos */}
+                            <div className="pt-1">
+                              <button
+                                type="button"
+                                onClick={() => toggleExpandir(clave)}
+                                className="w-full flex items-center justify-between text-[11px] text-primary hover:text-primary/80 font-medium py-1 px-2 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors"
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <Package className="h-3.5 w-3.5" />
+                                  {estaExpandido ? "Ocultar productos" : `Ver ${t.productos.length} productos`}
+                                </span>
+                                {estaExpandido ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                              </button>
+
+                              {estaExpandido && (
+                                <div className="mt-2 divide-y divide-border/40 bg-muted/20 rounded-lg p-2 border border-border/50 space-y-2">
+                                  {t.productos.map((prod, pIdx) => (
+                                    <div key={`${clave}-${prod.producto}-${pIdx}`} className="pt-2 first:pt-0 space-y-1 text-[11px]">
+                                      <div className="flex items-start justify-between gap-1.5">
+                                        <span className="font-semibold text-foreground line-clamp-1">
+                                          {prod.producto}
+                                        </span>
+                                        {prod.esPendiente && (
+                                          <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 shrink-0">
+                                            Pendiente
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                                        <span>Ped: {prod.pedidosCantidad} ({formatoHGI(prod.pedidosValor)})</span>
+                                        <span>Desp: {prod.despachosCantidad}</span>
+                                        <span className={cn("font-bold", prod.esPendiente ? "text-amber-700 dark:text-amber-300" : "")}>
+                                          Pend: {prod.totalGeneralCantidad}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovil === 'tarjetas') */}
+          <div className={`overflow-x-auto touch-pan ${vistaMovil === "tabla" ? "block" : "hidden sm:block"}`}>
             {isLoading ? (
               <div className="py-16 text-center text-sm text-muted-foreground flex flex-col items-center justify-center gap-2">
                 <RefreshCw className="h-6 w-6 animate-spin text-primary" />

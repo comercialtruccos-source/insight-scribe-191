@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { SkuDetalle } from "@/lib/ventas-api";
-import { formatoCOP, formatoCOPFull } from "@/lib/utils";
+import { cn, formatoCOP, formatoCOPFull } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,6 +36,7 @@ export function DesgloseSkusTabla({
 }: DesgloseSkusTablaProps) {
   const [busqueda, setBusqueda] = useState("");
   const [orden, setOrden] = useState<"valor" | "unidades" | "talla">("valor");
+  const [vistaMovil, setVistaMovil] = useState<"tarjetas" | "tabla">("tarjetas");
 
   // Totales
   const totalValor = totalValorRef ?? skus.reduce((acc, s) => acc + s.valor, 0);
@@ -240,8 +241,140 @@ export function DesgloseSkusTabla({
             : "No hay variantes de SKU registradas para esta referencia en los filtros actuales."}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border/70 max-h-[260px] bg-background">
-          <table className="w-full text-xs text-left">
+        <div className="space-y-2">
+          {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+          <div className="sm:hidden px-2.5 py-1.5 bg-muted/40 rounded-lg border border-border/60 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setVistaMovil("tarjetas")}
+                className={cn(
+                  "px-2.5 py-0.5 rounded-md text-[10.5px] font-bold transition-all",
+                  vistaMovil === "tarjetas"
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                🗂️ Tarjetas
+              </button>
+              <button
+                type="button"
+                onClick={() => setVistaMovil("tabla")}
+                className={cn(
+                  "px-2.5 py-0.5 rounded-md text-[10.5px] font-bold transition-all",
+                  vistaMovil === "tabla"
+                    ? "bg-primary text-primary-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                📊 Tabla
+              </button>
+            </div>
+            <span className="font-mono text-[11px] font-bold text-foreground">
+              {skusFiltrados.length} variantes
+            </span>
+          </div>
+
+          {/* Aviso deslizar en vista tabla móvil */}
+          {vistaMovil === "tabla" && (
+            <div className="sm:hidden px-3 py-1 bg-amber-500/10 rounded-md border border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-medium">
+              ← Desliza horizontalmente para ver todas las columnas →
+            </div>
+          )}
+
+          {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovil === 'tarjetas') */}
+          {vistaMovil === "tarjetas" && (
+            <div className="sm:hidden divide-y divide-border/60 max-h-[300px] overflow-y-auto rounded-lg border border-border/70 bg-background">
+              {skusFiltrados.map((item, idx) => {
+                const pct = Number(item.porcentajeEnReferencia || 0);
+                return (
+                  <div
+                    key={`movil-sku-${item.sku}-${idx}`}
+                    className="p-3 space-y-2 hover:bg-muted/30 transition-colors"
+                  >
+                    {/* Fila 1: SKU, Ranking y Talla */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs text-muted-foreground">
+                            {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
+                          </span>
+                          <span className="font-mono font-bold text-xs text-primary truncate">
+                            {item.sku}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] text-muted-foreground">
+                          <span className="font-medium text-foreground">{item.color || "Estándar"}</span>
+                          {item.cod_color && (
+                            <span className="text-[9px] font-mono bg-muted/60 px-1 rounded border border-border/60">
+                              {item.cod_color}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <Badge
+                        variant="outline"
+                        className="shrink-0 text-[10px] font-bold px-2 py-0.5 bg-muted/60 border-border"
+                      >
+                        Talla: {item.talla || "Única"}
+                      </Badge>
+                    </div>
+
+                    {/* Fila 2: Cifras Principales */}
+                    <div className="flex items-baseline justify-between pt-0.5">
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                          Facturación Neta
+                        </span>
+                        <span className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                          {formatoCOPFull(item.valor)}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                          % En Ref.
+                        </span>
+                        <span className="font-mono font-bold text-xs text-foreground">
+                          {pct.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Fila 3: Barra Comparativa Visual a Ancho Completo (100% width) */}
+                    <div className="space-y-1">
+                      <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-primary h-full rounded-full transition-all"
+                          style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Fila 4: Unidades y Precio Promedio en Chips */}
+                    <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-border/40 text-[10.5px]">
+                      <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                        <span className="text-muted-foreground">Prendas:</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {item.unidades.toLocaleString("es-CO")} unds
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                        <span className="text-muted-foreground">Precio Prom:</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {formatoCOP(item.precioPromedio)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovil === 'tarjetas') */}
+          <div className={`overflow-x-auto rounded-lg border border-border/70 max-h-[260px] bg-background ${vistaMovil === "tabla" ? "block" : "hidden sm:block"}`}>
+            <table className="w-full text-xs text-left">
             <thead className="border-b border-border/70 uppercase text-[10px] text-muted-foreground font-bold bg-muted/40 sticky top-0">
               <tr>
                 <th className="py-2 px-2.5">#</th>
@@ -307,6 +440,7 @@ export function DesgloseSkusTabla({
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

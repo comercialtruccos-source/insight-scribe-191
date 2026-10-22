@@ -170,6 +170,8 @@ export function MapaVentasZonas({
 
   // Referencia expandida para ver desglose de SKU dentro de la zona
   const [refExpandidaMapa, setRefExpandidaMapa] = useState<string | null>(null);
+  const [vistaMovilClientes, setVistaMovilClientes] = useState<"tarjetas" | "tabla">("tarjetas");
+  const [vistaMovilRefs, setVistaMovilRefs] = useState<"tarjetas" | "tabla">("tarjetas");
 
   // Al cambiar de zona activa, resetear el filtro de ciudad y la referencia expandida
   useEffect(() => {
@@ -1221,8 +1223,135 @@ export function MapaVentasZonas({
                     para los filtros actuales.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/60 max-h-[220px]">
-                    <table className="w-full text-xs text-left">
+                  <div className="space-y-2">
+                    {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                    <div className="sm:hidden px-2.5 py-1.5 bg-muted/40 rounded-lg border border-border/60 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => setVistaMovilClientes("tarjetas")}
+                          className={cn(
+                            "px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all",
+                            vistaMovilClientes === "tarjetas"
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          🗂️ Tarjetas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVistaMovilClientes("tabla")}
+                          className={cn(
+                            "px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all",
+                            vistaMovilClientes === "tabla"
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          📊 Tabla
+                        </button>
+                      </div>
+                      <span className="font-mono text-[11px] font-bold text-foreground">
+                        {clientesCiudad.length} clientes
+                      </span>
+                    </div>
+
+                    {/* Aviso deslizar en vista tabla móvil */}
+                    {vistaMovilClientes === "tabla" && (
+                      <div className="sm:hidden px-3 py-1 bg-amber-500/10 rounded-md border border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-medium">
+                        ← Desliza horizontalmente para ver todas las columnas →
+                      </div>
+                    )}
+
+                    {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovilClientes === 'tarjetas') */}
+                    {vistaMovilClientes === "tarjetas" && (
+                      <div className="sm:hidden divide-y divide-border/60 max-h-[280px] overflow-y-auto rounded-xl border border-border/60 bg-background/60">
+                        {clientesCiudad.map((cli, idx) => {
+                          const idxIdentificado = listaIdentificados.findIndex((x) => x.id === cli.id);
+                          const pct = Number(cli.porcentajeEnCiudad || 0);
+
+                          return (
+                            <div
+                              key={`movil-cli-${cli.id}-${idx}`}
+                              className="p-3 space-y-2 hover:bg-muted/30 transition-colors"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {cli.esGenerico ? (
+                                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-semibold flex items-center gap-1">
+                                        <Store className="h-2.5 w-2.5" />
+                                        Mostrador
+                                      </Badge>
+                                    ) : (
+                                      <span className="font-bold text-xs text-muted-foreground">
+                                        {idxIdentificado === 0 ? "🥇" : idxIdentificado === 1 ? "🥈" : idxIdentificado === 2 ? "🥉" : `#${idxIdentificado + 1}`}
+                                      </span>
+                                    )}
+                                    <h5 className="font-bold text-xs text-foreground truncate">
+                                      {limpiarTextoEncoding(cli.nombre)}
+                                    </h5>
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                                    {cli.codigo ? `NIT / ID: ${cli.codigo}` : "Sin Identificación"}
+                                  </div>
+                                </div>
+
+                                <Badge variant="outline" className="shrink-0 text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
+                                  {pct.toFixed(1)}%
+                                </Badge>
+                              </div>
+
+                              <div className="flex items-baseline justify-between pt-0.5">
+                                <div>
+                                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                    Facturación Neta
+                                  </span>
+                                  <span className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                                    {formatoCOPFull(cli.venta)}
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                    Operaciones
+                                  </span>
+                                  <span className="font-mono text-xs text-foreground">
+                                    {cli.transacciones} {cli.transacciones === 1 ? "pedido" : "pedidos"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                                <div
+                                  className="bg-primary h-full rounded-full transition-all"
+                                  style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-border/40 text-[10.5px]">
+                                <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                  <span className="text-muted-foreground">Prendas:</span>
+                                  <span className="font-mono font-bold text-foreground">
+                                    {cli.unidades.toLocaleString("es-CO")} unds
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                  <span className="text-muted-foreground">Ticket Prom:</span>
+                                  <span className="font-mono font-bold text-foreground">
+                                    {formatoCOP(cli.ticketPromedio)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilClientes === 'tarjetas') */}
+                    <div className={`overflow-x-auto rounded-xl border border-border/60 bg-background/60 max-h-[220px] ${vistaMovilClientes === "tabla" ? "block" : "hidden sm:block"}`}>
+                      <table className="w-full text-xs text-left">
                       <thead className="border-b border-border/80 uppercase text-[10px] text-muted-foreground font-bold bg-muted/30 sticky top-0">
                         <tr>
                           <th className="py-2 px-2.5">#</th>
@@ -1304,7 +1433,8 @@ export function MapaVentasZonas({
                       </tbody>
                     </table>
                   </div>
-                )}
+                </div>
+              )}
               </div>
 
               {/* Sub-sección 3: Referencias / Prendas Vendidas en esta Zona */}
@@ -1347,8 +1477,174 @@ export function MapaVentasZonas({
                     No se registran referencias vendidas en {limpiarTextoEncoding(zonaActiva.zona)} para los filtros actuales.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/60 max-h-[420px]">
-                    <table className="w-full text-xs text-left">
+                  <div className="space-y-2">
+                    {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                    <div className="sm:hidden px-2.5 py-1.5 bg-muted/40 rounded-lg border border-border/60 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => setVistaMovilRefs("tarjetas")}
+                          className={cn(
+                            "px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all",
+                            vistaMovilRefs === "tarjetas"
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          🗂️ Tarjetas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVistaMovilRefs("tabla")}
+                          className={cn(
+                            "px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all",
+                            vistaMovilRefs === "tabla"
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          📊 Tabla
+                        </button>
+                      </div>
+                      <span className="font-mono text-[11px] font-bold text-foreground">
+                        {referenciasZona.length} referencias
+                      </span>
+                    </div>
+
+                    {/* Aviso deslizar en vista tabla móvil */}
+                    {vistaMovilRefs === "tabla" && (
+                      <div className="sm:hidden px-3 py-1 bg-amber-500/10 rounded-md border border-amber-500/20 text-[10px] text-amber-700 dark:text-amber-300 font-medium">
+                        ← Desliza horizontalmente para ver todas las columnas →
+                      </div>
+                    )}
+
+                    {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovilRefs === 'tarjetas') */}
+                    {vistaMovilRefs === "tarjetas" && (
+                      <div className="sm:hidden divide-y divide-border/60 max-h-[380px] overflow-y-auto rounded-xl border border-border/60 bg-background/60">
+                        {referenciasZona.map((ref, idx) => {
+                          const isExpanded = refExpandidaMapa === ref.sku;
+                          const numSkus = ref.totalSkus || ref.skus?.length || 1;
+                          const pct = Number(ref.porcentaje || 0);
+
+                          return (
+                            <div
+                              key={`movil-ref-${ref.sku}-${idx}`}
+                              className="p-3 space-y-2 hover:bg-muted/30 transition-colors"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-xs text-muted-foreground">
+                                      {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
+                                    </span>
+                                    <span className="font-mono font-bold text-xs text-primary">
+                                      {limpiarTextoEncoding(ref.sku)}
+                                    </span>
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[9px] px-1 py-0 font-mono font-normal bg-primary/10 text-primary border-primary/20"
+                                    >
+                                      {numSkus} {numSkus === 1 ? "SKU" : "SKUs"}
+                                    </Badge>
+                                  </div>
+                                  <h5 className="font-bold text-xs text-foreground truncate mt-0.5" title={ref.producto}>
+                                    {limpiarTextoEncoding(ref.producto)}
+                                  </h5>
+                                  <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
+                                    {ref.prenda && (
+                                      <Badge variant="outline" className="text-[9px] font-semibold bg-muted/40 py-0 px-1 border-border/60">
+                                        {limpiarTextoEncoding(ref.prenda)}
+                                      </Badge>
+                                    )}
+                                    {ref.linea && <span>• {limpiarTextoEncoding(ref.linea)}</span>}
+                                  </div>
+                                </div>
+
+                                <Badge variant="outline" className="shrink-0 text-[10px] font-bold bg-primary/5 py-0 px-1.5">
+                                  {pct.toFixed(1)}%
+                                </Badge>
+                              </div>
+
+                              <div className="flex items-baseline justify-between pt-0.5">
+                                <div>
+                                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                    Facturación Neta
+                                  </span>
+                                  <span className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                                    {formatoCOPFull(ref.valor)}
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                    % en Zona
+                                  </span>
+                                  <span className="font-mono text-xs font-bold text-foreground">
+                                    {pct.toFixed(1)}%
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                                <div
+                                  className="bg-primary h-full rounded-full transition-all"
+                                  style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-border/40 text-[10.5px]">
+                                <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                  <span className="text-muted-foreground">Prendas:</span>
+                                  <span className="font-mono font-bold text-foreground">
+                                    {ref.unidades.toLocaleString("es-CO")} unds
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                  <span className="text-muted-foreground">Precio Prom:</span>
+                                  <span className="font-mono font-bold text-foreground">
+                                    {formatoCOP(ref.precioPromedio)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Botón desplegable para ver variantes SKU */}
+                              <div className="pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setRefExpandidaMapa(isExpanded ? null : ref.sku)}
+                                  className="w-full flex items-center justify-between text-[10.5px] text-primary hover:text-primary/80 font-medium py-1 px-2 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors"
+                                >
+                                  <span className="flex items-center gap-1.5">
+                                    <Package className="h-3 w-3" />
+                                    {isExpanded ? "Ocultar variantes" : `Ver variantes (${numSkus} SKUs)`}
+                                  </span>
+                                  {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                </button>
+
+                                {isExpanded && (
+                                  <div className="mt-2 bg-muted/20 rounded-lg p-2 border border-border/50">
+                                    <DesgloseSkusTabla
+                                      referenciaCodigo={ref.sku}
+                                      referenciaNombre={ref.producto}
+                                      prenda={ref.prenda}
+                                      linea={ref.linea}
+                                      totalUnidades={ref.unidades}
+                                      totalValor={ref.valor}
+                                      precioPromedio={ref.precioPromedio}
+                                      skus={ref.skus || []}
+                                      onClose={() => setRefExpandidaMapa(null)}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilRefs === 'tarjetas') */}
+                    <div className={`overflow-x-auto rounded-xl border border-border/60 bg-background/60 max-h-[420px] ${vistaMovilRefs === "tabla" ? "block" : "hidden sm:block"}`}>
+                      <table className="w-full text-xs text-left">
                       <thead className="border-b border-border/80 uppercase text-[10px] text-muted-foreground font-bold bg-muted/30 sticky top-0 z-10">
                         <tr>
                           <th className="py-2 px-2.5">#</th>
@@ -1452,7 +1748,8 @@ export function MapaVentasZonas({
                       </tbody>
                     </table>
                   </div>
-                )}
+                </div>
+              )}
               </div>
             </div>
           ) : (

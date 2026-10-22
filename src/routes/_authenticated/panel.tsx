@@ -538,6 +538,18 @@ function Panel() {
   const [filasPorPaginaRef, setFilasPorPaginaRef] = useState("25");
   const [paginaRef, setPaginaRef] = useState(1);
 
+  // Estados para vista móvil (Tarjetas vs Tabla) uniforme en todas las tablas
+  const [vistaMovilD1Asesores, setVistaMovilD1Asesores] = useState<"tarjetas" | "tabla">("tarjetas");
+  const [vistaMovilD1RefsZona, setVistaMovilD1RefsZona] = useState<"tarjetas" | "tabla">("tarjetas");
+  const [vistaMovilD1Ciudades, setVistaMovilD1Ciudades] = useState<"tarjetas" | "tabla">("tarjetas");
+  const [vistaMovilD1Top10, setVistaMovilD1Top10] = useState<"tarjetas" | "tabla">("tarjetas");
+  const [vistaMovilD1Historico, setVistaMovilD1Historico] = useState<"tarjetas" | "tabla">("tarjetas");
+  const [vistaMovilD1Meses, setVistaMovilD1Meses] = useState<"tarjetas" | "tabla">("tarjetas");
+  const [vistaMovilD3Canales, setVistaMovilD3Canales] = useState<"tarjetas" | "tabla">("tarjetas");
+  const [vistaMovilD4Ranking, setVistaMovilD4Ranking] = useState<"tarjetas" | "tabla">("tarjetas");
+  const [vistaMovilD5Top, setVistaMovilD5Top] = useState<"tarjetas" | "tabla">("tarjetas");
+  const [vistaMovilD6Catalogo, setVistaMovilD6Catalogo] = useState<"tarjetas" | "tabla">("tarjetas");
+
   // Explorador detalle
   const [busquedaDetalle, setBusquedaDetalle] = useState("");
   const [paginaDetalle, setPaginaDetalle] = useState(0);
@@ -3490,7 +3502,198 @@ function Panel() {
 
                   {/* Tabla Comparativa de Asesores */}
                   <div className="border border-border/60 rounded-xl overflow-hidden shadow-2xs">
-                    <div className="overflow-x-auto">
+                    {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                    <div className="sm:hidden px-3 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => setVistaMovilD1Asesores("tarjetas")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                            vistaMovilD1Asesores === "tarjetas"
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          🗂️ Tarjetas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVistaMovilD1Asesores("tabla")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                            vistaMovilD1Asesores === "tabla"
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          📊 Tabla
+                        </button>
+                      </div>
+                      <span className="font-mono text-xs font-bold text-foreground">
+                        {comparativaComercialesAsociados.length} asesores
+                      </span>
+                    </div>
+
+                    {/* Aviso deslizar en vista tabla móvil */}
+                    {vistaMovilD1Asesores === "tabla" && (
+                      <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+                        ← Desliza horizontalmente para ver todas las columnas →
+                      </div>
+                    )}
+
+                    {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovilD1Asesores === 'tarjetas') */}
+                    {vistaMovilD1Asesores === "tarjetas" && (
+                      <div className="sm:hidden divide-y divide-border/60 max-h-[560px] overflow-y-auto">
+                        {comparativaComercialesAsociados.map((sub) => {
+                          const isSelected = String(vendedorId) === String(sub.id);
+                          const isPositive = sub.crecimientoYoYPct >= 0;
+                          const maxBar = Math.max(sub.ventaActual, sub.ppto || 0, sub.ventaAnterior || 0, 1);
+                          const pctActual = (sub.ventaActual / maxBar) * 100;
+                          const pctPpto = ((sub.ppto || 0) / maxBar) * 100;
+
+                          return (
+                            <div
+                              key={`movil-sub-${sub.id}`}
+                              className={cn(
+                                "p-3.5 space-y-2.5 transition-colors",
+                                isSelected ? "bg-primary/5 border-l-4 border-l-primary" : "bg-card hover:bg-muted/30"
+                              )}
+                            >
+                              {/* Fila 1: Asesor, ID y Botón Filtrar */}
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <User className="h-3.5 w-3.5 text-primary shrink-0" />
+                                    <h4 className="font-bold text-xs text-foreground truncate">
+                                      {sub.nombre}
+                                    </h4>
+                                    {isSelected && (
+                                      <Badge className="text-[9px] px-1 py-0 h-3.5 bg-primary text-primary-foreground">
+                                        Activo
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground font-mono">
+                                    ID: {sub.id} • Aporte: {Number(sub.aportePct).toFixed(1)}%
+                                  </span>
+                                </div>
+
+                                <Button
+                                  size="sm"
+                                  variant={isSelected ? "secondary" : "outline"}
+                                  onClick={() => setVendedorId(isSelected ? "todos" : String(sub.id))}
+                                  className="text-[10.5px] h-7 px-2 shrink-0 font-medium"
+                                >
+                                  {isSelected ? "Deseleccionar" : "Filtrar"}
+                                </Button>
+                              </div>
+
+                              {/* Fila 2: Cifras de Facturación y Cumplimiento */}
+                              <div className="flex items-baseline justify-between pt-0.5">
+                                <div>
+                                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                    Facturación Neta
+                                  </span>
+                                  <span className="text-sm font-extrabold font-mono text-foreground">
+                                    {formatoCOPFull(sub.ventaActual)}
+                                  </span>
+                                </div>
+
+                                <div className="text-right">
+                                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                    % Cumplimiento
+                                  </span>
+                                  {sub.ppto > 0 ? (
+                                    <span className={cn("px-1.5 py-0.5 rounded text-[10.5px] font-bold border font-mono", colorSemaforo(sub.cumplimientoPct))}>
+                                      {Number(sub.cumplimientoPct).toFixed(1)}%
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Fila 3: Comparador Visual Dual a Ancho Completo */}
+                              <div className="bg-muted/30 rounded-xl p-2.5 space-y-1.5 border border-border/50">
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between text-[10.5px]">
+                                    <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
+                                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shrink-0" />
+                                      Venta Real:
+                                    </span>
+                                    <span className="font-mono font-bold text-foreground">
+                                      {formatoCOPFull(sub.ventaActual)}
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                                    <div
+                                      className="bg-emerald-500 h-full rounded-full transition-all"
+                                      style={{ width: `${Math.min(100, Math.max(sub.ventaActual > 0 ? 4 : 0, pctActual))}%` }}
+                                    />
+                                  </div>
+                                </div>
+
+                                {sub.ppto > 0 && (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between text-[10.5px]">
+                                      <span className="text-muted-foreground font-medium flex items-center gap-1">
+                                        <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500 inline-block shrink-0" />
+                                        Presupuesto:
+                                      </span>
+                                      <span className="font-mono text-muted-foreground">
+                                        {formatoCOPFull(sub.ppto)}
+                                      </span>
+                                    </div>
+                                    <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                                      <div
+                                        className="bg-slate-400 dark:bg-slate-500 h-full rounded-full transition-all"
+                                        style={{ width: `${Math.min(100, Math.max(4, pctPpto))}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Fila 4: Métricas Complementarias en Chips */}
+                              <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-border/40 text-[10.5px]">
+                                <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                  <span className="text-muted-foreground">Prendas:</span>
+                                  <span className="font-mono font-bold text-foreground">
+                                    {sub.unidades.toLocaleString("es-CO")} unds
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                  <span className="text-muted-foreground">Crec. YoY:</span>
+                                  <span className={cn("font-mono font-bold inline-flex items-center gap-0.5", isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                                    {isPositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                                    {sub.crecimientoYoYPct > 0 ? "+" : ""}{Number(sub.crecimientoYoYPct).toFixed(1)}%
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                  <span className="text-muted-foreground">Cartera:</span>
+                                  <span className="font-mono font-bold text-foreground">
+                                    {formatoCOPFull(sub.carteraTotal)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                  <span className="text-muted-foreground">Tasa Dev:</span>
+                                  <span className={cn(
+                                    "px-1 py-0.2 rounded font-mono font-bold text-[10px]",
+                                    sub.tasaDevolucionPct > 10 ? "text-rose-600 bg-rose-500/10" : "text-emerald-600 bg-emerald-500/10"
+                                  )}>
+                                    {Number(sub.tasaDevolucionPct).toFixed(1)}%
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilD1Asesores === 'tarjetas') */}
+                    <div className={`overflow-x-auto ${vistaMovilD1Asesores === "tabla" ? "block" : "hidden sm:block"}`}>
                       <table className="w-full text-xs text-left">
                         <thead className="bg-muted/60 text-muted-foreground font-semibold border-b border-border/60">
                           <tr>
@@ -4078,8 +4281,178 @@ function Panel() {
                         No se registran ventas de referencias para {zonaUbicacionD1 === "todas" ? "esta selección" : `la zona ${zonaUbicacionD1}`}
                       </div>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/50 max-h-[520px]">
-                        <table className="w-full text-xs text-left">
+                      <div className="space-y-2">
+                        {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                        <div className="sm:hidden px-3 py-2 bg-muted/40 rounded-xl border border-border/60 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => setVistaMovilD1RefsZona("tarjetas")}
+                              className={cn(
+                                "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                                vistaMovilD1RefsZona === "tarjetas"
+                                  ? "bg-primary text-primary-foreground shadow-2xs"
+                                  : "text-muted-foreground hover:text-foreground"
+                              )}
+                            >
+                              🗂️ Tarjetas
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setVistaMovilD1RefsZona("tabla")}
+                              className={cn(
+                                "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                                vistaMovilD1RefsZona === "tabla"
+                                  ? "bg-primary text-primary-foreground shadow-2xs"
+                                  : "text-muted-foreground hover:text-foreground"
+                              )}
+                            >
+                              📊 Tabla
+                            </button>
+                          </div>
+                          <span className="font-mono text-xs font-bold text-foreground">
+                            {referenciasZonaD1.length} referencias
+                          </span>
+                        </div>
+
+                        {/* Aviso deslizar en vista tabla móvil */}
+                        {vistaMovilD1RefsZona === "tabla" && (
+                          <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+                            ← Desliza horizontalmente para ver todas las columnas →
+                          </div>
+                        )}
+
+                        {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovilD1RefsZona === 'tarjetas') */}
+                        {vistaMovilD1RefsZona === "tarjetas" && (
+                          <div className="sm:hidden divide-y divide-border/60 max-h-[520px] overflow-y-auto rounded-xl border border-border/60 bg-background/50">
+                            {referenciasZonaD1.map((ref, idx) => {
+                              const isExpanded = refExpandidaD1 === ref.sku;
+                              const numSkus = ref.totalSkus || ref.skus?.length || 1;
+                              const pct = Number(ref.porcentaje || 0);
+
+                              return (
+                                <div
+                                  key={`movil-refzona-${ref.sku}-${idx}`}
+                                  className="p-3.5 space-y-2.5 bg-card hover:bg-muted/30 transition-colors"
+                                >
+                                  {/* Fila 1: SKU, Ranking y Nombre */}
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-xs text-muted-foreground">
+                                          {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
+                                        </span>
+                                        <span className="font-mono font-bold text-xs text-primary">
+                                          {ref.sku}
+                                        </span>
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-[9.5px] px-1.5 py-0 font-mono font-normal bg-primary/10 text-primary border-primary/20"
+                                        >
+                                          {numSkus} {numSkus === 1 ? "SKU" : "SKUs"}
+                                        </Badge>
+                                      </div>
+                                      <h4 className="font-bold text-xs text-foreground truncate mt-0.5" title={ref.producto}>
+                                        {ref.producto}
+                                      </h4>
+                                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
+                                        {ref.prenda && (
+                                          <Badge variant="outline" className="text-[9.5px] font-medium bg-muted/40 py-0 px-1.5 border-border/60">
+                                            {ref.prenda}
+                                          </Badge>
+                                        )}
+                                        {ref.linea && <span>• {ref.linea}</span>}
+                                      </div>
+                                    </div>
+
+                                    <Badge variant="outline" className="shrink-0 text-[10.5px] font-bold bg-primary/5 py-0.5 px-2">
+                                      {pct.toFixed(1)}%
+                                    </Badge>
+                                  </div>
+
+                                  {/* Fila 2: Cifras de Facturación */}
+                                  <div className="flex items-baseline justify-between pt-0.5">
+                                    <div>
+                                      <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                        Facturación Neta
+                                      </span>
+                                      <span className="text-sm font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
+                                        {formatoCOPFull(ref.valor)}
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                        Aporte en Zona
+                                      </span>
+                                      <span className="font-mono text-xs font-bold text-foreground">
+                                        {pct.toFixed(2)}%
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Fila 3: Barra Comparativa a Ancho Completo */}
+                                  <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                                    <div
+                                      className="bg-primary h-full rounded-full transition-all"
+                                      style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
+                                    />
+                                  </div>
+
+                                  {/* Fila 4: Unidades y Precio Promedio en Chips */}
+                                  <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-border/40 text-[10.5px]">
+                                    <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                      <span className="text-muted-foreground">Prendas:</span>
+                                      <span className="font-mono font-bold text-foreground">
+                                        {ref.unidades.toLocaleString("es-CO")} unds
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                      <span className="text-muted-foreground">Precio Prom:</span>
+                                      <span className="font-mono font-bold text-foreground">
+                                        {formatoCOP(ref.precioPromedio)}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Fila 5: Botón para Desplegar Variantes SKU */}
+                                  <div className="pt-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setRefExpandidaD1(isExpanded ? null : ref.sku)}
+                                      className="w-full flex items-center justify-between text-[11px] text-primary hover:text-primary/80 font-medium py-1 px-2 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors"
+                                    >
+                                      <span className="flex items-center gap-1.5">
+                                        <Package className="h-3.5 w-3.5" />
+                                        {isExpanded ? "Ocultar variantes" : `Ver variantes (${numSkus} SKUs)`}
+                                      </span>
+                                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                    </button>
+
+                                    {isExpanded && (
+                                      <div className="mt-2 bg-muted/20 rounded-lg p-2 border border-border/50">
+                                        <DesgloseSkusTabla
+                                          referenciaCodigo={ref.sku}
+                                          referenciaNombre={ref.producto}
+                                          prenda={ref.prenda}
+                                          linea={ref.linea}
+                                          totalUnidades={ref.unidades}
+                                          totalValor={ref.valor}
+                                          precioPromedio={ref.precioPromedio}
+                                          skus={ref.skus || []}
+                                          onClose={() => setRefExpandidaD1(null)}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilD1RefsZona === 'tarjetas') */}
+                        <div className={`overflow-x-auto rounded-xl border border-border/60 bg-background/50 max-h-[520px] ${vistaMovilD1RefsZona === "tabla" ? "block" : "hidden sm:block"}`}>
+                          <table className="w-full text-xs text-left">
                           <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0 z-10">
                             <tr>
                               <th className="py-2.5 px-3">#</th>
@@ -4181,13 +4554,156 @@ function Panel() {
                           </tbody>
                         </table>
                       </div>
-                    )}
+                    </div>
+                  )}
                   </div>
                 </div>
               ) : (
                   /* Modo Tabla Territorial con Clic Interactivo */
-                  <div className="overflow-x-auto max-h-[380px]">
-                    <table className="w-full text-xs text-left">
+                  <div className="space-y-2">
+                    {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                    <div className="sm:hidden px-3 py-2 bg-muted/40 rounded-xl border border-border/60 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => setVistaMovilD1Ciudades("tarjetas")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                            vistaMovilD1Ciudades === "tarjetas"
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          🗂️ Tarjetas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVistaMovilD1Ciudades("tabla")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                            vistaMovilD1Ciudades === "tabla"
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          📊 Tabla
+                        </button>
+                      </div>
+                      <span className="font-mono text-xs font-bold text-foreground">
+                        {ciudadesFiltradasD1.length} municipios
+                      </span>
+                    </div>
+
+                    {/* Aviso deslizar en vista tabla móvil */}
+                    {vistaMovilD1Ciudades === "tabla" && (
+                      <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+                        ← Desliza horizontalmente para ver todas las columnas →
+                      </div>
+                    )}
+
+                    {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovilD1Ciudades === 'tarjetas') */}
+                    {vistaMovilD1Ciudades === "tarjetas" && (
+                      <div className="sm:hidden divide-y divide-border/60 max-h-[420px] overflow-y-auto rounded-xl border border-border/60 bg-background/50">
+                        {ciudadesFiltradasD1.length === 0 ? (
+                          <div className="py-8 text-center text-xs text-muted-foreground">
+                            Sin ubicaciones registradas para el filtro seleccionado.
+                          </div>
+                        ) : (
+                          ciudadesFiltradasD1.map((loc, idx) => {
+                            const estaSeleccionada =
+                              ciudadId !== "todos" &&
+                              (String(loc.id) === String(ciudadId) ||
+                                ciudadSeleccionadaObj?.nombre.toLowerCase().trim() === loc.ciudad.toLowerCase().trim());
+                            const pct = Number(loc.porcentaje || 0);
+
+                            return (
+                              <div
+                                key={`movil-loc-${loc.ciudad}-${loc.zona}-${idx}`}
+                                onClick={() => {
+                                  if (loc.id) {
+                                    setCiudadId(String(ciudadId) === String(loc.id) ? "todos" : String(loc.id));
+                                  } else {
+                                    const match = catalogos?.ciudades?.find(
+                                      (cat) => cat.nombre.toLowerCase().trim() === String(loc.ciudad).toLowerCase().trim()
+                                    );
+                                    if (match) {
+                                      setCiudadId(String(ciudadId) === String(match.id) ? "todos" : String(match.id));
+                                    }
+                                  }
+                                }}
+                                className={cn(
+                                  "p-3.5 space-y-2.5 cursor-pointer transition-colors",
+                                  estaSeleccionada ? "bg-emerald-500/15 border-l-4 border-l-emerald-600" : "bg-card hover:bg-muted/30"
+                                )}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-bold text-xs text-muted-foreground">#{idx + 1}</span>
+                                      <h4 className="font-bold text-xs text-foreground truncate">
+                                        {loc.ciudad}
+                                      </h4>
+                                      {estaSeleccionada && (
+                                        <Badge className="bg-emerald-600 text-white text-[9px] py-0 px-1.5">
+                                          Filtro Activo
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1 text-[10.5px] text-muted-foreground mt-0.5">
+                                      <MapPin className="h-3 w-3 text-emerald-500 shrink-0" />
+                                      <span>{loc.zona}</span>
+                                    </div>
+                                  </div>
+
+                                  <Badge variant="outline" className="shrink-0 text-[10px] font-bold bg-primary/5 py-0.5 px-2">
+                                    {pct.toFixed(1)}%
+                                  </Badge>
+                                </div>
+
+                                <div className="flex items-baseline justify-between pt-0.5">
+                                  <div>
+                                    <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                      Venta Neta
+                                    </span>
+                                    <span className="text-sm font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
+                                      {formatoCOPFull(loc.venta)}
+                                    </span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                      {zonaUbicacionD1 === "todas" ? "Aporte Total" : "En Zona"}
+                                    </span>
+                                    <span className="font-mono text-xs font-bold text-foreground">
+                                      {pct.toFixed(2)}%
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                                  <div
+                                    className="bg-emerald-500 h-full rounded-full transition-all"
+                                    style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
+                                  />
+                                </div>
+
+                                <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10.5px]">
+                                  <span className="text-muted-foreground">
+                                    Prendas: <strong className="text-foreground font-mono">{loc.unidades.toLocaleString("es-CO")}</strong>
+                                  </span>
+                                  <span className="text-xs font-semibold text-primary">
+                                    {estaSeleccionada ? "Deseleccionar" : "Toca para filtrar"}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+
+                    {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilD1Ciudades === 'tarjetas') */}
+                    <div className={`overflow-x-auto max-h-[380px] ${vistaMovilD1Ciudades === "tabla" ? "block" : "hidden sm:block"}`}>
+                      <table className="w-full text-xs text-left">
                       <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0">
                         <tr>
                           <th className="py-2.5 px-3">#</th>
@@ -4267,7 +4783,8 @@ function Panel() {
                       </tbody>
                     </table>
                   </div>
-                )}
+                </div>
+              )}
               </CardContent>
             </Card>
 
@@ -4430,38 +4947,213 @@ function Panel() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
-                    <tr>
-                      <th className="py-2.5 px-3">#</th>
-                      <th className="py-2.5 px-3">SKU / Ref</th>
-                      <th className="py-2.5 px-3">Nombre del Producto</th>
-                      <th className="py-2.5 px-3">Prenda</th>
-                      <th className="py-2.5 px-3">Línea</th>
-                      <th className="py-2.5 px-3 text-right">Unidades</th>
-                      <th className="py-2.5 px-3 text-right">Precio Prom.</th>
-                      <th className="py-2.5 px-3 text-right">Venta Neta</th>
-                      <th className="py-2.5 px-3 text-right">% Participación</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {(() => {
-                      const lista = ordenTopSkusD1 === "unidades"
-                        ? (d1?.topReferenciasPorUnidades && d1.topReferenciasPorUnidades.length > 0 ? d1.topReferenciasPorUnidades : (d1?.topReferencias || []))
-                        : (d1?.topReferencias || []);
+              <CardContent className="p-0">
+                {(() => {
+                  const lista = ordenTopSkusD1 === "unidades"
+                    ? (d1?.topReferenciasPorUnidades && d1.topReferenciasPorUnidades.length > 0 ? d1.topReferenciasPorUnidades : (d1?.topReferencias || []))
+                    : (d1?.topReferencias || []);
 
-                      if (lista.length === 0) {
-                        return (
-                          <tr>
-                            <td colSpan={9} className="py-6 text-center text-muted-foreground">
-                              Sin referencias registradas para el periodo seleccionado
-                            </td>
-                          </tr>
-                        );
-                      }
+                  return (
+                    <div className="space-y-0">
+                      {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                      <div className="sm:hidden px-3 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => setVistaMovilD1Top10("tarjetas")}
+                            className={cn(
+                              "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                              vistaMovilD1Top10 === "tarjetas"
+                                ? "bg-primary text-primary-foreground shadow-2xs"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            🗂️ Tarjetas
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setVistaMovilD1Top10("tabla")}
+                            className={cn(
+                              "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                              vistaMovilD1Top10 === "tabla"
+                                ? "bg-primary text-primary-foreground shadow-2xs"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            📊 Tabla
+                          </button>
+                        </div>
+                        <span className="font-mono text-xs font-bold text-foreground">
+                          {lista.length} referencias
+                        </span>
+                      </div>
 
-                      return lista.map((ref, idx) => {
+                      {/* Aviso deslizar en vista tabla móvil */}
+                      {vistaMovilD1Top10 === "tabla" && (
+                        <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+                          ← Desliza horizontalmente para ver todas las columnas →
+                        </div>
+                      )}
+
+                      {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovilD1Top10 === 'tarjetas') */}
+                      {vistaMovilD1Top10 === "tarjetas" && (
+                        <div className="sm:hidden divide-y divide-border/60 max-h-[560px] overflow-y-auto">
+                          {lista.length === 0 ? (
+                            <div className="py-8 text-center text-xs text-muted-foreground">
+                              Sin referencias registradas para el periodo seleccionado.
+                            </div>
+                          ) : (
+                            lista.map((ref, idx) => {
+                              const isExpanded = refExpandidaTop10 === ref.sku;
+                              const numSkus = ref.totalSkus || ref.skus?.length || 1;
+                              const pct = Number(ref.porcentaje || 0);
+
+                              return (
+                                <div
+                                  key={`movil-top10-${ref.sku || idx}`}
+                                  className="p-3.5 space-y-2.5 bg-card hover:bg-muted/30 transition-colors"
+                                >
+                                  {/* Fila 1: SKU, Ranking y Nombre */}
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-xs text-muted-foreground">
+                                          {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
+                                        </span>
+                                        <span className="font-mono font-bold text-xs text-primary">
+                                          {ref.sku}
+                                        </span>
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-[9.5px] px-1.5 py-0 font-mono font-normal bg-primary/10 text-primary border-primary/20"
+                                        >
+                                          {numSkus} {numSkus === 1 ? "SKU" : "SKUs"}
+                                        </Badge>
+                                      </div>
+                                      <h4 className="font-bold text-xs text-foreground truncate mt-0.5" title={ref.producto}>
+                                        {ref.producto}
+                                      </h4>
+                                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground flex-wrap">
+                                        {ref.prenda && (
+                                          <Badge variant="outline" className="text-[9.5px] font-medium bg-muted/40 py-0 px-1.5 border-border/60">
+                                            {ref.prenda}
+                                          </Badge>
+                                        )}
+                                        {ref.linea && <span>• {ref.linea}</span>}
+                                      </div>
+                                    </div>
+
+                                    <Badge variant="outline" className="shrink-0 text-[10.5px] font-bold bg-primary/5 py-0.5 px-2">
+                                      {pct.toFixed(1)}%
+                                    </Badge>
+                                  </div>
+
+                                  {/* Fila 2: Cifras de Facturación */}
+                                  <div className="flex items-baseline justify-between pt-0.5">
+                                    <div>
+                                      <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                        Venta Neta
+                                      </span>
+                                      <span className="text-sm font-extrabold font-mono text-emerald-600 dark:text-emerald-400">
+                                        {formatoCOPFull(ref.valor)}
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                        Participación
+                                      </span>
+                                      <span className="font-mono text-xs font-bold text-foreground">
+                                        {pct.toFixed(2)}%
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Fila 3: Barra Comparativa a Ancho Completo */}
+                                  <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                                    <div
+                                      className="bg-primary h-full rounded-full transition-all"
+                                      style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
+                                    />
+                                  </div>
+
+                                  {/* Fila 4: Unidades y Precio Promedio en Chips */}
+                                  <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-border/40 text-[10.5px]">
+                                    <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                      <span className="text-muted-foreground">Prendas:</span>
+                                      <span className="font-mono font-bold text-foreground">
+                                        {ref.unidades.toLocaleString("es-CO")} unds
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-muted/20 px-2 py-1 rounded-md border border-border/40">
+                                      <span className="text-muted-foreground">Precio Prom:</span>
+                                      <span className="font-mono font-bold text-foreground">
+                                        {formatoCOP(ref.precioPromedio)}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Fila 5: Botón para Desplegar Variantes SKU */}
+                                  <div className="pt-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setRefExpandidaTop10(isExpanded ? null : ref.sku)}
+                                      className="w-full flex items-center justify-between text-[11px] text-primary hover:text-primary/80 font-medium py-1 px-2 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors"
+                                    >
+                                      <span className="flex items-center gap-1.5">
+                                        <Package className="h-3.5 w-3.5" />
+                                        {isExpanded ? "Ocultar variantes" : `Ver variantes (${numSkus} SKUs)`}
+                                      </span>
+                                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                    </button>
+
+                                    {isExpanded && (
+                                      <div className="mt-2 bg-muted/20 rounded-lg p-2 border border-border/50">
+                                        <DesgloseSkusTabla
+                                          referenciaCodigo={ref.sku}
+                                          referenciaNombre={ref.producto}
+                                          prenda={ref.prenda}
+                                          linea={ref.linea}
+                                          totalUnidades={ref.unidades}
+                                          totalValor={ref.valor}
+                                          precioPromedio={ref.precioPromedio}
+                                          skus={ref.skus || []}
+                                          onClose={() => setRefExpandidaTop10(null)}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+
+                      {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilD1Top10 === 'tarjetas') */}
+                      <div className={`overflow-x-auto ${vistaMovilD1Top10 === "tabla" ? "block" : "hidden sm:block"}`}>
+                        <table className="w-full text-xs text-left">
+                          <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
+                            <tr>
+                              <th className="py-2.5 px-3">#</th>
+                              <th className="py-2.5 px-3">SKU / Ref</th>
+                              <th className="py-2.5 px-3">Nombre del Producto</th>
+                              <th className="py-2.5 px-3">Prenda</th>
+                              <th className="py-2.5 px-3">Línea</th>
+                              <th className="py-2.5 px-3 text-right">Unidades</th>
+                              <th className="py-2.5 px-3 text-right">Precio Prom.</th>
+                              <th className="py-2.5 px-3 text-right">Venta Neta</th>
+                              <th className="py-2.5 px-3 text-right">% Participación</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/40">
+                            {lista.length === 0 ? (
+                              <tr>
+                                <td colSpan={9} className="py-6 text-center text-muted-foreground">
+                                  Sin referencias registradas para el periodo seleccionado
+                                </td>
+                              </tr>
+                            ) : (
+                              lista.map((ref, idx) => {
                         const isExpanded = refExpandidaTop10 === ref.sku;
                         const numSkus = ref.totalSkus || ref.skus?.length || 1;
                         return (
@@ -4539,13 +5231,17 @@ function Panel() {
                               </tr>
                             )}
                           </React.Fragment>
-                        );
-                      });
-                    })()}
+                              );
+                            })
+                          )}
                   </tbody>
                 </table>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
+          );
+        })()}
+      </CardContent>
+    </Card>
 
             {/* Fila 4: Mix por Línea de Producto & Mix por Canal Comercial */}
             <div className="grid gap-6 lg:grid-cols-2">
@@ -4710,8 +5406,98 @@ function Panel() {
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
+              <CardContent className="p-0">
+                {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                <div className="sm:hidden px-3 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setVistaMovilD1Historico("tarjetas")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                        vistaMovilD1Historico === "tarjetas"
+                          ? "bg-primary text-primary-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      🗂️ Tarjetas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVistaMovilD1Historico("tabla")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                        vistaMovilD1Historico === "tabla"
+                          ? "bg-primary text-primary-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      📊 Tabla
+                    </button>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-foreground">
+                    {(dMultianual?.matrizMesAnio || []).length} años
+                  </span>
+                </div>
+
+                {/* Aviso deslizar en vista tabla móvil */}
+                {vistaMovilD1Historico === "tabla" && (
+                  <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+                    ← Desliza horizontalmente para ver los 12 meses →
+                  </div>
+                )}
+
+                {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovilD1Historico === 'tarjetas') */}
+                {vistaMovilD1Historico === "tarjetas" && (
+                  <div className="sm:hidden divide-y divide-border/60 max-h-[500px] overflow-y-auto">
+                    {(dMultianual?.matrizMesAnio || []).map((m) => {
+                      const resAnual = dMultianual?.aniosResumen.find((a) => a.anio === m.anio);
+                      const yoy = resAnual?.crecimientoYoYPct ?? 0;
+                      const nombresMeses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+                      return (
+                        <div key={`movil-matriz-${m.anio}`} className="p-3.5 space-y-2.5 bg-card hover:bg-muted/30 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <span className="font-sans font-bold text-base text-primary">{m.anio}</span>
+                            {yoy !== 0 && (
+                              <span className={cn(
+                                "px-2 py-0.5 rounded text-[11px] font-bold border font-mono",
+                                yoy >= 0 ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30" : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                              )}>
+                                YoY: {yoy > 0 ? "+" : ""}{Number(yoy).toFixed(1)}%
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-baseline justify-between pt-0.5 bg-muted/30 p-2.5 rounded-xl border border-border/50">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                              Total Facturación Anual
+                            </span>
+                            <span className="text-sm font-extrabold font-mono text-foreground">
+                              {formatoCOP(m.totalAnio)}
+                            </span>
+                          </div>
+
+                          {/* Cuadrícula compacta de 12 meses */}
+                          <div className="grid grid-cols-3 gap-1.5 pt-1 text-[10.5px]">
+                            {m.meses.map((val, idx) => (
+                              <div key={idx} className="bg-muted/20 px-2 py-1 rounded-md border border-border/40 flex items-center justify-between">
+                                <span className="text-muted-foreground font-semibold">{nombresMeses[idx]}:</span>
+                                <span className="font-mono font-medium text-foreground">
+                                  {val > 0 ? formatoCOP(val) : "—"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilD1Historico === 'tarjetas') */}
+                <div className={`overflow-x-auto ${vistaMovilD1Historico === "tabla" ? "block" : "hidden sm:block"}`}>
+                  <table className="w-full text-xs text-left">
                   <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
                     <tr>
                       <th className="py-2.5 px-3">Año</th>
@@ -4760,7 +5546,8 @@ function Panel() {
                     })}
                   </tbody>
                 </table>
-              </CardContent>
+              </div>
+            </CardContent>
             </Card>
 
             {/* Fila 5: Tabla Detalle Cronológico Mes a Mes */}
@@ -4771,33 +5558,167 @@ function Panel() {
                 </CardTitle>
                 <CardDescription>Facturación, presupuesto y cumplimiento por periodo registrado</CardDescription>
               </CardHeader>
-              <CardContent className="overflow-x-auto max-h-[340px]">
-                <table className="w-full text-xs text-left">
-                  <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0">
-                    <tr>
-                      <th className="py-2 px-2.5">Periodo</th>
-                      <th className="py-2 px-2.5 text-right">Venta Real</th>
-                      <th className="py-2 px-2.5 text-right">PPTO</th>
-                      <th className="py-2 px-2.5 text-right">% Cumpl.</th>
-                      <th className="py-2 px-2.5 text-right">Unidades</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {(d1?.meses || []).map((m, idx) => (
-                      <tr key={m.periodo || idx} className="hover:bg-muted/30">
-                        <td className="py-2 px-2.5 font-medium">{m.nombreMes}</td>
-                        <td className="py-2 px-2.5 text-right font-semibold">{formatoCOPFull(m.ventaReal)}</td>
-                        <td className="py-2 px-2.5 text-right text-muted-foreground">{formatoCOPFull(m.ppto)}</td>
-                        <td className="py-2 px-2.5 text-right">
-                          <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${colorSemaforo(m.cumplimientoPct)}`}>
-                            {Number(m.cumplimientoPct).toFixed(2)}%
-                          </span>
-                        </td>
-                        <td className="py-2 px-2.5 text-right text-muted-foreground">{m.unidades.toLocaleString("es-CO")}</td>
+              <CardContent className="p-0">
+                {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                <div className="sm:hidden px-3 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setVistaMovilD1Meses("tarjetas")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                        vistaMovilD1Meses === "tarjetas"
+                          ? "bg-primary text-primary-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      🗂️ Tarjetas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVistaMovilD1Meses("tabla")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                        vistaMovilD1Meses === "tabla"
+                          ? "bg-primary text-primary-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      📊 Tabla
+                    </button>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-foreground">
+                    {(d1?.meses || []).length} periodos
+                  </span>
+                </div>
+
+                {/* Aviso deslizar en vista tabla móvil */}
+                {vistaMovilD1Meses === "tabla" && (
+                  <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+                    ← Desliza horizontalmente para ver todas las columnas →
+                  </div>
+                )}
+
+                {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovilD1Meses === 'tarjetas') */}
+                {vistaMovilD1Meses === "tarjetas" && (
+                  <div className="sm:hidden divide-y divide-border/60 max-h-[460px] overflow-y-auto">
+                    {(d1?.meses || []).map((m, idx) => {
+                      const maxBar = Math.max(m.ventaReal, m.ppto || 0, 1);
+                      const pctReal = (m.ventaReal / maxBar) * 100;
+                      const pctPpto = ((m.ppto || 0) / maxBar) * 100;
+
+                      return (
+                        <div key={`movil-mes-${m.periodo || idx}`} className="p-3.5 space-y-2.5 bg-card hover:bg-muted/30 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-xs text-foreground">
+                              {m.nombreMes}
+                            </h4>
+                            <span className={cn("px-2 py-0.5 rounded text-[10.5px] font-bold border font-mono", colorSemaforo(m.cumplimientoPct))}>
+                              {Number(m.cumplimientoPct).toFixed(1)}% cumpl.
+                            </span>
+                          </div>
+
+                          <div className="flex items-baseline justify-between pt-0.5">
+                            <div>
+                              <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                Venta Real
+                              </span>
+                              <span className="text-sm font-extrabold font-mono text-foreground">
+                                {formatoCOPFull(m.ventaReal)}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                Presupuesto
+                              </span>
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {formatoCOPFull(m.ppto)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Comparador Visual Dual */}
+                          <div className="bg-muted/30 rounded-xl p-2.5 space-y-1.5 border border-border/50">
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[10.5px]">
+                                <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shrink-0" />
+                                  Real:
+                                </span>
+                                <span className="font-mono font-bold text-foreground">
+                                  {formatoCOPFull(m.ventaReal)}
+                                </span>
+                              </div>
+                              <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                                <div
+                                  className="bg-emerald-500 h-full rounded-full transition-all"
+                                  style={{ width: `${Math.min(100, Math.max(m.ventaReal > 0 ? 4 : 0, pctReal))}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {m.ppto > 0 && (
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-[10.5px]">
+                                  <span className="text-muted-foreground font-medium flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500 inline-block shrink-0" />
+                                    PPTO:
+                                  </span>
+                                  <span className="font-mono text-muted-foreground">
+                                    {formatoCOPFull(m.ppto)}
+                                  </span>
+                                </div>
+                                <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                                  <div
+                                    className="bg-slate-400 dark:bg-slate-500 h-full rounded-full transition-all"
+                                    style={{ width: `${Math.min(100, Math.max(4, pctPpto))}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10.5px]">
+                            <span className="text-muted-foreground font-medium">Volumen físico:</span>
+                            <span className="font-mono font-bold text-foreground">
+                              {m.unidades.toLocaleString("es-CO")} unds
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilD1Meses === 'tarjetas') */}
+                <div className={`overflow-x-auto max-h-[340px] ${vistaMovilD1Meses === "tabla" ? "block" : "hidden sm:block"}`}>
+                  <table className="w-full text-xs text-left">
+                    <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20 sticky top-0">
+                      <tr>
+                        <th className="py-2 px-2.5">Periodo</th>
+                        <th className="py-2 px-2.5 text-right">Venta Real</th>
+                        <th className="py-2 px-2.5 text-right">PPTO</th>
+                        <th className="py-2 px-2.5 text-right">% Cumpl.</th>
+                        <th className="py-2 px-2.5 text-right">Unidades</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {(d1?.meses || []).map((m, idx) => (
+                        <tr key={m.periodo || idx} className="hover:bg-muted/30">
+                          <td className="py-2 px-2.5 font-medium">{m.nombreMes}</td>
+                          <td className="py-2 px-2.5 text-right font-semibold">{formatoCOPFull(m.ventaReal)}</td>
+                          <td className="py-2 px-2.5 text-right text-muted-foreground">{formatoCOPFull(m.ppto)}</td>
+                          <td className="py-2 px-2.5 text-right">
+                            <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold border ${colorSemaforo(m.cumplimientoPct)}`}>
+                              {Number(m.cumplimientoPct).toFixed(2)}%
+                            </span>
+                          </td>
+                          <td className="py-2 px-2.5 text-right text-muted-foreground">{m.unidades.toLocaleString("es-CO")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -5487,8 +6408,125 @@ function Panel() {
                   <CardTitle className="text-base font-semibold">Matriz Comparativa de Canales Digitales</CardTitle>
                   <CardDescription>Rendimiento detallado de Tienda Virtual vs Redes Sociales</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="rounded-md border overflow-x-auto">
+                <CardContent className="p-0 sm:p-6">
+                  {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                  <div className="sm:hidden px-3 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setVistaMovilD3Canales("tarjetas")}
+                        className={cn(
+                          "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                          vistaMovilD3Canales === "tarjetas"
+                            ? "bg-primary text-primary-foreground shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        🗂️ Tarjetas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setVistaMovilD3Canales("tabla")}
+                        className={cn(
+                          "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                          vistaMovilD3Canales === "tabla"
+                            ? "bg-primary text-primary-foreground shadow-2xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        📊 Tabla
+                      </button>
+                    </div>
+                    <span className="font-mono text-xs font-bold text-foreground">
+                      {(d3?.canalesDigitales || []).length} canales
+                    </span>
+                  </div>
+
+                  {/* Aviso deslizar en vista tabla móvil */}
+                  {vistaMovilD3Canales === "tabla" && (
+                    <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+                      ← Desliza horizontalmente para ver todas las columnas →
+                    </div>
+                  )}
+
+                  {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovilD3Canales === 'tarjetas') */}
+                  {vistaMovilD3Canales === "tarjetas" && (
+                    <div className="sm:hidden divide-y divide-border/60 max-h-[500px] overflow-y-auto">
+                      {(d3?.canalesDigitales || []).map((c, i) => {
+                        const pct = Number(c.porcentaje || 0);
+
+                        return (
+                          <div key={`movil-canal-${i}`} className="p-3.5 space-y-2.5 bg-card hover:bg-muted/30 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                {c.tipo === "tienda_virtual" ? (
+                                  <Globe className="h-4 w-4 text-blue-500 shrink-0" />
+                                ) : c.tipo === "redes_sociales" ? (
+                                  <Share2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                                ) : (
+                                  <Store className="h-4 w-4 text-amber-500 shrink-0" />
+                                )}
+                                <h4 className="font-bold text-xs text-foreground">{c.canal}</h4>
+                              </div>
+                              <Badge variant="outline" className="text-[10.5px] font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/30">
+                                ROAS {c.roas}x
+                              </Badge>
+                            </div>
+
+                            <div className="flex items-baseline justify-between pt-0.5">
+                              <div>
+                                <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                  Facturación
+                                </span>
+                                <span className="text-sm font-extrabold font-mono text-foreground">
+                                  {formatoCOPFull(c.venta)}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                  Participación
+                                </span>
+                                <span className="font-mono text-xs font-bold text-foreground">
+                                  {pct.toFixed(2)}%
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                              <div
+                                className="bg-primary h-full rounded-full transition-all"
+                                style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-border/40 text-[10.5px]">
+                              <div className="bg-muted/20 p-1.5 rounded-md border border-border/40 text-center">
+                                <span className="text-muted-foreground block text-[9px] uppercase">Prendas</span>
+                                <span className="font-mono font-bold text-foreground">
+                                  {c.unidades.toLocaleString("es-CO")}
+                                </span>
+                              </div>
+                              <div className="bg-muted/20 p-1.5 rounded-md border border-border/40 text-center">
+                                <span className="text-muted-foreground block text-[9px] uppercase">Ticket AOV</span>
+                                <span className="font-mono font-bold text-foreground">
+                                  {formatoCOP(c.ticketPromedio)}
+                                </span>
+                              </div>
+                              <div className="bg-muted/20 p-1.5 rounded-md border border-border/40 text-center">
+                                <span className="text-amber-600 block text-[9px] uppercase">Pauta</span>
+                                <span className="font-mono font-bold text-amber-600">
+                                  {formatoCOP(c.gastoPauta)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilD3Canales === 'tarjetas') */}
+                  <div className={`rounded-md border overflow-x-auto ${vistaMovilD3Canales === "tabla" ? "block" : "hidden sm:block"}`}>
                     <table className="w-full text-xs text-left">
                       <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider border-b">
                         <tr>
@@ -5879,13 +6917,167 @@ function Panel() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="overflow-x-auto p-0">
+              <CardContent className="p-0">
                 {rankingCanal.asesores.length === 0 ? (
                   <div className="py-12 text-center text-sm text-muted-foreground">
                     Sin ventas registradas para asesores en {rankingCanal.canalNombre} en este periodo.
                   </div>
                 ) : (
-                  <table className="w-full text-xs text-left">
+                  <div className="space-y-0">
+                    {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                    <div className="sm:hidden px-3 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => setVistaMovilD4Ranking("tarjetas")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                            vistaMovilD4Ranking === "tarjetas"
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          🗂️ Tarjetas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVistaMovilD4Ranking("tabla")}
+                          className={cn(
+                            "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                            vistaMovilD4Ranking === "tabla"
+                              ? "bg-primary text-primary-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          📊 Tabla
+                        </button>
+                      </div>
+                      <span className="font-mono text-xs font-bold text-foreground">
+                        {rankingCanal.asesores.length} asesores
+                      </span>
+                    </div>
+
+                    {/* Aviso deslizar en vista tabla móvil */}
+                    {vistaMovilD4Ranking === "tabla" && (
+                      <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+                        ← Desliza horizontalmente para ver todas las columnas →
+                      </div>
+                    )}
+
+                    {/* VISTA MÓVIL EN TARJETAS (sm:hidden cuando vistaMovilD4Ranking === 'tarjetas') */}
+                    {vistaMovilD4Ranking === "tarjetas" && (
+                      <div className="sm:hidden divide-y divide-border/60 max-h-[500px] overflow-y-auto">
+                        {rankingCanal.asesores.map((a, idx) => {
+                          const isSelected = a.isFocused;
+                          const pct = Number(a.porcentaje || 0);
+
+                          return (
+                            <div
+                              key={`movil-rank-asesor-${a.vendedor}`}
+                              onClick={() => {
+                                if (a.vendedorIds && a.vendedorIds.length > 0) {
+                                  const primaryId = String(a.vendedorIds[0]);
+                                  if (isSelected) {
+                                    setVendedorId("todos");
+                                    setVendedorIds([]);
+                                  } else {
+                                    setVendedorId(primaryId);
+                                    setVendedorIds(a.vendedorIds.map(String));
+                                  }
+                                }
+                              }}
+                              className={cn(
+                                "p-3.5 space-y-2.5 cursor-pointer transition-colors",
+                                isSelected ? "bg-amber-500/15 border-l-4 border-l-amber-500" : "bg-card hover:bg-muted/30"
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-xs text-muted-foreground">
+                                      {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`}
+                                    </span>
+                                    <h4 className="font-bold text-xs text-foreground truncate">
+                                      {a.vendedor}
+                                    </h4>
+                                    {isSelected && (
+                                      <Badge variant="outline" className="text-[9.5px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/40">
+                                        Enfocado
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <Button
+                                  variant={isSelected ? "default" : "outline"}
+                                  size="sm"
+                                  className={`h-6 text-[10.5px] px-2 rounded-lg shrink-0 ${
+                                    isSelected ? "bg-amber-600 hover:bg-amber-700 text-white" : "border-border/60"
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (a.vendedorIds && a.vendedorIds.length > 0) {
+                                      const primaryId = String(a.vendedorIds[0]);
+                                      if (isSelected) {
+                                        setVendedorId("todos");
+                                        setVendedorIds([]);
+                                      } else {
+                                        setVendedorId(primaryId);
+                                        setVendedorIds(a.vendedorIds.map(String));
+                                      }
+                                    }
+                                  }}
+                                >
+                                  {isSelected ? "Enfocado" : "Enfocar"}
+                                </Button>
+                              </div>
+
+                              <div className="flex items-baseline justify-between pt-0.5">
+                                <div>
+                                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                    Prendas Vendidas
+                                  </span>
+                                  <span className="text-sm font-extrabold font-mono text-foreground">
+                                    {a.unidades.toLocaleString("es-CO")} unds
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block">
+                                    Cuota Canal
+                                  </span>
+                                  <span className="font-mono text-xs font-bold text-foreground">
+                                    {pct.toFixed(1)}%
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="w-full bg-muted/70 h-2 rounded-full overflow-hidden">
+                                <div
+                                  className="bg-amber-500 h-full rounded-full transition-all"
+                                  style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
+                                />
+                              </div>
+
+                              {compararAnioAnterior && a.unidadesAnterior > 0 && (
+                                <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[10.5px]">
+                                  <span className="text-muted-foreground">Vs. Año Ant:</span>
+                                  <span className={cn(
+                                    "font-mono font-bold inline-flex items-center gap-0.5",
+                                    (a.crecimientoYoYPct ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                                  )}>
+                                    {(a.crecimientoYoYPct ?? 0) >= 0 ? "+" : ""}{(a.crecimientoYoYPct ?? 0).toFixed(1)}% ({a.diferenciaUnidadesYoY >= 0 ? "+" : ""}{a.diferenciaUnidadesYoY.toLocaleString("es-CO")} unds)
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilD4Ranking === 'tarjetas') */}
+                    <div className={`overflow-x-auto ${vistaMovilD4Ranking === "tabla" ? "block" : "hidden sm:block"}`}>
+                      <table className="w-full text-xs text-left">
                     <thead className="border-y border-border/80 uppercase text-muted-foreground font-semibold bg-muted/40">
                       <tr>
                         <th className="py-3 px-3 text-center w-12">#</th>
@@ -5996,7 +7188,9 @@ function Panel() {
                       })}
                     </tbody>
                   </table>
-                )}
+                </div>
+              </div>
+            )}
               </CardContent>
             </Card>
               </>
@@ -6148,29 +7342,145 @@ function Panel() {
                   />
                 </div>
               </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
-                    <tr>
-                      <th className="py-2.5 px-3">SKU</th>
-                      <th className="py-2.5 px-3">Producto / Referencia</th>
-                      <th className="py-2.5 px-3 text-right">Unidades Vendidas</th>
-                      <th className="py-2.5 px-3 text-right">Facturación Total</th>
-                      <th className="py-2.5 px-3 text-right">Precio Promedio Unitario</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40">
-                    {(d5?.topReferencias || []).map((ref) => (
-                      <tr key={ref.sku} className="hover:bg-muted/30">
-                        <td className="py-2.5 px-3 font-mono font-semibold text-primary">{ref.sku}</td>
-                        <td className="py-2.5 px-3 font-medium text-foreground">{ref.producto}</td>
-                        <td className="py-2.5 px-3 text-right font-medium">{ref.unidades.toLocaleString("es-CO")}</td>
-                        <td className="py-2.5 px-3 text-right font-semibold">{formatoCOPFull(ref.valor)}</td>
-                        <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(ref.precioPromedio)}</td>
+              <CardContent className="p-0">
+                {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                <div className="sm:hidden px-3 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setVistaMovilD5Top("tarjetas")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                        vistaMovilD5Top === "tarjetas"
+                          ? "bg-primary text-primary-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      🗂️ Tarjetas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVistaMovilD5Top("tabla")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                        vistaMovilD5Top === "tabla"
+                          ? "bg-primary text-primary-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      📊 Tabla
+                    </button>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-foreground">
+                    {(d5?.topReferencias || []).length} SKUs
+                  </span>
+                </div>
+
+                {/* Aviso deslizar en vista tabla móvil */}
+                {vistaMovilD5Top === "tabla" && (
+                  <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+                    ← Desliza horizontalmente para ver todas las columnas →
+                  </div>
+                )}
+
+                {/* VISTA MÓVIL EN TARJETAS (sm:hidden) */}
+                {vistaMovilD5Top === "tarjetas" && (
+                  <div className="sm:hidden divide-y divide-border/60">
+                    {(d5?.topReferencias || []).length === 0 ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground">
+                        No hay referencias para mostrar
+                      </div>
+                    ) : (
+                      (() => {
+                        const maxVal = Math.max(...(d5?.topReferencias || []).map((r) => r.valor || 0), 1);
+                        return (d5?.topReferencias || []).map((ref, idx) => {
+                          const pct = Math.round(((ref.valor || 0) / maxVal) * 100);
+                          return (
+                            <div key={ref.sku} className="p-3.5 space-y-2.5 hover:bg-muted/30 transition-colors">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono font-bold bg-primary/10 text-primary border-primary/30">
+                                      #{idx + 1}
+                                    </Badge>
+                                    <span className="font-mono text-xs font-bold text-foreground">
+                                      {ref.sku}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs font-medium text-foreground line-clamp-2">
+                                    {ref.producto}
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Facturación</span>
+                                  <span className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                    {formatoCOPFull(ref.valor)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Barra de Aporte Relativo */}
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-[10.5px]">
+                                  <span className="text-muted-foreground">Aporte relativo</span>
+                                  <span className="font-mono font-semibold text-foreground">{pct}% del líder</span>
+                                </div>
+                                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-cyan-500 to-primary rounded-full transition-all duration-300"
+                                    style={{ width: `${Math.min(100, Math.max(5, pct))}%` }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Métricas secundarias */}
+                              <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
+                                <div className="bg-muted/40 p-2 rounded-lg border border-border/50">
+                                  <span className="text-[10px] text-muted-foreground block">Unidades</span>
+                                  <span className="font-mono font-bold text-foreground">
+                                    {ref.unidades.toLocaleString("es-CO")} unds
+                                  </span>
+                                </div>
+                                <div className="bg-muted/40 p-2 rounded-lg border border-border/50">
+                                  <span className="text-[10px] text-muted-foreground block">Precio Promedio</span>
+                                  <span className="font-mono font-semibold text-foreground">
+                                    {formatoCOP(ref.precioPromedio)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()
+                    )}
+                  </div>
+                )}
+
+                {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilD5Top === 'tarjetas') */}
+                <div className={`overflow-x-auto ${vistaMovilD5Top === "tabla" ? "block" : "hidden sm:block"}`}>
+                  <table className="w-full text-xs text-left">
+                    <thead className="border-b border-border/80 uppercase text-muted-foreground font-semibold bg-muted/20">
+                      <tr>
+                        <th className="py-2.5 px-3">SKU</th>
+                        <th className="py-2.5 px-3">Producto / Referencia</th>
+                        <th className="py-2.5 px-3 text-right">Unidades Vendidas</th>
+                        <th className="py-2.5 px-3 text-right">Facturación Total</th>
+                        <th className="py-2.5 px-3 text-right">Precio Promedio Unitario</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-border/40">
+                      {(d5?.topReferencias || []).map((ref) => (
+                        <tr key={ref.sku} className="hover:bg-muted/30">
+                          <td className="py-2.5 px-3 font-mono font-semibold text-primary">{ref.sku}</td>
+                          <td className="py-2.5 px-3 font-medium text-foreground">{ref.producto}</td>
+                          <td className="py-2.5 px-3 text-right font-medium">{ref.unidades.toLocaleString("es-CO")}</td>
+                          <td className="py-2.5 px-3 text-right font-semibold">{formatoCOPFull(ref.valor)}</td>
+                          <td className="py-2.5 px-3 text-right text-muted-foreground">{formatoCOP(ref.precioPromedio)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -6998,7 +8308,220 @@ function Panel() {
               </CardHeader>
 
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
+                <div className="sm:hidden px-3 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setVistaMovilD6Catalogo("tarjetas")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                        vistaMovilD6Catalogo === "tarjetas"
+                          ? "bg-primary text-primary-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      🗂️ Tarjetas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVistaMovilD6Catalogo("tabla")}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                        vistaMovilD6Catalogo === "tabla"
+                          ? "bg-primary text-primary-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      📊 Tabla
+                    </button>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-foreground">
+                    {referenciasPaginadas.length} ref.
+                  </span>
+                </div>
+
+                {/* Aviso deslizar en vista tabla móvil */}
+                {vistaMovilD6Catalogo === "tabla" && (
+                  <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+                    ← Desliza horizontalmente para ver todas las columnas →
+                  </div>
+                )}
+
+                {/* VISTA MÓVIL EN TARJETAS (sm:hidden) */}
+                {vistaMovilD6Catalogo === "tarjetas" && (
+                  <div className="sm:hidden divide-y divide-border/60">
+                    {referenciasPaginadas.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground">
+                        No se encontraron referencias con los filtros aplicados.
+                      </div>
+                    ) : (
+                      referenciasPaginadas.map((ref, idx) => {
+                        const rank = filasPorPaginaRef === "todas"
+                          ? idx + 1
+                          : (paginaRef - 1) * Number(filasPorPaginaRef) + idx + 1;
+                        const isExpanded = refExpandidaD6 === ref.sku;
+                        const numSkus = ref.totalSkus || ref.skus?.length || 1;
+                        return (
+                          <div
+                            key={ref.sku}
+                            className={cn(
+                              "p-3.5 space-y-2.5 transition-colors",
+                              isExpanded ? "bg-primary/5 border-l-4 border-l-primary" : "hover:bg-muted/30"
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono font-bold bg-muted/60">
+                                    #{rank}
+                                  </Badge>
+                                  <span className="font-mono text-xs font-bold text-primary">
+                                    {ref.sku}
+                                  </span>
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-[9.5px] px-1.5 py-0 font-mono font-normal bg-primary/10 text-primary border-primary/20"
+                                  >
+                                    {numSkus} {numSkus === 1 ? "SKU" : "SKUs"}
+                                  </Badge>
+                                  <Badge
+                                    className={cn(
+                                      "text-[10px] font-bold px-1.5 py-0",
+                                      ref.clasificacionABC === "A"
+                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                        : ref.clasificacionABC === "B"
+                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                        : "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30"
+                                    )}
+                                  >
+                                    Clase {ref.clasificacionABC}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs font-medium text-foreground line-clamp-2">
+                                  {ref.producto}
+                                </p>
+                                {ref.linea && (
+                                  <p className="text-[11px] text-muted-foreground">
+                                    Línea: <span className="font-medium text-foreground">{ref.linea}</span>
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Fact. Neta</span>
+                                <span className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                  {formatoCOPFull(ref.ventaNeta)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Barra de % Aporte */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-[10.5px]">
+                                <span className="text-muted-foreground">Aporte a venta neta</span>
+                                <span className="font-mono font-semibold text-foreground">{Number(ref.porcentajeVenta).toFixed(2)}%</span>
+                              </div>
+                              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-primary rounded-full transition-all duration-300"
+                                  style={{ width: `${Math.min(100, Math.max(3, ref.porcentajeVenta * 5))}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Grid de métricas secundarias */}
+                            <div className="grid grid-cols-3 gap-1.5 pt-1 text-xs">
+                              <div className="bg-muted/40 p-1.5 rounded-lg border border-border/50 text-center">
+                                <span className="text-[10px] text-muted-foreground block">Unidades</span>
+                                <span className="font-mono font-bold text-foreground text-[11px]">
+                                  {ref.unidades.toLocaleString("es-CO")}
+                                </span>
+                              </div>
+                              <div className="bg-muted/40 p-1.5 rounded-lg border border-border/50 text-center">
+                                <span className="text-[10px] text-muted-foreground block">Precio Prom.</span>
+                                <span className="font-mono font-semibold text-foreground text-[11px]">
+                                  {formatoCOP(ref.precioPromedio)}
+                                </span>
+                              </div>
+                              <div className="bg-muted/40 p-1.5 rounded-lg border border-border/50 text-center">
+                                <span className="text-[10px] text-muted-foreground block">Tasa Dev.</span>
+                                <span
+                                  className={cn(
+                                    "font-mono font-bold text-[11px]",
+                                    ref.tasaDevolucion > 0 ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"
+                                  )}
+                                >
+                                  {Number(ref.tasaDevolucion).toFixed(2)}%
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Si comparar año anterior */}
+                            {compararAnioAnterior && ref.ventaAnterior && (
+                              <div className="flex items-center justify-between text-xs bg-muted/20 px-2 py-1 rounded border border-border/40">
+                                <span className="text-[10.5px] text-muted-foreground">Vs. Año Anterior:</span>
+                                <span
+                                  className={cn(
+                                    "font-mono font-semibold text-[11px]",
+                                    (ref.crecimientoYoYPct ?? 0) >= 0
+                                      ? "text-emerald-600 dark:text-emerald-400"
+                                      : "text-rose-600 dark:text-rose-400"
+                                  )}
+                                >
+                                  {(ref.crecimientoYoYPct ?? 0) >= 0 ? "+" : ""}
+                                  {(ref.crecimientoYoYPct ?? 0).toFixed(2)}%
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Botón interactivo de desglose de SKUs */}
+                            <button
+                              type="button"
+                              onClick={() => setRefExpandidaD6(isExpanded ? null : ref.sku)}
+                              className={cn(
+                                "w-full py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border",
+                                isExpanded
+                                  ? "bg-primary/10 text-primary border-primary/30"
+                                  : "bg-muted/50 hover:bg-muted text-foreground border-border/60"
+                              )}
+                            >
+                              {isExpanded ? (
+                                <>
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                  <span>Ocultar desglose de {numSkus} SKUs</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronRight className="h-3.5 w-3.5" />
+                                  <span>Ver desglose de {numSkus} SKUs (tallas y colores)</span>
+                                </>
+                              )}
+                            </button>
+
+                            {/* Desglose Expandido */}
+                            {isExpanded && (
+                              <div className="pt-2">
+                                <DesgloseSkusTabla
+                                  referenciaCodigo={ref.sku}
+                                  referenciaNombre={ref.producto}
+                                  linea={ref.linea}
+                                  totalUnidades={ref.unidades}
+                                  totalValor={ref.ventaNeta}
+                                  precioPromedio={ref.precioPromedio}
+                                  skus={ref.skus || []}
+                                  onClose={() => setRefExpandidaD6(null)}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* VISTA TABLA CLÁSICA (hidden sm:block cuando vistaMovilD6Catalogo === 'tarjetas') */}
+                <div className={`overflow-x-auto ${vistaMovilD6Catalogo === "tabla" ? "block" : "hidden sm:block"}`}>
                   <table className="w-full text-xs text-left">
                     <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider border-y border-border/60">
                       <tr>
