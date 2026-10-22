@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -133,6 +133,7 @@ import {
   X,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   LogOut,
   Filter,
@@ -1141,12 +1142,27 @@ function Panel() {
         const targetNum = Number(mes);
         const mesEncontrado = d1.meses.find((entry) => Number(entry.mes) === targetNum);
         if (mesEncontrado) return [mesEncontrado];
+        const nom = MESES.find((m) => m.num === targetNum)?.nombre?.slice(0, 3) || `M${targetNum}`;
+        return [
+          {
+            mes: targetNum,
+            nombreMes: nom,
+            periodo: `${nom} ${anio !== "todos" ? anio : ""}`,
+            ventaReal: 0,
+            ventaAnterior: 0,
+            ppto: 0,
+            cumplimientoPct: 0,
+            crecimientoYoY: 0,
+            unidades: 0,
+            unidadesAnterior: 0,
+          },
+        ];
       }
       const conVenta = d1.meses.filter((entry) => entry.ventaReal > 0);
       if (conVenta.length > 0) return [conVenta[conVenta.length - 1]];
     }
     return d1.meses;
-  }, [d1?.meses, esMesPuntual, mes]);
+  }, [d1?.meses, esMesPuntual, mes, anio]);
 
   const mesActivoD1 = useMemo(() => {
     if (dataMovilD1.length === 1 && esMesPuntual) {
@@ -1154,6 +1170,100 @@ function Panel() {
     }
     return null;
   }, [dataMovilD1, esMesPuntual]);
+
+  // Navegación secuencial de meses con swipe / scroll para móvil en Dashboard 1
+  const mesActualNumD1 = useMemo(() => {
+    if (mes !== "todos") return Number(mes);
+    if (mesActivoD1?.mes) return Number(mesActivoD1.mes);
+    return 1;
+  }, [mes, mesActivoD1?.mes]);
+
+  const mesAnteriorNumD1 = mesActualNumD1 > 1 ? mesActualNumD1 - 1 : null;
+  const mesSiguienteNumD1 = mesActualNumD1 < 12 ? mesActualNumD1 + 1 : null;
+
+  const mesAnteriorNombreD1 = useMemo(() => {
+    if (!mesAnteriorNumD1) return null;
+    return MESES.find((m) => m.num === mesAnteriorNumD1)?.nombre ?? null;
+  }, [mesAnteriorNumD1]);
+
+  const mesSiguienteNombreD1 = useMemo(() => {
+    if (!mesSiguienteNumD1) return null;
+    return MESES.find((m) => m.num === mesSiguienteNumD1)?.nombre ?? null;
+  }, [mesSiguienteNumD1]);
+
+  const irMesAnteriorD1 = useCallback(() => {
+    if (mesAnteriorNumD1) {
+      setMes(String(mesAnteriorNumD1));
+      if (typeof window !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate(12);
+        } catch (_) {}
+      }
+    }
+  }, [mesAnteriorNumD1]);
+
+  const irMesSiguienteD1 = useCallback(() => {
+    if (mesSiguienteNumD1) {
+      setMes(String(mesSiguienteNumD1));
+      if (typeof window !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate(12);
+        } catch (_) {}
+      }
+    }
+  }, [mesSiguienteNumD1]);
+
+  const touchStartXRefD1 = useRef<number | null>(null);
+  const touchStartYRefD1 = useRef<number | null>(null);
+  const touchStartTimeRefD1 = useRef<number>(0);
+  const lastSwipeTimeRefD1 = useRef<number>(0);
+
+  const handleTouchStartD1 = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStartXRefD1.current = e.touches[0].clientX;
+      touchStartYRefD1.current = e.touches[0].clientY;
+      touchStartTimeRefD1.current = Date.now();
+    }
+  }, []);
+
+  const handleTouchEndD1 = useCallback((e: React.TouchEvent) => {
+    if (touchStartXRefD1.current === null || touchStartYRefD1.current === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartXRefD1.current;
+    const deltaY = touchEndY - touchStartYRefD1.current;
+    const elapsedTime = Date.now() - touchStartTimeRefD1.current;
+    touchStartXRefD1.current = null;
+    touchStartYRefD1.current = null;
+
+    // Gesto horizontal intencional: al menos 35px, predominancia horizontal clara y duración menor a 1 segundo
+    if (Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2 && elapsedTime < 1000) {
+      const now = Date.now();
+      if (now - lastSwipeTimeRefD1.current < 300) return;
+      lastSwipeTimeRefD1.current = now;
+
+      if (deltaX < 0) {
+        // Deslizar hacia la izquierda (arrastrar izquierda) -> Avanzar al siguiente mes
+        irMesSiguienteD1();
+      } else {
+        // Deslizar hacia la derecha (arrastrar derecha) -> Retroceder al mes anterior
+        irMesAnteriorD1();
+      }
+    }
+  }, [irMesAnteriorD1, irMesSiguienteD1]);
+
+  const handleWheelD1 = useCallback((e: React.WheelEvent) => {
+    if (Math.abs(e.deltaX) > 25 && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      const now = Date.now();
+      if (now - lastSwipeTimeRefD1.current < 350) return;
+      lastSwipeTimeRefD1.current = now;
+      if (e.deltaX > 0) {
+        irMesSiguienteD1();
+      } else if (e.deltaX < 0) {
+        irMesAnteriorD1();
+      }
+    }
+  }, [irMesAnteriorD1, irMesSiguienteD1]);
 
   // Cuando se selecciona un mes puntual en la vista de comercial con varios vendedores asignados,
   // la métrica principal de barras se discrimina por cada asesor asociado (con sus datos del mes puntual).
@@ -3516,9 +3626,67 @@ function Panel() {
                     {/* VISTA MÓVIL (sm:hidden): AJUSTE AL MES O AL AÑO SIN SCROLL HORIZONTAL */}
                     <div className="sm:hidden space-y-3">
                       {esMesPuntual && mesActivoD1 ? (
-                        /* CASO 1 EN MÓVIL: MES SELECCIONADO -> Se ajusta SOLO al mes seleccionado */
-                        <div className="space-y-3">
-                          <div className="h-[220px] w-full">
+                        /* CASO 1 EN MÓVIL: MES SELECCIONADO -> Se ajusta SOLO al mes seleccionado con soporte de SWIPE y SCROLL */
+                        <div
+                          className="space-y-3 touch-pan-y select-none"
+                          onTouchStart={handleTouchStartD1}
+                          onTouchEnd={handleTouchEndD1}
+                          onWheel={handleWheelD1}
+                        >
+                          {/* Barra de Navegación de Meses con Swiping e Indicador */}
+                          <div className="flex items-center justify-between gap-1.5 p-1 rounded-xl bg-muted/40 border border-border/60">
+                            <button
+                              type="button"
+                              onClick={irMesAnteriorD1}
+                              disabled={!mesAnteriorNumD1}
+                              className={cn(
+                                "flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all",
+                                mesAnteriorNumD1
+                                  ? "bg-background text-foreground shadow-xs hover:bg-muted active:scale-95 cursor-pointer"
+                                  : "opacity-30 cursor-not-allowed text-muted-foreground"
+                              )}
+                              title={mesAnteriorNombreD1 ? `Ver ${mesAnteriorNombreD1}` : "Sin mes anterior"}
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                              <span>{mesAnteriorNombreD1 ? mesAnteriorNombreD1.slice(0, 3) : "—"}</span>
+                            </button>
+
+                            <div className="flex flex-col items-center">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-foreground">
+                                  {nombreMesPuntual} {anio !== "todos" ? anio : ""}
+                                </span>
+                                <span className="text-[10px] font-semibold text-muted-foreground px-1.5 py-0.2 rounded-md bg-background/80 border border-border/50">
+                                  {mesActualNumD1}/12
+                                </span>
+                              </div>
+                              <span className="text-[9px] text-muted-foreground/80 flex items-center gap-1">
+                                <span>← Desliza para cambiar mes →</span>
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={irMesSiguienteD1}
+                              disabled={!mesSiguienteNumD1}
+                              className={cn(
+                                "flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all",
+                                mesSiguienteNumD1
+                                  ? "bg-background text-foreground shadow-xs hover:bg-muted active:scale-95 cursor-pointer"
+                                  : "opacity-30 cursor-not-allowed text-muted-foreground"
+                              )}
+                              title={mesSiguienteNombreD1 ? `Ver ${mesSiguienteNombreD1}` : "Sin mes siguiente"}
+                            >
+                              <span>{mesSiguienteNombreD1 ? mesSiguienteNombreD1.slice(0, 3) : "—"}</span>
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                          </div>
+
+                          {/* Gráfica del mes con animación suave */}
+                          <div
+                            key={`grafica-d1-mes-${mesActualNumD1}`}
+                            className="h-[220px] w-full animate-in fade-in-50 duration-200"
+                          >
                             <ResponsiveContainer width="100%" height="100%">
                               {esAdmin ? (
                                 <ComposedChart
@@ -3561,6 +3729,28 @@ function Panel() {
                                 </ComposedChart>
                               )}
                             </ResponsiveContainer>
+                          </div>
+
+                          {/* Paginador de 12 puntos para saltar o visualizar el mes en el año */}
+                          <div className="flex items-center justify-center gap-1.5 pt-0.5 pb-1">
+                            {MESES.map((m) => {
+                              const esActivo = m.num === mesActualNumD1;
+                              return (
+                                <button
+                                  key={`dot-mes-${m.num}`}
+                                  type="button"
+                                  onClick={() => setMes(String(m.num))}
+                                  className={cn(
+                                    "h-1.5 rounded-full transition-all cursor-pointer",
+                                    esActivo
+                                      ? "w-4 bg-primary"
+                                      : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/60"
+                                  )}
+                                  title={m.nombre}
+                                  aria-label={m.nombre}
+                                />
+                              );
+                            })}
                           </div>
 
                           {/* Resumen de métricas exclusivo del mes en móvil */}
