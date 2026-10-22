@@ -941,7 +941,8 @@ export function DashboardCorrerias({
                         <Tooltip
                           content={({ active, payload }) => {
                             if (!active || !payload || !payload.length) return null;
-                            const item = payload[0].payload as any;
+                            const item = payload[0]?.payload as any;
+                            if (!item) return null;
                             return (
                               <div className="rounded-xl border border-border/80 bg-background/95 p-3 shadow-lg text-xs space-y-1.5 backdrop-blur-xs">
                                 <p className="font-bold text-foreground text-sm flex items-center justify-between gap-3">
