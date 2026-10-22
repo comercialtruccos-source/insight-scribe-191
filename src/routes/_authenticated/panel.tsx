@@ -2193,7 +2193,7 @@ function Panel() {
               </div>
 
               {/* Tabs enfocados para Vendedor (sin Digital, Marketplaces ni Multianual repetitivo) */}
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1">
+              <TabsList className={`grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 ${esAdmin ? "lg:grid-cols-7 xl:grid-cols-8" : "lg:grid-cols-6 xl:grid-cols-7"} h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1`}>
                 <TabsTrigger
                   value="d1"
                   className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
@@ -2228,6 +2228,13 @@ function Panel() {
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                   7. Pedidos vs Despachos
+                </TabsTrigger>
+                <TabsTrigger
+                  value="d8"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
+                >
+                  <Users className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                  8. Clientes Activados
                 </TabsTrigger>
                 {esAdmin && (
                   <TabsTrigger
@@ -2279,7 +2286,7 @@ function Panel() {
               </div>
 
               {/* Tabs enfocados para Región (sin Digital ni Marketplaces) */}
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-7 h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1">
+              <TabsList className={`grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 ${esAdmin ? "lg:grid-cols-7 xl:grid-cols-8" : "lg:grid-cols-6 xl:grid-cols-7"} h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1`}>
                 <TabsTrigger
                   value="d1"
                   className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
@@ -2315,6 +2322,13 @@ function Panel() {
                   <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                   7. Pedidos vs Despachos
                 </TabsTrigger>
+                <TabsTrigger
+                  value="d8"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
+                >
+                  <Users className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                  8. Clientes Activados
+                </TabsTrigger>
                 {esAdmin && (
                   <TabsTrigger
                     value="carga"
@@ -2327,7 +2341,7 @@ function Panel() {
               </TabsList>
             </div>
           ) : (
-            <TabsList className={`grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-7 ${esAdmin ? "lg:grid-cols-8" : "lg:grid-cols-7"} h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1`}>
+            <TabsList className={`grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 xl:grid-cols-9 h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1`}>
               <TabsTrigger
                 value="d1"
                 className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
@@ -2380,6 +2394,13 @@ function Panel() {
               >
                 <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                 7. Pedidos vs Despachos
+              </TabsTrigger>
+              <TabsTrigger
+                value="d8"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
+              >
+                <Users className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                8. Clientes Activados
               </TabsTrigger>
               {esAdmin && (
                 <TabsTrigger
@@ -6766,7 +6787,49 @@ function Panel() {
           </TabsContent>
 
           {/* ========================================================================= */}
-          {/* TAB 7: CARGA DE ARCHIVOS E HISTORIAL */}
+          {/* DASHBOARD 8: CLIENTES ACTIVADOS POR ASESOR COMERCIAL */}
+          {/* ========================================================================= */}
+          <TabsContent value="d8" className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/60 pb-3">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground font-display flex items-center gap-2">
+                  <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  <span>Dashboard 8: Clientes Activados por Asesor Comercial</span>
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Monitorea qué clientes facturó cada vendedor, con comparadores directos de ventas, unidades, crecimiento y tickets.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="bg-purple-500/10 border-purple-500/30 text-purple-700 dark:text-purple-300 font-mono text-xs">
+                  <Users className="mr-1 h-3 w-3" />
+                  {vendedoresDisponibles.length} Asesores Disponibles
+                </Badge>
+              </div>
+            </div>
+
+            <PanelClientesActivados
+              filtros={filtros}
+              vendedoresDisponibles={vendedoresDisponibles}
+              vendedorSeleccionadoId={vendedorIds.length === 1 ? Number(vendedorIds[0]) : (vendedorId !== "todos" ? Number(vendedorId) : null)}
+              onSelectVendedor={(id) => {
+                if (id) {
+                  setVendedorIds([String(id)]);
+                  setVendedorId(String(id));
+                } else {
+                  setVendedorIds([]);
+                  setVendedorId("todos");
+                }
+              }}
+              terceroSeleccionadoId={terceroId !== "todos" ? Number(terceroId) : null}
+              onSelectTercero={(id) => {
+                setTerceroId(id ? String(id) : "todos");
+              }}
+            />
+          </TabsContent>
+
+          {/* ========================================================================= */}
+          {/* TAB: CARGA DE ARCHIVOS E HISTORIAL */}
           {/* ========================================================================= */}
           {esAdmin && (
             <TabsContent value="carga" className="space-y-6">
