@@ -1131,6 +1131,30 @@ function Panel() {
 
   const esMesPuntual = Boolean(nombreMesPuntual);
 
+  // Datos móviles para el gráfico principal de Dashboard 1:
+  // - Si está seleccionado un mes puntual: ajusta SOLO al mes seleccionado.
+  // - Si está seleccionado el año (mes === "todos"): ajusta a los 12 meses del año en móvil.
+  const dataMovilD1 = useMemo(() => {
+    if (!d1?.meses || d1.meses.length === 0) return [];
+    if (esMesPuntual) {
+      if (mes !== "todos") {
+        const targetNum = Number(mes);
+        const mesEncontrado = d1.meses.find((entry) => Number(entry.mes) === targetNum);
+        if (mesEncontrado) return [mesEncontrado];
+      }
+      const conVenta = d1.meses.filter((entry) => entry.ventaReal > 0);
+      if (conVenta.length > 0) return [conVenta[conVenta.length - 1]];
+    }
+    return d1.meses;
+  }, [d1?.meses, esMesPuntual, mes]);
+
+  const mesActivoD1 = useMemo(() => {
+    if (dataMovilD1.length === 1 && esMesPuntual) {
+      return dataMovilD1[0];
+    }
+    return null;
+  }, [dataMovilD1, esMesPuntual]);
+
   // Cuando se selecciona un mes puntual en la vista de comercial con varios vendedores asignados,
   // la métrica principal de barras se discrimina por cada asesor asociado (con sus datos del mes puntual).
   const datosGraficaPorVendedorMes = useMemo(() => {
@@ -3147,18 +3171,32 @@ function Panel() {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <CardTitle className="text-base font-semibold">
-                      {esAdmin
-                        ? (anio === "todos" ? "Evolución Cronológica Completa de Ventas (Todos los Periodos)" : `Venta Real vs. Presupuesto Mensual (${anio})`)
-                        : datosGraficaPorVendedorMes
-                        ? `Facturación Real por Vendedor vs. Año Anterior — ${nombreMesPuntual} ${anio !== "todos" ? anio : ""}`
-                        : `Facturación Real vs. Año Anterior ${vendedorSeleccionadoNombre ? `(${vendedorSeleccionadoNombre})` : (comparativaComercialesAsociados.length > 1 ? "(Consolidado Global)" : "")}`}
+                      <span className="sm:hidden">
+                        {esMesPuntual
+                          ? `Facturación — ${nombreMesPuntual} ${anio !== "todos" ? anio : ""}`
+                          : `Facturación Mensual (${anio !== "todos" ? `Año ${anio}` : "Histórico"})`}
+                      </span>
+                      <span className="hidden sm:inline">
+                        {esAdmin
+                          ? (anio === "todos" ? "Evolución Cronológica Completa de Ventas (Todos los Periodos)" : `Venta Real vs. Presupuesto Mensual (${anio})`)
+                          : datosGraficaPorVendedorMes
+                          ? `Facturación Real por Vendedor vs. Año Anterior — ${nombreMesPuntual} ${anio !== "todos" ? anio : ""}`
+                          : `Facturación Real vs. Año Anterior ${vendedorSeleccionadoNombre ? `(${vendedorSeleccionadoNombre})` : (comparativaComercialesAsociados.length > 1 ? "(Consolidado Global)" : "")}`}
+                      </span>
                     </CardTitle>
                     <CardDescription>
-                      {esAdmin
-                        ? `${d1?.meses.length ?? 0} periodos registrados en el análisis ${compararAnioAnterior ? "• Superposición de Venta Año Anterior activada" : ""}`
-                        : datosGraficaPorVendedorMes
-                        ? `Comparativa de facturación real actual frente al año anterior discriminada por cada vendedor asignado • ${nombreMesPuntual} ${anio !== "todos" ? `de ${anio}` : ""}`
-                        : `Comparativa mensual de facturación real actual frente al año anterior con tasa de variación interanual (% YoY) • ${anio === "todos" ? "Histórico completo" : `Año ${anio}`}`}
+                      <span className="sm:hidden text-xs">
+                        {esMesPuntual
+                          ? `Métrica ajustada exclusivamente a ${nombreMesPuntual}`
+                          : "Ajustado al año en móvil • 12 meses consolidados"}
+                      </span>
+                      <span className="hidden sm:inline">
+                        {esAdmin
+                          ? `${d1?.meses.length ?? 0} periodos registrados en el análisis ${compararAnioAnterior ? "• Superposición de Venta Año Anterior activada" : ""}`
+                          : datosGraficaPorVendedorMes
+                          ? `Comparativa de facturación real actual frente al año anterior discriminada por cada vendedor asignado • ${nombreMesPuntual} ${anio !== "todos" ? `de ${anio}` : ""}`
+                          : `Comparativa mensual de facturación real actual frente al año anterior con tasa de variación interanual (% YoY) • ${anio === "todos" ? "Histórico completo" : `Año ${anio}`}`}
+                      </span>
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -3374,107 +3412,257 @@ function Panel() {
                 ) : !d1?.meses || d1.meses.length === 0 ? (
                   <div className="h-[320px] grid place-items-center text-sm text-muted-foreground">Sin datos para el periodo seleccionado</div>
                 ) : (
-                  <div className="w-full overflow-x-auto touch-pan scrollbar-none">
-                    <p className="text-[10px] text-muted-foreground/70 mb-1 sm:hidden">
-                      ← Desliza horizontalmente para ver los 12 meses →
-                    </p>
-                    <div className="h-[340px] min-w-[500px] sm:min-w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                      {esAdmin ? (
-                        <ComposedChart
-                          data={d1.meses}
-                          margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
-                          onClick={(state: any) => {
-                            if (state?.activePayload?.[0]?.payload?.mes) {
-                              setMes(String(state.activePayload[0].payload.mes));
-                            }
-                          }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                          <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
-                          <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
-                          <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
-                          <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
-                          <Legend
-                            formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ventaAnterior" ? "Venta Año Anterior ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
-                          />
-                          <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]}>
-                            {d1.meses.map((entry) => {
-                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
-                              return (
-                                <Cell
-                                  key={`bar-admin-real-${entry.mes}`}
-                                  fill="#2563eb"
-                                  opacity={isSelected ? 1 : 0.25}
-                                />
-                              );
-                            })}
-                          </Bar>
-                          {compararAnioAnterior && (
-                            <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3.5, fill: "#f59e0b" }} />
-                          )}
-                          <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]}>
-                            {d1.meses.map((entry) => {
-                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
-                              return (
-                                <Cell
-                                  key={`bar-admin-ppto-${entry.mes}`}
-                                  fill="#94a3b8"
-                                  opacity={isSelected ? 0.4 : 0.15}
-                                />
-                              );
-                            })}
-                          </Bar>
-                          <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
-                        </ComposedChart>
+                  <>
+                    {/* VISTA ESCRITORIO (sm:block): 100% INTACTA */}
+                    <div className="hidden sm:block w-full overflow-x-auto touch-pan scrollbar-none">
+                      <div className="h-[340px] min-w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                        {esAdmin ? (
+                          <ComposedChart
+                            data={d1.meses}
+                            margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
+                            onClick={(state: any) => {
+                              if (state?.activePayload?.[0]?.payload?.mes) {
+                                setMes(String(state.activePayload[0].payload.mes));
+                              }
+                            }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                            <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
+                            <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
+                            <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
+                            <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
+                            <Legend
+                              formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ventaAnterior" ? "Venta Año Anterior ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
+                            />
+                            <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]}>
+                              {d1.meses.map((entry) => {
+                                const isSelected = mes === "todos" || String(entry.mes) === String(mes);
+                                return (
+                                  <Cell
+                                    key={`bar-admin-real-${entry.mes}`}
+                                    fill="#2563eb"
+                                    opacity={isSelected ? 1 : 0.25}
+                                  />
+                                );
+                              })}
+                            </Bar>
+                            {compararAnioAnterior && (
+                              <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3.5, fill: "#f59e0b" }} />
+                            )}
+                            <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]}>
+                              {d1.meses.map((entry) => {
+                                const isSelected = mes === "todos" || String(entry.mes) === String(mes);
+                                return (
+                                  <Cell
+                                    key={`bar-admin-ppto-${entry.mes}`}
+                                    fill="#94a3b8"
+                                    opacity={isSelected ? 0.4 : 0.15}
+                                  />
+                                );
+                              })}
+                            </Bar>
+                            <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
+                          </ComposedChart>
+                        ) : (
+                          <ComposedChart
+                            data={d1.meses}
+                            margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
+                            onClick={(state: any) => {
+                              if (state?.activePayload?.[0]?.payload?.mes) {
+                                setMes(String(state.activePayload[0].payload.mes));
+                              }
+                            }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                            <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
+                            <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
+                            <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
+                            <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
+                            <Legend
+                              formatter={(v) => (v === "ventaReal" ? "Facturación Real Actual ($)" : v === "ventaAnterior" ? "Facturación Año Anterior ($)" : "% Crecimiento YoY")}
+                            />
+                            <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]}>
+                              {d1.meses.map((entry) => {
+                                const isSelected = mes === "todos" || String(entry.mes) === String(mes);
+                                return (
+                                  <Cell
+                                    key={`bar-real-${entry.mes}`}
+                                    fill="#2563eb"
+                                    opacity={isSelected ? 1 : 0.25}
+                                  />
+                                );
+                              })}
+                            </Bar>
+                            <Bar yAxisId="left" dataKey="ventaAnterior" fill="#f59e0b" radius={[4, 4, 0, 0]}>
+                              {d1.meses.map((entry) => {
+                                const isSelected = mes === "todos" || String(entry.mes) === String(mes);
+                                return (
+                                  <Cell
+                                    key={`bar-ant-${entry.mes}`}
+                                    fill="#f59e0b"
+                                    opacity={isSelected ? 0.85 : 0.25}
+                                  />
+                                );
+                              })}
+                            </Bar>
+                            <Line yAxisId="right" type="monotone" dataKey="crecimientoYoY" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
+                          </ComposedChart>
+                        )}
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    {/* VISTA MÓVIL (sm:hidden): AJUSTE AL MES O AL AÑO SIN SCROLL HORIZONTAL */}
+                    <div className="sm:hidden space-y-3">
+                      {esMesPuntual && mesActivoD1 ? (
+                        /* CASO 1 EN MÓVIL: MES SELECCIONADO -> Se ajusta SOLO al mes seleccionado */
+                        <div className="space-y-3">
+                          <div className="h-[220px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              {esAdmin ? (
+                                <ComposedChart
+                                  data={dataMovilD1}
+                                  margin={{ top: 10, right: 8, left: -14, bottom: 0 }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                                  <XAxis dataKey="nombreMes" tick={{ fontSize: 11, fontWeight: "bold" }} />
+                                  <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 10 }} width={48} />
+                                  <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${Math.round(v)}%`} tick={{ fontSize: 10 }} width={36} />
+                                  <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
+                                  <Legend
+                                    formatter={(v) => (v === "ventaReal" ? "Venta Real" : v === "ventaAnterior" ? "Año Anterior" : v === "ppto" ? "Presupuesto" : "% Cumplimiento")}
+                                    wrapperStyle={{ fontSize: "11px" }}
+                                  />
+                                  <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={48} />
+                                  {compararAnioAnterior && (
+                                    <Bar yAxisId="left" dataKey="ventaAnterior" fill="#f59e0b" radius={[6, 6, 0, 0]} maxBarSize={48} />
+                                  )}
+                                  <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[6, 6, 0, 0]} maxBarSize={48} opacity={0.6} />
+                                  <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 5, fill: "#10b981" }} />
+                                </ComposedChart>
+                              ) : (
+                                <ComposedChart
+                                  data={dataMovilD1}
+                                  margin={{ top: 10, right: 8, left: -14, bottom: 0 }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                                  <XAxis dataKey="nombreMes" tick={{ fontSize: 11, fontWeight: "bold" }} />
+                                  <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 10 }} width={48} />
+                                  <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${Math.round(v)}%`} tick={{ fontSize: 10 }} width={36} />
+                                  <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
+                                  <Legend
+                                    formatter={(v) => (v === "ventaReal" ? "Facturación Real" : v === "ventaAnterior" ? "Año Anterior" : "% YoY")}
+                                    wrapperStyle={{ fontSize: "11px" }}
+                                  />
+                                  <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={48} />
+                                  <Bar yAxisId="left" dataKey="ventaAnterior" fill="#f59e0b" radius={[6, 6, 0, 0]} maxBarSize={48} />
+                                  <Line yAxisId="right" type="monotone" dataKey="crecimientoYoY" stroke="#10b981" strokeWidth={3} dot={{ r: 5, fill: "#10b981" }} />
+                                </ComposedChart>
+                              )}
+                            </ResponsiveContainer>
+                          </div>
+
+                          {/* Resumen de métricas exclusivo del mes en móvil */}
+                          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60">
+                            <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                              <p className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300">
+                                Facturación {nombreMesPuntual}
+                              </p>
+                              <p className="text-sm font-black text-foreground font-mono mt-0.5">
+                                {formatoCOPFull(mesActivoD1.ventaReal)}
+                              </p>
+                              {mesActivoD1.ppto > 0 && (
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  Ppto: {formatoCOP(mesActivoD1.ppto)} (
+                                  <span className={cn("font-bold", mesActivoD1.cumplimientoPct >= 100 ? "text-emerald-600" : "text-amber-600")}>
+                                    {mesActivoD1.cumplimientoPct.toFixed(1)}%
+                                  </span>
+                                  )
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                              <p className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300">
+                                Año Anterior ({nombreMesPuntual})
+                              </p>
+                              <p className="text-sm font-black text-foreground font-mono mt-0.5">
+                                {formatoCOPFull(mesActivoD1.ventaAnterior)}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                Var YoY:{" "}
+                                <span className={cn("font-bold", mesActivoD1.crecimientoYoY >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                                  {mesActivoD1.crecimientoYoY >= 0 ? "+" : ""}{mesActivoD1.crecimientoYoY.toFixed(1)}%
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setMes("todos")}
+                            className="text-xs text-primary font-medium flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-primary/10 hover:bg-primary/20 w-full transition-colors"
+                          >
+                            <span>Ver todo el año ({anio !== "todos" ? anio : "completo"})</span>
+                          </button>
+                        </div>
                       ) : (
-                        <ComposedChart
-                          data={d1.meses}
-                          margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
-                          onClick={(state: any) => {
-                            if (state?.activePayload?.[0]?.payload?.mes) {
-                              setMes(String(state.activePayload[0].payload.mes));
-                            }
-                          }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                          <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
-                          <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
-                          <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
-                          <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
-                          <Legend
-                            formatter={(v) => (v === "ventaReal" ? "Facturación Real Actual ($)" : v === "ventaAnterior" ? "Facturación Año Anterior ($)" : "% Crecimiento YoY")}
-                          />
-                          <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]}>
-                            {d1.meses.map((entry) => {
-                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
-                              return (
-                                <Cell
-                                  key={`bar-real-${entry.mes}`}
-                                  fill="#2563eb"
-                                  opacity={isSelected ? 1 : 0.25}
-                                />
-                              );
-                            })}
-                          </Bar>
-                          <Bar yAxisId="left" dataKey="ventaAnterior" fill="#f59e0b" radius={[4, 4, 0, 0]}>
-                            {d1.meses.map((entry) => {
-                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
-                              return (
-                                <Cell
-                                  key={`bar-ant-${entry.mes}`}
-                                  fill="#f59e0b"
-                                  opacity={isSelected ? 0.85 : 0.25}
-                                />
-                              );
-                            })}
-                          </Bar>
-                          <Line yAxisId="right" type="monotone" dataKey="crecimientoYoY" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
-                        </ComposedChart>
+                        /* CASO 2 EN MÓVIL: AÑO SELECCIONADO -> Se ajusta a los 12 meses en pantalla completa móvil */
+                        <div className="space-y-2">
+                          <div className="h-[250px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              {esAdmin ? (
+                                <ComposedChart
+                                  data={dataMovilD1}
+                                  margin={{ top: 10, right: 6, left: -14, bottom: 0 }}
+                                  onClick={(state: any) => {
+                                    if (state?.activePayload?.[0]?.payload?.mes) {
+                                      setMes(String(state.activePayload[0].payload.mes));
+                                    }
+                                  }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                                  <XAxis dataKey="nombreMes" tick={{ fontSize: 9 }} interval={0} />
+                                  <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 9 }} width={48} />
+                                  <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${Math.round(v)}%`} tick={{ fontSize: 9 }} width={34} />
+                                  <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
+                                  <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[3, 3, 0, 0]} maxBarSize={11} />
+                                  {compararAnioAnterior && (
+                                    <Bar yAxisId="left" dataKey="ventaAnterior" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={11} />
+                                  )}
+                                  <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[3, 3, 0, 0]} maxBarSize={11} opacity={0.5} />
+                                  <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} />
+                                </ComposedChart>
+                              ) : (
+                                <ComposedChart
+                                  data={dataMovilD1}
+                                  margin={{ top: 10, right: 6, left: -14, bottom: 0 }}
+                                  onClick={(state: any) => {
+                                    if (state?.activePayload?.[0]?.payload?.mes) {
+                                      setMes(String(state.activePayload[0].payload.mes));
+                                    }
+                                  }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                                  <XAxis dataKey="nombreMes" tick={{ fontSize: 9 }} interval={0} />
+                                  <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 9 }} width={48} />
+                                  <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${Math.round(v)}%`} tick={{ fontSize: 9 }} width={34} />
+                                  <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
+                                  <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[3, 3, 0, 0]} maxBarSize={11} />
+                                  <Bar yAxisId="left" dataKey="ventaAnterior" fill="#f59e0b" radius={[3, 3, 0, 0]} maxBarSize={11} />
+                                  <Line yAxisId="right" type="monotone" dataKey="crecimientoYoY" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} />
+                                </ComposedChart>
+                              )}
+                            </ResponsiveContainer>
+                          </div>
+                          <p className="text-[10px] text-center text-muted-foreground/80">
+                            Mostrando los 12 meses de {anio !== "todos" ? anio : "análisis"}. Toca un mes para enfocarlo.
+                          </p>
+                        </div>
                       )}
-                    </ResponsiveContainer>
-                  </div>
-                </div>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
