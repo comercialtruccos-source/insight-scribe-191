@@ -41,6 +41,7 @@ import { MapaVentasZonas } from "@/components/dashboard/MapaVentasZonas";
 import { DesgloseSkusTabla } from "@/components/dashboard/DesgloseSkusTabla";
 import { PanelClientesActivados } from "@/components/vendedores/PanelClientesActivados";
 import { MultiSelectVendedores } from "@/components/vendedores/MultiSelectVendedores";
+import { BotonVolverInicio } from "@/components/dashboard/BotonVolverInicio";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -2524,7 +2525,7 @@ function Panel() {
           </div>
         )}
 
-        <Tabs value={tabActivo} onValueChange={setTabActivo} className="space-y-6">
+        <Tabs id="selector-dashboards" value={tabActivo} onValueChange={setTabActivo} className="space-y-6">
           {tabActivo === "d3" ? (
             /* Barra de Enfoque Exclusivo Digital: Oculta y desactiva todos los demás dashboards */
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-indigo-500/10 dark:bg-indigo-950/40 rounded-xl border border-indigo-500/30 shadow-xs">
@@ -9030,6 +9031,9 @@ function Panel() {
           )}
         </Tabs>
       </main>
+
+      {/* Botón Flotante con Tooltip para Volver al Inicio y Cambiar de Dashboard */}
+      <BotonVolverInicio tabActivo={tabActivo} />
 
       {/* Modal de Administración de Permisos de Vendedores */}
       <AdminPermisosVendedoresDialog
