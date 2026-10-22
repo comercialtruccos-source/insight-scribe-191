@@ -78,21 +78,16 @@ export function BotonVolverInicio({
               onClick={scrollToTop}
               aria-label="Volver al inicio de la página para cambiar de dashboard"
               className={cn(
-                "group flex items-center justify-center gap-2 p-2.5 sm:px-4 sm:py-2.5 rounded-full shadow-xl",
-                "bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700",
+                "group grid h-11 w-11 sm:h-12 sm:w-12 place-items-center rounded-full shadow-lg",
+                "bg-gradient-to-tr from-indigo-600 via-indigo-700 to-purple-700",
                 "hover:from-indigo-500 hover:via-indigo-600 hover:to-purple-600",
-                "text-white shadow-indigo-500/25 hover:shadow-indigo-500/40",
-                "border border-white/25 hover:scale-105 active:scale-95",
+                "text-white shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/50",
+                "border border-white/25 hover:scale-110 active:scale-95",
                 "transition-all duration-200 cursor-pointer select-none",
                 "ring-1 ring-black/10 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
               )}
             >
-              <div className="grid h-7 w-7 sm:h-6 sm:w-6 place-items-center rounded-full bg-white/20 text-white group-hover:-translate-y-0.5 transition-transform duration-200 shrink-0">
-                <ArrowUp className="h-4 w-4 stroke-[2.5]" />
-              </div>
-              <span className="hidden sm:inline font-bold text-xs tracking-tight pr-0.5 whitespace-nowrap">
-                Cambiar Dashboard
-              </span>
+              <ArrowUp className="h-5 w-5 stroke-[2.5] text-white group-hover:-translate-y-0.5 transition-transform duration-200" />
             </button>
           </TooltipTrigger>
           <TooltipContent
