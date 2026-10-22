@@ -396,37 +396,41 @@ export function VisorPedidosDespachos({
           </div>
 
           {/* Rango de Fechas y Accesos Rápidos */}
-          <div className="md:col-span-4 flex flex-col items-center gap-1.5 justify-center">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 bg-background border rounded-lg px-2.5 py-1">
-                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                <input
-                  type="date"
-                  value={fechaDesde}
-                  onChange={(e) => setFechaDesde(e.target.value)}
-                  className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden"
-                />
-                <span className="text-muted-foreground font-semibold">y</span>
-                <input
-                  type="date"
-                  value={fechaHasta}
-                  onChange={(e) => setFechaHasta(e.target.value)}
-                  className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden"
-                />
+          <div className="md:col-span-4 flex flex-col items-center gap-1.5 justify-center w-full">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full justify-center">
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 bg-background border rounded-lg px-2 py-1 w-full sm:w-auto">
+                <div className="flex items-center gap-1 flex-1 min-w-[120px]">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <input
+                    type="date"
+                    value={fechaDesde}
+                    onChange={(e) => setFechaDesde(e.target.value)}
+                    className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden w-full"
+                  />
+                </div>
+                <span className="text-muted-foreground font-semibold text-xs px-0.5">a</span>
+                <div className="flex items-center gap-1 flex-1 min-w-[120px]">
+                  <input
+                    type="date"
+                    value={fechaHasta}
+                    onChange={(e) => setFechaHasta(e.target.value)}
+                    className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden w-full"
+                  />
+                </div>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => refetch()}
                 disabled={isFetching}
-                className="h-8 px-2"
+                className="h-8 px-2.5 shrink-0"
                 title="Refrescar datos"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
               </Button>
             </div>
             {/* Botones de Periodo Rápido */}
-            <div className="flex items-center gap-1 text-[10px]">
+            <div className="flex items-center gap-1 text-[10px] flex-wrap justify-center">
               <span className="text-muted-foreground font-medium">Periodos:</span>
               <button
                 type="button"
@@ -578,7 +582,7 @@ export function VisorPedidosDespachos({
         </div>
 
         {/* Acciones Rápidas */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant={soloPendientes ? "default" : "outline"}
             size="sm"
@@ -607,7 +611,7 @@ export function VisorPedidosDespachos({
       </div>
 
       {/* 4. Tarjetas KPI de Resumen Ejecutivo de Despachos vs Pedidos */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
         <Card className="p-3 border-l-4 border-l-purple-500">
           <div className="flex items-center justify-between text-muted-foreground mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Total Pedidos</span>
@@ -616,7 +620,7 @@ export function VisorPedidosDespachos({
           <div className="text-base sm:text-lg font-bold font-mono text-foreground">
             {(kpis?.totalPedidosCantidad ?? 0).toLocaleString("es-CO")} unds
           </div>
-          <div className="text-[11px] text-muted-foreground font-mono">
+          <div className="text-[11px] text-muted-foreground font-mono truncate">
             {formatoCOPFull(kpis?.totalPedidosValor ?? 0)}
           </div>
         </Card>
@@ -629,7 +633,7 @@ export function VisorPedidosDespachos({
           <div className="text-base sm:text-lg font-bold font-mono text-foreground">
             {(kpis?.totalDespachosCantidad ?? 0).toLocaleString("es-CO")} unds
           </div>
-          <div className="text-[11px] text-muted-foreground font-mono">
+          <div className="text-[11px] text-muted-foreground font-mono truncate">
             {formatoCOPFull(kpis?.totalDespachosValor ?? 0)}
           </div>
         </Card>
@@ -642,7 +646,7 @@ export function VisorPedidosDespachos({
           <div className="text-base sm:text-lg font-extrabold font-mono text-amber-700 dark:text-amber-300">
             {(kpis?.totalPendienteCantidad ?? 0).toLocaleString("es-CO")} unds
           </div>
-          <div className="text-[11px] text-amber-600/80 dark:text-amber-400/80 font-mono font-medium">
+          <div className="text-[11px] text-amber-600/80 dark:text-amber-400/80 font-mono font-medium truncate">
             {formatoCOPFull(kpis?.totalPendienteValor ?? 0)}
           </div>
         </Card>
@@ -658,7 +662,7 @@ export function VisorPedidosDespachos({
           <div className="text-[10px] text-muted-foreground">Unidades entregadas vs pedidas</div>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-indigo-500">
+        <Card className="p-3 border-l-4 border-l-indigo-500 col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between text-muted-foreground mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Clientes Pendientes</span>
             <Users className="h-4 w-4 text-indigo-500" />
@@ -700,34 +704,44 @@ export function VisorPedidosDespachos({
               Muestra los clientes con mayor volumen y su saldo pendiente de despacho en el periodo.
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-0 h-[280px]">
+          <CardContent className="p-0">
             {datosGrafico.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground">
+              <div className="h-[280px] flex items-center justify-center text-muted-foreground text-xs">
                 No hay datos disponibles para graficar en el rango seleccionado.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={datosGrafico} margin={{ top: 10, right: 10, left: 10, bottom: 40 }}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis
-                    dataKey="nombre"
-                    angle={-35}
-                    textAnchor="end"
-                    interval={0}
-                    tick={{ fontSize: 10 }}
-                    height={60}
-                  />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 11, borderRadius: 8 }}
-                    formatter={(val: number) => [`${val.toLocaleString("es-CO")} unds`, ""]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
-                  <Bar dataKey="pedidos" name="Pedidos" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="despachados" name="Despachados" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="pendientes" name="Pendiente Despacho" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div>
+                <div className="sm:hidden px-3 py-1 text-[10.5px] text-muted-foreground flex items-center justify-between">
+                  <span>↔ Desliza horizontalmente para ver clientes</span>
+                  <span className="font-mono">{datosGrafico.length} clientes</span>
+                </div>
+                <div className="overflow-x-auto w-full touch-pan">
+                  <div className="h-[280px] min-w-[550px] sm:min-w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={datosGrafico} margin={{ top: 10, right: 10, left: 10, bottom: 40 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                        <XAxis
+                          dataKey="nombre"
+                          angle={-35}
+                          textAnchor="end"
+                          interval={0}
+                          tick={{ fontSize: 10 }}
+                          height={60}
+                        />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip
+                          contentStyle={{ fontSize: 11, borderRadius: 8 }}
+                          formatter={(val: number) => [`${val.toLocaleString("es-CO")} unds`, ""]}
+                        />
+                        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
+                        <Bar dataKey="pedidos" name="Pedidos" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="despachados" name="Despachados" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="pendientes" name="Pendiente Despacho" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -736,7 +750,10 @@ export function VisorPedidosDespachos({
       {/* 6. Matriz Pivot Jerárquica: Visor de Datos - PEDIDOS VS. DESPACHOS */}
       {(modoVista === "datos" || modoVista === "ambos") && (
         <Card className="overflow-hidden border border-border">
-          <div className="overflow-x-auto">
+          <div className="sm:hidden px-3 py-1.5 bg-muted/40 border-b border-border/60 text-[10.5px] text-muted-foreground flex items-center justify-between font-medium">
+            <span>← Desliza horizontalmente para ver la matriz completa →</span>
+          </div>
+          <div className="overflow-x-auto touch-pan">
             {isLoading ? (
               <div className="py-16 text-center text-sm text-muted-foreground flex flex-col items-center justify-center gap-2">
                 <RefreshCw className="h-6 w-6 animate-spin text-primary" />

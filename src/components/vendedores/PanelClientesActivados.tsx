@@ -281,67 +281,70 @@ export function PanelClientesActivados({
 
         {/* Filtros de la tabla */}
         <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2 flex-1">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1 w-full">
+            <div className="relative w-full sm:flex-1 sm:max-w-sm">
               <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar cliente, NIT o asesor..."
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                className="pl-8 h-8 text-xs rounded-xl"
+                className="pl-8 h-8 text-xs rounded-xl w-full"
               />
             </div>
 
-            {/* Selector de Asesor */}
-            <select
-              value={vendedorFiltroLocal}
-              onChange={(e) => {
-                const val = e.target.value;
-                setVendedorFiltroLocal(val);
-                if (onSelectVendedor) {
-                  onSelectVendedor(val === "todos" ? null : Number(val));
-                }
-              }}
-              className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border/80 text-foreground font-medium focus:outline-hidden"
-            >
-              <option value="todos">Todos los Asesores</option>
-              {(data?.vendedoresLista || vendedoresDisponibles).map((v) => (
-                <option key={v.id} value={String(v.id)}>
-                  {v.nombre}
-                </option>
-              ))}
-            </select>
+            {/* Selectores de Asesor y Cliente */}
+            <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto">
+              {/* Selector de Asesor */}
+              <select
+                value={vendedorFiltroLocal}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setVendedorFiltroLocal(val);
+                  if (onSelectVendedor) {
+                    onSelectVendedor(val === "todos" ? null : Number(val));
+                  }
+                }}
+                className="h-8 px-2 text-xs rounded-xl bg-background border border-border/80 text-foreground font-medium focus:outline-hidden w-full sm:w-auto truncate"
+              >
+                <option value="todos">Todos los Asesores</option>
+                {(data?.vendedoresLista || vendedoresDisponibles).map((v) => (
+                  <option key={v.id} value={String(v.id)}>
+                    {v.nombre}
+                  </option>
+                ))}
+              </select>
 
-            {/* Selector de Cliente / Tercero */}
-            <select
-              value={clienteFiltroLocal}
-              onChange={(e) => {
-                const val = e.target.value;
-                setClienteFiltroLocal(val);
-                if (onSelectTercero) {
-                  onSelectTercero(val === "todos" ? null : Number(val));
-                }
-              }}
-              className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border/80 text-foreground font-medium focus:outline-hidden max-w-[220px] truncate"
-              title="Filtrar por Cliente (Tercero)"
-            >
-              <option value="todos">
-                {clientesDisponibles.length > 0 ? `Todos los Clientes (${clientesDisponibles.length})` : "Todos los Clientes"}
-              </option>
-              {clientesDisponibles.map((c) => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.nombre}
+              {/* Selector de Cliente / Tercero */}
+              <select
+                value={clienteFiltroLocal}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setClienteFiltroLocal(val);
+                  if (onSelectTercero) {
+                    onSelectTercero(val === "todos" ? null : Number(val));
+                  }
+                }}
+                className="h-8 px-2 text-xs rounded-xl bg-background border border-border/80 text-foreground font-medium focus:outline-hidden w-full sm:w-auto max-w-full sm:max-w-[220px] truncate"
+                title="Filtrar por Cliente (Tercero)"
+              >
+                <option value="todos">
+                  {clientesDisponibles.length > 0 ? `Todos los Clientes (${clientesDisponibles.length})` : "Todos los Clientes"}
                 </option>
-              ))}
-            </select>
+                {clientesDisponibles.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Filtros de estado */}
-          <div className="inline-flex rounded-xl border border-border/80 bg-muted/40 p-0.5 text-xs">
+          <div className="inline-flex rounded-xl border border-border/80 bg-muted/40 p-0.5 text-xs overflow-x-auto max-w-full no-scrollbar shrink-0">
             <button
               type="button"
               onClick={() => setFiltroEstado("todos")}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all shrink-0 ${
                 filtroEstado === "todos"
                   ? "bg-background text-foreground font-bold shadow-2xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -352,7 +355,7 @@ export function PanelClientesActivados({
             <button
               type="button"
               onClick={() => setFiltroEstado("Nuevo")}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all shrink-0 ${
                 filtroEstado === "Nuevo"
                   ? "bg-background text-emerald-600 dark:text-emerald-400 font-bold shadow-2xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -363,7 +366,7 @@ export function PanelClientesActivados({
             <button
               type="button"
               onClick={() => setFiltroEstado("Crecimiento")}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all shrink-0 ${
                 filtroEstado === "Crecimiento"
                   ? "bg-background text-blue-600 dark:text-blue-400 font-bold shadow-2xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -374,7 +377,7 @@ export function PanelClientesActivados({
             <button
               type="button"
               onClick={() => setFiltroEstado("Decrecimiento")}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all shrink-0 ${
                 filtroEstado === "Decrecimiento"
                   ? "bg-background text-rose-600 font-bold shadow-2xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -387,7 +390,11 @@ export function PanelClientesActivados({
       </CardHeader>
 
       <CardContent className="p-0">
-        <div className="overflow-x-auto max-h-[500px]">
+        <div className="sm:hidden px-3 py-1.5 bg-muted/40 border-b border-border/60 text-[10.5px] text-muted-foreground flex items-center justify-between font-medium">
+          <span>← Desliza horizontalmente para ver columnas →</span>
+          <span className="font-mono font-bold text-foreground">{clientesFiltrados.length} clientes</span>
+        </div>
+        <div className="overflow-x-auto max-h-[500px] touch-pan">
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur-md border-b text-[11px] font-bold text-foreground">
               <tr>

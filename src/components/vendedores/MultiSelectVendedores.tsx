@@ -126,7 +126,8 @@ export function MultiSelectVendedores({
 
       <PopoverContent
         align="start"
-        className="w-[300px] p-2.5 rounded-2xl border-border/80 shadow-xl bg-popover/98 backdrop-blur-md"
+        collisionPadding={12}
+        className="w-[calc(100vw-32px)] max-w-[320px] p-2.5 rounded-2xl border-border/80 shadow-xl bg-popover/98 backdrop-blur-md"
       >
         <div className="space-y-2">
           {/* Cabecera y Buscador */}

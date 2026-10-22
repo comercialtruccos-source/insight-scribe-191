@@ -171,6 +171,20 @@
   }
 }
 
+/* Mobile touch-scrolling and scrollbar hiding */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.touch-pan {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Custom Glassmorphic and Modern Dashboard Utility Classes */
 .glass-panel {
   background: color-mix(in srgb, var(--card) 88%, transparent);

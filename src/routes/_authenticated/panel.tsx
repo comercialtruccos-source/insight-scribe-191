@@ -131,6 +131,8 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  LogOut,
+  Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vendedores-dialog";
@@ -241,7 +243,7 @@ function TooltipVentaPresupuesto({
   const esCrecimientoPositivo = Number(crecimientoYoY) >= 0;
 
   return (
-    <div className="bg-popover/95 backdrop-blur-md border border-border p-3.5 rounded-xl shadow-xl text-xs space-y-2.5 min-w-[270px] pointer-events-none z-50">
+    <div className="bg-popover/95 backdrop-blur-md border border-border p-3 sm:p-3.5 rounded-xl shadow-xl text-xs space-y-2.5 min-w-[240px] max-w-[calc(100vw-32px)] pointer-events-none z-50">
       {/* Encabezado: Periodo / Mes */}
       <div className="flex items-center justify-between pb-1.5 border-b border-border/60">
         <span className="font-bold text-foreground text-sm flex items-center gap-1.5">
@@ -502,6 +504,7 @@ function Panel() {
   const [ciudadId, setCiudadId] = useState<string>("todos");
   const [terceroId, setTerceroId] = useState<string>("todos");
   const [canalRankingOverride, setCanalRankingOverride] = useState<number | null>(null);
+  const [filtrosMovilAbiertos, setFiltrosMovilAbiertos] = useState<boolean>(false);
 
   // Sub-filtro de canal digital y búsqueda de SKU para Dashboard 3
   const [filtroCanalDigital, setFiltroCanalDigital] = useState<"todos" | "tienda_virtual" | "redes_sociales">("todos");
@@ -794,6 +797,21 @@ function Panel() {
         filtroRefEscalaD6 !== "todas" ||
         Boolean(fechaDesde) ||
         Boolean(fechaHasta);
+
+  const cantidadFiltrosActivos = useMemo(() => {
+    let count = 0;
+    if (tipoRango !== "todo") count++;
+    if (anio !== "todos") count++;
+    if (mes !== "todos") count++;
+    if (canalId !== "todos") count++;
+    if (marcaId !== "todos") count++;
+    if (vendedorId !== "todos" || vendedorIds.length > 0) count++;
+    if (zonaId !== "todos") count++;
+    if (ciudadId !== "todos") count++;
+    if (terceroId !== "todos") count++;
+    if (compararAnioAnterior) count++;
+    return count;
+  }, [tipoRango, anio, mes, canalId, marcaId, vendedorId, vendedorIds, zonaId, ciudadId, terceroId, compararAnioAnterior]);
 
   const limpiarFiltros = () => {
     setTipoRango("todo");
@@ -1638,22 +1656,22 @@ function Panel() {
     <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950/80 font-sans">
       {/* Header Superior con Glassmorphism & Branding Moderno */}
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/80 backdrop-blur-2xl shadow-2xs">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-700 to-purple-800 text-white font-black text-lg shadow-md shadow-indigo-500/20 ring-1 ring-white/20 shrink-0">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-3 py-2.5 sm:px-6 sm:py-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="grid h-9 w-9 sm:h-10 sm:w-10 place-items-center rounded-xl sm:rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-700 to-purple-800 text-white font-black text-base sm:text-lg shadow-md shadow-indigo-500/20 ring-1 ring-white/20 shrink-0">
               T
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <p className="font-display text-lg font-bold tracking-tight text-foreground">Trucco´s Jeans BI</p>
-                <Badge variant="secondary" className="text-[10px] py-0.5 px-2 font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25 rounded-full">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <p className="font-display text-base sm:text-lg font-bold tracking-tight text-foreground truncate max-w-[145px] sm:max-w-none">Trucco´s Jeans BI</p>
+                <Badge variant="secondary" className="text-[9.5px] sm:text-[10px] py-0.2 sm:py-0.5 px-1.5 sm:px-2 font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25 rounded-full">
                   Analytics
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground font-medium">Plataforma Consolidada de Inteligencia Comercial</p>
+              <p className="text-xs text-muted-foreground font-medium hidden sm:block">Plataforma Consolidada de Inteligencia Comercial</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             {rangoTotal?.fechaMin && rangoTotal?.fechaMax && (
               <Badge variant="outline" className="hidden md:inline-flex bg-primary/10 border-primary/20 text-primary font-mono text-xs px-2.5 py-1 rounded-full">
                 <Calendar className="mr-1.5 h-3.5 w-3.5" />
@@ -1663,7 +1681,7 @@ function Panel() {
             {cFetching && (
               <Badge variant="secondary" className="animate-pulse bg-primary/15 border-primary/30 text-primary font-medium text-xs rounded-full">
                 <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                Actualizando...
+                <span className="hidden sm:inline">Actualizando...</span>
               </Badge>
             )}
 
@@ -1673,7 +1691,7 @@ function Panel() {
                 variant="outline"
                 size="sm"
                 onClick={() => setModalPermisosAbierto(true)}
-                className="h-8 text-xs font-semibold rounded-xl border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 gap-1.5 shadow-2xs transition-all"
+                className="h-8 text-xs font-semibold rounded-xl border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 gap-1.5 shadow-2xs transition-all px-2.5 sm:px-3"
               >
                 <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                 <span className="hidden md:inline">Administrar Vendedores</span>
@@ -1690,7 +1708,7 @@ function Panel() {
                   setPermisoVersion((v) => v + 1);
                   toast.info("Vista de administrador restaurada");
                 }}
-                className="h-8 text-xs font-semibold rounded-xl bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 gap-1.5"
+                className="h-8 text-xs font-semibold rounded-xl bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 gap-1.5 px-2 sm:px-3"
                 title="Haga clic para volver a la vista total de administrador"
               >
                 <Eye className="h-3.5 w-3.5 animate-pulse text-amber-600 dark:text-amber-400" />
@@ -1711,22 +1729,389 @@ function Panel() {
               </Badge>
             )}
 
-            <Badge variant="outline" className="hidden sm:inline-flex items-center gap-1.5 bg-card/80 border-border/80 font-mono text-xs px-2.5 py-1 rounded-full shadow-2xs">
+            <Badge variant="outline" className="hidden lg:inline-flex items-center gap-1.5 bg-card/80 border-border/80 font-mono text-xs px-2.5 py-1 rounded-full shadow-2xs">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
               {(resumen?.totalVentas ?? 0).toLocaleString("es-CO")} registros
             </Badge>
-            <Button variant="ghost" size="sm" onClick={salir} className="h-8 text-xs font-medium rounded-xl hover:bg-muted/80">
-              Cerrar sesión
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={salir}
+              className="h-8 px-2 sm:px-3 text-xs font-medium rounded-xl hover:bg-muted/80 flex items-center gap-1.5"
+              title="Cerrar sesión"
+            >
+              <LogOut className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="hidden sm:inline">Cerrar sesión</span>
             </Button>
           </div>
         </div>
 
         {/* Barra de Filtros Globales (Slicers) con Glassmorphism */}
-        <div className="border-t border-border/50 bg-card/50 backdrop-blur-xl px-4 py-2.5 sm:px-6 shadow-2xs">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
+        <div className="border-t border-border/50 bg-card/50 backdrop-blur-xl px-3 py-2 sm:px-6 sm:py-2.5 shadow-2xs">
+          {/* VISTA MÓVIL (sm:hidden): Barra Rápida Compacta + Cajón Desplegable */}
+          <div className="sm:hidden space-y-2">
+            {/* Barra Rápida Superior */}
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant={filtrosMovilAbiertos ? "default" : cantidadFiltrosActivos > 0 ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setFiltrosMovilAbiertos(!filtrosMovilAbiertos)}
+                className="h-8 px-2 text-xs font-bold rounded-xl flex items-center gap-1 shrink-0"
+              >
+                <Filter className="h-3.5 w-3.5" />
+                <span>Filtros</span>
+                {cantidadFiltrosActivos > 0 && (
+                  <span className="px-1.5 py-0.2 bg-primary-foreground text-primary rounded-full text-[10px] font-black">
+                    {cantidadFiltrosActivos}
+                  </span>
+                )}
+                <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", filtrosMovilAbiertos && "rotate-180")} />
+              </Button>
+
+              {(tipoRango === "anio" || tipoRango === "todo") && (
+                <Select
+                  value={anio}
+                  onValueChange={(val) => {
+                    setAnio(val);
+                    if (val !== "todos" && tipoRango !== "anio") {
+                      setTipoRango("anio");
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 flex-1 min-w-[85px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs font-medium">
+                    <SelectValue placeholder="Año" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-border/80 shadow-lg">
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {(catalogos?.anios || []).map((a) => (
+                      <SelectItem key={a} value={String(a)}>
+                        {a}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {(tipoRango === "anio" || anio !== "todos") && (
+                <Select value={mes} onValueChange={setMes}>
+                  <SelectTrigger className="h-8 flex-1 min-w-[85px] text-xs rounded-xl bg-background/90 border-border/80 shadow-2xs font-medium">
+                    <SelectValue placeholder="Mes" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-border/80 shadow-lg">
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {MESES.map((m) => (
+                      <SelectItem key={m.num} value={String(m.num)}>
+                        {m.nombre.slice(0, 3)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                onClick={() => setMentorOpen(true)}
+                className="h-8 px-2 text-xs font-bold rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white shrink-0 shadow-xs"
+                title="Mentor Comercial IA"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={cFetching}
+                onClick={async () => {
+                  toast.info("Actualizando datos...");
+                  await queryClient.invalidateQueries();
+                }}
+                className="h-8 px-2 text-xs rounded-xl border-border/80 shrink-0"
+                title="Refrescar datos"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", cFetching && "animate-spin text-primary")} />
+              </Button>
+            </div>
+
+            {/* Panel Desplegable de Filtros Móviles */}
+            {filtrosMovilAbiertos && (
+              <div className="bg-background/95 border border-border/80 rounded-2xl p-3 shadow-lg space-y-3 animate-in fade-in-50 slide-in-from-top-2 duration-200">
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-primary" /> Filtros Globales
+                  </span>
+                  {hayFiltrosActivos && (
+                    <button
+                      type="button"
+                      onClick={limpiarFiltros}
+                      className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 hover:underline"
+                    >
+                      <FilterX className="h-3 w-3" /> Restablecer
+                    </button>
+                  )}
+                </div>
+
+                {/* Rango Temporal */}
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Periodo Temporal
+                  </span>
+                  <Select
+                    value={tipoRango}
+                    onValueChange={(v) => {
+                      setTipoRango(v);
+                      if (v === "todo") {
+                        setAnio("todos");
+                        setMes("todos");
+                        setFechaDesde("");
+                        setFechaHasta("");
+                      } else if (v === "anio") {
+                        if (anio === "todos" && (catalogos?.anios?.length ?? 0) > 0) {
+                          setAnio(String(catalogos!.anios[0]));
+                        }
+                        setFechaDesde("");
+                        setFechaHasta("");
+                      } else if (v === "personalizado") {
+                        setAnio("todos");
+                        setMes("todos");
+                        if (!fechaDesde && rangoTotal?.fechaMin) {
+                          setFechaDesde(rangoTotal.fechaMin);
+                        }
+                        if (!fechaHasta && rangoTotal?.fechaMax) {
+                          setFechaHasta(rangoTotal.fechaMax);
+                        }
+                      } else {
+                        setAnio("todos");
+                        setMes("todos");
+                        setFechaDesde("");
+                        setFechaHasta("");
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-8.5 w-full text-xs font-medium rounded-xl bg-background border-primary/40 text-foreground">
+                      <SelectValue placeholder="Rango Temporal" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/80 shadow-lg">
+                      <SelectItem value="mesActual">📆 Mes Actual (carga rápida)</SelectItem>
+                      <SelectItem value="todo">🌐 Todo el Histórico Completo</SelectItem>
+                      <SelectItem value="anio">🗓️ Por Año y Mes</SelectItem>
+                      <SelectItem value="personalizado">📅 Rango de Fechas (Desde/Hasta)</SelectItem>
+                      <SelectItem value="ultimos12">⏱️ Últimos 12 Meses</SelectItem>
+                      <SelectItem value="ultimos6">⏱️ Últimos 6 Meses</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {tipoRango === "personalizado" && (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground font-medium">Desde:</span>
+                        <Input
+                          type="date"
+                          value={fechaDesde}
+                          onChange={(e) => setFechaDesde(e.target.value)}
+                          className="h-8 text-xs font-mono rounded-xl"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground font-medium">Hasta:</span>
+                        <Input
+                          type="date"
+                          value={fechaHasta}
+                          onChange={(e) => setFechaHasta(e.target.value)}
+                          className="h-8 text-xs font-mono rounded-xl"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Segmentación Comercial */}
+                <div className="space-y-1.5 pt-1 border-t border-border/50">
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Segmentación Comercial
+                  </span>
+
+                  {tabActivo === "d3" ? (
+                    <div className="space-y-2">
+                      <Select
+                        value={filtroCanalDigital}
+                        onValueChange={(v: "todos" | "tienda_virtual" | "redes_sociales") => setFiltroCanalDigital(v)}
+                      >
+                        <SelectTrigger className="h-8.5 w-full text-xs bg-background rounded-xl border-indigo-500/60 text-indigo-700 dark:text-indigo-300 font-semibold">
+                          <SelectValue placeholder="Canal Digital" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border-border/80 shadow-lg">
+                          <SelectItem value="todos">🌐 Todo el Ecosistema Digital</SelectItem>
+                          <SelectItem value="tienda_virtual">🛒 Tienda Virtual (Shopify / Web)</SelectItem>
+                          <SelectItem value="redes_sociales">📱 Redes Sociales (WhatsApp)</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <Select value={marcaId} onValueChange={setMarcaId}>
+                          <SelectTrigger className="h-8.5 w-full text-xs rounded-xl bg-background border-border/80">
+                            <SelectValue placeholder="Marca" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60 rounded-xl border-border/80 shadow-lg">
+                            <SelectItem value="todos">Todas Marcas</SelectItem>
+                            {marcasDisponibles.map((m) => (
+                              <SelectItem key={m.id} value={String(m.id)}>
+                                {m.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Select value={ciudadId} onValueChange={setCiudadId}>
+                          <SelectTrigger className="h-8.5 w-full text-xs rounded-xl bg-background border-border/80">
+                            <SelectValue placeholder="Ciudad Destino" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60 rounded-xl border-border/80 shadow-lg">
+                            <SelectItem value="todos">Todas Ciudades</SelectItem>
+                            {ciudadesDisponibles.map((c) => (
+                              <SelectItem key={c.id} value={String(c.id)}>
+                                {c.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Select value={canalId} onValueChange={setCanalId} disabled={!esAdmin && canalesDisponibles.length === 1}>
+                          <SelectTrigger className="h-8.5 w-full text-xs rounded-xl bg-background border-border/80">
+                            <SelectValue placeholder="Canal" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60 rounded-xl border-border/80 shadow-lg">
+                            {(esAdmin || canalesDisponibles.length > 1) && (
+                              <SelectItem value="todos">Todos Canales</SelectItem>
+                            )}
+                            {canalesDisponibles.map((c) => (
+                              <SelectItem key={c.id} value={String(c.id)}>
+                                {c.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Select value={marcaId} onValueChange={setMarcaId}>
+                          <SelectTrigger className="h-8.5 w-full text-xs rounded-xl bg-background border-border/80">
+                            <SelectValue placeholder="Marca" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60 rounded-xl border-border/80 shadow-lg">
+                            <SelectItem value="todos">Todas Marcas</SelectItem>
+                            {marcasDisponibles.map((m) => (
+                              <SelectItem key={m.id} value={String(m.id)}>
+                                {m.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <MultiSelectVendedores
+                        vendedores={vendedoresDisponibles}
+                        selectedIds={vendedorIds}
+                        onChange={(ids) => {
+                          setVendedorIds(ids);
+                          if (ids.length === 1) setVendedorId(ids[0]);
+                          else if (ids.length > 1) setVendedorId("multiple");
+                          else setVendedorId("todos");
+                        }}
+                        esAdmin={esAdmin}
+                      />
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <Select value={zonaId} onValueChange={setZonaId}>
+                          <SelectTrigger className="h-8.5 w-full text-xs rounded-xl bg-background border-border/80">
+                            <SelectValue placeholder="Zona" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60 rounded-xl border-border/80 shadow-lg">
+                            <SelectItem value="todos">Todas Zonas</SelectItem>
+                            {zonasDisponibles.map((z) => (
+                              <SelectItem key={z.id} value={String(z.id)}>
+                                {z.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Select value={ciudadId} onValueChange={setCiudadId}>
+                          <SelectTrigger className="h-8.5 w-full text-xs rounded-xl bg-background border-border/80">
+                            <SelectValue placeholder="Ciudad" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60 rounded-xl border-border/80 shadow-lg">
+                            <SelectItem value="todos">Todas Ciudades</SelectItem>
+                            {ciudadesDisponibles.map((c) => (
+                              <SelectItem key={c.id} value={String(c.id)}>
+                                {c.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {catalogos?.terceros && catalogos.terceros.length > 0 && (
+                        <Select value={terceroId} onValueChange={setTerceroId}>
+                          <SelectTrigger className="h-8.5 w-full text-xs rounded-xl bg-background border-border/80">
+                            <SelectValue placeholder="Cliente (Tercero)" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60 rounded-xl border-border/80 shadow-lg">
+                            <SelectItem value="todos">Todos los Clientes ({catalogos.terceros.length})</SelectItem>
+                            {catalogos.terceros.map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)}>
+                                {t.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Comparativas & Acciones */}
+                <div className="space-y-2 pt-1 border-t border-border/50">
+                  <Button
+                    type="button"
+                    variant={compararAnioAnterior ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCompararAnioAnterior((prev) => !prev)}
+                    className={cn(
+                      "w-full h-8.5 text-xs font-bold rounded-xl transition-all",
+                      compararAnioAnterior
+                        ? "bg-gradient-to-r from-amber-600 to-amber-700 text-white border-amber-600"
+                        : "text-amber-800 dark:text-amber-300 border-amber-500/40"
+                    )}
+                  >
+                    <History className="mr-1.5 h-3.5 w-3.5" />
+                    <span>Comparativa Vs. Año Anterior (YoY): {compararAnioAnterior ? "ACTIVA" : "INACTIVA"}</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    onClick={() => setFiltrosMovilAbiertos(false)}
+                    className="w-full h-8.5 text-xs font-bold rounded-xl"
+                  >
+                    Aplicar y Cerrar Filtros
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* VISTA DESKTOP (hidden sm:flex): Barra Horizontal Completa */}
+          <div className="hidden sm:flex mx-auto max-w-7xl flex-wrap items-center gap-2">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1 flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 text-primary" />
               Periodo:
@@ -2193,45 +2578,45 @@ function Panel() {
               </div>
 
               {/* Tabs enfocados para Vendedor (sin Digital, Marketplaces ni Multianual repetitivo) */}
-              <TabsList className={`grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 ${esAdmin ? "lg:grid-cols-7 xl:grid-cols-8" : "lg:grid-cols-6 xl:grid-cols-7"} h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1`}>
+              <TabsList className={`flex w-full overflow-x-auto scrollbar-none snap-x items-center gap-1.5 p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs sm:grid ${esAdmin ? "sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8" : "sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-7"} h-auto`}>
                 <TabsTrigger
                   value="d1"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
                 >
                   <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                   1. Cumplimiento
                 </TabsTrigger>
                 <TabsTrigger
                   value="d2"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
                 >
                   <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                   2. Run Rate
                 </TabsTrigger>
                 <TabsTrigger
                   value="d4"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
                 >
                   <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                   4. Fuerza Ventas
                 </TabsTrigger>
                 <TabsTrigger
                   value="referencias"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
                 >
                   <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
                   6. Referencias
                 </TabsTrigger>
                 <TabsTrigger
                   value="explorador"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                   7. Pedidos vs Despachos
                 </TabsTrigger>
                 <TabsTrigger
                   value="d8"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
                 >
                   <Users className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                   8. Clientes Activados
@@ -2239,7 +2624,7 @@ function Panel() {
                 {esAdmin && (
                   <TabsTrigger
                     value="carga"
-                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200"
+                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
                   >
                     <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
                     Cargar
@@ -2286,45 +2671,45 @@ function Panel() {
               </div>
 
               {/* Tabs enfocados para Región (sin Digital ni Marketplaces) */}
-              <TabsList className={`grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 ${esAdmin ? "lg:grid-cols-7 xl:grid-cols-8" : "lg:grid-cols-6 xl:grid-cols-7"} h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1`}>
+              <TabsList className={`flex w-full overflow-x-auto scrollbar-none snap-x items-center gap-1.5 p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs sm:grid sm:grid-cols-3 md:grid-cols-6 ${esAdmin ? "lg:grid-cols-7 xl:grid-cols-8" : "lg:grid-cols-6 xl:grid-cols-7"} h-auto`}>
                 <TabsTrigger
                   value="d1"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                   1. Cumplimiento
                 </TabsTrigger>
                 <TabsTrigger
                   value="d2"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                   2. Run Rate
                 </TabsTrigger>
                 <TabsTrigger
                   value="d4"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                   4. Fuerza Ventas
                 </TabsTrigger>
                 <TabsTrigger
                   value="referencias"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
                   6. Referencias
                 </TabsTrigger>
                 <TabsTrigger
                   value="explorador"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                   7. Pedidos vs Despachos
                 </TabsTrigger>
                 <TabsTrigger
                   value="d8"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Users className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                   8. Clientes Activados
@@ -2332,7 +2717,7 @@ function Panel() {
                 {esAdmin && (
                   <TabsTrigger
                     value="carga"
-                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200"
+                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200"
                   >
                     <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
                     Cargar
@@ -2341,17 +2726,17 @@ function Panel() {
               </TabsList>
             </div>
           ) : (
-            <TabsList className={`grid w-full grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 xl:grid-cols-9 h-auto p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs gap-1`}>
+            <TabsList className={`flex w-full overflow-x-auto scrollbar-none snap-x items-center gap-1.5 p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs sm:grid sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 xl:grid-cols-9 h-auto`}>
               <TabsTrigger
                 value="d1"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                 1. Cumplimiento
               </TabsTrigger>
               <TabsTrigger
                 value="d2"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                 2. Run Rate
@@ -2359,7 +2744,7 @@ function Panel() {
               {puedeVerDigital && (
                 <TabsTrigger
                   value="d3"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-700 dark:data-[state=active]:text-indigo-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-700 dark:data-[state=active]:text-indigo-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <Globe className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
                   3. Digital
@@ -2367,7 +2752,7 @@ function Panel() {
               )}
               <TabsTrigger
                 value="d4"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                 4. Fuerza Ventas
@@ -2375,7 +2760,7 @@ function Panel() {
               {puedeVerMarketplaces && (
                 <TabsTrigger
                   value="d5"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-pink-500/15 data-[state=active]:text-pink-700 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-pink-500/15 data-[state=active]:text-pink-700 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <ShoppingBag className="h-3.5 w-3.5 text-pink-500 shrink-0" />
                   5. Marketplaces
@@ -2383,21 +2768,21 @@ function Panel() {
               )}
               <TabsTrigger
                 value="referencias"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
                 6. Referencias
               </TabsTrigger>
               <TabsTrigger
                 value="explorador"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
                 7. Pedidos vs Despachos
               </TabsTrigger>
               <TabsTrigger
                 value="d8"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
+                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
               >
                 <Users className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                 8. Clientes Activados
@@ -2405,7 +2790,7 @@ function Panel() {
               {esAdmin && (
                 <TabsTrigger
                   value="carga"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200"
+                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200"
                 >
                   <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
                   Cargar
@@ -2636,10 +3021,14 @@ function Panel() {
                       Sin datos de vendedores para {nombreMesPuntual}
                     </div>
                   ) : (
-                    <div className="h-[340px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart
-                          data={datosGraficaPorVendedorMes}
+                    <div className="w-full overflow-x-auto touch-pan scrollbar-none">
+                      <p className="text-[10px] text-muted-foreground/70 mb-1 sm:hidden">
+                        ← Desliza horizontalmente para ver todos los asesores →
+                      </p>
+                      <div className="h-[340px] min-w-[550px] sm:min-w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart
+                            data={datosGraficaPorVendedorMes}
                           margin={{ top: 15, right: 20, left: 10, bottom: 20 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -2766,14 +3155,19 @@ function Panel() {
                             />
                           </Line>
                         </ComposedChart>
-                      </ResponsiveContainer>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
                   )
                 ) : !d1?.meses || d1.meses.length === 0 ? (
                   <div className="h-[320px] grid place-items-center text-sm text-muted-foreground">Sin datos para el periodo seleccionado</div>
                 ) : (
-                  <div className="h-[340px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="w-full overflow-x-auto touch-pan scrollbar-none">
+                    <p className="text-[10px] text-muted-foreground/70 mb-1 sm:hidden">
+                      ← Desliza horizontalmente para ver los 12 meses →
+                    </p>
+                    <div className="h-[340px] min-w-[500px] sm:min-w-full">
+                      <ResponsiveContainer width="100%" height="100%">
                       {esAdmin ? (
                         <ComposedChart
                           data={d1.meses}
@@ -2868,6 +3262,7 @@ function Panel() {
                       )}
                     </ResponsiveContainer>
                   </div>
+                </div>
                 )}
               </CardContent>
             </Card>
@@ -4476,80 +4871,85 @@ function Panel() {
                 </div>
               </CardHeader>
               <CardContent className="pt-2">
-                <div className="h-[320px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={d2?.dias || []} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                      <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
-                      <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
-                      <Tooltip
-                        content={({ active, payload, label }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload as PuntoDiario;
-                            const vAcum = data.ventaAcumulada || 0;
-                            const pptoAcum = data.pptoAcumulado || 0;
-                            const vAnterior = data.ventaAcumuladaAnterior;
-                            const cumpl = pptoAcum > 0 ? ((vAcum / pptoAcum) * 100).toFixed(2) : "0.00";
-                            const supero = vAcum >= pptoAcum;
+                <div className="w-full overflow-x-auto touch-pan scrollbar-none">
+                  <p className="text-[10px] text-muted-foreground/70 mb-1 sm:hidden">
+                    ← Desliza horizontalmente para ver todos los días del mes →
+                  </p>
+                  <div className="h-[320px] min-w-[550px] sm:min-w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={d2?.dias || []} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
+                        <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
+                        <Tooltip
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload as PuntoDiario;
+                              const vAcum = data.ventaAcumulada || 0;
+                              const pptoAcum = data.pptoAcumulado || 0;
+                              const vAnterior = data.ventaAcumuladaAnterior;
+                              const cumpl = pptoAcum > 0 ? ((vAcum / pptoAcum) * 100).toFixed(2) : "0.00";
+                              const supero = vAcum >= pptoAcum;
 
-                            return (
-                              <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1.5 min-w-[210px] z-50">
-                                <div className="flex items-center justify-between border-b pb-1">
-                                  <span className="font-bold text-foreground text-sm font-mono">{label || data.fecha}</span>
-                                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold border ${
-                                    Number(cumpl) >= 100
-                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                      : Number(cumpl) >= 80
-                                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                                      : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                                  }`}>
-                                    {cumpl}% Avance
-                                  </span>
-                                </div>
-                                <div className="space-y-1 pt-0.5">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="text-blue-600 dark:text-blue-400 font-medium">Venta Acumulada:</span>
-                                    <span className="font-bold text-foreground font-mono">{formatoCOPFull(vAcum)}</span>
-                                  </div>
-                                  {compararAnioAnterior && vAnterior !== undefined && (
-                                    <div className="flex items-center justify-between gap-3">
-                                      <span className="text-amber-600 dark:text-amber-400 font-medium">Venta Año Anterior:</span>
-                                      <span className="font-bold text-foreground font-mono">{formatoCOPFull(vAnterior)}</span>
-                                    </div>
-                                  )}
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="text-slate-500 font-medium">Meta Acumulada:</span>
-                                    <span className="font-medium text-muted-foreground font-mono">{formatoCOPFull(pptoAcum)}</span>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
-                                    <span className="text-muted-foreground text-[11px]">Brecha Acumulada:</span>
-                                    <span className={`font-mono font-semibold text-[11px] ${supero ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                                      {supero ? "+" : ""}{formatoCOPFull(vAcum - pptoAcum)}
+                              return (
+                                <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1.5 min-w-[210px] z-50">
+                                  <div className="flex items-center justify-between border-b pb-1">
+                                    <span className="font-bold text-foreground text-sm font-mono">{label || data.fecha}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold border ${
+                                      Number(cumpl) >= 100
+                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                        : Number(cumpl) >= 80
+                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                        : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                    }`}>
+                                      {cumpl}% Avance
                                     </span>
                                   </div>
+                                  <div className="space-y-1 pt-0.5">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-blue-600 dark:text-blue-400 font-medium">Venta Acumulada:</span>
+                                      <span className="font-bold text-foreground font-mono">{formatoCOPFull(vAcum)}</span>
+                                    </div>
+                                    {compararAnioAnterior && vAnterior !== undefined && (
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="text-amber-600 dark:text-amber-400 font-medium">Venta Año Anterior:</span>
+                                        <span className="font-bold text-foreground font-mono">{formatoCOPFull(vAnterior)}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-slate-500 font-medium">Meta Acumulada:</span>
+                                      <span className="font-medium text-muted-foreground font-mono">{formatoCOPFull(pptoAcum)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
+                                      <span className="text-muted-foreground text-[11px]">Brecha Acumulada:</span>
+                                      <span className={`font-mono font-semibold text-[11px] ${supero ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                        {supero ? "+" : ""}{formatoCOPFull(vAcum - pptoAcum)}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            );
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Legend
+                          formatter={(v) =>
+                            v === "ventaAcumulada"
+                              ? "Facturación Real Acumulada"
+                              : v === "ventaAcumuladaAnterior"
+                              ? "Venta Acumulada Año Anterior"
+                              : "Meta Presupuesto Acumulada"
                           }
-                          return null;
-                        }}
-                      />
-                      <Legend
-                        formatter={(v) =>
-                          v === "ventaAcumulada"
-                            ? "Facturación Real Acumulada"
-                            : v === "ventaAcumuladaAnterior"
-                            ? "Venta Acumulada Año Anterior"
-                            : "Meta Presupuesto Acumulada"
-                        }
-                      />
-                      <Line type="monotone" dataKey="ventaAcumulada" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} />
-                      {compararAnioAnterior && (
-                        <Line type="monotone" dataKey="ventaAcumuladaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 2.5, fill: "#f59e0b" }} />
-                      )}
-                      <Line type="monotone" dataKey="pptoAcumulado" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
+                        />
+                        <Line type="monotone" dataKey="ventaAcumulada" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} />
+                        {compararAnioAnterior && (
+                          <Line type="monotone" dataKey="ventaAcumuladaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 2.5, fill: "#f59e0b" }} />
+                        )}
+                        <Line type="monotone" dataKey="pptoAcumulado" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -4571,68 +4971,73 @@ function Panel() {
                 </div>
               </CardHeader>
               <CardContent className="pt-2">
-                <div className="h-[280px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={d2?.dias || []} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                      <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
-                      <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
-                      <Tooltip
-                        content={({ active, payload, label }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload as PuntoDiario;
-                            const vReal = data.ventaReal || 0;
-                            const meta = data.metaDiaria || 0;
-                            const cumpl = meta > 0 ? ((vReal / meta) * 100).toFixed(2) : "0.00";
-                            const superoMeta = vReal >= meta;
+                <div className="w-full overflow-x-auto touch-pan scrollbar-none">
+                  <p className="text-[10px] text-muted-foreground/70 mb-1 sm:hidden">
+                    ← Desliza horizontalmente para ver todos los días del mes →
+                  </p>
+                  <div className="h-[280px] min-w-[550px] sm:min-w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={d2?.dias || []} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis dataKey="fecha" tick={{ fontSize: 11 }} />
+                        <YAxis tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
+                        <Tooltip
+                          content={({ active, payload, label }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload as PuntoDiario;
+                              const vReal = data.ventaReal || 0;
+                              const meta = data.metaDiaria || 0;
+                              const cumpl = meta > 0 ? ((vReal / meta) * 100).toFixed(2) : "0.00";
+                              const superoMeta = vReal >= meta;
 
-                            return (
-                              <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1.5 min-w-[210px] z-50">
-                                <div className="flex items-center justify-between border-b pb-1">
-                                  <span className="font-bold text-foreground text-sm font-mono">{label || data.fecha}</span>
-                                  <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold border ${
-                                    Number(cumpl) >= 100
-                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                      : Number(cumpl) >= 80
-                                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                                      : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                                  }`}>
-                                    {cumpl}% Cumpl.
-                                  </span>
+                              return (
+                                <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1.5 min-w-[210px] z-50">
+                                  <div className="flex items-center justify-between border-b pb-1">
+                                    <span className="font-bold text-foreground text-sm font-mono">{label || data.fecha}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[11px] font-bold border ${
+                                      Number(cumpl) >= 100
+                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                        : Number(cumpl) >= 80
+                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                        : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                    }`}>
+                                      {cumpl}% Cumpl.
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1 pt-0.5">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                                        Venta Diaria Real:
+                                      </span>
+                                      <span className="font-bold text-foreground font-mono">{formatoCOPFull(vReal)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                                        Meta Diaria:
+                                      </span>
+                                      <span className="font-medium text-muted-foreground font-mono">{formatoCOPFull(meta)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
+                                      <span className="text-muted-foreground text-[11px]">Diferencia (Gap):</span>
+                                      <span className={`font-mono font-semibold text-[11px] ${superoMeta ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                        {superoMeta ? "+" : ""}{formatoCOPFull(vReal - meta)}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="space-y-1 pt-0.5">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
-                                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                                      Venta Diaria Real:
-                                    </span>
-                                    <span className="font-bold text-foreground font-mono">{formatoCOPFull(vReal)}</span>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1.5">
-                                      <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
-                                      Meta Diaria:
-                                    </span>
-                                    <span className="font-medium text-muted-foreground font-mono">{formatoCOPFull(meta)}</span>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
-                                    <span className="text-muted-foreground text-[11px]">Diferencia (Gap):</span>
-                                    <span className={`font-mono font-semibold text-[11px] ${superoMeta ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                                      {superoMeta ? "+" : ""}{formatoCOPFull(vReal - meta)}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <Legend formatter={(v) => (v === "ventaReal" ? "Venta Diaria Real" : "Meta Diaria")} />
-                      <Bar dataKey="ventaReal" name="ventaReal" fill="#10b981" radius={[4, 4, 0, 0]} />
-                      <Line type="monotone" dataKey="metaDiaria" name="metaDiaria" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 2 }} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Legend formatter={(v) => (v === "ventaReal" ? "Venta Diaria Real" : "Meta Diaria")} />
+                        <Bar dataKey="ventaReal" name="ventaReal" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        <Line type="monotone" dataKey="metaDiaria" name="metaDiaria" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 2 }} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -5295,50 +5700,52 @@ function Panel() {
                       Sin datos de asesores en {rankingCanal.canalNombre} para el periodo seleccionado
                     </div>
                   ) : (
-                    <div className="h-[280px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={rankingCanal.asesores.slice(0, 10)}
-                          layout="vertical"
-                          margin={{ left: 30, right: 20 }}
-                          onClick={(e) => {
-                            if (e && e.activePayload && e.activePayload[0]) {
-                              const aItem = e.activePayload[0].payload as AsesorRankingCanal;
-                              if (aItem.vendedorIds && aItem.vendedorIds.length > 0) {
-                                const primaryId = String(aItem.vendedorIds[0]);
-                                if (vendedorId === primaryId || (vendedorIds.length === 1 && vendedorIds[0] === primaryId)) {
-                                  setVendedorId("todos");
-                                  setVendedorIds([]);
-                                } else {
-                                  setVendedorId(primaryId);
-                                  setVendedorIds(aItem.vendedorIds.map(String));
+                    <div className="w-full overflow-x-auto touch-pan scrollbar-none">
+                      <div className="h-[280px] min-w-[420px] sm:min-w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={rankingCanal.asesores.slice(0, 10)}
+                            layout="vertical"
+                            margin={{ left: 30, right: 20 }}
+                            onClick={(e) => {
+                              if (e && e.activePayload && e.activePayload[0]) {
+                                const aItem = e.activePayload[0].payload as AsesorRankingCanal;
+                                if (aItem.vendedorIds && aItem.vendedorIds.length > 0) {
+                                  const primaryId = String(aItem.vendedorIds[0]);
+                                  if (vendedorId === primaryId || (vendedorIds.length === 1 && vendedorIds[0] === primaryId)) {
+                                    setVendedorId("todos");
+                                    setVendedorIds([]);
+                                  } else {
+                                    setVendedorId(primaryId);
+                                    setVendedorIds(aItem.vendedorIds.map(String));
+                                  }
                                 }
                               }
-                            }
-                          }}
-                        >
-                          <XAxis
-                            type="number"
-                            tickFormatter={(v) => `${Number(v).toLocaleString("es-CO")} unds`}
-                            tick={{ fontSize: 11 }}
-                          />
-                          <YAxis dataKey="vendedor" type="category" width={115} tick={{ fontSize: 11 }} />
-                          <Tooltip
-                            formatter={(v: number) => [
-                              `${Number(v).toLocaleString("es-CO")} prendas`,
-                              "Prendas Vendidas",
-                            ]}
-                          />
-                          <Bar dataKey="unidades" radius={[0, 6, 6, 0]} className="cursor-pointer">
-                            {rankingCanal.asesores.slice(0, 10).map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={entry.isFocused ? "#f59e0b" : "#4f46e5"}
-                              />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                            }}
+                          >
+                            <XAxis
+                              type="number"
+                              tickFormatter={(v) => `${Number(v).toLocaleString("es-CO")} unds`}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <YAxis dataKey="vendedor" type="category" width={115} tick={{ fontSize: 11 }} />
+                            <Tooltip
+                              formatter={(v: number) => [
+                                `${Number(v).toLocaleString("es-CO")} prendas`,
+                                "Prendas Vendidas",
+                              ]}
+                            />
+                            <Bar dataKey="unidades" radius={[0, 6, 6, 0]} className="cursor-pointer">
+                              {rankingCanal.asesores.slice(0, 10).map((entry, index) => (
+                                <Cell
+                                  key={`cell-${index}`}
+                                  fill={entry.isFocused ? "#f59e0b" : "#4f46e5"}
+                                />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -5361,42 +5768,47 @@ function Panel() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[280px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={d4?.evolucionMensualEquipo || []} margin={{ left: 10, right: 10 }}>
-                        <XAxis dataKey="mesNombre" tick={{ fontSize: 11 }} />
-                        <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} width={70} />
-                        <YAxis
-                          yAxisId="right"
-                          orientation="right"
-                          allowDecimals={false}
-                          tickFormatter={(v) => Math.round(v).toLocaleString("es-CO")}
-                          tick={{ fontSize: 11 }}
-                          width={55}
-                        />
-                        <Tooltip
-                          formatter={(v: number, name: string) => [
-                            name === "venta" || name === "ventaAnterior" ? formatoCOPFull(v) : `${Math.round(v).toLocaleString("es-CO")} unds`,
-                            name === "venta" ? "Facturación ($)" : name === "ventaAnterior" ? "Facturación Año Anterior ($)" : "Prendas (Unds)",
-                          ]}
-                        />
-                        <Legend
-                          formatter={(v) =>
-                            v === "venta"
-                              ? "Facturación ($)"
-                              : v === "ventaAnterior"
-                              ? "Facturación Año Anterior ($)"
-                              : "Prendas (Unds)"
-                          }
-                          wrapperStyle={{ fontSize: "11px" }}
-                        />
-                        <Bar yAxisId="left" dataKey="venta" name="venta" fill="#4f46e5" radius={[6, 6, 0, 0]} />
-                        {compararAnioAnterior && (
-                          <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" name="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3, fill: "#f59e0b" }} />
-                        )}
-                        <Line yAxisId="right" type="monotone" dataKey="unidades" name="unidades" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
-                      </ComposedChart>
-                    </ResponsiveContainer>
+                  <div className="w-full overflow-x-auto touch-pan scrollbar-none">
+                    <p className="text-[10px] text-muted-foreground/70 mb-1 sm:hidden">
+                      ← Desliza horizontalmente para ver los meses →
+                    </p>
+                    <div className="h-[280px] min-w-[500px] sm:min-w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={d4?.evolucionMensualEquipo || []} margin={{ left: 10, right: 10 }}>
+                          <XAxis dataKey="mesNombre" tick={{ fontSize: 11 }} />
+                          <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 11 }} width={70} />
+                          <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            allowDecimals={false}
+                            tickFormatter={(v) => Math.round(v).toLocaleString("es-CO")}
+                            tick={{ fontSize: 11 }}
+                            width={55}
+                          />
+                          <Tooltip
+                            formatter={(v: number, name: string) => [
+                              name === "venta" || name === "ventaAnterior" ? formatoCOPFull(v) : `${Math.round(v).toLocaleString("es-CO")} unds`,
+                              name === "venta" ? "Facturación ($)" : name === "ventaAnterior" ? "Facturación Año Anterior ($)" : "Prendas (Unds)",
+                            ]}
+                          />
+                          <Legend
+                            formatter={(v) =>
+                              v === "venta"
+                                ? "Facturación ($)"
+                                : v === "ventaAnterior"
+                                ? "Facturación Año Anterior ($)"
+                                : "Prendas (Unds)"
+                            }
+                            wrapperStyle={{ fontSize: "11px" }}
+                          />
+                          <Bar yAxisId="left" dataKey="venta" name="venta" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                          {compararAnioAnterior && (
+                            <Line yAxisId="left" type="monotone" dataKey="ventaAnterior" name="ventaAnterior" stroke="#f59e0b" strokeWidth={2.5} strokeDasharray="4 4" dot={{ r: 3, fill: "#f59e0b" }} />
+                          )}
+                          <Line yAxisId="right" type="monotone" dataKey="unidades" name="unidades" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -5878,65 +6290,67 @@ function Panel() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[380px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        layout="vertical"
-                        data={d6?.top15PorValor || []}
-                        margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.3} />
-                        <XAxis
-                          type="number"
-                          tickFormatter={(v) => formatoCOP(v)}
-                          tick={{ fontSize: 11 }}
-                        />
-                        <YAxis
-                          type="category"
-                          dataKey="sku"
-                          tick={{ fontSize: 11, fontWeight: 500 }}
-                          width={75}
-                        />
-                        <Tooltip
-                          content={({ active, payload }) => {
-                            if (active && payload && payload.length) {
-                              const data = payload[0].payload as ItemReferenciaAnalisis;
-                              return (
-                                <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1 z-50">
-                                  <p className="font-bold text-foreground text-sm font-mono">{data.sku}</p>
-                                  <p className="text-muted-foreground font-medium">{data.producto}</p>
-                                  <div className="h-px bg-border my-1.5" />
-                                  <p className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                                    Venta Neta: {formatoCOPFull(data.ventaNeta)}
-                                  </p>
-                                  <p className="text-muted-foreground">
-                                    Unidades: <span className="font-semibold text-foreground">{data.unidades.toLocaleString("es-CO")}</span>
-                                  </p>
-                                  <p className="text-muted-foreground">
-                                    Precio Promedio: <span className="font-semibold text-foreground">{formatoCOPFull(data.precioPromedio)}</span>
-                                  </p>
-                                  <p className="text-muted-foreground">
-                                    Línea: <span className="font-semibold text-foreground">{data.linea}</span>
-                                  </p>
-                                  <p className="text-muted-foreground">
-                                    Participación: <span className="font-semibold text-foreground">{Number(data.porcentajeVenta).toFixed(2)}%</span> • Clase <span className="font-bold text-primary">{data.clasificacionABC}</span>
-                                  </p>
-                                </div>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                        <Bar dataKey="ventaNeta" fill="#0284c7" radius={[0, 4, 4, 0]}>
-                          {(d6?.top15PorValor || []).map((_, index) => (
-                            <Cell
-                              key={`cell-val-${index}`}
-                              fill={index === 0 ? "#059669" : index < 3 ? "#0284c7" : "#3b82f6"}
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <div className="w-full overflow-x-auto touch-pan scrollbar-none">
+                    <div className="h-[380px] min-w-[380px] sm:min-w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          layout="vertical"
+                          data={d6?.top15PorValor || []}
+                          margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.3} />
+                          <XAxis
+                            type="number"
+                            tickFormatter={(v) => formatoCOP(v)}
+                            tick={{ fontSize: 11 }}
+                          />
+                          <YAxis
+                            type="category"
+                            dataKey="sku"
+                            tick={{ fontSize: 11, fontWeight: 500 }}
+                            width={75}
+                          />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload as ItemReferenciaAnalisis;
+                                return (
+                                  <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1 z-50">
+                                    <p className="font-bold text-foreground text-sm font-mono">{data.sku}</p>
+                                    <p className="text-muted-foreground font-medium">{data.producto}</p>
+                                    <div className="h-px bg-border my-1.5" />
+                                    <p className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                      Venta Neta: {formatoCOPFull(data.ventaNeta)}
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                      Unidades: <span className="font-semibold text-foreground">{data.unidades.toLocaleString("es-CO")}</span>
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                      Precio Promedio: <span className="font-semibold text-foreground">{formatoCOPFull(data.precioPromedio)}</span>
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                      Línea: <span className="font-semibold text-foreground">{data.linea}</span>
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                      Participación: <span className="font-semibold text-foreground">{Number(data.porcentajeVenta).toFixed(2)}%</span> • Clase <span className="font-bold text-primary">{data.clasificacionABC}</span>
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="ventaNeta" fill="#0284c7" radius={[0, 4, 4, 0]}>
+                            {(d6?.top15PorValor || []).map((_, index) => (
+                              <Cell
+                                key={`cell-val-${index}`}
+                                fill={index === 0 ? "#059669" : index < 3 ? "#0284c7" : "#3b82f6"}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -5963,63 +6377,65 @@ function Panel() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[380px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        layout="vertical"
-                        data={d6?.top15PorVolumen || []}
-                        margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.3} />
-                        <XAxis
-                          type="number"
-                          allowDecimals={false}
-                          tickFormatter={(v) => `${Math.round(v).toLocaleString("es-CO")} u`}
-                          tick={{ fontSize: 11 }}
-                        />
-                        <YAxis
-                          type="category"
-                          dataKey="sku"
-                          tick={{ fontSize: 11, fontWeight: 500 }}
-                          width={75}
-                        />
-                        <Tooltip
-                          content={({ active, payload }) => {
-                            if (active && payload && payload.length) {
-                              const data = payload[0].payload as ItemReferenciaAnalisis;
-                              return (
-                                <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1 z-50">
-                                  <p className="font-bold text-foreground text-sm font-mono">{data.sku}</p>
-                                  <p className="text-muted-foreground font-medium">{data.producto}</p>
-                                  <div className="h-px bg-border my-1.5" />
-                                  <p className="text-blue-600 dark:text-blue-400 font-semibold">
-                                    Unidades Vendidas: {Math.round(data.unidades).toLocaleString("es-CO")} unds
-                                  </p>
-                                  <p className="text-muted-foreground">
-                                    Facturación: <span className="font-semibold text-foreground">{formatoCOPFull(data.ventaNeta)}</span>
-                                  </p>
-                                  <p className="text-muted-foreground">
-                                    Precio Promedio: <span className="font-semibold text-foreground">{formatoCOPFull(data.precioPromedio)}</span>
-                                  </p>
-                                  <p className="text-muted-foreground">
-                                    Línea: <span className="font-semibold text-foreground">{data.linea}</span>
-                                  </p>
-                                </div>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                        <Bar dataKey="unidades" fill="#0d9488" radius={[0, 4, 4, 0]}>
-                          {(d6?.top15PorVolumen || []).map((_, index) => (
-                            <Cell
-                              key={`cell-vol-${index}`}
-                              fill={index === 0 ? "#0d9488" : index < 3 ? "#14b8a6" : "#2dd4bf"}
-                            />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <div className="w-full overflow-x-auto touch-pan scrollbar-none">
+                    <div className="h-[380px] min-w-[380px] sm:min-w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          layout="vertical"
+                          data={d6?.top15PorVolumen || []}
+                          margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.3} />
+                          <XAxis
+                            type="number"
+                            allowDecimals={false}
+                            tickFormatter={(v) => `${Math.round(v).toLocaleString("es-CO")} u`}
+                            tick={{ fontSize: 11 }}
+                          />
+                          <YAxis
+                            type="category"
+                            dataKey="sku"
+                            tick={{ fontSize: 11, fontWeight: 500 }}
+                            width={75}
+                          />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload as ItemReferenciaAnalisis;
+                                return (
+                                  <div className="rounded-lg border bg-popover p-3 shadow-md text-xs space-y-1 z-50">
+                                    <p className="font-bold text-foreground text-sm font-mono">{data.sku}</p>
+                                    <p className="text-muted-foreground font-medium">{data.producto}</p>
+                                    <div className="h-px bg-border my-1.5" />
+                                    <p className="text-blue-600 dark:text-blue-400 font-semibold">
+                                      Unidades Vendidas: {Math.round(data.unidades).toLocaleString("es-CO")} unds
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                      Facturación: <span className="font-semibold text-foreground">{formatoCOPFull(data.ventaNeta)}</span>
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                      Precio Promedio: <span className="font-semibold text-foreground">{formatoCOPFull(data.precioPromedio)}</span>
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                      Línea: <span className="font-semibold text-foreground">{data.linea}</span>
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="unidades" fill="#0d9488" radius={[0, 4, 4, 0]}>
+                            {(d6?.top15PorVolumen || []).map((_, index) => (
+                              <Cell
+                                key={`cell-vol-${index}`}
+                                fill={index === 0 ? "#0d9488" : index < 3 ? "#14b8a6" : "#2dd4bf"}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -7176,10 +7592,10 @@ function InfoGrafica({
 
 function getKpiValueFontSize(val: string) {
   const len = val.length;
-  if (len >= 15) return "text-sm sm:text-base xl:text-[14px] 2xl:text-base";
-  if (len >= 12) return "text-base sm:text-lg xl:text-[15px] 2xl:text-lg";
-  if (len >= 9) return "text-lg sm:text-xl xl:text-lg 2xl:text-xl";
-  return "text-xl sm:text-2xl xl:text-xl 2xl:text-2xl";
+  if (len >= 18) return "text-xs sm:text-sm md:text-base xl:text-xs 2xl:text-sm";
+  if (len >= 14) return "text-sm sm:text-base md:text-lg xl:text-[14px] 2xl:text-base";
+  if (len >= 10) return "text-base sm:text-lg md:text-xl xl:text-base 2xl:text-lg";
+  return "text-lg sm:text-xl md:text-2xl xl:text-lg 2xl:text-xl";
 }
 
 function CardKpi({
@@ -7207,7 +7623,7 @@ function CardKpi({
     <Card className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/95 backdrop-blur-md shadow-2xs hover:shadow-lg hover:border-primary/40 transition-all duration-300 glass-card-hover h-full flex flex-col justify-between">
       {/* Top accent glowing gradient beam on hover */}
       <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      <CardContent className="p-3.5 sm:p-4 flex flex-col justify-between h-full space-y-2 flex-1">
+      <CardContent className="p-3 sm:p-4 flex flex-col justify-between h-full space-y-1.5 sm:space-y-2 flex-1">
         <div>
           {/* Header Zone: Min height locked for 100% vertical alignment */}
           <div className="flex items-start justify-between gap-1.5 sm:gap-2 min-h-[2.4rem]">
@@ -7218,7 +7634,7 @@ function CardKpi({
               {titulo}
             </p>
             {icono && (
-              <div className="grid h-7.5 w-7.5 sm:h-8 sm:w-8 place-items-center rounded-xl bg-muted/60 text-muted-foreground group-hover:bg-primary/15 group-hover:text-primary group-hover:scale-105 transition-all duration-200 shrink-0 shadow-2xs [&>svg]:h-4 [&>svg]:w-4 sm:[&>svg]:h-4.5 sm:[&>svg]:w-4.5">
+              <div className="grid h-7 w-7 sm:h-8 sm:w-8 place-items-center rounded-xl bg-muted/60 text-muted-foreground group-hover:bg-primary/15 group-hover:text-primary group-hover:scale-105 transition-all duration-200 shrink-0 shadow-2xs [&>svg]:h-3.5 [&>svg]:w-3.5 sm:[&>svg]:h-4.5 sm:[&>svg]:w-4.5">
                 {icono}
               </div>
             )}
@@ -7228,7 +7644,7 @@ function CardKpi({
           <div className="mt-1 min-h-[2.1rem] flex items-baseline">
             <p
               className={cn(
-                "font-extrabold font-display tracking-tight text-foreground tabular-nums leading-tight whitespace-nowrap",
+                "font-extrabold font-display tracking-tight text-foreground tabular-nums leading-tight truncate max-w-full block",
                 getKpiValueFontSize(cargando ? "—" : valor)
               )}
               title={cargando ? undefined : valor}
