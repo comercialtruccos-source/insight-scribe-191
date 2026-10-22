@@ -505,6 +505,8 @@ function Panel() {
   const [terceroId, setTerceroId] = useState<string>("todos");
   const [canalRankingOverride, setCanalRankingOverride] = useState<number | null>(null);
   const [filtrosMovilAbiertos, setFiltrosMovilAbiertos] = useState<boolean>(false);
+  // Modo Comparativa vs Año Anterior (YoY) - Superposición visual configurable para Admin
+  const [compararAnioAnterior, setCompararAnioAnterior] = useState<boolean>(false);
 
   // Sub-filtro de canal digital y búsqueda de SKU para Dashboard 3
   const [filtroCanalDigital, setFiltroCanalDigital] = useState<"todos" | "tienda_virtual" | "redes_sociales">("todos");
@@ -829,10 +831,10 @@ function Panel() {
     setFiltroCanalDigital("todos");
     setBusquedaSkuD3("");
     setFiltroRefEscalaD6("todas");
+    setCompararAnioAnterior(false);
   };
 
   // Modo Comparativa vs Año Anterior (YoY) - Superposición visual configurable para Admin, carga continua para métricas YoY
-  const [compararAnioAnterior, setCompararAnioAnterior] = useState<boolean>(false);
   const habilitarYoY = true;
 
   const filtrosYoY = useMemo(() => {
