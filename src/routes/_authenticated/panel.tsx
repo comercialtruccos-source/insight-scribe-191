@@ -88,6 +88,7 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
+  BookOpen,
   Package,
   Users,
   Percent,
@@ -491,8 +492,25 @@ function Panel() {
   const [fechaDesde, setFechaDesde] = useState<string>("");
   const [fechaHasta, setFechaHasta] = useState<string>("");
 
-  // Control de Tab Activo (Por defecto "1. Cumplimiento")
-  const [tabActivo, setTabActivo] = useState<string>("d1");
+  // Control de Tab Activo (Por defecto "1. Cumplimiento" o según query param ?tab=...)
+  const [tabActivo, setTabActivo] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam) return tabParam;
+    }
+    return "d1";
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam && tabParam !== tabActivo) {
+        setTabActivo(tabParam);
+      }
+    }
+  }, []);
 
   // Filtros globales
   const [anio, setAnio] = useState<string>("todos");
@@ -1751,6 +1769,19 @@ function Panel() {
               </span>
               {(resumen?.totalVentas ?? 0).toLocaleString("es-CO")} registros
             </Badge>
+            {/* Botón Manual y Guía de Usuario */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate({ to: "/documentacion" })}
+              className="h-8 px-2.5 sm:px-3 text-xs font-semibold rounded-xl border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10 gap-1.5 shadow-2xs transition-all bg-indigo-500/5 hover:border-indigo-500/50"
+              title="Centro de documentación, manual de usuario y guía de métricas"
+            >
+              <BookOpen className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <span className="hidden md:inline">Manual y Guía</span>
+              <span className="md:hidden">Guía</span>
+            </Button>
+
             <Button
               variant="ghost"
               size="sm"
