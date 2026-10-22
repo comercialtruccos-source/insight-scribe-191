@@ -8,13 +8,27 @@ export type ReferenciaMaestroItem = {
   pvp: number;
 };
 
-export type ResumenCorreriaItem = {
+/**
+ * Representa un ciclo temporal específico de correría (ej. C1 2025, C2 2025, C5 2026),
+ * delimitado por su año y su rango de fechas reales de ejecución.
+ */
+export type CicloCorreriaItem = {
+  cicloKey: string; // ej. "1___2025"
   correriaId: number | string;
-  nombre: string;
+  nombreCorreria: string; // "C1", "C2", etc.
+  anio: number; // 2025, 2026
+  etiqueta: string; // "C1 (2025)"
+  fechaInicio: string; // "2025-01-16"
+  fechaFin: string; // "2025-03-24"
+  rangoFechasTexto: string; // "16 Ene - 24 Mar 2025"
+  duracionDias: number;
   facturacion: number;
   unidades: number;
   referenciasCount: number;
   ticketPromedio: number;
+  pvmPromedio: number;
+  pvpPromedio: number;
+  markupPromedio: number;
   participacionPct: number;
 };
 
@@ -22,6 +36,8 @@ export type FilaTrazabilidadReferencia = {
   ref: string;
   nombre: string;
   prenda: string;
+  ciclosNombres: string[];
+  cicloKeys: string[];
   correriasNombres: string[];
   correriaIds: number[];
   unidades: number;
@@ -54,6 +70,20 @@ export type ReferenciaSinVenta = {
   markup: number;
 };
 
+export type ComparativaYoYCorreria = {
+  nombreCorreria: string;
+  anioActual: number;
+  anioAnterior: number;
+  facturacionActual: number;
+  facturacionAnterior: number;
+  unidadesActual: number;
+  unidadesAnterior: number;
+  crecimientoVentaPct: number;
+  crecimientoUndsPct: number;
+  fechasActual: string;
+  fechasAnterior: string;
+};
+
 export type DataDashboardCorrerias = {
   kpis: {
     facturacionTotal: number;
@@ -66,11 +96,20 @@ export type DataDashboardCorrerias = {
     markupPonderado: number;
     coberturaCatalogoPct: number;
   };
-  resumenPorCorreria: ResumenCorreriaItem[];
+  ciclosDisponibles: CicloCorreriaItem[];
+  ciclosFiltrados: CicloCorreriaItem[];
+  comparativaYoY: ComparativaYoYCorreria[];
   rankingReferencias: FilaTrazabilidadReferencia[];
   resumenPorPrenda: PrendaResumen[];
   referenciasSinVentaEnCorreria: ReferenciaSinVenta[];
   prendasDisponibles: string[];
+  aniosDisponibles: number[];
+  rangoFechasActivo: {
+    fechaMin: string;
+    fechaMax: string;
+    texto: string;
+    diasActivos: number;
+  };
 };
 
 /**
@@ -84,6 +123,45 @@ export function normalizarClaveRef(txt: string): string {
     .replace(/[^A-Z0-9]/g, "");
 }
 
+const NOMBRES_MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+function formatearFechaCorta(fechaStr: string): string {
+  if (!fechaStr) return "";
+  const parts = fechaStr.slice(0, 10).split("-");
+  if (parts.length < 3) return fechaStr;
+  const dia = parseInt(parts[2], 10);
+  const mes = NOMBRES_MESES_CORTOS[parseInt(parts[1], 10) - 1] || parts[1];
+  const anio = parts[0];
+  return `${dia} ${mes} ${anio}`;
+}
+
+export function formatearRangoFechasTexto(fMin: string, fMax: string, anioDefault?: number): string {
+  if (!fMin && !fMax) return anioDefault ? `Año ${anioDefault}` : "Sin rango";
+  if (!fMin) return formatearFechaCorta(fMax);
+  if (!fMax) return formatearFechaCorta(fMin);
+  if (fMin === fMax) return formatearFechaCorta(fMin);
+
+  const p1 = fMin.slice(0, 10).split("-");
+  const p2 = fMax.slice(0, 10).split("-");
+  if (p1.length < 3 || p2.length < 3) return `${fMin} - ${fMax}`;
+
+  const d1 = parseInt(p1[2], 10);
+  const m1 = NOMBRES_MESES_CORTOS[parseInt(p1[1], 10) - 1] || p1[1];
+  const a1 = p1[0];
+
+  const d2 = parseInt(p2[2], 10);
+  const m2 = NOMBRES_MESES_CORTOS[parseInt(p2[1], 10) - 1] || p2[1];
+  const a2 = p2[0];
+
+  if (a1 === a2) {
+    if (m1 === m2) {
+      return `${d1} - ${d2} ${m1} ${a1}`;
+    }
+    return `${d1} ${m1} - ${d2} ${m2} ${a1}`;
+  }
+  return `${d1} ${m1} ${a1} - ${d2} ${m2} ${a2}`;
+}
+
 /**
  * Carga todo el maestro de referencias desde la tabla 'public.referencias' de Supabase
  * utilizando solicitudes concurrentes paginadas.
@@ -92,7 +170,6 @@ export async function cargarMaestroReferenciasMap(): Promise<Map<string, Referen
   const map = new Map<string, ReferenciaMaestroItem>();
 
   try {
-    // 1. Obtener conteo total para calcular lotes
     const { count, error: countErr } = await (supabase as any)
       .from("referencias")
       .select("*", { count: "exact", head: true });
@@ -109,7 +186,6 @@ export async function cargarMaestroReferenciasMap(): Promise<Map<string, Referen
     const numChunks = Math.ceil(total / CHUNK_SIZE);
     const offsets = Array.from({ length: numChunks }, (_, i) => i * CHUNK_SIZE);
 
-    // Cargar en paralelo en bloques de 6 concurrentes
     const BATCH_CONCURRENCY = 6;
     for (let i = 0; i < offsets.length; i += BATCH_CONCURRENCY) {
       const batchOffsets = offsets.slice(i, i + BATCH_CONCURRENCY);
@@ -135,7 +211,6 @@ export async function cargarMaestroReferenciasMap(): Promise<Map<string, Referen
               pvp: Number(item.pvp || 0),
             };
             map.set(norm, val);
-            // También mapear por clave original
             if (!map.has(rawRef)) {
               map.set(rawRef, val);
             }
@@ -151,65 +226,216 @@ export async function cargarMaestroReferenciasMap(): Promise<Map<string, Referen
 }
 
 /**
- * Procesa y agrega los datos de fact_ventas y del catálogo maestro de referencias
- * para generar las métricas, KPIs, trazabilidad y curvas del Dashboard de Correrías.
+ * Procesa y agrega los datos de fact_ventas identificando la temporalidad real
+ * de cada correría (Año + Ventana de Fechas), permitiendo comparativas dentro del mismo año
+ * e interanuales (YoY).
  */
 export function calcularDashboardCorrerias({
   ventas,
   catalogoCorrerias = [],
   maestroReferencias,
-  correriaFiltro = "todas",
+  anioFiltro = "todos",
+  cicloFiltro = "todos",
   prendaFiltro = "todas",
   busqueda = "",
 }: {
   ventas: FilaFactVentas[];
   catalogoCorrerias?: CatalogoItem[];
   maestroReferencias: Map<string, ReferenciaMaestroItem>;
-  correriaFiltro?: string | number;
+  anioFiltro?: string | number;
+  cicloFiltro?: string;
   prendaFiltro?: string;
   busqueda?: string;
 }): DataDashboardCorrerias {
-  // Mapa de nombres de correría (id -> nombre, ej. 1 -> C1, 62 -> C2)
+  // Mapa de nombres de correría (id -> nombre, ej. 1 -> C1, 62 -> C2, etc.)
   const nombresCorreriaMap = new Map<number, string>();
   for (const c of catalogoCorrerias) {
     nombresCorreriaMap.set(Number(c.id), String(c.nombre).trim());
   }
 
-  // 1. Filtrar ventas según correría seleccionada
-  const correriaIdNum = correriaFiltro !== "todas" ? Number(correriaFiltro) : null;
-  const busquedaNorm = busqueda.trim().toLowerCase();
-
-  // Conjunto para recolectar prendas disponibles
+  const aniosSet = new Set<number>();
   const prendasSet = new Set<string>();
 
-  // Agrupador global por correría para la comparativa C1..C5
-  const ventasPorCorreriaMap = new Map<
-    number | string,
-    {
-      correriaId: number | string;
-      nombre: string;
-      facturacion: number;
-      unidades: number;
-      referenciasSet: Set<string>;
-    }
-  >();
+  // 1. Detección y agregación de Ciclos de Correría temporales (correria_id + anio)
+  type CicloBuilder = {
+    cicloKey: string;
+    correriaId: number;
+    nombreCorreria: string;
+    anio: number;
+    fechaMin: string;
+    fechaMax: string;
+    facturacion: number;
+    unidades: number;
+    referenciasSet: Set<string>;
+    sumaPvmPonderado: number;
+    sumaPvpPonderado: number;
+    pesoPonderado: number;
+  };
+  const ciclosMap = new Map<string, CicloBuilder>();
 
-  // Inicializar correrías conocidas de dim_correria
-  for (const c of catalogoCorrerias) {
-    ventasPorCorreriaMap.set(c.id, {
-      correriaId: c.id,
-      nombre: c.nombre,
-      facturacion: 0,
-      unidades: 0,
-      referenciasSet: new Set<string>(),
-    });
+  for (const r of ventas) {
+    if (!r.correria_id) continue;
+    const cId = Number(r.correria_id);
+    let an = Number(r.anio);
+    if (!an || isNaN(an)) {
+      if (r.fecha) an = parseInt(String(r.fecha).slice(0, 4), 10);
+    }
+    if (!an || isNaN(an)) {
+      if (r.anio_col) {
+        const m = String(r.anio_col).match(/\b(20\d{2})\b/);
+        if (m && m[1]) an = parseInt(m[1], 10);
+      }
+    }
+    if (!an || isNaN(an)) continue;
+
+    aniosSet.add(an);
+
+    const rawRef = String(r.producto_c || r.sku || r.producto || "").trim();
+    const fecha = r.fecha ? String(r.fecha).slice(0, 10) : "";
+    const v = Number(r.valor || 0);
+    const c = Math.round(Number(r.cantidad || 0));
+
+    const cicloKey = `${cId}___${an}`;
+    if (!ciclosMap.has(cicloKey)) {
+      const nombreC = nombresCorreriaMap.get(cId) || `C${cId}`;
+      ciclosMap.set(cicloKey, {
+        cicloKey,
+        correriaId: cId,
+        nombreCorreria: nombreC,
+        anio: an,
+        fechaMin: fecha,
+        fechaMax: fecha,
+        facturacion: 0,
+        unidades: 0,
+        referenciasSet: new Set(),
+        sumaPvmPonderado: 0,
+        sumaPvpPonderado: 0,
+        pesoPonderado: 0,
+      });
+    }
+
+    const cicloItem = ciclosMap.get(cicloKey)!;
+    cicloItem.facturacion += v;
+    cicloItem.unidades += c;
+    if (rawRef) cicloItem.referenciasSet.add(rawRef);
+    if (fecha && (!cicloItem.fechaMin || fecha < cicloItem.fechaMin)) cicloItem.fechaMin = fecha;
+    if (fecha && (!cicloItem.fechaMax || fecha > cicloItem.fechaMax)) cicloItem.fechaMax = fecha;
+
+    // Maestro precios
+    if (rawRef) {
+      const mItem = maestroReferencias.get(normalizarClaveRef(rawRef));
+      if (mItem && mItem.pvm > 0 && c > 0) {
+        cicloItem.sumaPvmPonderado += mItem.pvm * c;
+        cicloItem.sumaPvpPonderado += mItem.pvp * c;
+        cicloItem.pesoPonderado += c;
+      }
+    }
   }
 
-  // Agrupador por Referencia (para el alcance filtrado)
+  // Convertir ciclos a array estructurado y ordenado cronológicamente por fechaMin
+  const totalFacturacionGlobal = Array.from(ciclosMap.values()).reduce((acc, c) => acc + c.facturacion, 0);
+
+  const ciclosDisponibles: CicloCorreriaItem[] = Array.from(ciclosMap.values())
+    .map((c) => {
+      const ticketPromedio = c.unidades > 0 ? Math.round(c.facturacion / c.unidades) : 0;
+      const pvmPromedio = c.pesoPonderado > 0 ? Math.round(c.sumaPvmPonderado / c.pesoPonderado) : 0;
+      const pvpPromedio = c.pesoPonderado > 0 ? Math.round(c.sumaPvpPonderado / c.pesoPonderado) : 0;
+      const markupPromedio = pvmPromedio > 0 ? ((pvpPromedio - pvmPromedio) / pvmPromedio) * 100 : 0;
+      const participacionPct = totalFacturacionGlobal > 0 ? (c.facturacion / totalFacturacionGlobal) * 100 : 0;
+
+      let duracionDias = 1;
+      if (c.fechaMin && c.fechaMax) {
+        const t1 = new Date(c.fechaMin).getTime();
+        const t2 = new Date(c.fechaMax).getTime();
+        if (!isNaN(t1) && !isNaN(t2) && t2 >= t1) {
+          duracionDias = Math.round((t2 - t1) / (1000 * 60 * 60 * 24)) + 1;
+        }
+      }
+
+      return {
+        cicloKey: c.cicloKey,
+        correriaId: c.correriaId,
+        nombreCorreria: c.nombreCorreria,
+        anio: c.anio,
+        etiqueta: `${c.nombreCorreria} (${c.anio})`,
+        fechaInicio: c.fechaMin,
+        fechaFin: c.fechaMax,
+        rangoFechasTexto: formatearRangoFechasTexto(c.fechaMin, c.fechaMax, c.anio),
+        duracionDias,
+        facturacion: c.facturacion,
+        unidades: c.unidades,
+        referenciasCount: c.referenciasSet.size,
+        ticketPromedio,
+        pvmPromedio,
+        pvpPromedio,
+        markupPromedio,
+        participacionPct,
+      };
+    })
+    .sort((a, b) => {
+      // Orden cronológico estricto por fechaInicio
+      if (a.fechaInicio && b.fechaInicio && a.fechaInicio !== b.fechaInicio) {
+        return a.fechaInicio.localeCompare(b.fechaInicio);
+      }
+      if (a.anio !== b.anio) return a.anio - b.anio;
+      return String(a.nombreCorreria).localeCompare(String(b.nombreCorreria));
+    });
+
+  // Filtrar ciclos según año seleccionado
+  const ciclosFiltrados = ciclosDisponibles.filter((c) => {
+    if (anioFiltro !== "todos" && c.anio !== Number(anioFiltro)) return false;
+    if (
+      cicloFiltro !== "todos" &&
+      c.cicloKey !== cicloFiltro &&
+      String(c.correriaId) !== cicloFiltro &&
+      c.nombreCorreria !== cicloFiltro
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  // 2. Generar Comparativa Interanual YoY para aquellas correrías presentes en más de un año (ej: C1 2026 vs C1 2025)
+  const comparativaYoY: ComparativaYoYCorreria[] = [];
+  const mapPorNombreYAnio = new Map<string, CicloCorreriaItem>();
+  for (const c of ciclosDisponibles) {
+    mapPorNombreYAnio.set(`${c.nombreCorreria}___${c.anio}`, c);
+  }
+
+  const aniosArray = Array.from(aniosSet).sort((a, b) => b - a);
+  const anioMax = aniosArray[0] || 2026;
+  const anioPrev = aniosArray[1] || anioMax - 1;
+
+  for (const cActual of ciclosDisponibles.filter((c) => c.anio === anioMax)) {
+    const cAnt = mapPorNombreYAnio.get(`${cActual.nombreCorreria}___${anioPrev}`);
+    if (cAnt) {
+      const crecVenta = cAnt.facturacion > 0 ? ((cActual.facturacion - cAnt.facturacion) / cAnt.facturacion) * 100 : 0;
+      const crecUnds = cAnt.unidades > 0 ? ((cActual.unidades - cAnt.unidades) / cAnt.unidades) * 100 : 0;
+      comparativaYoY.push({
+        nombreCorreria: cActual.nombreCorreria,
+        anioActual: cActual.anio,
+        anioAnterior: cAnt.anio,
+        facturacionActual: cActual.facturacion,
+        facturacionAnterior: cAnt.facturacion,
+        unidadesActual: cActual.unidades,
+        unidadesAnterior: cAnt.unidades,
+        crecimientoVentaPct: crecVenta,
+        crecimientoUndsPct: crecUnds,
+        fechasActual: cActual.rangoFechasTexto,
+        fechasAnterior: cAnt.rangoFechasTexto,
+      });
+    }
+  }
+
+  // 3. Procesar las ventas filtradas para la tabla de trazabilidad
+  const busquedaNorm = busqueda.trim().toLowerCase();
+
   type RefAgg = {
     ref: string;
     nombre: string;
     prenda: string;
+    ciclosSet: Set<string>;
+    cicloKeysSet: Set<string>;
     correriasSet: Set<string>;
     correriaIdsSet: Set<number>;
     unidades: number;
@@ -217,7 +443,6 @@ export function calcularDashboardCorrerias({
   };
   const refAggMap = new Map<string, RefAgg>();
 
-  // Agrupador por Prenda HGI
   type PrendaAgg = {
     prenda: string;
     unidades: number;
@@ -226,43 +451,51 @@ export function calcularDashboardCorrerias({
   };
   const prendaAggMap = new Map<string, PrendaAgg>();
 
-  // Acumuladores de las ventas filtradas
   let facturacionFiltrada = 0;
   let unidadesFiltradas = 0;
+  let minFechaFiltrada = "";
+  let maxFechaFiltrada = "";
 
   for (const r of ventas) {
     const rawPrenda = String(r.prenda_hgi || "Sin Categoría").trim().toUpperCase();
     prendasSet.add(rawPrenda);
 
-    // Identificar referencia del producto (prioridad: producto_c -> sku -> producto)
     const rawRef = String(r.producto_c || r.sku || r.producto || "").trim();
     if (!rawRef) continue;
 
     const cId = r.correria_id ? Number(r.correria_id) : 0;
-    const nombreCorr = cId > 0 ? nombresCorreriaMap.get(cId) || `Correria ${cId}` : "Sin Correría";
+    let an = Number(r.anio);
+    if (!an || isNaN(an)) {
+      if (r.fecha) an = parseInt(String(r.fecha).slice(0, 4), 10);
+    }
+    if (!an || isNaN(an)) {
+      if (r.anio_col) {
+        const m = String(r.anio_col).match(/\b(20\d{2})\b/);
+        if (m && m[1]) an = parseInt(m[1], 10);
+      }
+    }
+    if (!an || isNaN(an)) an = 2026;
 
+    const cicloKey = `${cId}___${an}`;
+    const nombreCorr = cId > 0 ? nombresCorreriaMap.get(cId) || `C${cId}` : "Sin Correría";
+    const etiquetaCiclo = `${nombreCorr} (${an})`;
+
+    const fecha = r.fecha ? String(r.fecha).slice(0, 10) : "";
     const v = Number(r.valor || 0);
     const c = Math.round(Number(r.cantidad || 0));
 
-    // Acumular en comparativa general de correrías (sin filtrar por correría)
-    if (cId > 0) {
-      if (!ventasPorCorreriaMap.has(cId)) {
-        ventasPorCorreriaMap.set(cId, {
-          correriaId: cId,
-          nombre: nombreCorr,
-          facturacion: 0,
-          unidades: 0,
-          referenciasSet: new Set(),
-        });
-      }
-      const cItem = ventasPorCorreriaMap.get(cId)!;
-      cItem.facturacion += v;
-      cItem.unidades += c;
-      cItem.referenciasSet.add(rawRef);
+    // Filtro por Año
+    if (anioFiltro !== "todos" && an !== Number(anioFiltro)) {
+      continue;
     }
 
-    // Filtro por Correría
-    if (correriaIdNum !== null && cId !== correriaIdNum) {
+    // Filtro por Ciclo de Correría
+    if (
+      cicloFiltro !== "todos" &&
+      cicloKey !== cicloFiltro &&
+      String(cId) !== cicloFiltro &&
+      nombreCorr !== cicloFiltro
+    ) {
       continue;
     }
 
@@ -282,6 +515,11 @@ export function calcularDashboardCorrerias({
     facturacionFiltrada += v;
     unidadesFiltradas += c;
 
+    if (fecha) {
+      if (!minFechaFiltrada || fecha < minFechaFiltrada) minFechaFiltrada = fecha;
+      if (!maxFechaFiltrada || fecha > maxFechaFiltrada) maxFechaFiltrada = fecha;
+    }
+
     // Agrupación por Referencia
     const normRefKey = normalizarClaveRef(rawRef);
     if (!refAggMap.has(normRefKey)) {
@@ -289,6 +527,8 @@ export function calcularDashboardCorrerias({
         ref: rawRef,
         nombre: String(r.producto || "Sin Nombre").trim(),
         prenda: rawPrenda,
+        ciclosSet: new Set(),
+        cicloKeysSet: new Set(),
         correriasSet: new Set(),
         correriaIdsSet: new Set(),
         unidades: 0,
@@ -298,6 +538,8 @@ export function calcularDashboardCorrerias({
     const itemRef = refAggMap.get(normRefKey)!;
     itemRef.unidades += c;
     itemRef.facturacion += v;
+    itemRef.ciclosSet.add(etiquetaCiclo);
+    itemRef.cicloKeysSet.add(cicloKey);
     if (nombreCorr) itemRef.correriasSet.add(nombreCorr);
     if (cId > 0) itemRef.correriaIdsSet.add(cId);
 
@@ -316,7 +558,7 @@ export function calcularDashboardCorrerias({
     itemPrenda.referenciasSet.add(rawRef);
   }
 
-  // 2. Construir lista de Trazabilidad de Referencias con cruce contra el Maestro de Productos
+  // 4. Construir tabla de Trazabilidad
   const referenciasVendidasKeys = new Set<string>();
   const rankingReferencias: FilaTrazabilidadReferencia[] = [];
 
@@ -327,7 +569,6 @@ export function calcularDashboardCorrerias({
   for (const [normKey, agg] of refAggMap.entries()) {
     referenciasVendidasKeys.add(normKey);
 
-    // Buscar en maestro de referencias
     const maestroItem =
       maestroReferencias.get(normKey) ||
       maestroReferencias.get(agg.ref) ||
@@ -352,6 +593,8 @@ export function calcularDashboardCorrerias({
       ref: agg.ref,
       nombre: nombreFinal,
       prenda: agg.prenda,
+      ciclosNombres: Array.from(agg.ciclosSet),
+      cicloKeys: Array.from(agg.cicloKeysSet),
       correriasNombres: Array.from(agg.correriasSet),
       correriaIds: Array.from(agg.correriaIdsSet),
       unidades: agg.unidades,
@@ -368,10 +611,8 @@ export function calcularDashboardCorrerias({
     });
   }
 
-  // Ordenar ranking por mayor facturación
+  // Ordenar por facturación y calcular Pareto
   rankingReferencias.sort((a, b) => b.facturacion - a.facturacion);
-
-  // Calcular curva Pareto (A: 0..80%, B: 80..95%, C: 95..100%)
   let sumaAcumulada = 0;
   for (const r of rankingReferencias) {
     sumaAcumulada += r.facturacion;
@@ -386,7 +627,7 @@ export function calcularDashboardCorrerias({
     }
   }
 
-  // 3. Resumen por Prenda / Categoría
+  // 5. Resumen por Prenda
   const resumenPorPrenda: PrendaResumen[] = Array.from(prendaAggMap.values())
     .map((p) => ({
       prenda: p.prenda,
@@ -398,33 +639,12 @@ export function calcularDashboardCorrerias({
     }))
     .sort((a, b) => b.facturacion - a.facturacion);
 
-  // 4. Comparativa de Correrías
-  const totalFacturacionGlobal = Array.from(ventasPorCorreriaMap.values()).reduce((acc, c) => acc + c.facturacion, 0);
-  const resumenPorCorreria: ResumenCorreriaItem[] = Array.from(ventasPorCorreriaMap.values())
-    .map((c) => ({
-      correriaId: c.correriaId,
-      nombre: c.nombre,
-      facturacion: c.facturacion,
-      unidades: c.unidades,
-      referenciasCount: c.referenciasSet.size,
-      ticketPromedio: c.unidades > 0 ? Math.round(c.facturacion / c.unidades) : 0,
-      participacionPct: totalFacturacionGlobal > 0 ? (c.facturacion / totalFacturacionGlobal) * 100 : 0,
-    }))
-    .sort((a, b) => {
-      // Ordenar por nombre de correría (C1, C2, C3...)
-      const numA = parseInt(String(a.nombre).replace(/\D/g, ""), 10) || 0;
-      const numB = parseInt(String(b.nombre).replace(/\D/g, ""), 10) || 0;
-      return numA - numB;
-    });
-
-  // 5. Referencias del Maestro sin Venta en el alcance seleccionado
+  // 6. Referencias del Maestro sin Venta en el alcance temporal seleccionado
   const referenciasSinVentaEnCorreria: ReferenciaSinVenta[] = [];
   for (const [normKey, mItem] of maestroReferencias.entries()) {
-    // Evitar claves duplicadas sin normalizar
     if (mItem.ref !== normKey && normalizarClaveRef(mItem.ref) !== normKey) continue;
 
     if (!referenciasVendidasKeys.has(normKey) && !referenciasVendidasKeys.has(normalizarClaveRef(mItem.ref))) {
-      // Si hay filtro de búsqueda, aplicar
       if (busquedaNorm) {
         const mRef = mItem.ref.toLowerCase().includes(busquedaNorm);
         const mNom = mItem.nombre.toLowerCase().includes(busquedaNorm);
@@ -438,18 +658,26 @@ export function calcularDashboardCorrerias({
         pvp: mItem.pvp,
         markup,
       });
-      // Limitar a 500 para evitar sobrecarga de render
       if (referenciasSinVentaEnCorreria.length >= 500) break;
     }
   }
 
-  // 6. KPIs Globales
-  const totalMaestro = maestroReferencias.size > 0 ? Math.round(maestroReferencias.size / 2) : 0; // dividido 2 por doble indexación
+  // 7. KPIs Globales
+  const totalMaestro = maestroReferencias.size > 0 ? Math.round(maestroReferencias.size / 2) : 0;
   const pvmPromedio = pesoPonderado > 0 ? Math.round(sumaPvmPonderado / pesoPonderado) : 0;
   const pvpPromedio = pesoPonderado > 0 ? Math.round(sumaPvpPonderado / pesoPonderado) : 0;
   const markupPonderado = pvmPromedio > 0 ? ((pvpPromedio - pvmPromedio) / pvmPromedio) * 100 : 0;
   const ticketPromedioGlobal = unidadesFiltradas > 0 ? Math.round(facturacionFiltrada / unidadesFiltradas) : 0;
   const coberturaCatalogoPct = totalMaestro > 0 ? (rankingReferencias.length / totalMaestro) * 100 : 0;
+
+  let diasActivos = 1;
+  if (minFechaFiltrada && maxFechaFiltrada) {
+    const d1 = new Date(minFechaFiltrada).getTime();
+    const d2 = new Date(maxFechaFiltrada).getTime();
+    if (!isNaN(d1) && !isNaN(d2) && d2 >= d1) {
+      diasActivos = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+    }
+  }
 
   return {
     kpis: {
@@ -463,10 +691,19 @@ export function calcularDashboardCorrerias({
       markupPonderado,
       coberturaCatalogoPct,
     },
-    resumenPorCorreria,
+    ciclosDisponibles,
+    ciclosFiltrados,
+    comparativaYoY,
     rankingReferencias,
     resumenPorPrenda,
     referenciasSinVentaEnCorreria,
     prendasDisponibles: Array.from(prendasSet).sort(),
+    aniosDisponibles: Array.from(aniosSet).sort((a, b) => b - a),
+    rangoFechasActivo: {
+      fechaMin: minFechaFiltrada,
+      fechaMax: maxFechaFiltrada,
+      texto: formatearRangoFechasTexto(minFechaFiltrada, maxFechaFiltrada),
+      diasActivos,
+    },
   };
 }

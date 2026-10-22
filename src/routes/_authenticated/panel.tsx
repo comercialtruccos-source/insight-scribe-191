@@ -9615,7 +9615,7 @@ function Panel() {
           {esAdmin && (
             <TabsContent value="correrias" className="space-y-6">
               <DashboardCorrerias
-                ventas={rawVentas || []}
+                ventas={ventasMatrizHistorica && ventasMatrizHistorica.length > 0 ? ventasMatrizHistorica : (rawVentas || [])}
                 catalogos={catalogos}
                 cargandoVentas={cVentas}
                 esAdmin={esAdmin}

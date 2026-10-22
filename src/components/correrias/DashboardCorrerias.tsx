@@ -60,7 +60,11 @@ import {
   SlidersHorizontal,
   Building2,
   Calendar,
+  CalendarDays,
   Award,
+  Clock,
+  ArrowRight,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { FilaFactVentas, CatalogosDisponibles, FiltrosBI } from "@/lib/ventas-api";
@@ -138,10 +142,12 @@ export function DashboardCorrerias({
   }
 
   // Estados de filtros internos
-  const [correriaFiltro, setCorreriaFiltro] = useState<string | number>("todas");
+  const [anioFiltro, setAnioFiltro] = useState<string | number>("todos");
+  const [cicloFiltro, setCicloFiltro] = useState<string>("todos");
   const [prendaFiltro, setPrendaFiltro] = useState<string>("todas");
   const [busqueda, setBusqueda] = useState<string>("");
   const [vistaActiva, setVistaActiva] = useState<"trazabilidad" | "graficas" | "sinVenta">("trazabilidad");
+  const [subVistaGrafica, setSubVistaGrafica] = useState<"cronologico" | "yoy" | "prendas" | "pareto">("cronologico");
 
   // Paginación y ordenamiento de la tabla
   const [pagina, setPagina] = useState<number>(1);
@@ -165,11 +171,12 @@ export function DashboardCorrerias({
       ventas: ventas || [],
       catalogoCorrerias: catalogos?.correrias || [],
       maestroReferencias: maestroMap || new Map(),
-      correriaFiltro,
+      anioFiltro,
+      cicloFiltro,
       prendaFiltro,
       busqueda,
     });
-  }, [ventas, catalogos?.correrias, maestroMap, correriaFiltro, prendaFiltro, busqueda]);
+  }, [ventas, catalogos?.correrias, maestroMap, anioFiltro, cicloFiltro, prendaFiltro, busqueda]);
 
   // Lista ordenada de referencias
   const referenciasOrdenadas = useMemo(() => {
@@ -247,7 +254,7 @@ export function DashboardCorrerias({
     link.href = url;
     link.setAttribute(
       "download",
-      `trazabilidad_correrias_diseno_${correriaFiltro}_${new Date().toISOString().slice(0, 10)}.csv`
+      `trazabilidad_correrias_diseno_${cicloFiltro}_${anioFiltro}_${new Date().toISOString().slice(0, 10)}.csv`
     );
     document.body.appendChild(link);
     link.click();
@@ -321,53 +328,139 @@ export function DashboardCorrerias({
         </div>
       </div>
 
-      {/* 2. BARRA DE FILTROS DEL DASHBOARD DE CORRERÍAS */}
-      <Card className="border-border/80 shadow-xs bg-card/60 backdrop-blur-sm">
-        <CardContent className="p-3.5">
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-            {/* Selector de Correría */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
+      {/* 2. BANNER EXPLICATIVO DE LA TEMPORALIDAD DE CORRERÍAS */}
+      <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0">
+            <Info className="h-4 w-4" />
+          </div>
+          <div className="space-y-0.5">
+            <p className="text-xs font-semibold text-foreground flex items-center gap-2">
+              Temporalidad de Correrías en HGI: Ciclos por Año y Fechas de Venta
+              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-indigo-500/30 text-indigo-700 dark:text-indigo-300 bg-indigo-500/10">
+                Modelo Multianual
+              </Badge>
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              En los documentos comerciales, las correrías comparten códigos cíclicos (C1..C5) año tras año. El sistema las identifica separando cada ciclo por su <strong>Año de Colección</strong> y su <strong>Ventana Temporal de Venta</strong> real.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <div className="text-right">
+            <span className="text-[10px] text-muted-foreground block uppercase font-mono">Ventana Activa</span>
+            <span className="text-xs font-bold text-foreground font-mono flex items-center gap-1">
+              <CalendarDays className="h-3.5 w-3.5 text-indigo-500" />
+              {data.rangoFechasActivo.texto}
+            </span>
+          </div>
+          <Badge variant="outline" className="text-[11px] font-mono border-indigo-500/40 text-indigo-600 dark:text-indigo-400 bg-background/80 py-1 px-2">
+            {data.rangoFechasActivo.diasActivos} días
+          </Badge>
+        </div>
+      </div>
+
+      {/* 3. BARRA DE FILTROS DEL DASHBOARD DE CORRERÍAS */}
+      <Card className="border-border/80 shadow-xs bg-card/60 backdrop-blur-sm space-y-3">
+        <CardContent className="p-3.5 space-y-3">
+          {/* Fila 1: Selector de Año y Selector de Ciclo Temporal */}
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-border/40 pb-3">
+            {/* Filtro por Año */}
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs font-bold text-foreground shrink-0 flex items-center gap-1 mr-1">
-                <Calendar className="h-3.5 w-3.5 text-indigo-500" />
-                Correría:
+                <Clock className="h-3.5 w-3.5 text-indigo-500" />
+                Año:
               </span>
 
               <Button
                 size="sm"
-                variant={correriaFiltro === "todas" ? "default" : "outline"}
+                variant={anioFiltro === "todos" ? "default" : "outline"}
                 onClick={() => {
-                  setCorreriaFiltro("todas");
+                  setAnioFiltro("todos");
+                  setCicloFiltro("todos");
                   setPagina(1);
                 }}
                 className={`h-7 px-2.5 text-xs rounded-lg transition-all ${
-                  correriaFiltro === "todas" ? "bg-indigo-600 text-white font-bold" : "text-muted-foreground"
+                  anioFiltro === "todos" ? "bg-indigo-600 text-white font-bold" : "text-muted-foreground"
                 }`}
               >
-                Todas las Correrías
+                Todos los Años
               </Button>
 
-              {(catalogos?.correrias || []).map((c) => {
-                const esActiva = String(correriaFiltro) === String(c.id);
+              {data.aniosDisponibles.map((an) => {
+                const esActivo = String(anioFiltro) === String(an);
                 return (
                   <Button
-                    key={c.id}
+                    key={an}
                     size="sm"
-                    variant={esActiva ? "default" : "outline"}
+                    variant={esActivo ? "default" : "outline"}
                     onClick={() => {
-                      setCorreriaFiltro(c.id);
+                      setAnioFiltro(an);
+                      setCicloFiltro("todos");
                       setPagina(1);
                     }}
                     className={`h-7 px-2.5 text-xs rounded-lg transition-all ${
-                      esActiva ? "bg-indigo-600 text-white font-bold shadow-xs" : "text-foreground"
+                      esActivo ? "bg-indigo-600 text-white font-bold shadow-xs" : "text-foreground"
                     }`}
                   >
-                    {c.nombre}
+                    Año {an}
                   </Button>
                 );
               })}
             </div>
 
-            {/* Filtros secundarios: Prenda, Búsqueda y Selector de Vista */}
+            {/* Ciclos de Correría encontrados en el rango */}
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 md:pb-0 scrollbar-none">
+              <span className="text-xs font-bold text-foreground shrink-0 flex items-center gap-1 mr-1">
+                <Calendar className="h-3.5 w-3.5 text-indigo-500" />
+                Ciclo:
+              </span>
+
+              <Button
+                size="sm"
+                variant={cicloFiltro === "todos" ? "default" : "outline"}
+                onClick={() => {
+                  setCicloFiltro("todos");
+                  setPagina(1);
+                }}
+                className={`h-7 px-2.5 text-xs rounded-lg transition-all ${
+                  cicloFiltro === "todos" ? "bg-indigo-600 text-white font-bold" : "text-muted-foreground"
+                }`}
+              >
+                Todos los Ciclos
+              </Button>
+
+              {data.ciclosDisponibles
+                .filter((c) => anioFiltro === "todos" || c.anio === Number(anioFiltro))
+                .map((c) => {
+                  const esActivo = cicloFiltro === c.cicloKey;
+                  return (
+                    <Button
+                      key={c.cicloKey}
+                      size="sm"
+                      variant={esActivo ? "default" : "outline"}
+                      onClick={() => {
+                        setCicloFiltro(c.cicloKey);
+                        setPagina(1);
+                      }}
+                      className={`h-7 px-2 text-xs rounded-lg transition-all gap-1.5 ${
+                        esActivo ? "bg-indigo-600 text-white font-bold shadow-xs" : "text-foreground"
+                      }`}
+                      title={`${c.etiqueta}: ${c.rangoFechasTexto} (${c.duracionDias} días)`}
+                    >
+                      <span>{c.etiqueta}</span>
+                      <span className={`text-[10px] ${esActivo ? "text-indigo-100" : "text-muted-foreground font-mono"}`}>
+                        [{c.rangoFechasTexto}]
+                      </span>
+                    </Button>
+                  );
+                })}
+            </div>
+          </div>
+
+          {/* Fila 2: Filtros de Prenda, Búsqueda y Selector de Vista */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               {/* Filtro por Prenda / Tipo */}
               <div className="w-40 sm:w-44">
@@ -409,36 +502,53 @@ export function DashboardCorrerias({
                 />
               </div>
 
-              {/* Selector de Pestaña Interna */}
-              <div className="flex items-center rounded-lg border border-border/70 p-0.5 bg-muted/40">
+              {(cicloFiltro !== "todos" || anioFiltro !== "todos" || prendaFiltro !== "todas" || busqueda) && (
                 <Button
                   size="sm"
-                  variant={vistaActiva === "trazabilidad" ? "secondary" : "ghost"}
-                  onClick={() => setVistaActiva("trazabilidad")}
-                  className="h-7 px-2 text-xs font-semibold"
+                  variant="ghost"
+                  onClick={() => {
+                    setAnioFiltro("todos");
+                    setCicloFiltro("todos");
+                    setPrendaFiltro("todas");
+                    setBusqueda("");
+                    setPagina(1);
+                  }}
+                  className="h-8 text-xs text-muted-foreground hover:text-foreground px-2"
                 >
-                  <Tag className="h-3 w-3 mr-1 text-indigo-500" />
-                  Trazabilidad
+                  Limpiar filtros
                 </Button>
-                <Button
-                  size="sm"
-                  variant={vistaActiva === "graficas" ? "secondary" : "ghost"}
-                  onClick={() => setVistaActiva("graficas")}
-                  className="h-7 px-2 text-xs font-semibold"
-                >
-                  <TrendingUp className="h-3 w-3 mr-1 text-emerald-500" />
-                  Gráficas
-                </Button>
-                <Button
-                  size="sm"
-                  variant={vistaActiva === "sinVenta" ? "secondary" : "ghost"}
-                  onClick={() => setVistaActiva("sinVenta")}
-                  className="h-7 px-2 text-xs font-semibold text-amber-700 dark:text-amber-400"
-                >
-                  <AlertCircle className="h-3 w-3 mr-1 text-amber-500" />
-                  Sin Venta
-                </Button>
-              </div>
+              )}
+            </div>
+
+            {/* Selector de Pestaña Principal */}
+            <div className="flex items-center rounded-lg border border-border/70 p-0.5 bg-muted/40">
+              <Button
+                size="sm"
+                variant={vistaActiva === "trazabilidad" ? "secondary" : "ghost"}
+                onClick={() => setVistaActiva("trazabilidad")}
+                className="h-7 px-2 text-xs font-semibold"
+              >
+                <Tag className="h-3 w-3 mr-1 text-indigo-500" />
+                Trazabilidad ({referenciasOrdenadas.length})
+              </Button>
+              <Button
+                size="sm"
+                variant={vistaActiva === "graficas" ? "secondary" : "ghost"}
+                onClick={() => setVistaActiva("graficas")}
+                className="h-7 px-2 text-xs font-semibold"
+              >
+                <TrendingUp className="h-3 w-3 mr-1 text-emerald-500" />
+                Gráficas y Ciclos
+              </Button>
+              <Button
+                size="sm"
+                variant={vistaActiva === "sinVenta" ? "secondary" : "ghost"}
+                onClick={() => setVistaActiva("sinVenta")}
+                className="h-7 px-2 text-xs font-semibold text-amber-700 dark:text-amber-400"
+              >
+                <AlertCircle className="h-3 w-3 mr-1 text-amber-500" />
+                Sin Venta ({data.referenciasSinVentaEnCorreria.length})
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -751,120 +861,428 @@ export function DashboardCorrerias({
 
       {/* VISTA 2: GRÁFICAS COMPARATIVAS Y CURVAS */}
       {vistaActiva === "graficas" && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Gráfica 1: Comparativa de Rendimiento entre Correrías */}
-          <Card className="border-border/80 shadow-xs lg:col-span-2">
-            <CardHeader className="pb-3 border-b border-border/40">
-              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-indigo-500" />
-                Comparativa de Facturación y Prendas entre Correrías (C1, C2, C3, C4, C5...)
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Volumen comercializado y monto facturado por ciclo de venta.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.resumenPorCorreria} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                    <XAxis dataKey="nombre" tick={{ fontSize: 11 }} />
-                    <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 10 }} />
-                    <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v} und`} tick={{ fontSize: 10 }} />
-                    <Tooltip
-                      formatter={(val: any, name: string) => {
-                        if (name === "Facturación COP") return [formatoCOPFull(Number(val)), name];
-                        return [`${Number(val).toLocaleString("es-CO")} prendas`, name];
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar yAxisId="left" dataKey="facturacion" name="Facturación COP" fill="#4f46e5" radius={[4, 4, 0, 0]} />
-                    <Bar yAxisId="right" dataKey="unidades" name="Prendas Vendidas" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="space-y-6">
+          {/* Sub-selector de vista gráfica */}
+          <div className="flex items-center gap-2 border-b border-border/50 pb-2 flex-wrap">
+            <Button
+              size="sm"
+              variant={subVistaGrafica === "cronologico" ? "default" : "outline"}
+              onClick={() => setSubVistaGrafica("cronologico")}
+              className={`h-7 text-xs font-semibold gap-1.5 ${
+                subVistaGrafica === "cronologico" ? "bg-indigo-600 text-white" : ""
+              }`}
+            >
+              <Clock className="h-3.5 w-3.5" />
+              Línea de Tiempo Cronológica (Ciclos C1..C5)
+            </Button>
+            <Button
+              size="sm"
+              variant={subVistaGrafica === "yoy" ? "default" : "outline"}
+              onClick={() => setSubVistaGrafica("yoy")}
+              className={`h-7 text-xs font-semibold gap-1.5 ${
+                subVistaGrafica === "yoy" ? "bg-indigo-600 text-white" : ""
+              }`}
+            >
+              <TrendingUp className="h-3.5 w-3.5" />
+              Comparativa Interanual (YoY)
+            </Button>
+            <Button
+              size="sm"
+              variant={subVistaGrafica === "prendas" ? "default" : "outline"}
+              onClick={() => setSubVistaGrafica("prendas")}
+              className={`h-7 text-xs font-semibold gap-1.5 ${
+                subVistaGrafica === "prendas" ? "bg-indigo-600 text-white" : ""
+              }`}
+            >
+              <Package className="h-3.5 w-3.5" />
+              Categorías de Prenda
+            </Button>
+            <Button
+              size="sm"
+              variant={subVistaGrafica === "pareto" ? "default" : "outline"}
+              onClick={() => setSubVistaGrafica("pareto")}
+              className={`h-7 text-xs font-semibold gap-1.5 ${
+                subVistaGrafica === "pareto" ? "bg-indigo-600 text-white" : ""
+              }`}
+            >
+              <Percent className="h-3.5 w-3.5" />
+              Concentración Pareto ABC
+            </Button>
+          </div>
 
-          {/* Gráfica 2: Desglose por Categoría / Prenda */}
-          <Card className="border-border/80 shadow-xs">
-            <CardHeader className="pb-3 border-b border-border/40">
-              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Package className="h-4 w-4 text-emerald-500" />
-                Top Categorías de Prenda en la Correría
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Participación porcentual de Jeans, Sets, Blusas, Pantalones, etc.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={data.resumenPorPrenda.slice(0, 7)}
-                    layout="vertical"
-                    margin={{ top: 5, right: 20, left: 40, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                    <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 10 }} />
-                    <YAxis type="category" dataKey="prenda" tick={{ fontSize: 10 }} width={80} />
-                    <Tooltip formatter={(v: any) => [formatoCOPFull(Number(v)), "Facturación"]} />
-                    <Bar dataKey="facturacion" fill="#06b6d4" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Gráfica 3: Concentración Pareto de Referencias */}
-          <Card className="border-border/80 shadow-xs">
-            <CardHeader className="pb-3 border-b border-border/40">
-              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Percent className="h-4 w-4 text-purple-500" />
-                Distribución Pareto de Referencias (Curva ABC)
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Clase A genera el 80% de la venta, Clase B el 15% y Clase C la cola larga.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4 flex flex-col items-center justify-center">
-              {(() => {
-                const countA = data.rankingReferencias.filter((r) => r.paretoClase === "A").length;
-                const countB = data.rankingReferencias.filter((r) => r.paretoClase === "B").length;
-                const countC = data.rankingReferencias.filter((r) => r.paretoClase === "C").length;
-                const pieData = [
-                  { name: "Clase A (Top 80% Venta)", value: countA, color: "#10b981" },
-                  { name: "Clase B (15% Venta)", value: countB, color: "#3b82f6" },
-                  { name: "Clase C (5% Venta)", value: countC, color: "#94a3b8" },
-                ];
-                return (
-                  <div className="w-full h-64">
+          {/* SUBVISTA A: LÍNEA DE TIEMPO CRONOLÓGICA DE CICLOS */}
+          {subVistaGrafica === "cronologico" && (
+            <div className="space-y-6">
+              <Card className="border-border/80 shadow-xs">
+                <CardHeader className="pb-3 border-b border-border/40">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-indigo-500" />
+                        Línea de Tiempo Cronológica de Correrías
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Cada barra representa un ciclo único de correría ordenado por su fecha real de venta en el año.
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline" className="text-xs font-mono border-indigo-500/30 text-indigo-600 bg-indigo-500/10 py-1 px-2 w-fit">
+                      {data.ciclosFiltrados.length} ciclos en el rango
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="h-72 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          dataKey="value"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          innerRadius={45}
-                          paddingAngle={3}
-                          label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                        >
-                          {pieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(v: any) => [`${v} referencias`, "Total"]} />
+                      <BarChart data={data.ciclosFiltrados} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis dataKey="etiqueta" tick={{ fontSize: 11 }} />
+                        <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 10 }} />
+                        <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v} und`} tick={{ fontSize: 10 }} />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload || !payload.length) return null;
+                            const item = payload[0].payload as any;
+                            return (
+                              <div className="rounded-xl border border-border/80 bg-background/95 p-3 shadow-lg text-xs space-y-1.5 backdrop-blur-xs">
+                                <p className="font-bold text-foreground text-sm flex items-center justify-between gap-3">
+                                  <span>{item.etiqueta}</span>
+                                  <Badge variant="outline" className="text-[10px] font-mono border-indigo-500/30 text-indigo-600 bg-indigo-500/10">
+                                    {item.duracionDias} días
+                                  </Badge>
+                                </p>
+                                <p className="text-[11px] text-muted-foreground flex items-center gap-1 font-mono">
+                                  <Calendar className="h-3 w-3 text-indigo-500" />
+                                  {item.rangoFechasTexto}
+                                </p>
+                                <div className="pt-1 border-t border-border/50 space-y-1 font-mono">
+                                  <div className="flex justify-between gap-4">
+                                    <span className="text-muted-foreground">Facturación Neta:</span>
+                                    <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                                      {formatoCOPFull(item.facturacion)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span className="text-muted-foreground">Prendas Vendidas:</span>
+                                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                      {item.unidades.toLocaleString("es-CO")} unds
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span className="text-muted-foreground">Ticket Unitario Promedio:</span>
+                                    <span className="font-semibold text-foreground">
+                                      {formatoCOP(item.ticketPromedio)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span className="text-muted-foreground">Refs Vendidas:</span>
+                                    <span className="font-semibold text-foreground">
+                                      {item.referenciasCount} referencias
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }}
+                        />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
-                      </PieChart>
+                        <Bar yAxisId="left" dataKey="facturacion" name="Facturación COP" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                        <Bar yAxisId="right" dataKey="unidades" name="Prendas Vendidas" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
-                );
-              })()}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+
+              {/* Tiras de Tarjetas Desglosadas por Ciclo */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <CalendarDays className="h-3.5 w-3.5 text-indigo-500" />
+                  Ciclos Detectados en los Documentos y Fechas de Venta
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+                  {data.ciclosFiltrados.map((c) => {
+                    const esSeleccionado = cicloFiltro === c.cicloKey;
+                    return (
+                      <div
+                        key={c.cicloKey}
+                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                          esSeleccionado
+                            ? "border-indigo-500 bg-indigo-500/10 shadow-md ring-1 ring-indigo-500"
+                            : "border-border/70 bg-card hover:border-indigo-500/50 shadow-xs"
+                        }`}
+                        onClick={() => {
+                          if (esSeleccionado) {
+                            setCicloFiltro("todos");
+                          } else {
+                            setCicloFiltro(c.cicloKey);
+                          }
+                          setPagina(1);
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-foreground text-sm">{c.etiqueta}</span>
+                          <Badge variant="outline" className="text-[10px] font-mono border-indigo-500/30 text-indigo-600 bg-indigo-500/10">
+                            {c.duracionDias} d
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground font-mono mt-1 flex items-center gap-1 truncate" title={c.rangoFechasTexto}>
+                          <Calendar className="h-3 w-3 text-indigo-500 shrink-0" />
+                          {c.rangoFechasTexto}
+                        </p>
+                        <div className="mt-3 pt-2.5 border-t border-border/50 space-y-1 font-mono">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-muted-foreground">Venta:</span>
+                            <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                              {formatoCOP(c.facturacion)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-muted-foreground">Prendas:</span>
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                              {c.unidades.toLocaleString("es-CO")}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-[11px] text-muted-foreground">
+                            <span>Ticket:</span>
+                            <span>{formatoCOP(c.ticketPromedio)}</span>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-full mt-2.5 h-6 text-[10px] text-indigo-600 hover:text-indigo-700 hover:bg-indigo-500/10 gap-1 font-semibold"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCicloFiltro(c.cicloKey);
+                            setVistaActiva("trazabilidad");
+                            setPagina(1);
+                          }}
+                        >
+                          Ver referencias
+                          <ArrowRight className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUBVISTA B: COMPARATIVA INTERANUAL (YOY) */}
+          {subVistaGrafica === "yoy" && (
+            <div className="space-y-4">
+              {data.comparativaYoY.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {data.comparativaYoY.map((yoy) => (
+                    <Card key={yoy.nombreCorreria} className="border-border/80 shadow-xs">
+                      <CardHeader className="pb-3 border-b border-border/40">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                            <Layers className="h-4 w-4 text-indigo-500" />
+                            Correría {yoy.nombreCorreria}: {yoy.anioActual} vs {yoy.anioAnterior}
+                          </CardTitle>
+                          <Badge
+                            className={`text-xs font-mono ${
+                              yoy.crecimientoVentaPct >= 0 ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"
+                            }`}
+                          >
+                            {yoy.crecimientoVentaPct >= 0 ? "+" : ""}
+                            {yoy.crecimientoVentaPct.toFixed(1)}% Venta
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-3 space-y-3">
+                        <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+                          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/60">
+                            <span className="text-[10px] text-muted-foreground block uppercase font-bold">
+                              {yoy.anioActual} ({yoy.fechasActual})
+                            </span>
+                            <span className="text-sm font-bold text-indigo-600 block mt-0.5">
+                              {formatoCOP(yoy.facturacionActual)}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {yoy.unidadesActual.toLocaleString("es-CO")} prendas
+                            </span>
+                          </div>
+                          <div className="p-2.5 rounded-xl bg-muted/40 border border-border/60">
+                            <span className="text-[10px] text-muted-foreground block uppercase font-bold">
+                              {yoy.anioAnterior} ({yoy.fechasAnterior})
+                            </span>
+                            <span className="text-sm font-bold text-muted-foreground block mt-0.5">
+                              {formatoCOP(yoy.facturacionAnterior)}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {yoy.unidadesAnterior.toLocaleString("es-CO")} prendas
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card className="border-indigo-500/30 bg-indigo-500/5 p-6 text-center rounded-2xl">
+                  <Calendar className="h-10 w-10 text-indigo-500 mx-auto mb-2.5" />
+                  <h3 className="text-base font-bold text-foreground">
+                    Matriz Interanual: Estado de los Ciclos por Año
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xl mx-auto">
+                    En las ventas registradas actualmente: el año <strong>2025</strong> contiene los ciclos{" "}
+                    <strong>C1 (16 Ene – 24 Mar)</strong>, <strong>C2 (25 Mar – 24 May)</strong> y{" "}
+                    <strong>C3 (26 May – 28 Jun)</strong>; mientras que el año <strong>2026</strong> contiene los ciclos{" "}
+                    <strong>C4 (25 Ago)</strong> y <strong>C5 (15 Sep – 08 Oct)</strong>.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mt-5 max-w-4xl mx-auto text-left">
+                    {data.ciclosDisponibles.map((c) => (
+                      <div key={c.cicloKey} className="p-3 rounded-xl bg-background border border-border/70 shadow-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-foreground text-xs">{c.etiqueta}</span>
+                          <Badge variant="outline" className="text-[9px] font-mono border-indigo-500/30 text-indigo-600 bg-indigo-500/10">
+                            {c.anio}
+                          </Badge>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground font-mono">{c.rangoFechasTexto}</p>
+                        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono mt-1">
+                          {formatoCOP(c.facturacion)}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground font-mono">
+                          {c.unidades.toLocaleString("es-CO")} prendas ({c.duracionDias} días)
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-4 max-w-lg mx-auto">
+                    Tan pronto se carguen ventas de una misma correría en dos años distintos (por ejemplo C1 2026 frente a C1 2025), esta vista calculará y comparará automáticamente el crecimiento interanual en facturación, unidades y ticket promedio.
+                  </p>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* SUBVISTA C: CATEGORÍAS DE PRENDA */}
+          {subVistaGrafica === "prendas" && (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card className="border-border/80 shadow-xs">
+                <CardHeader className="pb-3 border-b border-border/40">
+                  <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <Package className="h-4 w-4 text-emerald-500" />
+                    Top Categorías de Prenda en la Correría
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Participación de Jeans, Sets, Blusas, Pantalones, etc.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={data.resumenPorPrenda.slice(0, 7)}
+                        layout="vertical"
+                        margin={{ top: 5, right: 20, left: 40, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis type="number" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 10 }} />
+                        <YAxis type="category" dataKey="prenda" tick={{ fontSize: 10 }} width={80} />
+                        <Tooltip formatter={(v: any) => [formatoCOPFull(Number(v)), "Facturación"]} />
+                        <Bar dataKey="facturacion" fill="#06b6d4" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/80 shadow-xs">
+                <CardHeader className="pb-3 border-b border-border/40">
+                  <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-indigo-500" />
+                    Desglose Detallado por Prenda
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Volumen, ticket promedio y participación sobre la venta.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-3">
+                  <div className="overflow-x-auto rounded-xl border border-border/60 max-h-64 overflow-y-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-muted/50 text-[10px] text-muted-foreground uppercase border-b border-border/60 sticky top-0">
+                        <tr>
+                          <th className="py-2 px-3 font-bold">Categoría</th>
+                          <th className="py-2 px-3 font-bold text-right">Prendas</th>
+                          <th className="py-2 px-3 font-bold text-right">Facturación</th>
+                          <th className="py-2 px-3 font-bold text-right">Part %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/40 font-mono">
+                        {data.resumenPorPrenda.map((p) => (
+                          <tr key={p.prenda} className="hover:bg-muted/30">
+                            <td className="py-2 px-3 font-sans font-medium text-foreground">{p.prenda}</td>
+                            <td className="py-2 px-3 text-right">{p.unidades.toLocaleString("es-CO")}</td>
+                            <td className="py-2 px-3 text-right text-emerald-600 dark:text-emerald-400">
+                              {formatoCOP(p.facturacion)}
+                            </td>
+                            <td className="py-2 px-3 text-right">{p.participacionPct.toFixed(1)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* SUBVISTA D: CONCENTRACIÓN PARETO ABC */}
+          {subVistaGrafica === "pareto" && (
+            <Card className="border-border/80 shadow-xs">
+              <CardHeader className="pb-3 border-b border-border/40">
+                <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Percent className="h-4 w-4 text-purple-500" />
+                  Distribución Pareto de Referencias (Curva ABC)
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Clase A genera el 80% de la venta, Clase B el 15% y Clase C la cola larga.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4 flex flex-col items-center justify-center">
+                {(() => {
+                  const countA = data.rankingReferencias.filter((r) => r.paretoClase === "A").length;
+                  const countB = data.rankingReferencias.filter((r) => r.paretoClase === "B").length;
+                  const countC = data.rankingReferencias.filter((r) => r.paretoClase === "C").length;
+                  const pieData = [
+                    { name: "Clase A (Top 80% Venta)", value: countA, color: "#10b981" },
+                    { name: "Clase B (15% Venta)", value: countB, color: "#3b82f6" },
+                    { name: "Clase C (5% Venta)", value: countC, color: "#94a3b8" },
+                  ];
+                  return (
+                    <div className="w-full h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={80}
+                            innerRadius={45}
+                            paddingAngle={3}
+                            label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                          >
+                            {pieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(v: any) => [`${v} referencias`, "Total"]} />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
