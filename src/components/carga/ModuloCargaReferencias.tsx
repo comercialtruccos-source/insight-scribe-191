@@ -45,6 +45,12 @@ import {
   Package,
   Layers,
   Sparkles,
+  Copy,
+  Check,
+  ExternalLink,
+  Code2,
+  Database,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -55,6 +61,9 @@ import {
   obtenerResumenReferencias,
   consultarReferencias,
   purgarReferencias,
+  verificarEstadoTablaReferencias,
+  SQL_MIGRACION_REFERENCIAS,
+  SUPABASE_SQL_EDITOR_URL,
   type MetaArchivoReferencias,
   type FilaReferencia,
 } from "@/lib/referencias-api";
@@ -81,10 +90,32 @@ export function ModuloCargaReferencias() {
   const [pagina, setPagina] = useState(1);
   const POR_PAGINA = 15;
 
+  const [copiado, setCopiado] = useState(false);
+  const [mostrarSql, setMostrarSql] = useState(false);
+
+  // Verificar si la tabla de referencias existe en Supabase y está en el schema cache
+  const {
+    data: estadoTabla,
+    isLoading: cEstadoTabla,
+    refetch: verificarTabla,
+  } = useQuery({
+    queryKey: ["bi-referencias-estado-tabla"],
+    queryFn: verificarEstadoTablaReferencias,
+    refetchInterval: (query) => (query.state.data?.existe ? false : 5000),
+  });
+
+  const copiarSql = () => {
+    navigator.clipboard.writeText(SQL_MIGRACION_REFERENCIAS);
+    setCopiado(true);
+    toast.success("¡Script SQL copiado! Pégalo en el SQL Editor de Supabase y presiona Run.");
+    setTimeout(() => setCopiado(false), 4000);
+  };
+
   // Consultar métricas y resumen de referencias
   const { data: resumen, isLoading: cResumen } = useQuery({
     queryKey: ["bi-referencias-resumen"],
     queryFn: obtenerResumenReferencias,
+    enabled: Boolean(estadoTabla?.existe !== false),
   });
 
   // Consultar tabla de referencias activas
@@ -92,6 +123,7 @@ export function ModuloCargaReferencias() {
     queryKey: ["bi-referencias-catalogo", busqueda, pagina],
     queryFn: () => consultarReferencias(busqueda, pagina, POR_PAGINA),
     staleTime: 30 * 1000,
+    enabled: Boolean(estadoTabla?.existe !== false),
   });
 
   // Manejar selección de archivo
@@ -203,6 +235,128 @@ export function ModuloCargaReferencias() {
 
   return (
     <div className="space-y-6">
+      {/* ALERTA DE CONFIGURACIÓN INICIAL SI LA TABLA NO EXISTE EN SUPABASE */}
+      {estadoTabla && !estadoTabla.existe && (
+        <Card className="border-amber-500/50 bg-amber-500/5 shadow-md">
+          <CardHeader className="pb-3 border-b border-amber-500/20">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  <Database className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-bold text-amber-950 dark:text-amber-200">
+                    Paso Inicial Requerido: Crear la tabla &apos;referencias&apos; en Supabase
+                  </CardTitle>
+                  <CardDescription className="text-xs text-amber-800/80 dark:text-amber-300/80">
+                    La tabla aún no existe en tu base de datos de Supabase. Para activarla, solo debes ejecutar el script SQL en el editor de Supabase (tarda menos de 10 segundos).
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => verificarTabla()}
+                  disabled={cEstadoTabla}
+                  className="border-amber-500/30 text-amber-800 dark:text-amber-200 hover:bg-amber-500/10 text-xs gap-1.5"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${cEstadoTabla ? "animate-spin" : ""}`} />
+                  Comprobar conexión
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4 text-xs">
+            <div className="grid sm:grid-cols-3 gap-3">
+              <div className="p-3 rounded-lg bg-background border border-amber-500/20 space-y-1.5 flex flex-col justify-between">
+                <div>
+                  <span className="font-bold text-foreground flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold inline-flex items-center justify-center text-[11px]">1</span>
+                    Copiar Script SQL
+                  </span>
+                  <p className="text-muted-foreground text-[11px] mt-1">
+                    Copia el código SQL con la tabla, índices y función RPC optimizada.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={copiarSql}
+                  className="w-full mt-2 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+                >
+                  {copiado ? <Check className="h-3.5 w-3.5 text-white" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copiado ? "¡Copiado!" : "Copiar Script SQL"}
+                </Button>
+              </div>
+
+              <div className="p-3 rounded-lg bg-background border border-amber-500/20 space-y-1.5 flex flex-col justify-between">
+                <div>
+                  <span className="font-bold text-foreground flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold inline-flex items-center justify-center text-[11px]">2</span>
+                    Abrir SQL Editor
+                  </span>
+                  <p className="text-muted-foreground text-[11px] mt-1">
+                    Abre el SQL Editor de tu proyecto en Supabase (<code className="font-mono font-semibold">tdanxpksmfnwzdgzttau</code>).
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  asChild
+                  className="w-full mt-2 text-xs border-amber-500/30 text-amber-800 dark:text-amber-200 hover:bg-amber-500/10 gap-1.5"
+                >
+                  <a href={SUPABASE_SQL_EDITOR_URL} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Abrir Supabase SQL Editor
+                  </a>
+                </Button>
+              </div>
+
+              <div className="p-3 rounded-lg bg-background border border-amber-500/20 space-y-1.5 flex flex-col justify-between">
+                <div>
+                  <span className="font-bold text-foreground flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold inline-flex items-center justify-center text-[11px]">3</span>
+                    Pegar y Ejecutar
+                  </span>
+                  <p className="text-muted-foreground text-[11px] mt-1">
+                    Pega el código en Supabase y haz clic en <strong>Run</strong>. Al terminar, esta página lo detectará automáticamente.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setMostrarSql(!mostrarSql)}
+                  className="w-full mt-2 text-xs text-muted-foreground hover:text-foreground gap-1.5 border border-border/40"
+                >
+                  <Code2 className="h-3.5 w-3.5" />
+                  {mostrarSql ? "Ocultar código SQL" : "Ver código SQL"}
+                </Button>
+              </div>
+            </div>
+
+            {mostrarSql && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>Script de Migración SQL para Supabase:</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={copiarSql}
+                    className="h-6 px-2 text-[10px] gap-1"
+                  >
+                    {copiado ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                    {copiado ? "Copiado" : "Copiar"}
+                  </Button>
+                </div>
+                <pre className="max-h-60 overflow-y-auto rounded-lg bg-muted/60 p-3 font-mono text-[11px] text-foreground border border-border/60">
+                  {SQL_MIGRACION_REFERENCIAS}
+                </pre>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* TARJETA DE RESUMEN Y MÉTRICAS GLOBALES */}
       <Card className="border-border/80 shadow-xs bg-linear-to-b from-card to-muted/20">
         <CardHeader className="pb-3 border-b border-border/40">
@@ -215,6 +369,19 @@ export function ModuloCargaReferencias() {
                 <CardTitle className="text-lg font-bold text-foreground">
                   Catálogo Global de Referencias (Prendas y Productos)
                 </CardTitle>
+                {estadoTabla && (
+                  estadoTabla.existe ? (
+                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Tabla Activa
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Pendiente en Supabase
+                    </Badge>
+                  )
+                )}
               </div>
               <CardDescription className="text-xs">
                 Base de datos maestra de referencias de la empresa con las 4 columnas clave:{" "}
@@ -502,19 +669,31 @@ export function ModuloCargaReferencias() {
           )}
 
           {/* Botón de Iniciar Carga */}
-          <Button
-            disabled={
-              !archivo ||
-              cargaMutation.isPending ||
-              !metaArchivo?.esValido ||
-              !metaArchivo?.columnasDetectadas.ref
-            }
-            onClick={() => cargaMutation.mutate()}
-            className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm gap-2"
-          >
-            <Sparkles className="h-4 w-4" />
-            {cargaMutation.isPending ? "Procesando catálogo..." : "Procesar Catálogo de Referencias"}
-          </Button>
+          <div className="space-y-2">
+            {estadoTabla && !estadoTabla.existe && (
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>
+                  Para procesar el archivo, primero debes ejecutar el <strong>Script SQL</strong> en Supabase (ver arriba) para crear la tabla maestra.
+                </span>
+              </div>
+            )}
+
+            <Button
+              disabled={
+                !archivo ||
+                cargaMutation.isPending ||
+                !metaArchivo?.esValido ||
+                !metaArchivo?.columnasDetectadas.ref ||
+                estadoTabla?.existe === false
+              }
+              onClick={() => cargaMutation.mutate()}
+              className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              {cargaMutation.isPending ? "Procesando catálogo..." : "Procesar Catálogo de Referencias"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

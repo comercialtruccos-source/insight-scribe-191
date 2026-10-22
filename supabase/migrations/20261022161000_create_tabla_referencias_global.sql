@@ -116,3 +116,6 @@ END;
 $function$;
 
 GRANT EXECUTE ON FUNCTION public.ingest_referencias(jsonb) TO postgres, anon, authenticated, service_role;
+
+-- 7. Recargar inmediatamente la caché de esquemas de PostgREST
+NOTIFY pgrst, 'reload schema';
