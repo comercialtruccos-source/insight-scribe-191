@@ -7,7 +7,7 @@ import {
   FiltrosBI,
   CatalogoItem,
 } from "@/lib/ventas-api";
-import { formatoCOPFull } from "@/lib/utils";
+import { formatoCOPFull, cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +46,7 @@ export function PanelClientesActivados({
 }: PanelClientesActivadosProps) {
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState<"todos" | "Nuevo" | "Crecimiento" | "Decrecimiento">("todos");
+  const [vistaMovil, setVistaMovil] = useState<"tarjetas" | "tabla">("tarjetas");
   const [vendedorFiltroLocal, setVendedorFiltroLocal] = useState<string>(
     vendedorSeleccionadoId ? String(vendedorSeleccionadoId) : "todos"
   );
@@ -390,11 +391,198 @@ export function PanelClientesActivados({
       </CardHeader>
 
       <CardContent className="p-0">
-        <div className="sm:hidden px-3 py-1.5 bg-muted/40 border-b border-border/60 text-[10.5px] text-muted-foreground flex items-center justify-between font-medium">
-          <span>← Desliza horizontalmente para ver columnas →</span>
-          <span className="font-mono font-bold text-foreground">{clientesFiltrados.length} clientes</span>
+        {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) + Contador de Clientes */}
+        <div className="sm:hidden px-3 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setVistaMovil("tarjetas")}
+              className={cn(
+                "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                vistaMovil === "tarjetas"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              🗂️ Tarjetas
+            </button>
+            <button
+              type="button"
+              onClick={() => setVistaMovil("tabla")}
+              className={cn(
+                "px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
+                vistaMovil === "tabla"
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              📊 Tabla
+            </button>
+          </div>
+          <span className="font-mono text-xs font-bold text-foreground">
+            {clientesFiltrados.length} clientes
+          </span>
         </div>
-        <div className="overflow-x-auto max-h-[500px] touch-pan">
+
+        {/* Si estamos en vista móvil 'tabla', mostramos el aviso para deslizar */}
+        {vistaMovil === "tabla" && (
+          <div className="sm:hidden px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">
+            ← Desliza horizontalmente para ver todas las columnas →
+          </div>
+        )}
+
+        {/* VISTA MÓVIL EN TARJETAS VERTICALES (sm:hidden cuando vistaMovil === 'tarjetas') */}
+        {vistaMovil === "tarjetas" && (
+          <div className="sm:hidden divide-y divide-border/60 max-h-[600px] overflow-y-auto">
+            {isLoading ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <RefreshCw className="h-5 w-5 animate-spin text-primary" />
+                  <span>Cargando análisis de clientes activados...</span>
+                </div>
+              </div>
+            ) : clientesFiltrados.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground text-xs">
+                No se encontraron clientes con los filtros seleccionados.
+              </div>
+            ) : (
+              clientesFiltrados.map((c) => {
+                const maxVenta = Math.max(c.ventaActual, c.ventaAnterior, 1);
+                const pctActual = (c.ventaActual / maxVenta) * 100;
+                const pctAnterior = (c.ventaAnterior / maxVenta) * 100;
+
+                return (
+                  <div
+                    key={`movil-${c.vendedorId}-${c.terceroId}`}
+                    className="p-3.5 space-y-2.5 bg-card hover:bg-muted/30 transition-colors"
+                  >
+                    {/* Fila 1: Cliente, NIT, Asesor y Badge de Estado */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-xs sm:text-sm text-foreground leading-snug line-clamp-2">
+                          {c.terceroNombre}
+                        </h4>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] text-muted-foreground flex-wrap">
+                          {c.terceroCodigo && <span className="font-mono">NIT: {c.terceroCodigo}</span>}
+                          {c.terceroCodigo && <span>•</span>}
+                          <span className="font-medium text-foreground/80">{c.vendedorNombre}</span>
+                        </div>
+                      </div>
+
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full",
+                          c.estadoCliente === "Nuevo"
+                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                            : c.estadoCliente === "Crecimiento"
+                            ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                            : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                        )}
+                      >
+                        {c.estadoCliente}
+                      </Badge>
+                    </div>
+
+                    {/* Fila 2: Cifras de Facturación y Crecimiento YoY */}
+                    <div className="flex items-baseline justify-between pt-0.5">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
+                          Venta Actual
+                        </span>
+                        <span className="text-sm font-extrabold font-mono text-foreground">
+                          {formatoCOPFull(c.ventaActual)}
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
+                          Crecimiento YoY
+                        </span>
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-mono font-bold text-xs",
+                            c.crecimientoYoY > 0
+                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                              : c.crecimientoYoY < 0
+                              ? "bg-rose-500/15 text-rose-600"
+                              : "text-muted-foreground bg-muted"
+                          )}
+                        >
+                          {c.crecimientoYoY > 0 ? "+" : ""}
+                          {c.crecimientoYoY.toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Fila 3: Comparador Visual Dual a Ancho Completo (100% width) */}
+                    <div className="bg-muted/30 rounded-xl p-2.5 space-y-2 border border-border/50">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shrink-0" />
+                            Actual:
+                          </span>
+                          <span className="font-mono font-bold text-foreground">
+                            {formatoCOPFull(c.ventaActual)}
+                          </span>
+                        </div>
+                        <div className="w-full bg-muted/70 h-2.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-emerald-500 h-full rounded-full transition-all"
+                            style={{ width: `${Math.min(100, Math.max(c.ventaActual > 0 ? 4 : 0, pctActual))}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground font-medium flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500 inline-block shrink-0" />
+                            Anterior:
+                          </span>
+                          <span className="font-mono text-muted-foreground">
+                            {c.ventaAnterior > 0 ? formatoCOPFull(c.ventaAnterior) : "—"}
+                          </span>
+                        </div>
+                        <div className="w-full bg-muted/70 h-2.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-slate-400 dark:bg-slate-500 h-full rounded-full transition-all"
+                            style={{ width: `${Math.min(100, Math.max(c.ventaAnterior > 0 ? 4 : 0, pctAnterior))}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fila 4: Métricas complementarias (Unidades & Ticket Promedio) */}
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/40 text-[11px]">
+                      <div className="flex items-center justify-between bg-muted/20 px-2 py-1.5 rounded-lg border border-border/40">
+                        <span className="text-muted-foreground font-medium">Prendas:</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {c.unidadesActuales.toLocaleString("es-CO")} unds
+                          {c.unidadesAnteriores > 0 && (
+                            <span className="text-[10px] text-muted-foreground font-normal ml-1">
+                              (Ant: {c.unidadesAnteriores.toLocaleString("es-CO")})
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between bg-muted/20 px-2 py-1.5 rounded-lg border border-border/40">
+                        <span className="text-muted-foreground font-medium">Ticket Prom:</span>
+                        <span className="font-mono font-bold text-foreground">
+                          {formatoCOPFull(c.ticketPromedio)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* VISTA TABLA (Activa en PC siempre [hidden sm:block] y en móvil solo cuando vistaMovil === 'tabla') */}
+        <div className={`overflow-x-auto max-h-[500px] touch-pan ${vistaMovil === "tabla" ? "block" : "hidden sm:block"}`}>
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur-md border-b text-[11px] font-bold text-foreground">
               <tr>
