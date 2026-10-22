@@ -433,6 +433,66 @@ export type Database = {
           },
         ]
       }
+      referencias: {
+        Row: {
+          id: number
+          ref: string
+          nombre: string
+          pvm: number
+          pvp: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          ref: string
+          nombre: string
+          pvm?: number
+          pvp?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          ref?: string
+          nombre?: string
+          pvm?: number
+          pvp?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cargas_referencias: {
+        Row: {
+          id: number
+          archivo: string
+          filas_recibidas: number
+          filas_nuevas: number
+          filas_actualizadas: number
+          usuario_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          archivo: string
+          filas_recibidas?: number
+          filas_nuevas?: number
+          filas_actualizadas?: number
+          usuario_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          archivo?: string
+          filas_recibidas?: number
+          filas_nuevas?: number
+          filas_actualizadas?: number
+          usuario_id?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -441,6 +501,14 @@ export type Database = {
       ingest_ventas: {
         Args: { payload: Json }
         Returns: {
+          nuevas: number
+          recibidas: number
+        }[]
+      }
+      ingest_referencias: {
+        Args: { payload: Json }
+        Returns: {
+          actualizadas: number
           nuevas: number
           recibidas: number
         }[]

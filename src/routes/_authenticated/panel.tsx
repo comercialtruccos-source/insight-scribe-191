@@ -142,6 +142,7 @@ import { toast } from "sonner";
 import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vendedores-dialog";
 import { MentorComercialDrawer } from "@/components/mentor/MentorComercialDrawer";
 import { SankeyFlujoComercial } from "@/components/sankey/SankeyFlujoComercial";
+import { ModuloCargaReferencias } from "@/components/carga/ModuloCargaReferencias";
 import { calcularDiagnosticoMentor } from "@/lib/mentor-comercial";
 import { useInventarioReal } from "@/lib/inventario-api";
 import {
@@ -597,6 +598,7 @@ function Panel() {
   const [metaArchivo, setMetaArchivo] = useState<MetadataArchivo | null>(null);
   const [hojaSeleccionada, setHojaSeleccionada] = useState<string | null>(null);
   const [esPivotOInvalido, setEsPivotOInvalido] = useState(false);
+  const [subTabCarga, setSubTabCarga] = useState<"ventas" | "referencias">("ventas");
 
   // Queries iniciales para metadatos y rangos
   const { data: resumen } = useQuery({
@@ -9582,7 +9584,36 @@ function Panel() {
           {/* ========================================================================= */}
           {esAdmin && (
             <TabsContent value="carga" className="space-y-6">
-              {/* ZONA DE CONTROL Y LIMPIEZA DE DATOS */}
+              {/* SELECTOR DE TIPO DE CARGA: VENTAS HISTÓRICAS VS CATÁLOGO DE REFERENCIAS */}
+              <div className="flex items-center gap-2 border-b border-border/60 pb-3 flex-wrap">
+                <Button
+                  variant={subTabCarga === "ventas" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSubTabCarga("ventas")}
+                  className="text-xs font-semibold gap-2 shadow-2xs"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Base de Ventas Histórica (32 Columnas)</span>
+                </Button>
+                <Button
+                  variant={subTabCarga === "referencias" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSubTabCarga("referencias")}
+                  className="text-xs font-semibold gap-2 shadow-2xs"
+                >
+                  <Tag className="h-4 w-4 text-primary" />
+                  <span>Catálogo Global de Referencias (REF, Nombre, PVM, PVP)</span>
+                  <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                    Diseño & Correrías
+                  </Badge>
+                </Button>
+              </div>
+
+              {subTabCarga === "referencias" ? (
+                <ModuloCargaReferencias />
+              ) : (
+                <>
+                  {/* ZONA DE CONTROL Y LIMPIEZA DE DATOS */}
               <Card className="border-rose-500/30 bg-rose-500/5">
               <CardHeader className="pb-3">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -9834,6 +9865,8 @@ function Panel() {
                 </CardContent>
               </Card>
             </div>
+            </>
+          )}
           </TabsContent>
           )}
         </Tabs>
