@@ -101,7 +101,7 @@ export function SankeyFlujoComercial({
       case "cascada":
         return generarSankeyFlujoCascada(rawVentas, catalogos);
       case "digital":
-        return generarSankeyFlujoDigital(d3, rawVentas);
+        return generarSankeyFlujoDigital(d3);
       case "comercial":
       default:
         return generarSankeyFlujoComercial(rawVentas, catalogos);
