@@ -14,7 +14,12 @@ import {
 } from "lucide-react";
 
 export interface DesgloseSkusTablaProps {
-  referencia: string;
+  referencia?: string;
+  referenciaCodigo?: string;
+  referenciaNombre?: string;
+  totalUnidades?: number;
+  totalValor?: number;
+  precioPromedio?: number;
   nombreProducto?: string;
   prenda?: string;
   linea?: string;
@@ -24,7 +29,29 @@ export interface DesgloseSkusTablaProps {
   onClose?: () => void;
 }
 
-export function DesgloseSkusTabla({
+export function DesgloseSkusTabla(props: DesgloseSkusTablaProps) {
+  const {
+    referencia: referenciaProp,
+    referenciaCodigo,
+    referenciaNombre,
+    nombreProducto: nombreProductoProp,
+    totalUnidades: totalUnidadesAlias,
+    totalValor: totalValorAlias,
+    prenda,
+    linea,
+    totalUnidadesRef: totalUnidadesRefProp,
+    totalValorRef: totalValorRefProp,
+    skus = [],
+    onClose,
+  } = props;
+  const referencia = referenciaProp ?? referenciaCodigo ?? "";
+  const nombreProducto = nombreProductoProp ?? referenciaNombre;
+  const totalUnidadesRef = totalUnidadesRefProp ?? totalUnidadesAlias;
+  const totalValorRef = totalValorRefProp ?? totalValorAlias;
+  return <DesgloseSkusTablaInner {...{ referencia, nombreProducto, prenda, linea, totalUnidadesRef, totalValorRef, skus, onClose }} />;
+}
+
+function DesgloseSkusTablaInner({
   referencia,
   nombreProducto,
   prenda,
