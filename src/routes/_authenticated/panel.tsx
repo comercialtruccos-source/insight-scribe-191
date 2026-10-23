@@ -144,6 +144,7 @@ import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vende
 import { MentorComercialDrawer } from "@/components/mentor/MentorComercialDrawer";
 import { SankeyFlujoComercial } from "@/components/sankey/SankeyFlujoComercial";
 import { ModuloCargaReferencias } from "@/components/carga/ModuloCargaReferencias";
+import { BarraNavegacionDashboards } from "@/components/dashboard/BarraNavegacionDashboards";
 import { calcularDiagnosticoMentor } from "@/lib/mentor-comercial";
 import { useInventarioReal } from "@/lib/inventario-api";
 import {
@@ -2929,69 +2930,11 @@ function Panel() {
               </div>
 
               {/* Tabs enfocados para Vendedor (sin Digital, Marketplaces ni Multianual repetitivo) */}
-              <TabsList className={`flex w-full overflow-x-auto scrollbar-none snap-x items-center gap-1.5 p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs sm:grid ${esAdmin ? "sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8" : "sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-7"} h-auto`}>
-                <TabsTrigger
-                  value="d1"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
-                >
-                  <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                  1. Cumplimiento
-                </TabsTrigger>
-                <TabsTrigger
-                  value="d2"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
-                >
-                  <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                  2. Run Rate
-                </TabsTrigger>
-                <TabsTrigger
-                  value="d4"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
-                >
-                  <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                  4. Fuerza Ventas
-                </TabsTrigger>
-                <TabsTrigger
-                  value="referencias"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
-                >
-                  <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
-                  6. Referencias
-                </TabsTrigger>
-                <TabsTrigger
-                  value="explorador"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
-                  7. Pedidos vs Despachos
-                </TabsTrigger>
-                <TabsTrigger
-                  value="d8"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
-                >
-                  <Users className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                  8. Clientes Activados
-                </TabsTrigger>
-                {esAdmin && (
-                  <TabsTrigger
-                    value="correrias"
-                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-rose-500/15 data-[state=active]:text-rose-700 dark:data-[state=active]:text-rose-300 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
-                  >
-                    <Layers className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                    9. Correrías
-                  </TabsTrigger>
-                )}
-                {esAdmin && (
-                  <TabsTrigger
-                    value="carga"
-                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200 shrink-0 snap-start whitespace-nowrap"
-                  >
-                    <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                    Cargar
-                  </TabsTrigger>
-                )}
-              </TabsList>
-
+              <BarraNavegacionDashboards
+                tabActivo={tabActivo}
+                esAdmin={esAdmin}
+                modoEnfoque="vendedor"
+              />
             </div>
           ) : (zonaId !== "todos" || ciudadId !== "todos") ? (
             <div className="space-y-3">
@@ -3031,150 +2974,20 @@ function Panel() {
               </div>
 
               {/* Tabs enfocados para Región (sin Digital ni Marketplaces) */}
-              <TabsList className={`flex w-full overflow-x-auto scrollbar-none snap-x items-center gap-1.5 p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs sm:grid sm:grid-cols-3 md:grid-cols-6 ${esAdmin ? "lg:grid-cols-7 xl:grid-cols-8" : "lg:grid-cols-6 xl:grid-cols-7"} h-auto`}>
-                <TabsTrigger
-                  value="d1"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                  1. Cumplimiento
-                </TabsTrigger>
-                <TabsTrigger
-                  value="d2"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                  2. Run Rate
-                </TabsTrigger>
-                <TabsTrigger
-                  value="d4"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                  4. Fuerza Ventas
-                </TabsTrigger>
-                <TabsTrigger
-                  value="referencias"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
-                  6. Referencias
-                </TabsTrigger>
-                <TabsTrigger
-                  value="explorador"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
-                  7. Pedidos vs Despachos
-                </TabsTrigger>
-                <TabsTrigger
-                  value="d8"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <Users className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                  8. Clientes Activados
-                </TabsTrigger>
-                {esAdmin && (
-                  <TabsTrigger
-                    value="correrias"
-                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-rose-500/15 data-[state=active]:text-rose-700 dark:data-[state=active]:text-rose-300 data-[state=active]:shadow-xs transition-all duration-200"
-                  >
-                    <Layers className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                    9. Correrías
-                  </TabsTrigger>
-                )}
-                {esAdmin && (
-                  <TabsTrigger
-                    value="carga"
-                    className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200"
-                  >
-                    <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                    Cargar
-                  </TabsTrigger>
-                )}
-              </TabsList>
+              <BarraNavegacionDashboards
+                tabActivo={tabActivo}
+                esAdmin={esAdmin}
+                modoEnfoque="territorio"
+              />
             </div>
           ) : (
-            <TabsList className={`flex w-full overflow-x-auto scrollbar-none snap-x items-center gap-1.5 p-1.5 bg-card/90 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs sm:grid sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 xl:grid-cols-9 h-auto`}>
-              <TabsTrigger
-                value="d1"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-blue-500/15 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-300 data-[state=active]:shadow-xs transition-all duration-200"
-              >
-                <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                1. Cumplimiento
-              </TabsTrigger>
-              <TabsTrigger
-                value="d2"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300 data-[state=active]:shadow-xs transition-all duration-200"
-              >
-                <Calendar className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                2. Run Rate
-              </TabsTrigger>
-              {puedeVerDigital && (
-                <TabsTrigger
-                  value="d3"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-700 dark:data-[state=active]:text-indigo-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <Globe className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-                  3. Digital
-                </TabsTrigger>
-              )}
-              <TabsTrigger
-                value="d4"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-amber-500/15 data-[state=active]:text-amber-700 dark:data-[state=active]:text-amber-300 data-[state=active]:shadow-xs transition-all duration-200"
-              >
-                <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                4. Fuerza Ventas
-              </TabsTrigger>
-              {puedeVerMarketplaces && (
-                <TabsTrigger
-                  value="d5"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-pink-500/15 data-[state=active]:text-pink-700 dark:data-[state=active]:text-pink-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <ShoppingBag className="h-3.5 w-3.5 text-pink-500 shrink-0" />
-                  5. Marketplaces
-                </TabsTrigger>
-              )}
-              <TabsTrigger
-                value="referencias"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-cyan-500/15 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 data-[state=active]:shadow-xs transition-all duration-200"
-              >
-                <Package className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
-                6. Referencias
-              </TabsTrigger>
-              <TabsTrigger
-                value="explorador"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:shadow-xs transition-all duration-200"
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
-                7. Pedidos vs Despachos
-              </TabsTrigger>
-              <TabsTrigger
-                value="d8"
-                className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-purple-500/15 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:shadow-xs transition-all duration-200"
-              >
-                <Users className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                8. Clientes Activados
-              </TabsTrigger>
-              {esAdmin && (
-                <TabsTrigger
-                  value="correrias"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-rose-500/15 data-[state=active]:text-rose-700 dark:data-[state=active]:text-rose-300 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <Layers className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                  9. Correrías
-                </TabsTrigger>
-              )}
-              {esAdmin && (
-                <TabsTrigger
-                  value="carga"
-                  className="flex items-center gap-1.5 py-2 px-2.5 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:shadow-xs transition-all duration-200"
-                >
-                  <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                  Cargar
-                </TabsTrigger>
-              )}
-            </TabsList>
+            <BarraNavegacionDashboards
+              tabActivo={tabActivo}
+              esAdmin={esAdmin}
+              puedeVerDigital={puedeVerDigital}
+              puedeVerMarketplaces={puedeVerMarketplaces}
+              modoEnfoque="ninguno"
+            />
           )}
 
           {/* ========================================================================= */}
