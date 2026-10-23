@@ -158,7 +158,7 @@ export function PanelClientesActivados({
       return data.kpis;
     }
     const totalClientes = clientesFiltrados.length;
-    const clientesNuevos = clientesFiltrados.filter((c) => c.estadoCliente === "NUEVO").length;
+    const clientesNuevos = clientesFiltrados.filter((c) => c.estadoCliente === "Nuevo").length;
     const ventaTotal = clientesFiltrados.reduce((acc, c) => acc + c.ventaActual, 0);
     const ventaAnteriorTotal = clientesFiltrados.reduce((acc, c) => acc + c.ventaAnterior, 0);
     const crecimientoYoYPct = ventaAnteriorTotal > 0
@@ -171,8 +171,8 @@ export function PanelClientesActivados({
     return {
       totalClientes,
       clientesNuevos,
-      clientesCrecimiento: clientesFiltrados.filter((c) => c.estadoCliente === "CRECIMIENTO").length,
-      clientesDecrecimiento: clientesFiltrados.filter((c) => c.estadoCliente === "DECRECIMIENTO").length,
+      clientesCrecimiento: clientesFiltrados.filter((c) => c.estadoCliente === "Crecimiento").length,
+      clientesDecrecimiento: clientesFiltrados.filter((c) => c.estadoCliente === "Decrecimiento").length,
       ventaTotal,
       ventaAnteriorTotal,
       crecimientoYoYPct,
