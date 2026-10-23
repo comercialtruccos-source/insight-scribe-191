@@ -493,8 +493,8 @@ function Panel() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Modo de rango temporal
-  const [tipoRango, setTipoRango] = useState<string>("todo");
+  // Modo de rango temporal: por defecto "anio" (Por Año y Mes) para activar directamente el año y mes actual
+  const [tipoRango, setTipoRango] = useState<string>("anio");
   const [fechaDesde, setFechaDesde] = useState<string>("");
   const [fechaHasta, setFechaHasta] = useState<string>("");
 
@@ -528,12 +528,16 @@ function Panel() {
         setTabActivo(tabParam);
         setModoVistaMovil("dashboard");
       }
+      const anioParam = params.get("anio");
+      const mesParam = params.get("mes");
+      if (anioParam) setAnio(anioParam);
+      if (mesParam) setMes(mesParam);
     }
   }, []);
 
-  // Filtros globales
-  const [anio, setAnio] = useState<string>("todos");
-  const [mes, setMes] = useState<string>("todos");
+  // Filtros globales: Por defecto corresponden al mes y año actual para evitar tener que seleccionarlos manualmente al iniciar sesión
+  const [anio, setAnio] = useState<string>(() => String(new Date().getFullYear()));
+  const [mes, setMes] = useState<string>(() => String(new Date().getMonth() + 1));
   const [canalId, setCanalId] = useState<string>("todos");
   const [marcaId, setMarcaId] = useState<string>("todos");
   const [vendedorId, setVendedorId] = useState<string>("todos");
@@ -618,6 +622,14 @@ function Panel() {
     queryKey: ["catalogos-filtros"],
     queryFn: () => obtenerCatalogosFiltros(),
   });
+
+  // Lista de años disponibles en catálogo, garantizando la presencia inmediata del año actual
+  const aniosOpciones = useMemo(() => {
+    const anioActual = new Date().getFullYear();
+    const setAnios = new Set<number>(catalogos?.anios || [anioActual]);
+    setAnios.add(anioActual);
+    return Array.from(setAnios).sort((a, b) => b - a);
+  }, [catalogos?.anios]);
 
   // Control de Usuario y Permisos de Vendedores
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string; nombre?: string | null } | null>(() => {
@@ -2080,7 +2092,7 @@ function Panel() {
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-border/80 shadow-lg">
                     <SelectItem value="todos">Todos</SelectItem>
-                    {(catalogos?.anios || []).map((a) => (
+                    {aniosOpciones.map((a) => (
                       <SelectItem key={a} value={String(a)}>
                         {a}
                       </SelectItem>
@@ -2165,8 +2177,11 @@ function Panel() {
                         setFechaDesde("");
                         setFechaHasta("");
                       } else if (v === "anio") {
-                        if (anio === "todos" && (catalogos?.anios?.length ?? 0) > 0) {
-                          setAnio(String(catalogos!.anios[0]));
+                        if (anio === "todos") {
+                          setAnio(String(new Date().getFullYear()));
+                        }
+                        if (mes === "todos") {
+                          setMes(String(new Date().getMonth() + 1));
                         }
                         setFechaDesde("");
                         setFechaHasta("");
@@ -2421,8 +2436,11 @@ function Panel() {
                   setFechaDesde("");
                   setFechaHasta("");
                 } else if (v === "anio") {
-                  if (anio === "todos" && (catalogos?.anios?.length ?? 0) > 0) {
-                    setAnio(String(catalogos!.anios[0]));
+                  if (anio === "todos") {
+                    setAnio(String(new Date().getFullYear()));
+                  }
+                  if (mes === "todos") {
+                    setMes(String(new Date().getMonth() + 1));
                   }
                   setFechaDesde("");
                   setFechaHasta("");
@@ -2492,7 +2510,7 @@ function Panel() {
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-border/80 shadow-lg">
                   <SelectItem value="todos">Todos los Años</SelectItem>
-                  {(catalogos?.anios || []).map((a) => (
+                  {aniosOpciones.map((a) => (
                     <SelectItem key={a} value={String(a)}>
                       Año {a}
                     </SelectItem>

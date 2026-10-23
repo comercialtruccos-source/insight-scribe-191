@@ -69,9 +69,20 @@ export function VisorPedidosDespachos({
   terceroIdFiltro = "todos",
   onSelectTercero,
 }: VisorPedidosDespachosProps) {
-  // Filtros de encabezado HGI
-  const [fechaDesde, setFechaDesde] = useState("2025-01-01");
-  const [fechaHasta, setFechaHasta] = useState("2025-12-31");
+  // Filtros de encabezado HGI (inicializados en el mes y año actual por defecto)
+  const [fechaDesde, setFechaDesde] = useState(() => {
+    const ahora = new Date();
+    const y = ahora.getFullYear();
+    const m = String(ahora.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}-01`;
+  });
+  const [fechaHasta, setFechaHasta] = useState(() => {
+    const ahora = new Date();
+    const y = ahora.getFullYear();
+    const m = ahora.getMonth() + 1;
+    const ultimoDia = new Date(y, m, 0).getDate();
+    return `${y}-${String(m).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+  });
   const [modoVista, setModoVista] = useState<"datos" | "grafico" | "ambos">("datos");
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [correriaSeleccionada, setCorreriaSeleccionada] = useState<string>("todas");
@@ -433,6 +444,33 @@ export function VisorPedidosDespachos({
             {/* Botones de Periodo Rápido */}
             <div className="flex items-center gap-1 text-[10px] flex-wrap justify-center">
               <span className="text-muted-foreground font-medium">Periodos:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  const y = now.getFullYear();
+                  const m = String(now.getMonth() + 1).padStart(2, "0");
+                  const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+                  setFechaDesde(`${y}-${m}-01`);
+                  setFechaHasta(`${y}-${m}-${String(lastDay).padStart(2, "0")}`);
+                }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  (() => {
+                    const now = new Date();
+                    const y = now.getFullYear();
+                    const m = String(now.getMonth() + 1).padStart(2, "0");
+                    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+                    return (
+                      fechaDesde === `${y}-${m}-01` &&
+                      fechaHasta === `${y}-${m}-${String(lastDay).padStart(2, "0")}`
+                    );
+                  })()
+                    ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Mes Actual
+              </button>
               <button
                 type="button"
                 onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2025-12-31"); }}

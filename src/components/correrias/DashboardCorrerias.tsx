@@ -141,8 +141,8 @@ export function DashboardCorrerias({
     );
   }
 
-  // Estados de filtros internos
-  const [anioFiltro, setAnioFiltro] = useState<string | number>("todos");
+  // Estados de filtros internos (inicializado en el año actual por defecto)
+  const [anioFiltro, setAnioFiltro] = useState<string | number>(() => new Date().getFullYear());
   const [cicloFiltro, setCicloFiltro] = useState<string>("todos");
   const [prendaFiltro, setPrendaFiltro] = useState<string>("todas");
   const [busqueda, setBusqueda] = useState<string>("");

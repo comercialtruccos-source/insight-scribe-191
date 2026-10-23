@@ -4652,8 +4652,9 @@ export type ResultadoPedidosDespachos = {
 export async function obtenerPedidosVsDespachos(
   filtros: FiltrosPedidosDespachos
 ): Promise<ResultadoPedidosDespachos> {
-  const fechaDesde = filtros.fecha_desde || "2025-01-01";
-  const fechaHasta = filtros.fecha_hasta || "2025-12-31";
+  const anioActual = new Date().getFullYear();
+  const fechaDesde = filtros.fecha_desde || `${anioActual}-01-01`;
+  const fechaHasta = filtros.fecha_hasta || `${anioActual}-12-31`;
 
   const [vendsRes, tercs] = await Promise.all([
     supabase.from("dim_vendedor").select("id, nombre"),
