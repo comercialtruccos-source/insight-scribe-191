@@ -2987,6 +2987,7 @@ function Panel() {
               puedeVerDigital={puedeVerDigital}
               puedeVerMarketplaces={puedeVerMarketplaces}
               modoEnfoque="ninguno"
+              className="mt-1 mb-2"
             />
           )}
 

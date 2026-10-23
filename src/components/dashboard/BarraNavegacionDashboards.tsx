@@ -129,7 +129,7 @@ export function BarraNavegacionDashboards({
       <TabsList
         ref={scrollRef}
         onWheel={handleWheel}
-        className="flex w-full overflow-x-auto scrollbar-none snap-x items-center gap-1.5 p-1.5 bg-card/90 dark:bg-card/85 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs h-auto min-h-[48px]"
+        className="flex flex-nowrap justify-start w-full overflow-x-auto scrollbar-none snap-x items-center gap-1.5 p-1.5 bg-card/90 dark:bg-card/85 backdrop-blur-xl rounded-2xl border border-border/70 shadow-2xs h-auto min-h-[48px]"
       >
         {/* TAB 1: CUMPLIMIENTO */}
         <TabsTrigger
@@ -204,7 +204,7 @@ export function BarraNavegacionDashboards({
           <FileSpreadsheet className="h-3.5 w-3.5 text-teal-500 shrink-0" />
           <span>
             7. Pedidos
-            <span className="hidden xl:inline"> vs Despachos</span>
+            <span className="hidden 2xl:inline"> vs Despachos</span>
           </span>
         </TabsTrigger>
 
@@ -217,7 +217,7 @@ export function BarraNavegacionDashboards({
           <Users className="h-3.5 w-3.5 text-purple-500 shrink-0" />
           <span>
             8. Clientes
-            <span className="hidden xl:inline"> Activados</span>
+            <span className="hidden 2xl:inline"> Activados</span>
           </span>
         </TabsTrigger>
 
@@ -240,7 +240,7 @@ export function BarraNavegacionDashboards({
             <TabsTrigger
               value="carga"
               title="Módulo de Carga e Ingesta de Archivos Planos HGI (Solo Administrador)"
-              className="ml-auto flex items-center gap-1.5 py-1.5 px-3 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap transition-all duration-200 border border-border/80 hover:border-slate-400/80 bg-muted/40 hover:bg-muted/70 data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:border-slate-500/40 text-muted-foreground"
+              className="flex items-center gap-1.5 py-2 px-2.5 lg:px-3 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap transition-all duration-200 border border-border/80 hover:border-slate-400/80 bg-muted/40 hover:bg-muted/70 data-[state=active]:bg-slate-500/15 data-[state=active]:text-slate-800 dark:data-[state=active]:text-slate-200 data-[state=active]:border-slate-500/40 text-muted-foreground"
             >
               <UploadCloud className="h-3.5 w-3.5 text-slate-500 shrink-0" />
               <span>Cargar</span>
