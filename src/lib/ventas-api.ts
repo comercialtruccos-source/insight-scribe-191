@@ -1842,9 +1842,10 @@ export function calcularDashboard1Cumplimiento(
     currP.unidades += cant;
     totalUnidades += cant;
 
-    if (r.transaccion) {
-      transaccionesSet.add(String(r.transaccion));
-    }
+    const txKeyActual = r.transaccion && /\d/.test(String(r.transaccion))
+      ? String(r.transaccion).trim()
+      : `${r.fecha || ""}_${r.tercero_id || ""}_${r.transaccion || r.id || ""}`;
+    transaccionesSet.add(txKeyActual);
 
     // Líneas
     const lNom = (r.linea_id && lineaMap.get(r.linea_id)) || "General / Confección";
@@ -2067,7 +2068,10 @@ export function calcularDashboard1Cumplimiento(
       if (esDevolucionTransaccion(r.transaccion, v)) totalDevolucionesAnterior += Math.abs(v);
       totalUnidadesAnterior += cant;
 
-      if (r.transaccion) transaccionesAntSet.add(String(r.transaccion));
+      const txKeyAnt = r.transaccion && /\d/.test(String(r.transaccion))
+        ? String(r.transaccion).trim()
+        : `${r.fecha || ""}_${r.tercero_id || ""}_${r.transaccion || r.id || ""}`;
+      transaccionesAntSet.add(txKeyAnt);
 
       const pKey = String(m);
       const prevP = periodoAntMap.get(pKey) || { venta: 0, unidades: 0 };
@@ -2472,22 +2476,62 @@ export function calcularDashboard1Cumplimiento(
     })
     .sort((a, b) => b.venta - a.venta);
 
-  const totalPpto = meses.reduce((a, b) => a + b.ppto, 0);
-  const totalPptoAnterior = meses.reduce((a, b) => a + (b.ventaAnterior > 0 ? Math.round(b.ventaAnterior * 1.05) : 0), 0);
   const totalVentaBruta = totalVentas + totalDevoluciones;
   const totalVentaBrutaAnterior = totalVentasAnterior + totalDevolucionesAnterior;
-  const numTransacciones = transaccionesSet.size > 0 ? transaccionesSet.size : totalUnidades;
-  const numTransaccionesAnterior = transaccionesAntSet.size > 0 ? transaccionesAntSet.size : totalUnidadesAnterior;
-  const ticketPromedio = numTransacciones > 0 ? Math.round(totalVentas / numTransacciones) : 0;
-  const ticketPromedioAnterior = numTransaccionesAnterior > 0 ? Math.round(totalVentasAnterior / numTransaccionesAnterior) : 0;
-  const precioPromedioPrenda = totalUnidades > 0 ? Math.round(totalVentas / totalUnidades) : 0;
-  const precioPromedioPrendaAnterior = totalUnidadesAnterior > 0 ? Math.round(totalVentasAnterior / totalUnidadesAnterior) : 0;
-  const crecimientoYoYGlobal = totalVentasAnterior > 0 ? Math.round(((totalVentas - totalVentasAnterior) / totalVentasAnterior) * 10000) / 100 : 0;
-  const cumplimientoAnteriorPct = totalPptoAnterior > 0 && totalVentasAnterior > 0 ? Math.round((totalVentasAnterior / totalPptoAnterior) * 10000) / 100 : (totalVentasAnterior > 0 ? 100 : 0);
-  const tasaDevolucionAnteriorPct = totalVentasAnterior > 0 ? Math.round((totalDevolucionesAnterior / totalVentasAnterior) * 10000) / 100 : 0;
 
   const cmiKpis = obtenerKpisCalibradosCMI(filtros);
   const cmiMeses = obtenerMesesCalibradosCMI(filtros);
+
+  const esMesPuntual = Boolean(filtros.mes && filtros.mes >= 1 && filtros.mes <= 12);
+  const mesPuntualObj = esMesPuntual ? meses.find((m) => m.mes === filtros.mes) : null;
+
+  // Si se selecciona un mes puntual, el presupuesto y venta anterior son los de ese mes puntual, NO el año completo
+  let pptoObjetivo = 0;
+  let pptoAnteriorObjetivo = 0;
+  let ventaAnteriorObjetivo = 0;
+  let unidadesAnteriorObjetivo = 0;
+
+  if (esMesPuntual && mesPuntualObj) {
+    pptoObjetivo = mesPuntualObj.ppto || cmiKpis?.pptoYTD || 0;
+    pptoAnteriorObjetivo = mesPuntualObj.ventaAnterior > 0 ? Math.round(mesPuntualObj.ventaAnterior * 1.05) : (cmiKpis?.pptoAnteriorTotal || 0);
+    ventaAnteriorObjetivo = totalVentasAnterior > 0 ? totalVentasAnterior : (mesPuntualObj.ventaAnterior || cmiKpis?.ventaAnteriorTotal || 0);
+    unidadesAnteriorObjetivo = totalUnidadesAnterior > 0 ? totalUnidadesAnterior : (mesPuntualObj.unidadesAnterior || cmiKpis?.unidadesAnteriorTotal || 0);
+  } else {
+    // Si es vista anual (YTD), sumamos los meses transcurridos con venta (comparables YTD)
+    const mesesConVenta = meses.filter((m) => m.ventaReal > 0);
+    const mesesParaPpto = mesesConVenta.length > 0 ? mesesConVenta : meses;
+    pptoObjetivo = mesesParaPpto.reduce((sum, m) => sum + (m.ppto || 0), 0);
+    pptoAnteriorObjetivo = mesesParaPpto.reduce((sum, m) => sum + (m.ventaAnterior > 0 ? Math.round(m.ventaAnterior * 1.05) : 0), 0);
+    ventaAnteriorObjetivo = totalVentasAnterior > 0 ? totalVentasAnterior : (cmiKpis?.ventaAnteriorTotal || mesesParaPpto.reduce((sum, m) => sum + (m.ventaAnterior || 0), 0));
+    unidadesAnteriorObjetivo = totalUnidadesAnterior > 0 ? totalUnidadesAnterior : (cmiKpis?.unidadesAnteriorTotal || mesesParaPpto.reduce((sum, m) => sum + (m.unidadesAnterior || 0), 0));
+  }
+
+  if (pptoObjetivo === 0) {
+    pptoObjetivo = cmiKpis?.pptoYTD || (totalVentas > 0 ? Math.round(totalVentas * 1.05) : 0);
+  }
+
+  const numTransacciones = transaccionesSet.size > 0 ? transaccionesSet.size : (cmiKpis?.totalTransacciones || totalUnidades);
+  const numTransaccionesAnterior = transaccionesAntSet.size > 0 ? transaccionesAntSet.size : (cmiKpis?.unidadesAnteriorTotal || unidadesAnteriorObjetivo);
+  const ticketPromedio = numTransacciones > 0 ? Math.round(totalVentas / numTransacciones) : 0;
+  const ticketPromedioAnterior = numTransaccionesAnterior > 0 ? Math.round(ventaAnteriorObjetivo / numTransaccionesAnterior) : 0;
+  const precioPromedioPrenda = totalUnidades > 0 ? Math.round(totalVentas / totalUnidades) : 0;
+  const precioPromedioPrendaAnterior = unidadesAnteriorObjetivo > 0 ? Math.round(ventaAnteriorObjetivo / unidadesAnteriorObjetivo) : 0;
+
+  const cumplimientoGlobalPct = pptoObjetivo > 0 && totalVentas > 0
+    ? Math.round((totalVentas / pptoObjetivo) * 10000) / 100
+    : (cmiKpis?.cumplimientoGlobalPct || (totalVentas > 0 ? 100 : 0));
+
+  const cumplimientoAnteriorPct = pptoAnteriorObjetivo > 0 && ventaAnteriorObjetivo > 0
+    ? Math.round((ventaAnteriorObjetivo / pptoAnteriorObjetivo) * 10000) / 100
+    : (ventaAnteriorObjetivo > 0 ? 100 : 0);
+
+  const crecimientoYoYGlobal = ventaAnteriorObjetivo > 0
+    ? Math.round(((totalVentas - ventaAnteriorObjetivo) / ventaAnteriorObjetivo) * 10000) / 100
+    : (cmiKpis?.crecimientoYoYPct || 0);
+
+  const tasaDevolucionAnteriorPct = ventaAnteriorObjetivo > 0
+    ? Math.round((totalDevolucionesAnterior / ventaAnteriorObjetivo) * 10000) / 100
+    : 0;
 
   // Preservamos las ventas reales calculadas directamente de fact_ventas (incluyendo meses 9 y 10).
   const mesesFinal = meses;
@@ -2495,19 +2539,19 @@ export function calcularDashboard1Cumplimiento(
   const kpisFinal = {
     ventaYTD: totalVentas,
     ventaBrutaTotal: totalVentaBruta,
-    ventaAnteriorTotal: totalVentasAnterior > 0 ? totalVentasAnterior : (cmiKpis?.ventaAnteriorTotal || 0),
-    ventaBrutaAnteriorTotal: totalVentaBrutaAnterior,
-    pptoYTD: totalPpto > 0 ? totalPpto : (cmiKpis?.pptoYTD || (totalVentas > 0 ? Math.round(totalVentas * 1.05) : 0)),
-    pptoAnteriorTotal: totalPptoAnterior > 0 ? totalPptoAnterior : (totalVentasAnterior > 0 ? Math.round(totalVentasAnterior * 1.05) : 0),
-    cumplimientoGlobalPct: totalPpto > 0 && totalVentas > 0 ? Math.round((totalVentas / totalPpto) * 10000) / 100 : (totalVentas > 0 ? 100 : 0),
+    ventaAnteriorTotal: ventaAnteriorObjetivo,
+    ventaBrutaAnteriorTotal: totalVentaBrutaAnterior > 0 ? totalVentaBrutaAnterior : ventaAnteriorObjetivo,
+    pptoYTD: pptoObjetivo,
+    pptoAnteriorTotal: pptoAnteriorObjetivo > 0 ? pptoAnteriorObjetivo : (ventaAnteriorObjetivo > 0 ? Math.round(ventaAnteriorObjetivo * 1.05) : 0),
+    cumplimientoGlobalPct,
     cumplimientoAnteriorPct,
-    crecimientoYoYPct: totalVentasAnterior > 0 ? Math.round(((totalVentas - totalVentasAnterior) / totalVentasAnterior) * 10000) / 100 : (cmiKpis?.crecimientoYoYPct || 0),
+    crecimientoYoYPct: crecimientoYoYGlobal,
     devolucionesTotal: totalDevoluciones,
     devolucionesAnteriorTotal: totalDevolucionesAnterior,
     tasaDevolucionGlobalPct: totalVentas > 0 ? Math.round((totalDevoluciones / totalVentas) * 10000) / 100 : 0,
     tasaDevolucionAnteriorPct,
     volumenUnidades: totalUnidades,
-    unidadesAnteriorTotal: totalUnidadesAnterior,
+    unidadesAnteriorTotal: unidadesAnteriorObjetivo,
     ticketPromedio,
     ticketPromedioAnterior,
     precioPromedioPrenda,
@@ -2660,9 +2704,14 @@ export function calcularDashboard2RunRate(
     }
   }
 
+  const cmiMeses = obtenerMesesCalibradosCMI(filtros);
+  const cmiPptoMes = cmiMeses?.[mes - 1]?.ppto || cmiMeses?.[mes - 1]?.ppto2026 || 0;
   const ventaTotalMes = ventasPorDia.reduce((a, b) => a + b, 0);
-  const pptoMes = ventaTotalMes > 0 ? Math.round(ventaTotalMes * 1.10) : 50_000_000;
-  const pptoMesAnterior = ventaTotalMesAnterior > 0 ? Math.round(ventaTotalMesAnterior * 1.10) : 0;
+  const pptoMes = cmiPptoMes > 0
+    ? cmiPptoMes
+    : (ventaTotalMesAnterior > 0 ? Math.round(ventaTotalMesAnterior * 1.05) : (ventaTotalMes > 0 ? ventaTotalMes : 0));
+  const cmiPptoMesAnterior = cmiMeses?.[mes - 1]?.v2025 ? Math.round(cmiMeses[mes - 1].v2025 * 1.05) : 0;
+  const pptoMesAnterior = ventaTotalMesAnterior > 0 ? Math.round(ventaTotalMesAnterior * 1.05) : cmiPptoMesAnterior;
   const crecimientoYoYPct = ventaTotalMesAnterior > 0 ? Math.round(((ventaTotalMes - ventaTotalMesAnterior) / ventaTotalMesAnterior) * 1000) / 10 : 0;
 
   let diasHabilesTotales = 0;
@@ -3093,7 +3142,20 @@ export function calcularDashboard3Digital(
   const costoPlataformasSaas = ventaDigitalTotal > 0 ? 1_850_000 : 0;
   const margenOperativoDigital = Math.max(0, ventaDigitalTotal - inversionTotalPauta - costoPlataformasSaas);
   const pctVentaEmpresa = totalVentaEmpresa > 0 ? Math.round((ventaDigitalTotal / totalVentaEmpresa) * 1000) / 10 : 0;
-  const cumplimientoEcommercePct = Math.min(120, Math.round(roas > 0 ? (roas / 10) * 100 : 85));
+
+  const cmiDigital = obtenerRegistroCMI("MAYORISTA DIGITAL");
+  let pptoDigital = 0;
+  if (filtros.mes && filtros.mes >= 1 && filtros.mes <= 12 && cmiDigital?.meses) {
+    pptoDigital = cmiDigital.meses[filtros.mes - 1]?.ppto2026 || 0;
+  } else if (cmiDigital?.acumulado?.ppto) {
+    pptoDigital = cmiDigital.acumulado.ppto;
+  }
+  if (pptoDigital === 0 && ventaDigitalAnterior > 0) {
+    pptoDigital = Math.round(ventaDigitalAnterior * 1.05);
+  }
+  const cumplimientoEcommercePct = pptoDigital > 0 && ventaDigitalTotal > 0
+    ? Math.round((ventaDigitalTotal / pptoDigital) * 10000) / 100
+    : (ventaDigitalTotal > 0 ? 100 : 0);
 
   const yoyTV = ventaTiendaVirtualAnterior > 0 ? Math.round(((ventaTiendaVirtual - ventaTiendaVirtualAnterior) / ventaTiendaVirtualAnterior) * 1000) / 10 : 0;
   const yoyRS = ventaRedesSocialesAnterior > 0 ? Math.round(((ventaRedesSociales - ventaRedesSocialesAnterior) / ventaRedesSocialesAnterior) * 1000) / 10 : 0;
@@ -3891,13 +3953,7 @@ export function calcularDashboard5Marketplaces(
     }
   }
 
-  if (mpMap.size <= 1) {
-    mpMap.clear();
-    mpMap.set("Mercado Libre", { venta: Math.round(ventaTotalMarketplaces * 0.48), unidades: Math.round(unidadesMarketplaces * 0.48) });
-    mpMap.set("Falabella", { venta: Math.round(ventaTotalMarketplaces * 0.26), unidades: Math.round(unidadesMarketplaces * 0.26) });
-    mpMap.set("Dafiti", { venta: Math.round(ventaTotalMarketplaces * 0.16), unidades: Math.round(unidadesMarketplaces * 0.16) });
-    mpMap.set("Linio / Otros", { venta: Math.round(ventaTotalMarketplaces * 0.10), unidades: Math.round(unidadesMarketplaces * 0.10) });
-  }
+
 
   const crecimientoYoYPct = ventaTotalMarketplacesAnterior > 0 ? Math.round(((ventaTotalMarketplaces - ventaTotalMarketplacesAnterior) / ventaTotalMarketplacesAnterior) * 1000) / 10 : 0;
 
@@ -4194,8 +4250,14 @@ export function calcularDashboard6Referencias(
   const refAntMap = new Map<string, { ventaNeta: number; unidades: number }>();
 
   if (dataAnterior && dataAnterior.length > 0) {
+    const filtrosAnterior: FiltrosBI = {
+      ...filtros,
+      anio: filtros.anio ? filtros.anio - 1 : null,
+      fecha_desde: filtros.fecha_desde ? `${parseInt(filtros.fecha_desde.slice(0, 4), 10) - 1}${filtros.fecha_desde.slice(4)}` : null,
+      fecha_hasta: filtros.fecha_hasta ? `${parseInt(filtros.fecha_hasta.slice(0, 4), 10) - 1}${filtros.fecha_hasta.slice(4)}` : null,
+    };
     for (const r of dataAnterior) {
-      if (!cumpleFiltros(r, filtros)) continue;
+      if (!cumpleFiltros(r, filtrosAnterior)) continue;
 
       const v = Number(r.valor || 0);
       const cant = Math.round(Number(r.cantidad || 0));
@@ -4850,11 +4912,11 @@ export async function obtenerPedidosVsDespachos(
     const esDespacho = trans.includes("DESPACHO") || trans.includes("SALIDA") || (!r.transaccion && cant < 0);
 
     if (esPedido) {
-      prod.pedidosCantidad += cant;
-      prod.pedidosValor += val;
+      prod.pedidosCantidad += Math.abs(cant);
+      prod.pedidosValor += Math.abs(val);
     } else if (esDespacho) {
-      prod.despachosCantidad += cant;
-      prod.despachosValor += val;
+      prod.despachosCantidad += Math.abs(cant);
+      prod.despachosValor += Math.abs(val);
     }
   }
 
@@ -4888,8 +4950,8 @@ export async function obtenerPedidosVsDespachos(
       const prodsList: ItemProductoPedidoDespacho[] = [];
 
       for (const p of tData.productosMap.values()) {
-        p.totalGeneralCantidad = p.pedidosCantidad + p.despachosCantidad;
-        p.totalGeneralValor = p.pedidosValor + p.despachosValor;
+        p.totalGeneralCantidad = Math.max(0, p.pedidosCantidad - p.despachosCantidad);
+        p.totalGeneralValor = Math.max(0, p.pedidosValor - p.despachosValor);
         p.esPendiente = p.totalGeneralCantidad > 0;
 
         if (filtros.solo_pendientes && !p.esPendiente) {
@@ -4911,8 +4973,8 @@ export async function obtenerPedidosVsDespachos(
       // Ordenar productos por mayor cantidad pendiente o mayor pedido
       prodsList.sort((a, b) => b.totalGeneralCantidad - a.totalGeneralCantidad || b.pedidosCantidad - a.pedidosCantidad);
 
-      const tTotalCant = tPedCant + tDespCant;
-      const tTotalVal = tPedVal + tDespVal;
+      const tTotalCant = Math.max(0, tPedCant - tDespCant);
+      const tTotalVal = Math.max(0, tPedVal - tDespVal);
       const tEsPendiente = tTotalCant > 0;
 
       if (tEsPendiente) {
@@ -4965,10 +5027,10 @@ export async function obtenerPedidosVsDespachos(
 
     globalPedidosCant += vPedCant;
     globalPedidosVal += vPedVal;
-    globalDespachosCant += Math.abs(vDespCant);
-    globalDespachosVal += Math.abs(vDespVal);
-    globalPendienteCant += Math.max(0, vTotCant);
-    globalPendienteVal += Math.max(0, vTotVal);
+    globalDespachosCant += vDespCant;
+    globalDespachosVal += vDespVal;
+    globalPendienteCant += vTotCant;
+    globalPendienteVal += vTotVal;
   }
 
   // Ordenar vendedores

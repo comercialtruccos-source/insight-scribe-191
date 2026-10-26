@@ -663,12 +663,12 @@ export function calcularDashboardCorrerias({
   }
 
   // 7. KPIs Globales
-  const totalMaestro = maestroReferencias.size > 0 ? Math.round(maestroReferencias.size / 2) : 0;
+  const totalMaestro = new Set(Array.from(maestroReferencias.values()).map((m) => normalizarClaveRef(m.ref))).size;
   const pvmPromedio = pesoPonderado > 0 ? Math.round(sumaPvmPonderado / pesoPonderado) : 0;
   const pvpPromedio = pesoPonderado > 0 ? Math.round(sumaPvpPonderado / pesoPonderado) : 0;
   const markupPonderado = pvmPromedio > 0 ? ((pvpPromedio - pvmPromedio) / pvmPromedio) * 100 : 0;
   const ticketPromedioGlobal = unidadesFiltradas > 0 ? Math.round(facturacionFiltrada / unidadesFiltradas) : 0;
-  const coberturaCatalogoPct = totalMaestro > 0 ? (rankingReferencias.length / totalMaestro) * 100 : 0;
+  const coberturaCatalogoPct = totalMaestro > 0 ? Math.min(100, Math.round(((rankingReferencias.length / totalMaestro) * 100) * 10) / 10) : 0;
 
   let diasActivos = 1;
   if (minFechaFiltrada && maxFechaFiltrada) {

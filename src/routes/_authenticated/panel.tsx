@@ -1317,10 +1317,10 @@ function Panel() {
       filtros,
       catalogos,
       habilitarYoY ? rawVentasYoY : undefined,
-      undefined,
+      ventasMatrizHistorica,
       resumenInventario
     );
-  }, [rawVentas, filtros, catalogos, habilitarYoY, rawVentasYoY, resumenInventario]);
+  }, [rawVentas, filtros, catalogos, habilitarYoY, rawVentasYoY, ventasMatrizHistorica, resumenInventario]);
 
   const vendedorSeleccionadoNombre = useMemo(() => {
     if (vendedorIds.length > 1) {
@@ -1470,16 +1470,16 @@ function Panel() {
   }, [d1, zonaUbicacionD1, ordenRefZonaD1]);
 
   const d2 = useMemo(
-    () => calcularDashboard2RunRate(rawVentas || [], filtros, compararAnioAnterior ? rawVentasYoY : undefined),
-    [rawVentas, filtros, compararAnioAnterior, rawVentasYoY]
+    () => calcularDashboard2RunRate(rawVentas || [], filtros, habilitarYoY ? rawVentasYoY : undefined),
+    [rawVentas, filtros, habilitarYoY, rawVentasYoY]
   );
   const d3 = useMemo(
-    () => calcularDashboard3Digital(rawVentas || [], filtros, catalogos, undefined, filtroCanalDigital, compararAnioAnterior ? rawVentasYoY : undefined, busquedaSkuD3),
-    [rawVentas, filtros, catalogos, filtroCanalDigital, compararAnioAnterior, rawVentasYoY, busquedaSkuD3]
+    () => calcularDashboard3Digital(rawVentas || [], filtros, catalogos, undefined, filtroCanalDigital, habilitarYoY ? rawVentasYoY : undefined, busquedaSkuD3),
+    [rawVentas, filtros, catalogos, filtroCanalDigital, habilitarYoY, rawVentasYoY, busquedaSkuD3]
   );
   const d4 = useMemo(
-    () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, vendedoresDisponibles, catalogos?.canales, undefined, compararAnioAnterior ? rawVentasYoY : undefined),
-    [rawVentas, filtros, vendedoresDisponibles, catalogos, compararAnioAnterior, rawVentasYoY]
+    () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, vendedoresDisponibles, catalogos?.canales, undefined, habilitarYoY ? rawVentasYoY : undefined),
+    [rawVentas, filtros, vendedoresDisponibles, catalogos, habilitarYoY, rawVentasYoY]
   );
 
   // Ranking integral de asesores exclusivo por canal y unidades (prendas vendidas)
@@ -1506,7 +1506,7 @@ function Panel() {
       canalActivoRankingId,
       catalogos?.canales,
       catalogos?.vendedores,
-      compararAnioAnterior ? ventasFuenteYoY : undefined,
+      habilitarYoY ? ventasFuenteYoY : undefined,
       activeVendId,
       activeVendIds
     );
@@ -1519,7 +1519,7 @@ function Panel() {
     canalActivoRankingId,
     catalogos?.canales,
     catalogos?.vendedores,
-    compararAnioAnterior,
+    habilitarYoY,
     vendedorIds,
     vendedorId,
     esAdmin,
@@ -1598,12 +1598,12 @@ function Panel() {
   }, [rawVentas, rawVentasYoY, esMesPuntual, compararAnioAnterior]);
 
   const d5 = useMemo(
-    () => calcularDashboard5Marketplaces(rawVentas || [], filtros, catalogos?.canales, compararAnioAnterior ? rawVentasYoY : undefined),
-    [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY]
+    () => calcularDashboard5Marketplaces(rawVentas || [], filtros, catalogos?.canales, habilitarYoY ? rawVentasYoY : undefined),
+    [rawVentas, filtros, catalogos, habilitarYoY, rawVentasYoY]
   );
   const d6 = useMemo(
-    () => calcularDashboard6Referencias(rawVentas || [], filtros, catalogos, compararAnioAnterior ? rawVentasYoY : undefined, filtroRefEscalaD6),
-    [rawVentas, filtros, catalogos, compararAnioAnterior, rawVentasYoY, filtroRefEscalaD6]
+    () => calcularDashboard6Referencias(rawVentas || [], filtros, catalogos, habilitarYoY ? rawVentasYoY : undefined, filtroRefEscalaD6),
+    [rawVentas, filtros, catalogos, habilitarYoY, rawVentasYoY, filtroRefEscalaD6]
   );
 
   const referenciasFiltradas = useMemo(() => {
