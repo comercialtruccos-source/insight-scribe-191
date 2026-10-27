@@ -9415,17 +9415,17 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
     "nombre": "TOTAL GENERAL",
     "row": 48,
     "acumulado": {
-      "ppto": 10289513879,
-      "v2025": 8669448025,
-      "v2026": 10611364570,
-      "unds": 123392,
-      "dev": -1631905892,
-      "cumplimientoPct": 103.1,
-      "crecimientoYoYPct": 22.4,
-      "tasaDevPct": 15.38,
+      "ppto": 17606871743,
+      "v2025": 17837523127,
+      "v2026": 21428919296,
+      "unds": 243718,
+      "dev": -13819860040,
+      "cumplimientoPct": 121.71,
+      "crecimientoYoYPct": 20.13,
+      "tasaDevPct": 64.49,
       "cartera": 3246468781,
-      "pctCartera90Dias": 0,
-      "carteraMayor90Dias": 0
+      "pctCartera90Dias": 9.41,
+      "carteraMayor90Dias": 305492712
     },
     "meses": [
       {
@@ -9545,38 +9545,38 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
         "crecimientoYoYPct": -42.3,
         "tasaDevolucionPct": 29.66,
         "cartera2026": 3246468781,
-        "pctCartera90Dias": 0,
-        "carteraMayor90Dias": 0
+        "pctCartera90Dias": 9.41,
+        "carteraMayor90Dias": 305492712
       },
       {
         "mes": 9,
         "nombreMes": "Sep",
         "ppto2026": 1991733165,
-        "v2025": 1987717071,
-        "u2026": 0,
-        "v2026": 0,
-        "dev2026": 0,
-        "cumplimientoPct": 0,
-        "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 0,
-        "cartera2026": 0,
-        "pctCartera90Dias": 0,
-        "carteraMayor90Dias": 0
+        "v2025": 966376216,
+        "u2026": 27200,
+        "v2026": 2314968689,
+        "dev2026": -1587038983,
+        "cumplimientoPct": 116.23,
+        "crecimientoYoYPct": 139.55,
+        "tasaDevolucionPct": 68.55,
+        "cartera2026": 3246468781,
+        "pctCartera90Dias": 9.41,
+        "carteraMayor90Dias": 305492712
       },
       {
         "mes": 10,
         "nombreMes": "Oct",
         "ppto2026": 2360577692,
-        "v2025": 2211049947,
-        "u2026": 0,
-        "v2026": 0,
-        "dev2026": 0,
-        "cumplimientoPct": 0,
-        "crecimientoYoYPct": 0,
-        "tasaDevolucionPct": 0,
-        "cartera2026": 0,
-        "pctCartera90Dias": 0,
-        "carteraMayor90Dias": 0
+        "v2025": 4786907400,
+        "u2026": 31469,
+        "v2026": 2798177622,
+        "dev2026": -830874310,
+        "cumplimientoPct": 118.54,
+        "crecimientoYoYPct": -41.55,
+        "tasaDevolucionPct": 29.69,
+        "cartera2026": 3246468781,
+        "pctCartera90Dias": 9.41,
+        "carteraMayor90Dias": 305492712
       },
       {
         "mes": 11,
@@ -10478,9 +10478,10 @@ export function obtenerKpisCalibradosCMI(
     const ventaBruta = ventaReal + dev;
     const undsAnt = ventaAnt > 0 && unds > 0 && ventaReal > 0 ? Math.round(ventaAnt / (ventaReal / unds)) : 0;
 
-    const carteraMes = m.cartera2026 ?? 0;
-    const pct90Mes = m.pctCartera90Dias ?? 0;
-    const mora90Mes = m.carteraMayor90Dias ?? (carteraMes > 0 && pct90Mes > 0 ? Math.round(carteraMes * (pct90Mes / 100)) : 0);
+    const ultMesConCartera = [...entidad.meses].reverse().find((x) => (x.cartera2026 || 0) > 0) || entidad.meses[0];
+    const carteraMes = (m.cartera2026 && m.cartera2026 > 0) ? m.cartera2026 : (ultMesConCartera?.cartera2026 || entidad.acumulado.cartera || 0);
+    const pct90Mes = (m.cartera2026 && m.cartera2026 > 0) ? (m.pctCartera90Dias ?? 0) : (ultMesConCartera?.pctCartera90Dias ?? entidad.acumulado.pctCartera90Dias ?? 0);
+    const mora90Mes = (m.cartera2026 && m.cartera2026 > 0) ? (m.carteraMayor90Dias ?? 0) : (ultMesConCartera?.carteraMayor90Dias ?? (carteraMes > 0 && pct90Mes > 0 ? Math.round(carteraMes * (pct90Mes / 100)) : 0));
 
     return {
       ventaYTD: ventaReal,
