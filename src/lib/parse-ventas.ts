@@ -377,9 +377,18 @@ const MAPA: Record<string, keyof VentaRow> = {
   NROPEDIDO: "transaccion",
   NROPEDIDOS: "transaccion",
   NUMEROPEDIDO: "transaccion",
-  NUMEROPEDIDOS: "transaccion",
   TIPOTRANSACCION: "transaccion",
   TIPODOCUMENTO: "transaccion",
+  NOMBRETRANSACCION: "transaccion",
+  NOMTRANSACCION: "transaccion",
+  DESCRIPCIONTRANSACCION: "transaccion",
+  DETALLETRANSACCION: "transaccion",
+  CLASETRANSACCION: "transaccion",
+  CLASEDOCUMENTO: "transaccion",
+  CONCEPTO: "transaccion",
+  TIPOMOVIMIENTO: "transaccion",
+  TIPO_MOVIMIENTO: "transaccion",
+  TIPOMOV: "transaccion",
 
   // Fechas y Periodos
   ANO: "anio",
@@ -768,7 +777,12 @@ export function normalizarFila(
         textVal.toUpperCase().includes("DESPACHO") || 
         textVal.toUpperCase().includes("SALIDA") ||
         textVal.toUpperCase().includes("FACTURA") ||
-        textVal.toUpperCase().includes("NOTA")
+        textVal.toUpperCase().includes("NOTA") ||
+        textVal.toUpperCase().includes("COTIZACION") ||
+        textVal.toUpperCase().includes("TRASLADO") ||
+        textVal.toUpperCase().includes("REMISION") ||
+        textVal.toUpperCase().includes("AJUSTE") ||
+        textVal.toUpperCase().includes("VENTA")
       )) {
         // Columna AD en HGI contiene el tipo de transacción comercial / logística
         if (!out["transaccion"] || typeof out["transaccion"] === "number" || !isNaN(Number(out["transaccion"]))) {
@@ -790,7 +804,11 @@ export function normalizarFila(
             upper.includes("SALIDA") ||
             upper.includes("FACTURA") ||
             upper.includes("NOTA") ||
-            upper.includes("COTIZACION");
+            upper.includes("COTIZACION") ||
+            upper.includes("TRASLADO") ||
+            upper.includes("REMISION") ||
+            upper.includes("AJUSTE") ||
+            upper.includes("VENTA");
           if (esTipoTransaccion || !out["transaccion"]) {
             out["transaccion"] = textVal;
           }
@@ -875,6 +893,20 @@ export function normalizarFila(
   // Asegurar que las cantidades de prendas siempre sean unidades cerradas (sin decimales)
   if (fila.cantidad !== null && fila.cantidad !== undefined) {
     fila.cantidad = Math.round(fila.cantidad);
+  }
+
+  // Regla estricta universal: Notas crédito y devoluciones siempre restan (signo negativo en valor y cantidad)
+  const esDevolucion = fila.transaccion && (
+    fila.transaccion.toUpperCase().includes("NOTA CREDITO") ||
+    fila.transaccion.toUpperCase().includes("DEVOLUCION")
+  );
+  if (esDevolucion) {
+    if (fila.valor !== null && fila.valor !== undefined && fila.valor > 0) {
+      fila.valor = -Math.abs(fila.valor);
+    }
+    if (fila.cantidad !== null && fila.cantidad !== undefined && fila.cantidad > 0) {
+      fila.cantidad = -Math.abs(fila.cantidad);
+    }
   }
 
   // Costo total

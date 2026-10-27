@@ -59,32 +59,86 @@ const invokeRpc = async (fn: string, args?: Record<string, unknown>) => {
 };
 
 /**
- * Determina si una transacción corresponde a facturación real comercial (Facturas de venta, notas crédito y notas débito).
- * Excluye movimientos logísticos de almacén (Salidas por despacho, traslados) y órdenes de preventa (Pedidos, cotizaciones).
+ * REGLA ESTRICTA DE FACTURACIÓN REAL Y VENTA NETA COMERCIAL:
+ * Determina si una transacción corresponde a facturación real comercial
+ * (Facturas de venta electrónicas/POS/exportación, notas crédito y notas débito).
+ * 
+ * Reglas universales y estrictas para TODOS los meses y para toda carga semanal futura:
+ * 1. Para 2026 en adelante y toda carga semanal/mensual, TODA fila debe tener una transacción tipificada.
+ *    Cualquier fila sin transacción (null, undefined o vacía) se DESCARTA de la facturación comercial,
+ *    evitando que registros residuales o huérfanos inflen las ventas en ningún mes.
+ * 2. Se EXCLUYEN estrictamente todas las transacciones que no son facturación comercial:
+ *    - Preventa / compromisos: PEDIDO, COTIZACION, PROFORMA.
+ *    - Movimientos logísticos de almacén: SALIDA POR DESPACHO, SALIDA, DESPACHO, TRASLADO, REMISION, AJUSTE, ORDEN.
+ *    - Transacciones anuladas o borradores: ANULADA, ANULADO, BORRADOR.
+ * 3. Se INCLUYEN exclusivamente las transacciones de facturación y notas contables:
+ *    - FACTURA (Factura de venta electrónica, POS, exportación, bazar, ecommerce).
+ *    - NOTA DEBITO (Suma a la facturación).
+ *    - NOTA CREDITO / DEVOLUCION (Resta de la facturación, calculando la Venta Neta).
+ *    - VENTA (Identificador genérico para histórico 2025).
  */
 export function esTransaccionFacturacionReal(
   transaccion?: string | null,
   mes?: number | null,
   anio?: number | null
 ): boolean {
-  if (!transaccion) {
-    // Para periodos donde ya existe macro con transacciones tipificadas (Octubre 2026),
-    // se descartan las filas residuales sin transacción para evitar inflar la facturación hasta en 100M+
-    if ((anio === 2026 || !anio) && mes === 10) return false;
+  if (!transaccion || typeof transaccion !== "string" || !transaccion.trim()) {
+    // Para 2026 en adelante y toda carga semanal/mensual futura, una fila sin transacción tipificada
+    // NUNCA es facturación real comercial (aplica como regla estricta a TODOS los meses).
+    // Solo para histórico legacy (2025 y anteriores) donde no se cargó tipo de transacción se permite como fallback.
+    if (!anio || anio >= 2026) return false;
     return true;
   }
+
   const t = transaccion.toUpperCase().trim();
+
+  // Exclusiones estrictas universales para todos los meses y años:
+  // Preventa, logística interna, traslados, ajustes y anulaciones
   if (
     t.includes("PEDIDO") ||
     t.includes("SALIDA") ||
     t.includes("DESPACHO") ||
     t.includes("COTIZACION") ||
     t.includes("TRASLADO") ||
-    t.includes("REMISION")
+    t.includes("REMISION") ||
+    t.includes("AJUSTE") ||
+    t.includes("ORDEN") ||
+    t.includes("PROFORMA") ||
+    t.includes("ANULAD") ||
+    t.includes("BORRADOR")
   ) {
     return false;
   }
+
   return true;
+}
+
+/**
+ * Normaliza el valor monetario comercial según el tipo de transacción:
+ * - Facturas y Notas Débito: Siempre valor positivo (+)
+ * - Notas Crédito y Devoluciones: Siempre valor negativo (-) restando de la Venta Neta
+ */
+export function normalizarValorTransaccion(transaccion?: string | null, valor?: number | null): number {
+  const v = Number(valor || 0);
+  if (!v) return 0;
+  if (esDevolucionTransaccion(transaccion, v)) {
+    return -Math.abs(v);
+  }
+  return v;
+}
+
+/**
+ * Normaliza las unidades físicas (prendas) según el tipo de transacción:
+ * - Facturas y Notas Débito: Siempre unidades positivas (+)
+ * - Notas Crédito y Devoluciones: Siempre unidades negativas (-) restando de las unidades netas
+ */
+export function normalizarUnidadesTransaccion(transaccion?: string | null, cantidad?: number | null): number {
+  const c = Math.round(Number(cantidad || 0));
+  if (!c) return 0;
+  if (esDevolucionTransaccion(transaccion, c)) {
+    return -Math.abs(c);
+  }
+  return c;
 }
 
 /**
@@ -997,8 +1051,8 @@ export async function ingestarLoteClienteDirecto(filas: any[]): Promise<{ recibi
       cod_color: f.cod_color ? String(f.cod_color) : null,
       sku: f.sku ? String(f.sku) : null,
       anio_col: f.anio_col ? String(f.anio_col) : null,
-      cantidad: f.cantidad !== null && f.cantidad !== undefined ? Number(f.cantidad) : 0,
-      valor: f.valor !== null && f.valor !== undefined ? Number(f.valor) : 0,
+      cantidad: f.cantidad !== null && f.cantidad !== undefined ? normalizarUnidadesTransaccion(f.transaccion, f.cantidad) : 0,
+      valor: f.valor !== null && f.valor !== undefined ? normalizarValorTransaccion(f.transaccion, f.valor) : 0,
       fecha_compra: f.fecha_compra ? String(f.fecha_compra) : null,
       tr: f.tr !== null && f.tr !== undefined ? Number(f.tr) : null,
       costo: f.costo !== null && f.costo !== undefined ? Number(f.costo) : null,
@@ -1881,8 +1935,10 @@ export function calcularDashboard1Cumplimiento(
     }
     if (!m || isNaN(m)) m = 1;
 
-    const v = Number(r.valor ?? 0);
-    const cant = Math.round(Number(r.cantidad ?? 0));
+    const vRaw = Number(r.valor ?? 0);
+    const cantRaw = Math.round(Number(r.cantidad ?? 0));
+    const v = normalizarValorTransaccion(r.transaccion, vRaw);
+    const cant = normalizarUnidadesTransaccion(r.transaccion, cantRaw);
     const pKey = filtros.anio && !filtros.fecha_desde ? String(m) : `${an}-${String(m).padStart(2, "0")}`;
 
     if (!periodoMap.has(pKey)) {
@@ -2121,8 +2177,10 @@ export function calcularDashboard1Cumplimiento(
       }
       if (!m || isNaN(m)) m = 1;
 
-      const v = Number(r.valor ?? 0);
-      const cant = Math.round(Number(r.cantidad ?? 0));
+      const vRaw = Number(r.valor ?? 0);
+      const cantRaw = Math.round(Number(r.cantidad ?? 0));
+      const v = normalizarValorTransaccion(r.transaccion, vRaw);
+      const cant = normalizarUnidadesTransaccion(r.transaccion, cantRaw);
       totalVentasAnterior += v;
       if (esDevolucionTransaccion(r.transaccion, v)) totalDevolucionesAnterior += Math.abs(v);
       totalUnidadesAnterior += cant;
@@ -3616,8 +3674,10 @@ export function calcularDashboard4FuerzaVentas(
   const mesUnidadesArray = new Array(12).fill(0);
 
   for (const r of data) {
-    const v = Number(r.valor || 0);
-    const cant = Math.round(Number(r.cantidad || 0));
+    const vRaw = Number(r.valor || 0);
+    const cantRaw = Math.round(Number(r.cantidad || 0));
+    const v = normalizarValorTransaccion(r.transaccion, vRaw);
+    const cant = normalizarUnidadesTransaccion(r.transaccion, cantRaw);
     let m = Number(r.mes);
     if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
     if (!m || isNaN(m)) m = 1;
@@ -3680,8 +3740,10 @@ export function calcularDashboard4FuerzaVentas(
 
   if (dataAnterior && dataAnterior.length > 0) {
     for (const r of dataAnterior) {
-      const v = Number(r.valor || 0);
-      const cant = Math.round(Number(r.cantidad || 0));
+      const vRaw = Number(r.valor || 0);
+      const cantRaw = Math.round(Number(r.cantidad || 0));
+      const v = normalizarValorTransaccion(r.transaccion, vRaw);
+      const cant = normalizarUnidadesTransaccion(r.transaccion, cantRaw);
       let m = Number(r.mes);
       if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
       if (!m || isNaN(m)) m = 1;
@@ -4094,7 +4156,7 @@ export function calcularRankingAsesoresCanal(
     if (r.canal_id !== canalId) continue;
     if (!esTransaccionFacturacionReal(r.transaccion, r.mes, r.anio)) continue;
 
-    const cant = Math.round(Number(r.cantidad || 0));
+    const cant = normalizarUnidadesTransaccion(r.transaccion, r.cantidad);
     const txId = r.transaccion ? String(r.transaccion).trim() : `row_${r.id}`;
     totalTransaccionesSet.add(txId);
 
@@ -4145,7 +4207,7 @@ export function calcularRankingAsesoresCanal(
       if (r.canal_id !== canalId) continue;
       if (!esTransaccionFacturacionReal(r.transaccion, r.mes, r.anio)) continue;
 
-      const cant = Math.round(Number(r.cantidad || 0));
+      const cant = normalizarUnidadesTransaccion(r.transaccion, r.cantidad);
       const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
       let asesorNombre = "Asesor General";
 
