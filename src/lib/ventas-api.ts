@@ -4043,7 +4043,8 @@ export function calcularRankingAsesoresCanal(
   catalogosVendedores?: CatalogoItem[],
   ventasCanalAnterior?: FilaFactVentas[],
   vendedorActivoId?: number | null,
-  vendedorActivoIds?: number[]
+  vendedorActivoIds?: number[],
+  filtros?: FiltrosBI
 ): ResultadoRankingCanal {
   let canalNombre = catalogosCanales?.find((c) => c.id === canalId)?.nombre;
   if (!canalNombre) {
@@ -4176,7 +4177,7 @@ export function calcularRankingAsesoresCanal(
       }
     }
     if (cEnt) {
-      if (filtros.mes && filtros.mes >= 1 && filtros.mes <= 12) {
+      if (filtros?.mes && filtros.mes >= 1 && filtros.mes <= 12) {
         const mData = cEnt.meses[filtros.mes - 1];
         if (mData) {
           if (typeof mData.u2026 === "number") unds = mData.u2026;

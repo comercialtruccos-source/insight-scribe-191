@@ -10440,10 +10440,8 @@ export function obtenerRegistroCMI(filtros: FiltrosBI): CMIEntity | null {
     const vId = Number(filtros.vendedor_id);
     const key = VENDEDOR_ID_TO_CMI_KEY[vId];
     if (key && CMI_ENTITIES[key]) return CMI_ENTITIES[key];
-    if (typeof filtros.vendedor_id === "string") {
-      const nomUpper = filtros.vendedor_id.trim().toUpperCase();
-      if (CMI_ENTITIES[nomUpper]) return CMI_ENTITIES[nomUpper];
-    }
+    const nomUpper = String(filtros.vendedor_id).trim().toUpperCase();
+    if (CMI_ENTITIES[nomUpper]) return CMI_ENTITIES[nomUpper];
   }
 
   // 2. Grupo de vendedores asignados a la cuenta del comercial

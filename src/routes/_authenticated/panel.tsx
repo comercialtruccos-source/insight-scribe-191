@@ -1508,7 +1508,8 @@ function Panel() {
       catalogos?.vendedores,
       habilitarYoY ? ventasFuenteYoY : undefined,
       activeVendId,
-      activeVendIds
+      activeVendIds,
+      filtros
     );
   }, [
     necesitaQueryCanalD4,
@@ -1524,6 +1525,7 @@ function Panel() {
     vendedorId,
     esAdmin,
     vendedorIdsPermitidos,
+    filtros,
   ]);
 
   // Estado para alternar entre vista de mes puntual o desglose diario en móvil (Dashboard 4)
