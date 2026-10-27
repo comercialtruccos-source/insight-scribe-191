@@ -1448,11 +1448,13 @@ export function calcularHistoricoMultianual(
       const idx = matrizMesAnio.findIndex((m) => m.anio === cmiM.anio);
       if (idx === -1) {
         matrizMesAnio.push(cmiM);
-        const rIdx = aniosResumen.findIndex((r) => r.anio === cmiM.anio);
-        if (rIdx !== -1) {
-          aniosResumen[rIdx].totalVentas = cmiM.totalAnio;
-          aniosResumen[rIdx].totalUnidades = cmiM.unidadesAnio;
-        }
+      } else {
+        matrizMesAnio[idx] = cmiM;
+      }
+      const rIdx = aniosResumen.findIndex((r) => r.anio === cmiM.anio);
+      if (rIdx !== -1) {
+        aniosResumen[rIdx].totalVentas = cmiM.totalAnio;
+        aniosResumen[rIdx].totalUnidades = cmiM.unidadesAnio;
       }
     }
     for (let i = 0; i < aniosResumen.length; i++) {
@@ -1464,13 +1466,11 @@ export function calcularHistoricoMultianual(
       }
     }
     for (let idx = 0; idx < 12; idx++) {
-      const m2026 = cmiMatriz.find((m) => m.anio === 2026)?.meses[idx] || 0;
-      const m2025 = cmiMatriz.find((m) => m.anio === 2025)?.meses[idx] || 0;
+      const m2026 = cmiMatriz.find((m) => m.anio === 2026)?.meses[idx] ?? 0;
+      const m2025 = cmiMatriz.find((m) => m.anio === 2025)?.meses[idx] ?? 0;
       if (estacionalidadCurvas[idx]) {
-        if (!estacionalidadCurvas[idx]["anio_2026"] && m2026 > 0) {
-          estacionalidadCurvas[idx]["anio_2026"] = m2026;
-        }
-        if (!estacionalidadCurvas[idx]["anio_2025"] && m2025 > 0) {
+        estacionalidadCurvas[idx]["anio_2026"] = m2026;
+        if (m2025 > 0 || !estacionalidadCurvas[idx]["anio_2025"]) {
           estacionalidadCurvas[idx]["anio_2025"] = m2025;
         }
       }
@@ -2194,33 +2194,37 @@ export function calcularDashboard1Cumplimiento(
     const metaBaseMensual = promedioVentaMes > 0 ? Math.round(promedioVentaMes * 1.05) : 0;
 
     const cmiMeses = obtenerMesesCalibradosCMI(filtros);
-    meses = nombresMes.map((nombre, idx) => {
-      const mNum = idx + 1;
-      const d = periodoMap.get(String(mNum)) || { anio: filtros.anio!, mes: mNum, venta: 0, unidades: 0, dev: 0 };
-      const cmiPpto = cmiMeses?.[idx]?.ppto || cmiMeses?.[idx]?.ppto2026 || 0;
-      const ppto = cmiPpto > 0 ? cmiPpto : (d.venta > 0 ? metaBaseMensual : 0);
-      const ventaBrutaMes = d.venta + d.dev;
-      const cumplimientoPct = ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 10000) / 100 : (d.venta > 0 ? 100 : 0);
-      const vAnt = periodoAntMap.get(String(mNum))?.venta || cmiMeses?.[idx]?.v2025 || 0;
-      const uAnt = periodoAntMap.get(String(mNum))?.unidades || 0;
-      const yoy = vAnt > 0 ? Math.round(((d.venta - vAnt) / vAnt) * 10000) / 100 : 0;
+    if (cmiMeses && cmiMeses.length === 12) {
+      meses = cmiMeses;
+    } else {
+      meses = nombresMes.map((nombre, idx) => {
+        const mNum = idx + 1;
+        const d = periodoMap.get(String(mNum)) || { anio: filtros.anio!, mes: mNum, venta: 0, unidades: 0, dev: 0 };
+        const cmiPpto = cmiMeses?.[idx]?.ppto || cmiMeses?.[idx]?.ppto2026 || 0;
+        const ppto = cmiPpto > 0 ? cmiPpto : (d.venta > 0 ? metaBaseMensual : 0);
+        const ventaBrutaMes = d.venta + d.dev;
+        const cumplimientoPct = ppto > 0 && d.venta > 0 ? Math.round((d.venta / ppto) * 10000) / 100 : (d.venta > 0 ? 100 : 0);
+        const vAnt = periodoAntMap.get(String(mNum))?.venta || cmiMeses?.[idx]?.v2025 || 0;
+        const uAnt = periodoAntMap.get(String(mNum))?.unidades || 0;
+        const yoy = vAnt > 0 ? Math.round(((d.venta - vAnt) / vAnt) * 10000) / 100 : 0;
 
-      return {
-        anio: filtros.anio!,
-        mes: mNum,
-        nombreMes: nombre,
-        periodo: `${nombre} ${filtros.anio}`,
-        ventaReal: d.venta,
-        ventaAnterior: vAnt,
-        ppto,
-        cumplimientoPct,
-        crecimientoYoY: yoy,
-        devolucionesMonto: d.dev,
-        tasaDevolucionPct: d.venta > 0 ? Math.round((d.dev / d.venta) * 10000) / 100 : 0,
-        unidades: d.unidades,
-        unidadesAnterior: uAnt,
-      };
-    });
+        return {
+          anio: filtros.anio!,
+          mes: mNum,
+          nombreMes: nombre,
+          periodo: `${nombre} ${filtros.anio}`,
+          ventaReal: d.venta,
+          ventaAnterior: vAnt,
+          ppto,
+          cumplimientoPct,
+          crecimientoYoY: yoy,
+          devolucionesMonto: d.dev,
+          tasaDevolucionPct: d.venta > 0 ? Math.round((d.dev / d.venta) * 10000) / 100 : 0,
+          unidades: d.unidades,
+          unidadesAnterior: uAnt,
+        };
+      });
+    }
   } else {
     const keys = Array.from(periodoMap.keys()).sort();
     const periodosConVenta = keys.map((k) => periodoMap.get(k)!).filter((d) => d.venta > 0);
@@ -2303,18 +2307,18 @@ export function calcularDashboard1Cumplimiento(
       if (cEnt) {
         if (filtros.mes && filtros.mes >= 1 && filtros.mes <= 12) {
           const mData = cEnt.meses[filtros.mes - 1];
-          if (mData && (mData.v2026 > 0 || mData.v2025 > 0 || mData.u2026 > 0)) {
-            if (mData.v2026 > 0) ventaVal = mData.v2026;
-            if (mData.v2025 > 0) vAntVal = mData.v2025;
-            if (mData.u2026 > 0) undsVal = mData.u2026;
+          if (mData) {
+            if (typeof mData.v2026 === "number") ventaVal = mData.v2026;
+            if (typeof mData.v2025 === "number") vAntVal = mData.v2025;
+            if (typeof mData.u2026 === "number") undsVal = mData.u2026;
             if (mData.u2026 > 0 && mData.v2025 > 0 && mData.v2026 > 0) {
               uAntVal = Math.round(mData.v2025 / (mData.v2026 / mData.u2026));
             }
           }
         } else if (!filtros.mes) {
-          if (cEnt.acumulado.v2026 > 0) ventaVal = cEnt.acumulado.v2026;
-          if (cEnt.acumulado.v2025 > 0) vAntVal = cEnt.acumulado.v2025;
-          if (cEnt.acumulado.unds > 0) undsVal = cEnt.acumulado.unds;
+          if (typeof cEnt.acumulado.v2026 === "number") ventaVal = cEnt.acumulado.v2026;
+          if (typeof cEnt.acumulado.v2025 === "number") vAntVal = cEnt.acumulado.v2025;
+          if (typeof cEnt.acumulado.unds === "number") undsVal = cEnt.acumulado.unds;
           if (cEnt.acumulado.unds > 0 && cEnt.acumulado.v2025 > 0 && cEnt.acumulado.v2026 > 0) {
             uAntVal = Math.round(cEnt.acumulado.v2025 / (cEnt.acumulado.v2026 / cEnt.acumulado.unds));
           }
@@ -2382,7 +2386,7 @@ export function calcularDashboard1Cumplimiento(
           }
         }
 
-        if (vVal > 0 || vAntVal > 0 || uVal > 0) {
+        if (vVal !== 0 || vAntVal !== 0 || uVal !== 0) {
           const yoy = vAntVal > 0 ? Math.round(((vVal - vAntVal) / vAntVal) * 10000) / 100 : 0;
           rankingVendedores.push({
             vendedor: cKey,
@@ -2675,7 +2679,7 @@ export function calcularDashboard1Cumplimiento(
     : 0;
 
   const esEntidadCalibrada = Boolean(
-    cmiKpis && cmiKpis.ventaYTD > 0 &&
+    cmiKpis && typeof cmiKpis.ventaYTD === "number" &&
     (filtros.vendedor_id || (filtros.vendedor_ids && filtros.vendedor_ids.length > 0) || filtros.canal_id || (!filtros.marca_id && !filtros.zona_id && !filtros.ciudad_id))
   );
 
@@ -3752,18 +3756,18 @@ export function calcularDashboard4FuerzaVentas(
       if (targetMes) {
         const mData = cEnt.meses[targetMes - 1];
         if (mData) {
-          if (mData.v2026 > 0) a.ventaTotal = mData.v2026;
-          if (mData.v2025 > 0) a.ventaAnterior = mData.v2025;
-          if (mData.u2026 > 0) a.unidades = mData.u2026;
+          if (typeof mData.v2026 === "number") a.ventaTotal = mData.v2026;
+          if (typeof mData.v2025 === "number") a.ventaAnterior = mData.v2025;
+          if (typeof mData.u2026 === "number") a.unidades = mData.u2026;
           if (mData.u2026 > 0 && mData.v2025 > 0 && mData.v2026 > 0) {
             a.unidadesAnterior = Math.round(mData.v2025 / (mData.v2026 / mData.u2026));
           }
           a.crecimientoYoY = a.ventaAnterior > 0 ? Math.round(((a.ventaTotal - a.ventaAnterior) / a.ventaAnterior) * 1000) / 10 : 0;
         }
       } else {
-        if (cEnt.acumulado.v2026 > 0) a.ventaTotal = cEnt.acumulado.v2026;
-        if (cEnt.acumulado.v2025 > 0) a.ventaAnterior = cEnt.acumulado.v2025;
-        if (cEnt.acumulado.unds > 0) a.unidades = cEnt.acumulado.unds;
+        if (typeof cEnt.acumulado.v2026 === "number") a.ventaTotal = cEnt.acumulado.v2026;
+        if (typeof cEnt.acumulado.v2025 === "number") a.ventaAnterior = cEnt.acumulado.v2025;
+        if (typeof cEnt.acumulado.unds === "number") a.unidades = cEnt.acumulado.unds;
         if (cEnt.acumulado.unds > 0 && cEnt.acumulado.v2025 > 0 && cEnt.acumulado.v2026 > 0) {
           a.unidadesAnterior = Math.round(cEnt.acumulado.v2025 / (cEnt.acumulado.v2026 / cEnt.acumulado.unds));
         }
@@ -3824,7 +3828,7 @@ export function calcularDashboard4FuerzaVentas(
           }
         }
 
-        if (vVal > 0 || vAntVal > 0 || uVal > 0) {
+        if (vVal !== 0 || vAntVal !== 0 || uVal !== 0) {
           const yoy = vAntVal > 0 ? Math.round(((vVal - vAntVal) / vAntVal) * 1000) / 10 : 0;
           asesores.push({
             vendedor: cKey,
@@ -4172,9 +4176,19 @@ export function calcularRankingAsesoresCanal(
       }
     }
     if (cEnt) {
-      if (cEnt.acumulado.unds > 0) unds = cEnt.acumulado.unds;
-      if (cEnt.acumulado.unds > 0 && cEnt.acumulado.v2025 > 0 && cEnt.acumulado.v2026 > 0) {
-        uAnt = Math.round(cEnt.acumulado.v2025 / (cEnt.acumulado.v2026 / cEnt.acumulado.unds));
+      if (filtros.mes && filtros.mes >= 1 && filtros.mes <= 12) {
+        const mData = cEnt.meses[filtros.mes - 1];
+        if (mData) {
+          if (typeof mData.u2026 === "number") unds = mData.u2026;
+          if (mData.u2026 > 0 && mData.v2025 > 0 && mData.v2026 > 0) {
+            uAnt = Math.round(mData.v2025 / (mData.v2026 / mData.u2026));
+          }
+        }
+      } else {
+        if (cEnt.acumulado.unds > 0) unds = cEnt.acumulado.unds;
+        if (cEnt.acumulado.unds > 0 && cEnt.acumulado.v2025 > 0 && cEnt.acumulado.v2026 > 0) {
+          uAnt = Math.round(cEnt.acumulado.v2025 / (cEnt.acumulado.v2026 / cEnt.acumulado.unds));
+        }
       }
     }
 

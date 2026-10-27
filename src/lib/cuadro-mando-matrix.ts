@@ -9415,14 +9415,14 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
     "nombre": "TOTAL GENERAL",
     "row": 48,
     "acumulado": {
-      "ppto": 17606871743,
-      "v2025": 17837523127,
-      "v2026": 21428919296,
-      "unds": 243718,
-      "dev": -13819860040,
-      "cumplimientoPct": 121.71,
-      "crecimientoYoYPct": 20.13,
-      "tasaDevPct": 64.49,
+      "ppto": 16607871743,
+      "v2025": 16094816287,
+      "v2026": 16712743203,
+      "unds": 191059,
+      "dev": -4354814222,
+      "cumplimientoPct": 100.63,
+      "crecimientoYoYPct": 3.84,
+      "tasaDevPct": 26.06,
       "cartera": 3246468781,
       "pctCartera90Dias": 9.41,
       "carteraMayor90Dias": 305492712
@@ -10731,8 +10731,8 @@ export function obtenerMatrizMesAnioCalibradaCMI(
   if (!entidad) return null;
 
   const meses2026 = entidad.meses.map((m) => m.v2026);
-  const total2026 = entidad.acumulado.v2026;
-  const unds2026 = entidad.acumulado.unds;
+  const total2026 = meses2026.reduce((a, b) => a + b, 0);
+  const unds2026 = entidad.meses.reduce((a, b) => a + (b.u2026 || 0), 0) || entidad.acumulado.unds;
 
   const meses2025 = entidad.meses2025;
   const total2025 = meses2025.reduce((a, b) => a + b, 0);
