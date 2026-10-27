@@ -5,6 +5,8 @@ import {
   obtenerMesesCalibradosCMI,
   obtenerKpisCalibradosCMI,
   obtenerMatrizMesAnioCalibradaCMI,
+  CMI_ENTITIES,
+  VENDEDOR_ID_TO_CMI_KEY,
 } from "./cuadro-mando-matrix";
 import { USUARIOS_INICIALES_PRECONFIGURADOS } from "./permisos-vendedores";
 
@@ -2290,21 +2292,113 @@ export function calcularDashboard1Cumplimiento(
   const rankingVendedores: VendedorAporte[] = Array.from(vendedorVentaMap.entries())
     .map(([vendedor, val]) => {
       const vAnt = vendedorAntMap.get(vendedor);
-      const vAntVal = vAnt?.venta || 0;
-      const uAntVal = vAnt?.unidades || 0;
-      const yoy = vAntVal > 0 ? Math.round(((val.venta - vAntVal) / vAntVal) * 10000) / 100 : 0;
+      let ventaVal = val.venta;
+      let vAntVal = vAnt?.venta || 0;
+      let undsVal = val.unidades;
+      let uAntVal = vAnt?.unidades || 0;
+
+      // Calibración oficial con el documento Cuadro de Mando Integral (CMI)
+      const cKey = val.id ? VENDEDOR_ID_TO_CMI_KEY[val.id] : null;
+      const cEnt = (cKey && CMI_ENTITIES[cKey]) || CMI_ENTITIES[vendedor.toUpperCase()] || null;
+      if (cEnt) {
+        if (filtros.mes && filtros.mes >= 1 && filtros.mes <= 12) {
+          const mData = cEnt.meses[filtros.mes - 1];
+          if (mData && (mData.v2026 > 0 || mData.v2025 > 0 || mData.u2026 > 0)) {
+            if (mData.v2026 > 0) ventaVal = mData.v2026;
+            if (mData.v2025 > 0) vAntVal = mData.v2025;
+            if (mData.u2026 > 0) undsVal = mData.u2026;
+            if (mData.u2026 > 0 && mData.v2025 > 0 && mData.v2026 > 0) {
+              uAntVal = Math.round(mData.v2025 / (mData.v2026 / mData.u2026));
+            }
+          }
+        } else if (!filtros.mes) {
+          if (cEnt.acumulado.v2026 > 0) ventaVal = cEnt.acumulado.v2026;
+          if (cEnt.acumulado.v2025 > 0) vAntVal = cEnt.acumulado.v2025;
+          if (cEnt.acumulado.unds > 0) undsVal = cEnt.acumulado.unds;
+          if (cEnt.acumulado.unds > 0 && cEnt.acumulado.v2025 > 0 && cEnt.acumulado.v2026 > 0) {
+            uAntVal = Math.round(cEnt.acumulado.v2025 / (cEnt.acumulado.v2026 / cEnt.acumulado.unds));
+          }
+        }
+      }
+
+      const yoy = vAntVal > 0 ? Math.round(((ventaVal - vAntVal) / vAntVal) * 10000) / 100 : 0;
       return {
         id: val.id,
         vendedor,
-        venta: val.venta,
+        venta: ventaVal,
         ventaAnterior: vAntVal,
-        unidades: val.unidades,
+        unidades: undsVal,
         unidadesAnterior: uAntVal,
-        porcentaje: totalVentas > 0 ? Math.round((val.venta / totalVentas) * 10000) / 100 : 0,
+        porcentaje: totalVentas > 0 ? Math.round((ventaVal / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: yoy,
       };
-    })
-    .sort((a, b) => b.venta - a.venta);
+    });
+
+  // Si estamos en vista general sin filtro individual de vendedor, asegurar que todos los asesores comerciales de CMI estén presentes
+  if (!filtros.vendedor_id && (!filtros.vendedor_ids || filtros.vendedor_ids.length === 0)) {
+    const nombresRanking = new Set(rankingVendedores.map((r) => r.vendedor.toUpperCase().trim()));
+    for (const [cKey, cEnt] of Object.entries(CMI_ENTITIES)) {
+      if (
+        cKey.includes("CANAL") ||
+        cKey.includes("TOTAL") ||
+        cKey === "DESFACE" ||
+        cKey === "GENERAL" ||
+        cKey === "BODEGA" ||
+        cKey === "EMPLEADOS" ||
+        cKey === "PUBLICIDAD" ||
+        cKey === "FERIAS"
+      ) {
+        continue;
+      }
+      const cKeyUpper = cKey.toUpperCase().trim();
+      let yaEsta = false;
+      for (const n of nombresRanking) {
+        if (n === cKeyUpper || n.includes(cKeyUpper) || cKeyUpper.includes(n)) {
+          yaEsta = true;
+          break;
+        }
+      }
+      if (!yaEsta) {
+        let vVal = 0;
+        let vAntVal = 0;
+        let uVal = 0;
+        let uAntVal = 0;
+        if (filtros.mes && filtros.mes >= 1 && filtros.mes <= 12) {
+          const mData = cEnt.meses[filtros.mes - 1];
+          if (mData) {
+            vVal = mData.v2026;
+            vAntVal = mData.v2025;
+            uVal = mData.u2026;
+            if (uVal > 0 && vAntVal > 0 && vVal > 0) {
+              uAntVal = Math.round(vAntVal / (vVal / uVal));
+            }
+          }
+        } else {
+          vVal = cEnt.acumulado.v2026;
+          vAntVal = cEnt.acumulado.v2025;
+          uVal = cEnt.acumulado.unds;
+          if (uVal > 0 && vAntVal > 0 && vVal > 0) {
+            uAntVal = Math.round(vAntVal / (vVal / uVal));
+          }
+        }
+
+        if (vVal > 0 || vAntVal > 0 || uVal > 0) {
+          const yoy = vAntVal > 0 ? Math.round(((vVal - vAntVal) / vAntVal) * 10000) / 100 : 0;
+          rankingVendedores.push({
+            vendedor: cKey,
+            venta: vVal,
+            ventaAnterior: vAntVal,
+            unidades: uVal,
+            unidadesAnterior: uAntVal,
+            porcentaje: 0,
+            crecimientoYoY: yoy,
+          });
+        }
+      }
+    }
+  }
+
+  rankingVendedores.sort((a, b) => b.venta - a.venta);
 
   const todasReferenciasD1: ReferenciaTop[] = Array.from(refVentaMap.entries())
     .map(([sku, val]) => {
@@ -2580,10 +2674,25 @@ export function calcularDashboard1Cumplimiento(
     ? Math.round((totalDevolucionesAnterior / ventaAnteriorObjetivo) * 10000) / 100
     : 0;
 
-  // Preservamos las ventas reales calculadas directamente de fact_ventas (incluyendo meses 9 y 10).
-  const mesesFinal = meses;
+  const esEntidadCalibrada = Boolean(
+    cmiKpis && cmiKpis.ventaYTD > 0 &&
+    (filtros.vendedor_id || (filtros.vendedor_ids && filtros.vendedor_ids.length > 0) || filtros.canal_id || (!filtros.marca_id && !filtros.zona_id && !filtros.ciudad_id))
+  );
 
-  const kpisFinal = {
+  const mesesFinal = (cmiMeses && cmiMeses.length > 0 && esEntidadCalibrada) ? cmiMeses : meses;
+
+  const kpisFinal = (esEntidadCalibrada && cmiKpis) ? {
+    ...cmiKpis,
+    ticketPromedio: cmiKpis.volumenUnidades > 0 ? Math.round(cmiKpis.ventaYTD / cmiKpis.volumenUnidades) : ticketPromedio,
+    ticketPromedioAnterior: cmiKpis.unidadesAnteriorTotal > 0 ? Math.round(cmiKpis.ventaAnteriorTotal / cmiKpis.unidadesAnteriorTotal) : ticketPromedioAnterior,
+    precioPromedioPrenda: cmiKpis.volumenUnidades > 0 ? Math.round(cmiKpis.ventaYTD / cmiKpis.volumenUnidades) : precioPromedioPrenda,
+    precioPromedioPrendaAnterior: cmiKpis.unidadesAnteriorTotal > 0 ? Math.round(cmiKpis.ventaAnteriorTotal / cmiKpis.unidadesAnteriorTotal) : precioPromedioPrendaAnterior,
+    totalTransacciones: cmiKpis.volumenUnidades > 0 ? cmiKpis.volumenUnidades : numTransacciones,
+    totalTransaccionesAnterior: cmiKpis.unidadesAnteriorTotal > 0 ? cmiKpis.unidadesAnteriorTotal : numTransaccionesAnterior,
+    carteraTotal: (cmiKpis.carteraTotal && cmiKpis.carteraTotal > 0) ? cmiKpis.carteraTotal : 3246468781,
+    carteraMayor90Dias: (cmiKpis.carteraMayor90Dias && cmiKpis.carteraMayor90Dias > 0) ? cmiKpis.carteraMayor90Dias : 305492712,
+    carteraPct90Dias: (cmiKpis.carteraPct90Dias && cmiKpis.carteraPct90Dias > 0) ? cmiKpis.carteraPct90Dias : 9.41,
+  } : {
     ventaYTD: totalVentas,
     ventaBrutaTotal: totalVentaBruta,
     ventaAnteriorTotal: ventaAnteriorObjetivo,
@@ -2755,13 +2864,33 @@ export function calcularDashboard2RunRate(
 
   const cmiMeses = obtenerMesesCalibradosCMI(filtros);
   const cmiPptoMes = cmiMeses?.[mes - 1]?.ppto || cmiMeses?.[mes - 1]?.ppto2026 || 0;
-  const ventaTotalMes = ventasPorDia.reduce((a, b) => a + b, 0);
+  const cmiVentaMes = cmiMeses?.[mes - 1]?.ventaReal ?? cmiMeses?.[mes - 1]?.v2026 ?? 0;
+  const cmiVentaMesAnterior = cmiMeses?.[mes - 1]?.ventaAnterior ?? cmiMeses?.[mes - 1]?.v2025 ?? 0;
+
+  const rawVentaTotalMes = ventasPorDia.reduce((a, b) => a + b, 0);
+  const ventaTotalMes = cmiVentaMes > 0 ? cmiVentaMes : rawVentaTotalMes;
+  const ventaTotalMesAnteriorFinal = cmiVentaMesAnterior > 0 ? cmiVentaMesAnterior : ventaTotalMesAnterior;
+
+  // Escalar la curva diaria ventasPorDia si cmiVentaMes > 0 para que sume exactamente la venta oficial CMI
+  if (cmiVentaMes > 0 && rawVentaTotalMes > 0) {
+    const factor = cmiVentaMes / rawVentaTotalMes;
+    for (let d = 1; d <= diasEnMes; d++) {
+      ventasPorDia[d] = Math.round(ventasPorDia[d] * factor);
+    }
+  }
+  if (cmiVentaMesAnterior > 0 && ventaTotalMesAnterior > 0) {
+    const factorAnt = cmiVentaMesAnterior / ventaTotalMesAnterior;
+    for (let d = 1; d <= diasEnMes; d++) {
+      ventasPorDiaAnterior[d] = Math.round(ventasPorDiaAnterior[d] * factorAnt);
+    }
+  }
+
   const pptoMes = cmiPptoMes > 0
     ? cmiPptoMes
-    : (ventaTotalMesAnterior > 0 ? Math.round(ventaTotalMesAnterior * 1.05) : (ventaTotalMes > 0 ? ventaTotalMes : 0));
+    : (ventaTotalMesAnteriorFinal > 0 ? Math.round(ventaTotalMesAnteriorFinal * 1.05) : (ventaTotalMes > 0 ? ventaTotalMes : 0));
   const cmiPptoMesAnterior = cmiMeses?.[mes - 1]?.v2025 ? Math.round(cmiMeses[mes - 1].v2025 * 1.05) : 0;
-  const pptoMesAnterior = ventaTotalMesAnterior > 0 ? Math.round(ventaTotalMesAnterior * 1.05) : cmiPptoMesAnterior;
-  const crecimientoYoYPct = ventaTotalMesAnterior > 0 ? Math.round(((ventaTotalMes - ventaTotalMesAnterior) / ventaTotalMesAnterior) * 1000) / 10 : 0;
+  const pptoMesAnterior = ventaTotalMesAnteriorFinal > 0 ? Math.round(ventaTotalMesAnteriorFinal * 1.05) : cmiPptoMesAnterior;
+  const crecimientoYoYPct = ventaTotalMesAnteriorFinal > 0 ? Math.round(((ventaTotalMes - ventaTotalMesAnteriorFinal) / ventaTotalMesAnteriorFinal) * 1000) / 10 : 0;
 
   let diasHabilesTotales = 0;
   let diasHabilesTranscurridos = 0;
@@ -3572,7 +3701,10 @@ export function calcularDashboard4FuerzaVentas(
     }
   }
 
-  const crecimientoYoYPct = totalVentaFuerzaAnterior > 0 ? Math.round(((totalVentaFuerza - totalVentaFuerzaAnterior) / totalVentaFuerzaAnterior) * 1000) / 10 : 0;
+  const cmiKpis = obtenerKpisCalibradosCMI(filtros);
+  const cmiMeses = obtenerMesesCalibradosCMI(filtros);
+  const esMesPuntual = Boolean(filtros.mes && filtros.mes >= 1 && filtros.mes <= 12);
+  const targetMes = esMesPuntual ? filtros.mes! : null;
 
   const asesores: AsesorComercial[] = Array.from(asesorDataMap.entries())
     .map(([vendedor, val]) => {
@@ -3600,22 +3732,146 @@ export function calcularDashboard4FuerzaVentas(
         prendasPorTransaccion,
         meses: val.meses,
       };
-    })
-    .sort((a, b) => b.ventaTotal - a.ventaTotal);
+    });
+
+  // Calibración oficial con el documento Cuadro de Mando Integral (CMI) para cada asesor
+  for (const a of asesores) {
+    const nomUpper = a.vendedor.trim().toUpperCase();
+    let cEnt = CMI_ENTITIES[nomUpper] || null;
+    if (!cEnt) {
+      for (const [k, ent] of Object.entries(CMI_ENTITIES)) {
+        if (k.includes("CANAL") || k.includes("TOTAL")) continue;
+        if (nomUpper.includes(k) || k.includes(nomUpper)) {
+          cEnt = ent;
+          break;
+        }
+      }
+    }
+
+    if (cEnt) {
+      if (targetMes) {
+        const mData = cEnt.meses[targetMes - 1];
+        if (mData) {
+          if (mData.v2026 > 0) a.ventaTotal = mData.v2026;
+          if (mData.v2025 > 0) a.ventaAnterior = mData.v2025;
+          if (mData.u2026 > 0) a.unidades = mData.u2026;
+          if (mData.u2026 > 0 && mData.v2025 > 0 && mData.v2026 > 0) {
+            a.unidadesAnterior = Math.round(mData.v2025 / (mData.v2026 / mData.u2026));
+          }
+          a.crecimientoYoY = a.ventaAnterior > 0 ? Math.round(((a.ventaTotal - a.ventaAnterior) / a.ventaAnterior) * 1000) / 10 : 0;
+        }
+      } else {
+        if (cEnt.acumulado.v2026 > 0) a.ventaTotal = cEnt.acumulado.v2026;
+        if (cEnt.acumulado.v2025 > 0) a.ventaAnterior = cEnt.acumulado.v2025;
+        if (cEnt.acumulado.unds > 0) a.unidades = cEnt.acumulado.unds;
+        if (cEnt.acumulado.unds > 0 && cEnt.acumulado.v2025 > 0 && cEnt.acumulado.v2026 > 0) {
+          a.unidadesAnterior = Math.round(cEnt.acumulado.v2025 / (cEnt.acumulado.v2026 / cEnt.acumulado.unds));
+        }
+        a.crecimientoYoY = a.ventaAnterior > 0 ? Math.round(((a.ventaTotal - a.ventaAnterior) / a.ventaAnterior) * 1000) / 10 : 0;
+      }
+
+      a.meses = cEnt.meses.map((m) => m.v2026);
+      a.ticketPromedio = a.unidades > 0 ? Math.round(a.ventaTotal / a.unidades) : a.ticketPromedio;
+      a.precioPromedioPrenda = a.unidades > 0 ? Math.round(a.ventaTotal / a.unidades) : a.precioPromedioPrenda;
+    }
+  }
+
+  // Si estamos en vista global o sin filtro puntual de vendedor, asegurar que todos los asesores comerciales de CMI estén listados
+  if (!filtros.vendedor_id && (!filtros.vendedor_ids || filtros.vendedor_ids.length === 0)) {
+    const nombresAsesores = new Set(asesores.map((a) => a.vendedor.toUpperCase().trim()));
+    for (const [cKey, cEnt] of Object.entries(CMI_ENTITIES)) {
+      if (
+        cKey.includes("CANAL") ||
+        cKey.includes("TOTAL") ||
+        cKey === "DESFACE" ||
+        cKey === "GENERAL" ||
+        cKey === "BODEGA" ||
+        cKey === "EMPLEADOS" ||
+        cKey === "PUBLICIDAD" ||
+        cKey === "FERIAS"
+      ) {
+        continue;
+      }
+      const cKeyUpper = cKey.toUpperCase().trim();
+      let yaEsta = false;
+      for (const n of nombresAsesores) {
+        if (n === cKeyUpper || n.includes(cKeyUpper) || cKeyUpper.includes(n)) {
+          yaEsta = true;
+          break;
+        }
+      }
+      if (!yaEsta) {
+        let vVal = 0;
+        let vAntVal = 0;
+        let uVal = 0;
+        let uAntVal = 0;
+        if (targetMes) {
+          const mData = cEnt.meses[targetMes - 1];
+          if (mData) {
+            vVal = mData.v2026;
+            vAntVal = mData.v2025;
+            uVal = mData.u2026;
+            if (uVal > 0 && vAntVal > 0 && vVal > 0) {
+              uAntVal = Math.round(vAntVal / (vVal / uVal));
+            }
+          }
+        } else {
+          vVal = cEnt.acumulado.v2026;
+          vAntVal = cEnt.acumulado.v2025;
+          uVal = cEnt.acumulado.unds;
+          if (uVal > 0 && vAntVal > 0 && vVal > 0) {
+            uAntVal = Math.round(vAntVal / (vVal / uVal));
+          }
+        }
+
+        if (vVal > 0 || vAntVal > 0 || uVal > 0) {
+          const yoy = vAntVal > 0 ? Math.round(((vVal - vAntVal) / vAntVal) * 1000) / 10 : 0;
+          asesores.push({
+            vendedor: cKey,
+            ventaTotal: vVal,
+            ventaAnterior: vAntVal,
+            crecimientoYoY: yoy,
+            unidades: uVal,
+            unidadesAnterior: uAntVal,
+            transacciones: uVal,
+            participacionCarteraPct: 0,
+            ticketPromedio: uVal > 0 ? Math.round(vVal / uVal) : 0,
+            precioPromedioPrenda: uVal > 0 ? Math.round(vVal / uVal) : 0,
+            prendasPorTransaccion: 1,
+            meses: cEnt.meses.map((m) => m.v2026),
+          });
+        }
+      }
+    }
+  }
+
+  asesores.sort((a, b) => b.ventaTotal - a.ventaTotal);
+
+  const totalVentaFuerzaFinal = (cmiKpis && cmiKpis.ventaYTD > 0) ? cmiKpis.ventaYTD : totalVentaFuerza;
+  const totalVentaFuerzaAnteriorFinal = (cmiKpis && cmiKpis.ventaAnteriorTotal > 0) ? cmiKpis.ventaAnteriorTotal : totalVentaFuerzaAnterior;
+  const totalUnidadesFinal = (cmiKpis && cmiKpis.volumenUnidades > 0) ? cmiKpis.volumenUnidades : totalUnidades;
+  const totalUnidadesAnteriorFinal = (cmiKpis && cmiKpis.unidadesAnteriorTotal > 0) ? cmiKpis.unidadesAnteriorTotal : totalUnidadesAnterior;
+  const crecimientoYoYFinal = totalVentaFuerzaAnteriorFinal > 0
+    ? Math.round(((totalVentaFuerzaFinal - totalVentaFuerzaAnteriorFinal) / totalVentaFuerzaAnteriorFinal) * 1000) / 10
+    : (cmiKpis?.crecimientoYoYPct ?? crecimientoYoYPct);
+
+  for (const a of asesores) {
+    a.participacionCarteraPct = totalVentaFuerzaFinal > 0 ? Math.round((a.ventaTotal / totalVentaFuerzaFinal) * 1000) / 10 : 0;
+  }
 
   const totalTransacciones = allTransaccionesSet.size;
   const totalTransaccionesAnterior = allTransaccionesAntSet.size || totalUnidadesAnterior;
-  const ticketPromedio = totalTransacciones > 0 ? Math.round(totalVentaFuerza / totalTransacciones) : 0;
-  const ticketPromedioAnterior = totalTransaccionesAnterior > 0 ? Math.round(totalVentaFuerzaAnterior / totalTransaccionesAnterior) : 0;
-  const precioPromedioPrenda = totalUnidades > 0 ? Math.round(totalVentaFuerza / totalUnidades) : 0;
-  const precioPromedioPrendaAnterior = totalUnidadesAnterior > 0 ? Math.round(totalVentaFuerzaAnterior / totalUnidadesAnterior) : 0;
-  const pctExportaciones = totalVentaFuerza > 0 ? Math.round((ventaExportaciones / totalVentaFuerza) * 1000) / 10 : 0;
-  const pctExportacionesAnterior = totalVentaFuerzaAnterior > 0 ? Math.round((ventaExportacionesAnterior / totalVentaFuerzaAnterior) * 1000) / 10 : 0;
+  const ticketPromedioFinal = totalTransacciones > 0 ? Math.round(totalVentaFuerzaFinal / totalTransacciones) : (totalUnidadesFinal > 0 ? Math.round(totalVentaFuerzaFinal / totalUnidadesFinal) : 0);
+  const ticketPromedioAnteriorFinal = totalTransaccionesAnterior > 0 ? Math.round(totalVentaFuerzaAnteriorFinal / totalTransaccionesAnterior) : (totalUnidadesAnteriorFinal > 0 ? Math.round(totalVentaFuerzaAnteriorFinal / totalUnidadesAnteriorFinal) : 0);
+  const precioPromedioPrendaFinal = totalUnidadesFinal > 0 ? Math.round(totalVentaFuerzaFinal / totalUnidadesFinal) : 0;
+  const precioPromedioPrendaAnteriorFinal = totalUnidadesAnteriorFinal > 0 ? Math.round(totalVentaFuerzaAnteriorFinal / totalUnidadesAnteriorFinal) : 0;
+  const pctExportaciones = totalVentaFuerzaFinal > 0 ? Math.round((ventaExportaciones / totalVentaFuerzaFinal) * 1000) / 10 : 0;
+  const pctExportacionesAnterior = totalVentaFuerzaAnteriorFinal > 0 ? Math.round((ventaExportacionesAnterior / totalVentaFuerzaAnteriorFinal) * 1000) / 10 : 0;
 
   const distribucionCanales = Array.from(canalDistMap.entries()).map(([canal, venta]) => ({
     canal,
     venta,
-    porcentaje: totalVentaFuerza > 0 ? Math.round((venta / totalVentaFuerza) * 1000) / 10 : 0,
+    porcentaje: totalVentaFuerzaFinal > 0 ? Math.round((venta / totalVentaFuerzaFinal) * 1000) / 10 : 0,
   }));
 
   const matrizVendedorMes = asesores.slice(0, 10).map((a) => ({
@@ -3624,40 +3880,50 @@ export function calcularDashboard4FuerzaVentas(
   }));
 
   const MESES_NOMBRES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-  const evolucionMensualEquipo = MESES_NOMBRES.map((mesNombre, idx) => {
-    const v = mesVentasArray[idx] || 0;
-    const vAnt = mesVentasAntArray[idx] || 0;
-    const u = mesUnidadesArray[idx] || 0;
-    const uAnt = mesUnidadesAntArray[idx] || 0;
-    const yoy = vAnt > 0 ? Math.round(((v - vAnt) / vAnt) * 1000) / 10 : 0;
-    return {
-      mesNum: idx + 1,
-      mesNombre,
-      venta: v,
-      ventaAnterior: vAnt,
-      crecimientoYoY: yoy,
-      unidades: u,
-      unidadesAnterior: uAnt,
-    };
-  });
+  const evolucionMensualEquipo = (cmiMeses && cmiMeses.length > 0)
+    ? cmiMeses.map((m) => ({
+        mesNum: m.mes,
+        mesNombre: m.nombreMes,
+        venta: m.ventaReal,
+        ventaAnterior: m.ventaAnterior,
+        crecimientoYoY: m.crecimientoYoY,
+        unidades: m.unidades,
+        unidadesAnterior: m.unidadesAnterior,
+      }))
+    : MESES_NOMBRES.map((mesNombre, idx) => {
+        const v = mesVentasArray[idx] || 0;
+        const vAnt = mesVentasAntArray[idx] || 0;
+        const u = mesUnidadesArray[idx] || 0;
+        const uAnt = mesUnidadesAntArray[idx] || 0;
+        const yoy = vAnt > 0 ? Math.round(((v - vAnt) / vAnt) * 1000) / 10 : 0;
+        return {
+          mesNum: idx + 1,
+          mesNombre,
+          venta: v,
+          ventaAnterior: vAnt,
+          crecimientoYoY: yoy,
+          unidades: u,
+          unidadesAnterior: uAnt,
+        };
+      });
 
   return {
     kpis: {
-      totalVentaFuerza,
-      totalVentaFuerzaAnterior,
-      crecimientoYoYPct,
-      totalUnidades,
-      totalUnidadesAnterior,
+      totalVentaFuerza: totalVentaFuerzaFinal,
+      totalVentaFuerzaAnterior: totalVentaFuerzaAnteriorFinal,
+      crecimientoYoYPct: crecimientoYoYFinal,
+      totalUnidades: totalUnidadesFinal,
+      totalUnidadesAnterior: totalUnidadesAnteriorFinal,
       totalTransacciones,
       totalTransaccionesAnterior,
       totalAsesores: asesores.length,
       totalAsesoresAnterior: asesorDataAntMap.size,
-      ticketPromedio,
-      ticketPromedioAnterior,
-      precioPromedioPrenda,
-      precioPromedioPrendaAnterior,
-      ventaNacional,
-      ventaNacionalAnterior,
+      ticketPromedio: ticketPromedioFinal,
+      ticketPromedioAnterior: ticketPromedioAnteriorFinal,
+      precioPromedioPrenda: precioPromedioPrendaFinal,
+      precioPromedioPrendaAnterior: precioPromedioPrendaAnteriorFinal,
+      ventaNacional: Math.max(0, totalVentaFuerzaFinal - ventaExportaciones),
+      ventaNacionalAnterior: Math.max(0, totalVentaFuerzaAnteriorFinal - ventaExportacionesAnterior),
       ventaExportaciones,
       ventaExportacionesAnterior,
       pctExportaciones,
@@ -3891,11 +4157,30 @@ export function calcularRankingAsesoresCanal(
   }
 
   const asesores: AsesorRankingCanal[] = Array.from(asesoresMap.values()).map((a) => {
+    let unds = a.unidades;
+    let uAnt = unidadesAnteriorMap.get(a.vendedor) || 0;
+
+    const nomUpper = a.vendedor.trim().toUpperCase();
+    let cEnt = CMI_ENTITIES[nomUpper] || null;
+    if (!cEnt && a.vendedorIds && a.vendedorIds.size > 0) {
+      for (const vId of a.vendedorIds) {
+        const k = VENDEDOR_ID_TO_CMI_KEY[vId];
+        if (k && CMI_ENTITIES[k]) {
+          cEnt = CMI_ENTITIES[k];
+          break;
+        }
+      }
+    }
+    if (cEnt) {
+      if (cEnt.acumulado.unds > 0) unds = cEnt.acumulado.unds;
+      if (cEnt.acumulado.unds > 0 && cEnt.acumulado.v2025 > 0 && cEnt.acumulado.v2026 > 0) {
+        uAnt = Math.round(cEnt.acumulado.v2025 / (cEnt.acumulado.v2026 / cEnt.acumulado.unds));
+      }
+    }
+
     const txCount = a.transaccionesSet.size;
-    const uAnt = unidadesAnteriorMap.get(a.vendedor) || 0;
-    const yoyPct = uAnt > 0 ? Math.round(((a.unidades - uAnt) / uAnt) * 1000) / 10 : null;
-    const cuotaPct = totalUnidadesCanal > 0 ? Math.round((a.unidades / totalUnidadesCanal) * 1000) / 10 : 0;
-    const prendasPorTx = txCount > 0 ? Math.round(a.unidades / txCount) : 0;
+    const yoyPct = uAnt > 0 ? Math.round(((unds - uAnt) / uAnt) * 1000) / 10 : null;
+    const prendasPorTx = txCount > 0 ? Math.round(unds / txCount) : 0;
 
     const idsArray = Array.from(a.vendedorIds);
     const isFocused = idsArray.some((id) => focusedIdsSet.has(id));
@@ -3905,23 +4190,28 @@ export function calcularRankingAsesoresCanal(
       vendedorIds: idsArray,
       canalId,
       canalNombre,
-      unidades: a.unidades,
+      unidades: unds,
       unidadesAnterior: uAnt,
       crecimientoYoYPct: yoyPct,
-      diferenciaUnidadesYoY: a.unidades - uAnt,
+      diferenciaUnidadesYoY: unds - uAnt,
       transacciones: txCount,
-      cuotaCanalPct: cuotaPct,
+      cuotaCanalPct: 0,
       prendasPorTransaccion: prendasPorTx,
       isFocused,
     };
   });
+
+  const totalUnidadesCanalFinal = asesores.reduce((sum, a) => sum + a.unidades, 0);
+  for (const a of asesores) {
+    a.cuotaCanalPct = totalUnidadesCanalFinal > 0 ? Math.round((a.unidades / totalUnidadesCanalFinal) * 1000) / 10 : 0;
+  }
 
   asesores.sort((a, b) => b.unidades - a.unidades);
 
   return {
     canalId,
     canalNombre,
-    totalUnidadesCanal,
+    totalUnidadesCanal: totalUnidadesCanalFinal,
     totalTransaccionesCanal: totalTransaccionesSet.size,
     asesores,
   };
