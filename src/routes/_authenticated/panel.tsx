@@ -3577,6 +3577,228 @@ function Panel() {
               </CardContent>
             </Card>
 
+            {/* Panel de Vista Global de Comerciales Asociados al Vendedor (Tarjetas de Asesores) */}
+            {!esAdmin && comparativaComercialesAsociados.length > 1 && (
+              <Card className="border-border/80 shadow-xs bg-linear-to-b from-card to-muted/20">
+                <CardHeader className="pb-3 border-b border-border/40">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                          <Users className="h-5 w-5" />
+                        </div>
+                        <CardTitle className="text-base font-semibold text-foreground">
+                          Vista Global de Comerciales Asociados ({comparativaComercialesAsociados.length} Asesores)
+                        </CardTitle>
+                      </div>
+                      <CardDescription className="text-xs">
+                        Métricas comparativas individuales y tasa de crecimiento frente al año anterior para cada código comercial asignado.
+                      </CardDescription>
+                    </div>
+                    {vendedorId !== "todos" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setVendedorId("todos")}
+                        className="text-xs h-8 text-primary font-medium"
+                      >
+                        ← Volver a Vista Global Consolidada
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  {/* Grid de Tarjetas Comparativas por Asesor */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3.5">
+                    {comparativaComercialesAsociados.map((sub) => {
+                      const isSelected = String(vendedorId) === String(sub.id);
+                      const isPositive = sub.crecimientoYoYPct >= 0;
+                      return (
+                        <div
+                          key={sub.id}
+                          onClick={() => setVendedorId(isSelected ? "todos" : String(sub.id))}
+                          className={cn(
+                            "p-4 rounded-2xl border transition-all cursor-pointer relative group flex flex-col justify-between shadow-2xs hover:shadow-md",
+                            isSelected
+                              ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20"
+                              : "border-border/70 hover:border-primary/50 hover:bg-muted/30 bg-card"
+                          )}
+                        >
+                          <div>
+                            {/* Cabecera: Nombre de Asesor, ID y % Aporte */}
+                            <div className="flex items-start justify-between gap-2 mb-3">
+                              <div className="min-w-0 flex-1">
+                                <h4
+                                  className="font-bold text-xs sm:text-sm text-foreground truncate group-hover:text-primary transition-colors flex items-center gap-1.5"
+                                  title={sub.nombre}
+                                >
+                                  <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                  <span className="truncate">{sub.nombre}</span>
+                                </h4>
+                                <p className="text-[10px] text-muted-foreground font-mono">ID Asesor: {sub.id}</p>
+                              </div>
+                              <Badge
+                                variant={isSelected ? "default" : "secondary"}
+                                className="text-[10px] px-2 py-0.5 h-5 font-bold shrink-0 shadow-2xs font-mono"
+                              >
+                                {Number(sub.aportePct).toFixed(2)}% aporte
+                              </Badge>
+                            </div>
+
+                            {/* Facturación Neta Principal */}
+                            <div className="pb-2.5 border-b border-border/50">
+                              <div className="flex items-baseline justify-between gap-1 mb-0.5">
+                                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
+                                  Facturación Neta
+                                </span>
+                                {sub.ventaBruta > sub.ventaActual && (
+                                  <span
+                                    className="text-[10.5px] text-muted-foreground font-mono"
+                                    title={`Venta Bruta: ${formatoCOPFull(sub.ventaBruta)}`}
+                                  >
+                                    Bruta: {formatoCOPFull(sub.ventaBruta)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="font-extrabold text-base sm:text-lg text-foreground tracking-tight font-display">
+                                {formatoCOPFull(sub.ventaActual)}
+                              </div>
+                            </div>
+
+                            {/* Matriz de Métricas Clave del Dashboard de Inicio */}
+                            <div className="py-2.5 space-y-2 text-xs">
+                              {/* 1. Presupuesto y Cumplimiento de Meta */}
+                              <div className="flex items-center justify-between text-[11px] gap-1">
+                                <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+                                  <Target className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                                  Presupuesto:
+                                </span>
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className="font-semibold text-foreground">
+                                    {sub.ppto > 0 ? formatoCOPFull(sub.ppto) : "Sin ppto"}
+                                  </span>
+                                  {sub.ppto > 0 && (
+                                    <span
+                                      className={cn(
+                                        "px-1.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-0.5",
+                                        colorSemaforo(sub.cumplimientoPct)
+                                      )}
+                                    >
+                                      {Number(sub.cumplimientoPct).toFixed(2)}%
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* 2. Cartera y % Mora > 90 Días */}
+                              <div className="flex items-center justify-between text-[11px] gap-1">
+                                <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+                                  <CreditCard className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                                  Cartera Total:
+                                </span>
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className="font-semibold text-foreground">
+                                    {formatoCOPFull(sub.carteraTotal)}
+                                  </span>
+                                  <span
+                                    className={cn(
+                                      "px-1.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-0.5",
+                                      (sub.carteraPct90Dias || 0) <= 5
+                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                        : (sub.carteraPct90Dias || 0) <= 15
+                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                        : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                    )}
+                                    title={sub.carteraMayor90Dias > 0 ? `Mora >90d: ${formatoCOPFull(sub.carteraMayor90Dias)}` : undefined}
+                                  >
+                                    <Clock className="h-2.5 w-2.5 shrink-0" />
+                                    {Number(sub.carteraPct90Dias || 0).toFixed(2)}% &gt;90d
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 3. Año Anterior y Crecimiento YoY */}
+                              <div className="flex items-center justify-between text-[11px] gap-1">
+                                <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+                                  <History className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                  Año Anterior:
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-foreground font-mono">{formatoCOPFull(sub.ventaAnterior)}</span>
+                                  <span
+                                    className={cn(
+                                      "font-bold flex items-center text-[10.5px] font-mono",
+                                      isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                                    )}
+                                  >
+                                    {isPositive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+                                    {sub.crecimientoYoYPct > 0 ? "+" : ""}{Number(sub.crecimientoYoYPct).toFixed(2)}%
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 4. Unidades y Ticket Promedio */}
+                              <div className="flex items-center justify-between text-[11px] gap-1">
+                                <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+                                  <Package className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                                  Unidades:
+                                </span>
+                                <span className="font-semibold text-foreground font-mono">
+                                  {sub.unidades.toLocaleString("es-CO")} unds
+                                  {sub.ticketPromedio > 0 && (
+                                    <span className="text-muted-foreground/80 font-normal ml-1 text-[10px]">
+                                      (Ticket {formatoCOPFull(sub.ticketPromedio)})
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+
+                              {/* 5. Devoluciones ($ y %) */}
+                              <div className="flex items-center justify-between text-[11px] gap-1">
+                                <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
+                                  <ArrowDownRight className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                                  Devoluciones:
+                                </span>
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className="font-semibold text-foreground">
+                                    {sub.devolucionesMonto > 0 ? formatoCOPFull(sub.devolucionesMonto) : "$ 0"}
+                                  </span>
+                                  <span
+                                    className={cn(
+                                      "text-[10px] font-bold px-1.5 py-0.2 rounded border",
+                                      sub.tasaDevolucionPct > 10
+                                        ? "text-rose-700 dark:text-rose-300 bg-rose-500/10 border-rose-500/30"
+                                        : sub.tasaDevolucionPct > 5
+                                        ? "text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/30"
+                                        : "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/30"
+                                    )}
+                                  >
+                                    {Number(sub.tasaDevolucionPct).toFixed(2)}%
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Footer con Acción */}
+                          <div className="mt-2 pt-2.5 border-t border-border/50 flex items-center justify-between">
+                            <span className="text-[11px] text-primary font-semibold group-hover:underline flex items-center gap-1">
+                              {isSelected ? "✓ Filtrando este asesor" : "Clic para filtrar este asesor"}
+                            </span>
+                            {isSelected && (
+                              <Badge variant="outline" className="text-[9.5px] px-1.5 py-0 h-4 bg-primary/10 text-primary border-primary/30 font-bold">
+                                Activo
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Diagrama de Flujo / Sankey: Arquitectura de Ingresos */}
             <SankeyFlujoComercial
               rawVentas={rawVentas || []}
