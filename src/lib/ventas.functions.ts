@@ -44,7 +44,7 @@ export const obtenerResumen = createServerFn({ method: "GET" })
     const [ventas, cargas, ultimas] = await Promise.all([
       supabase
         .from("fact_ventas")
-        .select("id", { count: "exact", head: true }),
+        .select("id", { count: "planned", head: true }),
       supabase.from("cargas").select("id", { count: "exact", head: true }),
       supabase
         .from("cargas")

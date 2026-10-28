@@ -163,15 +163,15 @@ for (const u of USUARIOS_INICIALES_PRECONFIGURADOS) {
 }
 
 /**
- * Resuelve y unifica las cuentas comerciales de cada asesor a partir de sus IDs preconfigurados,
- * descartando cuentas operativas y no comerciales (GENERAL, BODEGA, PUBLICIDAD, EMPLEADOS).
+ * Resuelve y unifica las cuentas comerciales de cada asesor a partir de sus IDs preconfigurados
+ * y catálogos oficiales, asegurando que el 100% de las ventas facturadas se atribuyan fielmente.
  */
 export function resolverNombreAsesor(
   vendedorId?: number | null,
   vendedorMap?: Map<number, string> | CatalogoItem[]
 ): { nombre: string; esComercial: boolean; allIds: number[] } {
   if (!vendedorId) {
-    return { nombre: "Ventas Directas / Mostrador", esComercial: false, allIds: [] };
+    return { nombre: "Ventas Directas / Mostrador", esComercial: true, allIds: [] };
   }
   const vId = Number(vendedorId);
   const info = VEND_ID_TO_ASESOR_INFO.get(vId);
@@ -187,13 +187,7 @@ export function resolverNombreAsesor(
     }
   }
   const nombre = catNom ? catNom.trim() : `Asesor #${vId}`;
-  const norm = nombre.toUpperCase();
-  const esComercial =
-    !norm.includes("PUBLICIDAD") &&
-    !norm.includes("BODEGA") &&
-    !norm.includes("GENERAL") &&
-    !norm.includes("EMPLEADOS");
-  return { nombre, esComercial, allIds: [vId] };
+  return { nombre, esComercial: true, allIds: [vId] };
 }
 
 /**
@@ -269,8 +263,8 @@ export function cumpleFiltros(r: any, filtros: FiltrosBI): boolean {
   if (filtros.anio && !filtros.fecha_desde && ("anio" in r || "fecha" in r)) {
     if (rAnio && rAnio !== filtros.anio) return false;
   }
-  if (filtros.mes && ("mes" in r || "fecha" in r)) {
-    if (rMes && rMes !== filtros.mes) return false;
+  if (filtros.mes) {
+    if (!rMes || rMes !== filtros.mes) return false;
   }
   if (filtros.canal_id && "canal_id" in r && r.canal_id !== null && r.canal_id !== undefined) {
     if (Number(r.canal_id) !== filtros.canal_id) return false;
@@ -498,7 +492,7 @@ export async function fetchAllFactVentas<T = Record<string, unknown>>(
 
 export async function obtenerResumenCliente() {
   const [ventas, cargas, ultimas, catalogos] = await Promise.all([
-    supabase.from("fact_ventas").select("id", { count: "exact", head: true }),
+    supabase.from("fact_ventas").select("id", { count: "planned", head: true }),
     supabase.from("cargas").select("id", { count: "exact", head: true }),
     supabase
       .from("cargas")
@@ -572,7 +566,7 @@ export async function obtenerRangoFechasTotal(): Promise<RangoFechasInfo> {
       .gte("fecha", `${maxAnio}-01-01`)
       .order("fecha", { ascending: false })
       .limit(1),
-    supabase.from("fact_ventas").select("id", { count: "exact", head: true }),
+    supabase.from("fact_ventas").select("id", { count: "planned", head: true }),
   ]);
 
   let fechaMin = minRes.data?.[0]?.fecha ?? null;
@@ -3178,25 +3172,34 @@ export function calcularDashboard3Digital(
         continue;
       }
 
+      // Gráfica de evolución a 12 meses: SIEMPRE acumula todos los meses
+      if (digitalTipo === "tienda_virtual") {
+        mesesData[mIdx].ventaTiendaVirtual += v;
+      } else if (digitalTipo === "redes_sociales") {
+        mesesData[mIdx].ventaRedesSociales += v;
+      } else {
+        mesesData[mIdx].ventaOtros += v;
+      }
+      mesesData[mIdx].ventaTotal += v;
+      mesesData[mIdx].unidades += cant;
+
+      // KPIs y distribuciones: acotan al mes seleccionado (o todo el año si mes === null/todos)
+      const aplicaMes = !filtros.mes || m === filtros.mes;
+      if (!aplicaMes) continue;
+
       ventaDigitalTotal += v;
       unidadesDigitales += cant;
 
       if (digitalTipo === "tienda_virtual") {
         ventaTiendaVirtual += v;
         unidadesTiendaVirtual += cant;
-        mesesData[mIdx].ventaTiendaVirtual += v;
       } else if (digitalTipo === "redes_sociales") {
         ventaRedesSociales += v;
         unidadesRedesSociales += cant;
-        mesesData[mIdx].ventaRedesSociales += v;
       } else {
         ventaOtrosDigitales += v;
         unidadesOtrosDigitales += cant;
-        mesesData[mIdx].ventaOtros += v;
       }
-
-      mesesData[mIdx].ventaTotal += v;
-      mesesData[mIdx].unidades += cant;
 
       // Unificar por referencia base (producto_c / sku)
       const baseRef = (r.producto_c || r.sku || r.producto || "Sin Ref").trim().toUpperCase();
@@ -3270,6 +3273,14 @@ export function calcularDashboard3Digital(
       if (esDigital) {
         if (subCanalFiltro && subCanalFiltro !== "todos" && digitalTipo !== subCanalFiltro) continue;
 
+        // Gráfica YoY a 12 meses: acumula todos los meses
+        mesesDataAnterior[mIdx] += v;
+        mesesUnidadesAnterior[mIdx] += cant;
+
+        // KPIs YoY: acotan al mes seleccionado
+        const aplicaMesAnt = !filtros.mes || m === filtros.mes;
+        if (!aplicaMesAnt) continue;
+
         ventaDigitalAnterior += v;
         unidadesDigitalesAnterior += cant;
         if (digitalTipo === "tienda_virtual") {
@@ -3282,9 +3293,6 @@ export function calcularDashboard3Digital(
           ventaOtrosDigitalesAnterior += v;
           unidadesOtrosDigitalesAnterior += cant;
         }
-
-        mesesDataAnterior[mIdx] += v;
-        mesesUnidadesAnterior[mIdx] += cant;
       }
     }
   }
@@ -3932,7 +3940,13 @@ export function calcularRankingAsesoresCanal(
 
   for (const r of ventasCanal) {
     if (r.canal_id !== canalId) continue;
-    if (!esTransaccionFacturacionReal(r.transaccion, r.mes, r.anio)) continue;
+    let m = Number(r.mes);
+    if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+    if (!m || isNaN(m)) m = 1;
+    const an = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : (filtros?.anio || 2026));
+
+    if (!esTransaccionFacturacionReal(r.transaccion, m, an)) continue;
+    if (filtros?.mes && m !== filtros.mes) continue;
 
     const cant = normalizarUnidadesTransaccion(r.transaccion, r.cantidad);
     const txId = r.transaccion ? String(r.transaccion).trim() : `row_${r.id}`;
@@ -3983,7 +3997,13 @@ export function calcularRankingAsesoresCanal(
   if (ventasCanalAnterior && ventasCanalAnterior.length > 0) {
     for (const r of ventasCanalAnterior) {
       if (r.canal_id !== canalId) continue;
-      if (!esTransaccionFacturacionReal(r.transaccion, r.mes, r.anio)) continue;
+      let m = Number(r.mes);
+      if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+      if (!m || isNaN(m)) m = 1;
+      const anAnt = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : (filtros?.anio ? filtros.anio - 1 : 2025));
+
+      if (!esTransaccionFacturacionReal(r.transaccion, m, anAnt)) continue;
+      if (filtros?.mes && m !== filtros.mes) continue;
 
       const cant = normalizarUnidadesTransaccion(r.transaccion, r.cantidad);
       const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
@@ -4096,7 +4116,15 @@ export function calcularDashboard5Marketplaces(
   const coloresMap = new Map<string, number>();
 
   for (const r of data) {
-    if (!esTransaccionFacturacionReal(r.transaccion, r.mes, r.anio)) continue;
+    let m = Number(r.mes);
+    if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+    if (!m || isNaN(m)) m = 1;
+    const an = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : (filtros.anio || 2026));
+
+    if (!esTransaccionFacturacionReal(r.transaccion, m, an)) continue;
+    const aplicaMes = !filtros.mes || m === filtros.mes;
+    if (!aplicaMes) continue;
+
     const v = normalizarValorTransaccion(r.transaccion, r.valor);
     const cant = normalizarUnidadesTransaccion(r.transaccion, r.cantidad);
     const sku = (r.producto_c || r.sku || "N/A").trim().toUpperCase();
@@ -4126,7 +4154,15 @@ export function calcularDashboard5Marketplaces(
 
   if (dataAnterior && dataAnterior.length > 0) {
     for (const r of dataAnterior) {
-      if (!esTransaccionFacturacionReal(r.transaccion, r.mes, r.anio)) continue;
+      let m = Number(r.mes);
+      if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+      if (!m || isNaN(m)) m = 1;
+      const anAnt = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : (filtros.anio ? filtros.anio - 1 : 2025));
+
+      if (!esTransaccionFacturacionReal(r.transaccion, m, anAnt)) continue;
+      const aplicaMesAnt = !filtros.mes || m === filtros.mes;
+      if (!aplicaMesAnt) continue;
+
       const v = normalizarValorTransaccion(r.transaccion, r.valor);
       const cant = normalizarUnidadesTransaccion(r.transaccion, r.cantidad);
       const sku = (r.producto_c || r.sku || "N/A").trim().toUpperCase();

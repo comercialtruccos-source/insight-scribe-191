@@ -1,5 +1,10 @@
-import { supabase } from "@/integrations/supabase/client";
-import type { FilaFactVentas, CatalogoItem } from "@/lib/ventas-api";
+import {
+  esTransaccionFacturacionReal,
+  normalizarValorTransaccion,
+  normalizarUnidadesTransaccion,
+  type FilaFactVentas,
+  type CatalogoItem,
+} from "@/lib/ventas-api";
 
 export type ReferenciaMaestroItem = {
   ref: string;
@@ -290,10 +295,15 @@ export function calcularDashboardCorrerias({
 
     aniosSet.add(an);
 
+    let m = Number(r.mes);
+    if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+    if (!m || isNaN(m)) m = 1;
+    if (!esTransaccionFacturacionReal(r.transaccion, m, an)) continue;
+
     const rawRef = String(r.producto_c || r.sku || r.producto || "").trim();
     const fecha = r.fecha ? String(r.fecha).slice(0, 10) : "";
-    const v = Number(r.valor || 0);
-    const c = Math.round(Number(r.cantidad || 0));
+    const v = normalizarValorTransaccion(r.transaccion, Number(r.valor || 0));
+    const c = normalizarUnidadesTransaccion(r.transaccion, Number(r.cantidad || 0));
 
     const cicloKey = `${cId}___${an}`;
     if (!ciclosMap.has(cicloKey)) {
@@ -480,9 +490,14 @@ export function calcularDashboardCorrerias({
     const nombreCorr = cId > 0 ? nombresCorreriaMap.get(cId) || `C${cId}` : "Sin Correría";
     const etiquetaCiclo = `${nombreCorr} (${an})`;
 
+    let m = Number(r.mes);
+    if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+    if (!m || isNaN(m)) m = 1;
+    if (!esTransaccionFacturacionReal(r.transaccion, m, an)) continue;
+
     const fecha = r.fecha ? String(r.fecha).slice(0, 10) : "";
-    const v = Number(r.valor || 0);
-    const c = Math.round(Number(r.cantidad || 0));
+    const v = normalizarValorTransaccion(r.transaccion, Number(r.valor || 0));
+    const c = normalizarUnidadesTransaccion(r.transaccion, Number(r.cantidad || 0));
 
     // Filtro por Año
     if (anioFiltro !== "todos" && an !== Number(anioFiltro)) {

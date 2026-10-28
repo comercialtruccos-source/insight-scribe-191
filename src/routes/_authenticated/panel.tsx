@@ -24,6 +24,9 @@ import {
   obtenerTransaccionesDetalle,
   purgarDatosVentas,
   eliminarCarga,
+  esTransaccionFacturacionReal,
+  normalizarValorTransaccion,
+  normalizarUnidadesTransaccion,
   type FiltrosBI,
 } from "@/lib/ventas-api";
 import {
@@ -535,9 +538,9 @@ function Panel() {
     }
   }, []);
 
-  // Filtros globales: Por defecto año actual y consolidado anual completo ("todos" los meses) para ver el 100% de la historia cargada
+  // Filtros globales: Por defecto corresponden al mes y año actual para consultar las métricas del periodo vigente al iniciar sesión
   const [anio, setAnio] = useState<string>(() => String(new Date().getFullYear()));
-  const [mes, setMes] = useState<string>("todos");
+  const [mes, setMes] = useState<string>(() => String(new Date().getMonth() + 1));
   const [canalId, setCanalId] = useState<string>("todos");
   const [marcaId, setMarcaId] = useState<string>("todos");
   const [vendedorId, setVendedorId] = useState<string>("todos");
@@ -906,13 +909,17 @@ function Panel() {
   }, [habilitarYoY, filtros, catalogos?.anios]);
 
   // Carga unificada de ventas para todos los dashboards:
-  // En modo anual o sin rango de fechas fijas, mantenemos el año completo en memoria (mes: null) para que los 12 meses estén siempre disponibles en las gráficas y el cambio de mes sea instantáneo
+  // Si el usuario tiene un mes puntual seleccionado (ej: Octubre), consultamos ese mes puntualmente
+  // para que los KPIs y métricas netas se actualicen de inmediato. Si mes === "todos", cargamos el año completo.
   const filtrosVentasRaw = useMemo(() => {
-    if (tipoRango === "anio" || tipoRango === "todo" || !fechaDesde) {
-      return { ...filtros, mes: null };
+    if (tipoRango === "personalizado" && fechaDesde) {
+      return filtros;
     }
-    return filtros;
-  }, [filtros, tipoRango, fechaDesde]);
+    if (mes !== "todos") {
+      return { ...filtros, mes: Number(mes) };
+    }
+    return { ...filtros, mes: null };
+  }, [filtros, tipoRango, fechaDesde, mes]);
 
   const { data: rawVentas, isLoading: cVentas, isFetching: cFetching } = useQuery({
     queryKey: ["bi-fact-ventas", filtrosVentasRaw],
@@ -924,11 +931,14 @@ function Panel() {
 
   const filtrosYoYRaw = useMemo(() => {
     if (!filtrosYoY) return null;
-    if (tipoRango === "anio" || tipoRango === "todo" || !fechaDesde) {
-      return { ...filtrosYoY, mes: null };
+    if (tipoRango === "personalizado" && fechaDesde) {
+      return filtrosYoY;
     }
-    return filtrosYoY;
-  }, [filtrosYoY, tipoRango, fechaDesde]);
+    if (mes !== "todos") {
+      return { ...filtrosYoY, mes: Number(mes) };
+    }
+    return { ...filtrosYoY, mes: null };
+  }, [filtrosYoY, tipoRango, fechaDesde, mes]);
 
   // Carga on-demand de ventas del año anterior (automática para vendedores, configurable para admin)
   const { data: rawVentasYoY, isLoading: cYoYLoading } = useQuery({
@@ -1037,13 +1047,13 @@ function Panel() {
     return partes.join(" ");
   }, [tipoRango, fechaDesde, fechaHasta, mes, anio]);
 
-  const cMultianual = cVentas || (habilitarYoY && cYoYLoading);
-  const cD1 = cVentas || (habilitarYoY && cYoYLoading);
-  const cD2 = cVentas || (habilitarYoY && cYoYLoading);
-  const cD3 = cVentas || (habilitarYoY && cYoYLoading);
-  const cD4 = cVentas || (habilitarYoY && cYoYLoading);
-  const cD5 = cVentas || (habilitarYoY && cYoYLoading);
-  const cD6 = cVentas || (habilitarYoY && cYoYLoading);
+  const cMultianual = cVentas;
+  const cD1 = cVentas;
+  const cD2 = cVentas;
+  const cD3 = cVentas;
+  const cD4 = cVentas;
+  const cD5 = cVentas;
+  const cD6 = cVentas;
 
   // Filtros para la matriz histórica multianual (conservando canales, marcas, vendedores, etc. pero sin restringir el año para mostrar todos los años)
   const filtrosMultianual: FiltrosBI = useMemo(() => {
@@ -1057,12 +1067,12 @@ function Panel() {
     };
   }, [canalId, marcaId, vendedorId, vendedorIds, zonaId, ciudadId]);
 
-  // Si el usuario filtra un año específico en los filtros superiores, consultamos el histórico completo para la matriz
+  // Si el usuario consulta la matriz histórica multianual, consultamos el histórico completo bajo demanda exclusivamente para ese tab
   const { data: rawVentasMultianual } = useQuery({
     queryKey: ["bi-fact-ventas-multianual", filtrosMultianual],
     queryFn: () => obtenerVentasRaw(filtrosMultianual),
     staleTime: 120 * 1000,
-    enabled: anio !== "todos" || Boolean(fechaDesde) || Boolean(fechaHasta),
+    enabled: tabActivo === "multianual" && (anio !== "todos" || Boolean(fechaDesde) || Boolean(fechaHasta)),
   });
 
   const ventasMatrizHistorica = useMemo(() => {
@@ -1584,19 +1594,37 @@ function Panel() {
     if (!esMesPuntual || !rawVentas || rawVentas.length === 0) return [];
     const diasMap = new Map<number, { dia: number; diaLabel: string; venta: number; ventaAnterior?: number; unidades: number }>();
 
+    const targetMes = mes !== "todos" ? Number(mes) : null;
+    if (!targetMes) return [];
+
     const diasAntMap = new Map<number, number>();
     if (compararAnioAnterior && rawVentasYoY) {
       for (const r of rawVentasYoY) {
-        const d = Number(r.dia);
+        let m = Number(r.mes);
+        if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+        if (m !== targetMes) continue;
+        const anAnt = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : (filtros?.anio ? filtros.anio - 1 : 2025));
+        if (!esTransaccionFacturacionReal(r.transaccion, m, anAnt)) continue;
+
+        const d = Number(r.dia) || (r.fecha ? parseInt(String(r.fecha).slice(8, 10), 10) : 0);
         if (d >= 1 && d <= 31) {
-          diasAntMap.set(d, (diasAntMap.get(d) || 0) + Number(r.valor || 0));
+          const v = normalizarValorTransaccion(r.transaccion, Number(r.valor || 0));
+          diasAntMap.set(d, (diasAntMap.get(d) || 0) + v);
         }
       }
     }
 
     for (const r of rawVentas) {
-      const d = Number(r.dia);
+      let m = Number(r.mes);
+      if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+      if (m !== targetMes) continue;
+      const an = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : (filtros?.anio || 2026));
+      if (!esTransaccionFacturacionReal(r.transaccion, m, an)) continue;
+
+      const d = Number(r.dia) || (r.fecha ? parseInt(String(r.fecha).slice(8, 10), 10) : 0);
       if (d >= 1 && d <= 31) {
+        const v = normalizarValorTransaccion(r.transaccion, Number(r.valor || 0));
+        const cant = normalizarUnidadesTransaccion(r.transaccion, Number(r.cantidad || 0));
         if (!diasMap.has(d)) {
           diasMap.set(d, {
             dia: d,
@@ -1607,13 +1635,13 @@ function Panel() {
           });
         }
         const item = diasMap.get(d)!;
-        item.venta += Number(r.valor || 0);
-        item.unidades += Math.round(Number(r.cantidad || 0));
+        item.venta += v;
+        item.unidades += cant;
       }
     }
 
     return Array.from(diasMap.values()).sort((a, b) => a.dia - b.dia);
-  }, [rawVentas, rawVentasYoY, esMesPuntual, compararAnioAnterior]);
+  }, [rawVentas, rawVentasYoY, esMesPuntual, mes, compararAnioAnterior, filtros?.anio]);
 
   const d5 = useMemo(
     () => calcularDashboard5Marketplaces(rawVentas || [], filtros, catalogos?.canales, habilitarYoY ? rawVentasYoY : undefined),
