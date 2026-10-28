@@ -148,6 +148,7 @@ import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vende
 import { MentorComercialDrawer } from "@/components/mentor/MentorComercialDrawer";
 import { SankeyFlujoComercial } from "@/components/sankey/SankeyFlujoComercial";
 import { ModuloCargaReferencias } from "@/components/carga/ModuloCargaReferencias";
+import { ModuloCargaCMI } from "@/components/carga/ModuloCargaCMI";
 import { BarraNavegacionDashboards } from "@/components/dashboard/BarraNavegacionDashboards";
 import { calcularDiagnosticoMentor } from "@/lib/mentor-comercial";
 import { useInventarioReal } from "@/lib/inventario-api";
@@ -608,7 +609,17 @@ function Panel() {
   const [metaArchivo, setMetaArchivo] = useState<MetadataArchivo | null>(null);
   const [hojaSeleccionada, setHojaSeleccionada] = useState<string | null>(null);
   const [esPivotOInvalido, setEsPivotOInvalido] = useState(false);
-  const [subTabCarga, setSubTabCarga] = useState<"ventas" | "referencias">("ventas");
+  const [subTabCarga, setSubTabCarga] = useState<"ventas" | "referencias" | "cmi">("ventas");
+
+  useEffect(() => {
+    const handleCmiUpdated = () => {
+      queryClient.invalidateQueries({ queryKey: ["bi-"] });
+      queryClient.invalidateQueries({ queryKey: ["ventas-"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-"] });
+    };
+    window.addEventListener("truccos-cmi-updated", handleCmiUpdated);
+    return () => window.removeEventListener("truccos-cmi-updated", handleCmiUpdated);
+  }, [queryClient]);
 
   // Queries iniciales para metadatos y rangos
   const { data: resumen } = useQuery({
@@ -9508,8 +9519,20 @@ function Panel() {
           {/* ========================================================================= */}
           {esAdmin && (
             <TabsContent value="carga" className="space-y-6">
-              {/* SELECTOR DE TIPO DE CARGA: VENTAS HISTÓRICAS VS CATÁLOGO DE REFERENCIAS */}
+              {/* SELECTOR DE TIPO DE CARGA: VENTAS HISTÓRICAS VS CATÁLOGO DE REFERENCIAS VS CMI */}
               <div className="flex items-center gap-2 border-b border-border/60 pb-3 flex-wrap">
+                <Button
+                  variant={subTabCarga === "cmi" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSubTabCarga("cmi")}
+                  className="text-xs font-semibold gap-2 shadow-2xs"
+                >
+                  <Sparkles className="h-4 w-4 text-emerald-500" />
+                  <span>Cuadro de Mando Integral (CMI Oficial 2026)</span>
+                  <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-semibold">
+                    Sincronización Automática
+                  </Badge>
+                </Button>
                 <Button
                   variant={subTabCarga === "ventas" ? "default" : "outline"}
                   size="sm"
@@ -9533,7 +9556,9 @@ function Panel() {
                 </Button>
               </div>
 
-              {subTabCarga === "referencias" ? (
+              {subTabCarga === "cmi" ? (
+                <ModuloCargaCMI />
+              ) : subTabCarga === "referencias" ? (
                 <ModuloCargaReferencias />
               ) : (
                 <>
