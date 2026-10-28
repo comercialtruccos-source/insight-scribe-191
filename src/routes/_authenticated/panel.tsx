@@ -3149,42 +3149,29 @@ function Panel() {
               </div>
             )}
 
-            {/* 5 Tarjetas KPI Ejecutivas con Dimensiones Homogéneas */}
-            <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 items-stretch">
+            {/* 4 Tarjetas KPI Ejecutivas con Dimensiones Homogéneas */}
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 items-stretch">
+              {/* 1. Presupuesto Mes Año Pasado */}
               <CardKpi
-                titulo="Venta Neta Total"
-                valor={formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}
-                subtexto={`Bruta: ${formatoCOPFull(d1?.kpis.ventaBrutaTotal ?? 0)}`}
-                icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
-                cargando={cD1}
-                badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
-              />
-              <CardKpi
-                titulo="Facturación Año Ant."
+                titulo={nombreMesPuntual ? `Presupuesto ${nombreMesPuntual} Año Pasado` : (mes !== "todos" ? "Presupuesto Mes Año Pasado" : "Presupuesto Periodo Año Pasado")}
                 valor={formatoCOPFull(d1?.kpis.ventaAnteriorTotal ?? 0)}
                 subtexto={`Crecimiento YoY: ${(d1?.kpis.crecimientoYoYPct ?? 0) > 0 ? "+" : ""}${Number(d1?.kpis.crecimientoYoYPct ?? 0).toFixed(2)}%`}
                 icono={<History className="h-5 w-5 text-blue-500" />}
                 cargando={cD1}
                 badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
               />
+              {/* 2. Venta Facturada Neta */}
               <CardKpi
-                titulo="Volumen Unidades"
-                valor={`${(d1?.kpis.volumenUnidades ?? 0).toLocaleString("es-CO")} unds`}
-                subtexto="Prendas comercializadas"
-                icono={<Package className="h-5 w-5 text-indigo-500" />}
+                titulo="Venta Facturada Neta"
+                valor={formatoCOPFull(d1?.kpis.ventaYTD ?? 0)}
+                subtexto={`Bruta: ${formatoCOPFull(d1?.kpis.ventaBrutaTotal ?? 0)}`}
+                icono={<DollarSign className="h-5 w-5 text-emerald-500" />}
                 cargando={cD1}
-                badgeYoY={habilitarYoY ? <BadgeYoYUnidades actual={d1?.kpis.volumenUnidades} anterior={d1?.kpis.unidadesAnteriorTotal} /> : undefined}
+                badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
               />
+              {/* 3. Presupuesto Mes Actual */}
               <CardKpi
-                titulo="Tasa Devolución"
-                valor={`${Number(d1?.kpis.tasaDevolucionGlobalPct ?? 0).toFixed(2)}%`}
-                subtexto={`Total: ${formatoCOPFull(d1?.kpis.devolucionesTotal ?? 0)}`}
-                icono={<ArrowDownRight className="h-5 w-5 text-rose-500" />}
-                cargando={cD1}
-                badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.tasaDevolucionGlobalPct} anterior={d1?.kpis.tasaDevolucionAnteriorPct} tipo="pct" invertido={true} label="tasa año ant." /> : undefined}
-              />
-              <CardKpi
-                titulo={nombreMesPuntual ? `Presupuesto ${nombreMesPuntual}` : (mes !== "todos" ? "Presupuesto del Mes" : "Presupuesto del Periodo")}
+                titulo={nombreMesPuntual ? `Presupuesto ${nombreMesPuntual}` : (mes !== "todos" ? "Presupuesto Mes Actual" : "Presupuesto Periodo Actual")}
                 valor={formatoCOPFull(d1?.kpis.pptoYTD ?? 0)}
                 subtexto={
                   (d1?.kpis.pptoYTD ?? 0) > 0
@@ -3194,6 +3181,15 @@ function Panel() {
                 icono={<Target className="h-5 w-5 text-purple-500" />}
                 cargando={cD1}
                 badgeCumplimientoPct={(d1?.kpis.pptoYTD ?? 0) > 0 ? d1?.kpis.cumplimientoGlobalPct : undefined}
+              />
+              {/* 4. Total Unidades Vendidas */}
+              <CardKpi
+                titulo="Total Unidades Vendidas"
+                valor={`${(d1?.kpis.volumenUnidades ?? 0).toLocaleString("es-CO")} unds`}
+                subtexto="Prendas comercializadas"
+                icono={<Package className="h-5 w-5 text-indigo-500" />}
+                cargando={cD1}
+                badgeYoY={habilitarYoY ? <BadgeYoYUnidades actual={d1?.kpis.volumenUnidades} anterior={d1?.kpis.unidadesAnteriorTotal} /> : undefined}
               />
             </div>
 
