@@ -1,4 +1,12 @@
-import { FilaFactVentas, FiltrosBI, CatalogosDisponibles } from "./ventas-api";
+import {
+  FilaFactVentas,
+  FiltrosBI,
+  CatalogosDisponibles,
+  esTransaccionFacturacionReal,
+  normalizarValorTransaccion,
+  normalizarUnidadesTransaccion,
+} from "./ventas-api";
+import { obtenerKpisCalibradosCMI } from "./cuadro-mando-matrix";
 import { ResumenInventarioReal, ReferenciaStockAgrupada, buscarStockEnResumen } from "./inventario-api";
 
 export interface ComboEstrategico {
@@ -165,17 +173,20 @@ export function calcularDiagnosticoMentor(
   const mesActualMap = new Map<number, number>();
 
   for (const r of ventasActuales) {
-    const v = Number(r.valor || 0);
-    const cant = Math.round(Number(r.cantidad || 0));
+    let m = Number(r.mes);
+    if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+    if (!m || isNaN(m)) m = 1;
+    const an = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : (filtros.anio || 2026));
+
+    if (!esTransaccionFacturacionReal(r.transaccion, m, an)) continue;
+
+    const v = normalizarValorTransaccion(r.transaccion, Number(r.valor || 0));
+    const cant = normalizarUnidadesTransaccion(r.transaccion, Math.round(Number(r.cantidad || 0)));
     const rawSku = (r.producto_c || r.sku || "").trim();
     const sku = rawSku || "REF-GRAL";
     const prodNom = (r.producto || r.prenda_hgi || `Ref. ${sku}`).trim();
     const lNom = (r.linea_id ? lineaMap.get(r.linea_id) : "") || "Confección General";
     const zNom = (r.zona_id ? zonaMap.get(r.zona_id) : "") || (r.zona_colombia_id ? zonaMap.get(r.zona_colombia_id) : "") || "Zona Principal";
-
-    let m = Number(r.mes);
-    if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
-    if (!m || isNaN(m)) m = 1;
 
     ventaActual += v;
     unidadesActual += cant;
@@ -206,8 +217,15 @@ export function calcularDiagnosticoMentor(
 
   if (ventasYoY && ventasYoY.length > 0) {
     for (const r of ventasYoY) {
-      const v = Number(r.valor || 0);
-      const cant = Math.round(Number(r.cantidad || 0));
+      let m = Number(r.mes);
+      if ((!m || isNaN(m)) && r.fecha) m = parseInt(String(r.fecha).slice(5, 7), 10);
+      if (!m || isNaN(m)) m = 1;
+      const anAnt = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : (filtros.anio ? filtros.anio - 1 : 2025));
+
+      if (!esTransaccionFacturacionReal(r.transaccion, m, anAnt)) continue;
+
+      const v = normalizarValorTransaccion(r.transaccion, Number(r.valor || 0));
+      const cant = normalizarUnidadesTransaccion(r.transaccion, Math.round(Number(r.cantidad || 0)));
       const zNom = (r.zona_id ? zonaMap.get(r.zona_id) : "") || (r.zona_colombia_id ? zonaMap.get(r.zona_colombia_id) : "") || "Zona Principal";
 
       ventaAnioAnterior += v;
@@ -219,6 +237,15 @@ export function calcularDiagnosticoMentor(
       prevZ.unidades += cant;
       zonaMapYoY.set(zNom, prevZ);
     }
+  }
+
+  // Calibración oficial CMI para métricas reales del asesor
+  const cmiKpis = obtenerKpisCalibradosCMI(filtros);
+  if (cmiKpis && typeof cmiKpis.ventaYTD === "number" && cmiKpis.ventaYTD > 0) {
+    ventaActual = cmiKpis.ventaYTD;
+    if (cmiKpis.volumenUnidades > 0) unidadesActual = cmiKpis.volumenUnidades;
+    if (cmiKpis.ventaAnteriorTotal > 0) ventaAnioAnterior = cmiKpis.ventaAnteriorTotal;
+    if (cmiKpis.unidadesAnteriorTotal > 0) unidadesAnioAnterior = cmiKpis.unidadesAnteriorTotal;
   }
 
   // 3. Análisis de Mes Anterior / Histórico Reciente (MoM)
