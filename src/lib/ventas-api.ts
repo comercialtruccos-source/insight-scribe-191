@@ -5,6 +5,7 @@ import {
   obtenerMesesCalibradosCMI,
   obtenerKpisCalibradosCMI,
   obtenerMatrizMesAnioCalibradaCMI,
+  obtenerEntidadesCMIActivas,
   CMI_ENTITIES,
   VENDEDOR_ID_TO_CMI_KEY,
   combinarEntidadesCMI,
@@ -2426,8 +2427,9 @@ export function calcularDashboard1Cumplimiento(
       let uAntVal = vAnt?.unidades || 0;
 
       // Calibración oficial con el documento Cuadro de Mando Integral (CMI)
+      const cmiEntities = obtenerEntidadesCMIActivas();
       const cKey = val.id ? VENDEDOR_ID_TO_CMI_KEY[val.id] : null;
-      const cEnt = (cKey && CMI_ENTITIES[cKey]) || CMI_ENTITIES[vendedor.toUpperCase()] || null;
+      const cEnt = (cKey && cmiEntities[cKey]) || cmiEntities[vendedor.toUpperCase()] || null;
       if (cEnt) {
         if (filtros.mes && filtros.mes >= 1 && filtros.mes <= 12) {
           const mData = cEnt.meses[filtros.mes - 1];
@@ -2465,7 +2467,8 @@ export function calcularDashboard1Cumplimiento(
   // Si estamos en vista general sin filtro individual de vendedor, asegurar que todos los asesores comerciales de CMI estén presentes
   if (!filtros.vendedor_id && (!filtros.vendedor_ids || filtros.vendedor_ids.length === 0)) {
     const nombresRanking = new Set(rankingVendedores.map((r) => r.vendedor.toUpperCase().trim()));
-    for (const [cKey, cEnt] of Object.entries(CMI_ENTITIES)) {
+    const cmiEntities = obtenerEntidadesCMIActivas();
+    for (const [cKey, cEnt] of Object.entries(cmiEntities)) {
       if (
         cKey.includes("CANAL") ||
         cKey.includes("TOTAL") ||
@@ -3911,24 +3914,25 @@ export function calcularDashboard4FuerzaVentas(
     });
 
   // Calibración oficial con el documento Cuadro de Mando Integral (CMI) para cada asesor
+  const cmiEntities = obtenerEntidadesCMIActivas();
   for (const a of asesores) {
     const nomUpper = a.vendedor.trim().toUpperCase();
-    let cEnt = CMI_ENTITIES[nomUpper] || null;
+    let cEnt = cmiEntities[nomUpper] || null;
     if (!cEnt) {
-      if (nomUpper.includes("DIEGO")) cEnt = CMI_ENTITIES["TOTAL DIEGO"];
-      else if (nomUpper.includes("FREDY")) cEnt = CMI_ENTITIES["TOTAL FREDY"];
-      else if (nomUpper.includes("LINA")) cEnt = CMI_ENTITIES["LINA GARCIA"];
-      else if (nomUpper.includes("CLAUDIA")) cEnt = CMI_ENTITIES["CLAUDIA GIRALDO"];
-      else if (nomUpper.includes("VILLA")) cEnt = CMI_ENTITIES["LUIS VILLA"];
-      else if (nomUpper.includes("QUINTANA")) cEnt = CMI_ENTITIES["JUAN DAVID QUINTANA"];
-      else if (nomUpper.includes("ALEIDA")) cEnt = CMI_ENTITIES["ALEIDA GALLEGO"];
-      else if (nomUpper.includes("HERRERA")) cEnt = CMI_ENTITIES["ALEJANDRA HERRERA"];
-      else if (nomUpper.includes("MAYORCA")) cEnt = CMI_ENTITIES["MAYORCA"];
+      if (nomUpper.includes("DIEGO")) cEnt = cmiEntities["TOTAL DIEGO"];
+      else if (nomUpper.includes("FREDY")) cEnt = cmiEntities["TOTAL FREDY"];
+      else if (nomUpper.includes("LINA")) cEnt = cmiEntities["LINA GARCIA"];
+      else if (nomUpper.includes("CLAUDIA")) cEnt = cmiEntities["CLAUDIA GIRALDO"];
+      else if (nomUpper.includes("VILLA")) cEnt = cmiEntities["LUIS VILLA"];
+      else if (nomUpper.includes("QUINTANA")) cEnt = cmiEntities["JUAN DAVID QUINTANA"];
+      else if (nomUpper.includes("ALEIDA")) cEnt = cmiEntities["ALEIDA GALLEGO"];
+      else if (nomUpper.includes("HERRERA")) cEnt = cmiEntities["ALEJANDRA HERRERA"];
+      else if (nomUpper.includes("MAYORCA")) cEnt = cmiEntities["MAYORCA"];
       else if (nomUpper.includes("DIANA") || nomUpper.includes("SANTANDER")) {
-        const ents = [CMI_ENTITIES["DIANA AGUDELO"], CMI_ENTITIES["JONATHAN LOPEZ"], CMI_ENTITIES["CAMILO ZULUAGA"], CMI_ENTITIES["JONATHAN LOPEZ RAPPAZ"]].filter(Boolean) as CMIEntity[];
+        const ents = [cmiEntities["DIANA AGUDELO"], cmiEntities["JONATHAN LOPEZ"], cmiEntities["CAMILO ZULUAGA"], cmiEntities["JONATHAN LOPEZ RAPPAZ"]].filter(Boolean) as CMIEntity[];
         cEnt = combinarEntidadesCMI(ents, "DIANA AGUDELO (SANTANDERES)");
       } else {
-        for (const [k, ent] of Object.entries(CMI_ENTITIES)) {
+        for (const [k, ent] of Object.entries(cmiEntities)) {
           if (k.includes("CANAL") || k.includes("TOTAL")) continue;
           if (nomUpper.includes(k) || k.includes(nomUpper)) {
             cEnt = ent;
@@ -3972,7 +3976,8 @@ export function calcularDashboard4FuerzaVentas(
   // Si estamos en vista global o sin filtro puntual de vendedor, asegurar que todos los asesores comerciales de CMI estén listados
   if (!filtros.vendedor_id && (!filtros.vendedor_ids || filtros.vendedor_ids.length === 0)) {
     const nombresAsesores = new Set(asesores.map((a) => a.vendedor.toUpperCase().trim()));
-    for (const [cKey, cEnt] of Object.entries(CMI_ENTITIES)) {
+    const cmiEntities = obtenerEntidadesCMIActivas();
+    for (const [cKey, cEnt] of Object.entries(cmiEntities)) {
       if (
         cKey.includes("CANAL") ||
         cKey.includes("TOTAL") ||
@@ -4073,7 +4078,7 @@ export function calcularDashboard4FuerzaVentas(
   }));
 
   const MESES_NOMBRES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-  const cmiTotGen = CMI_ENTITIES["TOTAL GENERAL"];
+  const cmiTotGen = cmiEntities["TOTAL GENERAL"];
   const evolucionMensualEquipo = MESES_NOMBRES.map((mesNombre, idx) => {
     const cmiM = cmiTotGen?.meses[idx];
     const v = (cmiM && typeof cmiM.v2026 === "number" && cmiM.v2026 > 0) ? cmiM.v2026 : (mesVentasArray[idx] || 0);
@@ -4361,12 +4366,13 @@ export function calcularRankingAsesoresCanal(
     let uAnt = unidadesAnteriorMap.get(a.vendedor) || 0;
 
     const nomUpper = a.vendedor.trim().toUpperCase();
-    let cEnt = CMI_ENTITIES[nomUpper] || null;
+    const cmiEntities = obtenerEntidadesCMIActivas();
+    let cEnt = cmiEntities[nomUpper] || null;
     if (!cEnt && a.vendedorIds && a.vendedorIds.size > 0) {
       for (const vId of a.vendedorIds) {
         const k = VENDEDOR_ID_TO_CMI_KEY[vId];
-        if (k && CMI_ENTITIES[k]) {
-          cEnt = CMI_ENTITIES[k];
+        if (k && cmiEntities[k]) {
+          cEnt = cmiEntities[k];
           break;
         }
       }
