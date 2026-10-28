@@ -1991,12 +1991,6 @@ function Panel() {
             </div>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
-            {rangoTotal?.fechaMin && rangoTotal?.fechaMax && (
-              <Badge variant="outline" className="hidden md:inline-flex bg-primary/10 border-primary/20 text-primary font-mono text-xs px-2.5 py-1 rounded-full">
-                <Calendar className="mr-1.5 h-3.5 w-3.5" />
-                Rango: {rangoTotal.fechaMin} al {rangoTotal.fechaMax}
-              </Badge>
-            )}
             {cFetching && (
               <Badge variant="secondary" className="animate-pulse bg-primary/15 border-primary/30 text-primary font-medium text-xs rounded-full">
                 <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
@@ -2004,18 +1998,44 @@ function Panel() {
               </Badge>
             )}
 
-            {/* Acciones de administración de permisos */}
+            {/* Elementos exclusivos para Administradores */}
             {esAdmin && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setModalPermisosAbierto(true)}
-                className="h-8 text-xs font-semibold rounded-xl border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 gap-1.5 shadow-2xs transition-all px-2.5 sm:px-3"
-              >
-                <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                <span className="hidden md:inline">Administrar Vendedores</span>
-                <span className="md:hidden">Permisos</span>
-              </Button>
+              <>
+                {rangoTotal?.fechaMin && rangoTotal?.fechaMax && (
+                  <Badge variant="outline" className="hidden md:inline-flex bg-primary/10 border-primary/20 text-primary font-mono text-xs px-2.5 py-1 rounded-full">
+                    <Calendar className="mr-1.5 h-3.5 w-3.5" />
+                    Rango: {rangoTotal.fechaMin} al {rangoTotal.fechaMax}
+                  </Badge>
+                )}
+
+                <Badge
+                  variant="secondary"
+                  className="hidden sm:inline-flex bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-xs gap-1 rounded-full px-2.5 py-1"
+                >
+                  <UserCheck className="h-3 w-3" />
+                  {vendedoresDisponibles.length} {vendedoresDisponibles.length === 1 ? "Vendedor" : "Vendedores"}
+                </Badge>
+
+                <Badge variant="outline" className="hidden lg:inline-flex items-center gap-1.5 bg-card/80 border-border/80 font-mono text-xs px-2.5 py-1 rounded-full shadow-2xs">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  {(resumen?.totalVentas ?? 0).toLocaleString("es-CO")} registros
+                </Badge>
+
+                {/* Acciones de administración de permisos */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setModalPermisosAbierto(true)}
+                  className="h-8 text-xs font-semibold rounded-xl border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 gap-1.5 shadow-2xs transition-all px-2.5 sm:px-3"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span className="hidden md:inline">Administrar Vendedores</span>
+                  <span className="md:hidden">Permisos</span>
+                </Button>
+              </>
             )}
 
             {simulacionActual && (
@@ -2036,25 +2056,6 @@ function Panel() {
               </Button>
             )}
 
-            {!esAdmin && !simulacionActual && (
-              <Badge
-                variant="secondary"
-                className="hidden sm:inline-flex bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-xs gap-1 rounded-full px-2.5 py-1"
-              >
-                <UserCheck className="h-3 w-3" />
-                {vendedoresDisponibles.length === 1
-                  ? "1 Vendedor Asignado"
-                  : `${vendedoresDisponibles.length} Vendedores Asignados`}
-              </Badge>
-            )}
-
-            <Badge variant="outline" className="hidden lg:inline-flex items-center gap-1.5 bg-card/80 border-border/80 font-mono text-xs px-2.5 py-1 rounded-full shadow-2xs">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              {(resumen?.totalVentas ?? 0).toLocaleString("es-CO")} registros
-            </Badge>
             {/* Botón Manual y Guía de Usuario */}
             <Button
               variant="outline"
