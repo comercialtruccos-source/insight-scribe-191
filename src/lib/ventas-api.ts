@@ -153,6 +153,49 @@ export function deduplicarFilasVentas<T>(filas: T[]): T[] {
   return result;
 }
 
+const VEND_ID_TO_ASESOR_INFO = new Map<number, { nombre: string; allIds: number[] }>();
+for (const u of USUARIOS_INICIALES_PRECONFIGURADOS) {
+  if (u.vendedorIds && u.vendedorIds.length > 0) {
+    for (const id of u.vendedorIds) {
+      VEND_ID_TO_ASESOR_INFO.set(id, { nombre: u.nombre || `Asesor #${id}`, allIds: u.vendedorIds });
+    }
+  }
+}
+
+/**
+ * Resuelve y unifica las cuentas comerciales de cada asesor a partir de sus IDs preconfigurados,
+ * descartando cuentas operativas y no comerciales (GENERAL, BODEGA, PUBLICIDAD, EMPLEADOS).
+ */
+export function resolverNombreAsesor(
+  vendedorId?: number | null,
+  vendedorMap?: Map<number, string> | CatalogoItem[]
+): { nombre: string; esComercial: boolean; allIds: number[] } {
+  if (!vendedorId) {
+    return { nombre: "Ventas Directas / Mostrador", esComercial: false, allIds: [] };
+  }
+  const vId = Number(vendedorId);
+  const info = VEND_ID_TO_ASESOR_INFO.get(vId);
+  if (info) {
+    return { nombre: info.nombre, esComercial: true, allIds: info.allIds };
+  }
+  let catNom: string | null = null;
+  if (vendedorMap) {
+    if (vendedorMap instanceof Map) {
+      catNom = vendedorMap.get(vId) || null;
+    } else if (Array.isArray(vendedorMap)) {
+      catNom = vendedorMap.find((v) => v.id === vId)?.nombre || null;
+    }
+  }
+  const nombre = catNom ? catNom.trim() : `Asesor #${vId}`;
+  const norm = nombre.toUpperCase();
+  const esComercial =
+    !norm.includes("PUBLICIDAD") &&
+    !norm.includes("BODEGA") &&
+    !norm.includes("GENERAL") &&
+    !norm.includes("EMPLEADOS");
+  return { nombre, esComercial, allIds: [vId] };
+}
+
 /**
  * Aplica de forma unificada todos los filtros (Fechas, Año, Mes, Canal, Marca, Vendedor 1/2, Zona) a cualquier query de fact_ventas.
  */
@@ -1908,15 +1951,21 @@ export function calcularDashboard1Cumplimiento(
     }
     const currP = periodoMap.get(pKey)!;
     
-    // Venta Neta = SUM(valor) incluyendo notas crédito
+    // PeriodoMap SIEMPRE acumula todos los meses para que la gráfica de evolución a 12 meses sea completa
     currP.venta += v;
-    totalVentas += v;
-
     if (esDevolucionTransaccion(r.transaccion, v)) {
       currP.dev += Math.abs(v);
-      totalDevoluciones += Math.abs(v);
     }
     currP.unidades += cant;
+
+    // Si se filtra por mes puntual, los KPIs agregados, rankings, referencias y canales se acotan a ese mes
+    const aplicaMes = !filtros.mes || m === filtros.mes;
+    if (!aplicaMes) continue;
+
+    totalVentas += v;
+    if (esDevolucionTransaccion(r.transaccion, v)) {
+      totalDevoluciones += Math.abs(v);
+    }
     totalUnidades += cant;
 
     const txKeyActual = r.transaccion && /\d/.test(String(r.transaccion))
@@ -1933,11 +1982,13 @@ export function calcularDashboard1Cumplimiento(
     const mNom = (r.marca_id && marcaMap.get(r.marca_id)) || "Trucco's";
     marcaVentaMap.set(mNom, (marcaVentaMap.get(mNom) || 0) + v);
 
-    // Vendedores
+    // Vendedores (Unificados comercialmente y descartando cuentas operativas/no comerciales)
     const vId = r.vendedor_id || r.vendedor2_id || null;
-    const vNom = (vId && vendedorMap.get(vId)) || "Ventas Directas / Mostrador";
-    const prevV = vendedorVentaMap.get(vNom) || { id: vId, venta: 0, unidades: 0 };
-    vendedorVentaMap.set(vNom, { id: vId, venta: prevV.venta + v, unidades: prevV.unidades + cant });
+    const { nombre: vNom, esComercial } = resolverNombreAsesor(vId, vendedorMap);
+    if (esComercial) {
+      const prevV = vendedorVentaMap.get(vNom) || { id: vId, venta: 0, unidades: 0 };
+      vendedorVentaMap.set(vNom, { id: vId, venta: prevV.venta + v, unidades: prevV.unidades + cant });
+    }
 
     // Referencias / SKUs (Agrupación inteligente por referencia base / producto_c / sku)
     const baseRef = (r.producto_c || r.sku || r.producto || "SIN_REF").trim().toUpperCase();
@@ -2146,6 +2197,13 @@ export function calcularDashboard1Cumplimiento(
       const cantRaw = Math.round(Number(r.cantidad ?? 0));
       const v = normalizarValorTransaccion(r.transaccion, vRaw);
       const cant = normalizarUnidadesTransaccion(r.transaccion, cantRaw);
+      const pKey = String(m);
+      const prevP = periodoAntMap.get(pKey) || { venta: 0, unidades: 0 };
+      periodoAntMap.set(pKey, { venta: prevP.venta + v, unidades: prevP.unidades + cant });
+
+      const aplicaMesAnt = !filtros.mes || m === filtros.mes;
+      if (!aplicaMesAnt) continue;
+
       totalVentasAnterior += v;
       if (esDevolucionTransaccion(r.transaccion, v)) totalDevolucionesAnterior += Math.abs(v);
       totalUnidadesAnterior += cant;
@@ -2155,10 +2213,6 @@ export function calcularDashboard1Cumplimiento(
         : `${r.fecha || ""}_${r.tercero_id || ""}_${r.transaccion || r.id || ""}`;
       transaccionesAntSet.add(txKeyAnt);
 
-      const pKey = String(m);
-      const prevP = periodoAntMap.get(pKey) || { venta: 0, unidades: 0 };
-      periodoAntMap.set(pKey, { venta: prevP.venta + v, unidades: prevP.unidades + cant });
-
       const lNom = (r.linea_id && lineaMap.get(r.linea_id)) || "General / Confección";
       const prevL = lineaAntMap.get(lNom) || { venta: 0, unidades: 0 };
       lineaAntMap.set(lNom, { venta: prevL.venta + v, unidades: prevL.unidades + cant });
@@ -2167,9 +2221,11 @@ export function calcularDashboard1Cumplimiento(
       marcaAntMap.set(mNom, (marcaAntMap.get(mNom) || 0) + v);
 
       const vId = r.vendedor_id || r.vendedor2_id || null;
-      const vNom = (vId && vendedorMap.get(vId)) || "Ventas Directas / Mostrador";
-      const prevV = vendedorAntMap.get(vNom) || { venta: 0, unidades: 0 };
-      vendedorAntMap.set(vNom, { venta: prevV.venta + v, unidades: prevV.unidades + cant });
+      const { nombre: vNom, esComercial } = resolverNombreAsesor(vId, vendedorMap);
+      if (esComercial) {
+        const prevV = vendedorAntMap.get(vNom) || { venta: 0, unidades: 0 };
+        vendedorAntMap.set(vNom, { venta: prevV.venta + v, unidades: prevV.unidades + cant });
+      }
 
       const baseRef = (r.producto_c || r.sku || r.producto || "SIN_REF").trim().toUpperCase();
       const rawSkuAnt = (r.sku || "").trim();
@@ -3524,23 +3580,36 @@ export function calcularDashboard4FuerzaVentas(
     const v = normalizarValorTransaccion(r.transaccion, vRaw);
     const cant = normalizarUnidadesTransaccion(r.transaccion, cantRaw);
 
-    totalVentaFuerza += v;
-    totalUnidades += cant;
-
     const txId = r.transaccion ? String(r.transaccion) : `row_${r.id}`;
-    allTransaccionesSet.add(txId);
 
     if (m >= 1 && m <= 12) {
       mesVentasArray[m - 1] += v;
       mesUnidadesArray[m - 1] += cant;
     }
 
-    let vNombre = (r.vendedor_id ? vendedorMap.get(r.vendedor_id) : "") || (r.vendedor2_id ? vendedorMap.get(r.vendedor2_id) : "") || "Asesor General";
+    const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
+    const { nombre: vNombre, esComercial } = resolverNombreAsesor(vId, vendedorMap);
+    if (!esComercial) continue;
 
-    if (filtros.vendedor_id) {
-      const nombreFiltrado = vendedorMap.get(filtros.vendedor_id);
-      if (nombreFiltrado) vNombre = nombreFiltrado;
+    if (!asesorDataMap.has(vNombre)) {
+      asesorDataMap.set(vNombre, {
+        venta: 0,
+        unidades: 0,
+        transaccionesSet: new Set<string>(),
+        meses: new Array(12).fill(0),
+      });
     }
+    const curr = asesorDataMap.get(vNombre)!;
+    if (m >= 1 && m <= 12) {
+      curr.meses[m - 1] = (curr.meses[m - 1] ?? 0) + v;
+    }
+
+    const aplicaMes = !filtros.mes || m === filtros.mes;
+    if (!aplicaMes) continue;
+
+    totalVentaFuerza += v;
+    totalUnidades += cant;
+    allTransaccionesSet.add(txId);
 
     const cNombre = (r.canal_id ? canalMap.get(r.canal_id) : "") || "Mayorista Nacional";
     const pNombre = ((r.pais_id ? paisMap.get(r.pais_id) : "") || "Colombia").toLowerCase();
@@ -3553,21 +3622,9 @@ export function calcularDashboard4FuerzaVentas(
 
     canalDistMap.set(cNombre, (canalDistMap.get(cNombre) || 0) + v);
 
-    if (!asesorDataMap.has(vNombre)) {
-      asesorDataMap.set(vNombre, {
-        venta: 0,
-        unidades: 0,
-        transaccionesSet: new Set<string>(),
-        meses: new Array(12).fill(0),
-      });
-    }
-    const curr = asesorDataMap.get(vNombre)!;
     curr.venta += v;
     curr.unidades += cant;
     curr.transaccionesSet.add(txId);
-    if (m >= 1 && m <= 12) {
-      curr.meses[m - 1] = (curr.meses[m - 1] ?? 0) + v;
-    }
   }
 
   // YoY data
@@ -3594,22 +3651,23 @@ export function calcularDashboard4FuerzaVentas(
       const v = normalizarValorTransaccion(r.transaccion, vRaw);
       const cant = normalizarUnidadesTransaccion(r.transaccion, cantRaw);
 
-      totalVentaFuerzaAnterior += v;
-      totalUnidadesAnterior += cant;
-
       const txAntId = r.transaccion ? String(r.transaccion) : `row_ant_${r.id}`;
-      allTransaccionesAntSet.add(txAntId);
 
       if (m >= 1 && m <= 12) {
         mesVentasAntArray[m - 1] += v;
         mesUnidadesAntArray[m - 1] += cant;
       }
 
-      let vNombre = (r.vendedor_id ? vendedorMap.get(r.vendedor_id) : "") || (r.vendedor2_id ? vendedorMap.get(r.vendedor2_id) : "") || "Asesor General";
-      if (filtros.vendedor_id) {
-        const nombreFiltrado = vendedorMap.get(filtros.vendedor_id);
-        if (nombreFiltrado) vNombre = nombreFiltrado;
-      }
+      const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
+      const { nombre: vNombre, esComercial } = resolverNombreAsesor(vId, vendedorMap);
+      if (!esComercial) continue;
+
+      const aplicaMesAnt = !filtros.mes || m === filtros.mes;
+      if (!aplicaMesAnt) continue;
+
+      totalVentaFuerzaAnterior += v;
+      totalUnidadesAnterior += cant;
+      allTransaccionesAntSet.add(txAntId);
 
       const pNombre = ((r.pais_id ? paisMap.get(r.pais_id) : "") || "Colombia").toLowerCase();
       if (pNombre !== "colombia" && pNombre !== "co" && pNombre !== "") {

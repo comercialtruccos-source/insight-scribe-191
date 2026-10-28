@@ -535,9 +535,9 @@ function Panel() {
     }
   }, []);
 
-  // Filtros globales: Por defecto corresponden al mes y año actual para evitar tener que seleccionarlos manualmente al iniciar sesión
+  // Filtros globales: Por defecto año actual y consolidado anual completo ("todos" los meses) para ver el 100% de la historia cargada
   const [anio, setAnio] = useState<string>(() => String(new Date().getFullYear()));
-  const [mes, setMes] = useState<string>(() => String(new Date().getMonth() + 1));
+  const [mes, setMes] = useState<string>("todos");
   const [canalId, setCanalId] = useState<string>("todos");
   const [marcaId, setMarcaId] = useState<string>("todos");
   const [vendedorId, setVendedorId] = useState<string>("todos");
@@ -905,20 +905,36 @@ function Panel() {
     return obtenerFiltrosAnioAnterior(filtros, catalogos?.anios);
   }, [habilitarYoY, filtros, catalogos?.anios]);
 
-  // Carga unificada de ventas para todos los dashboards
+  // Carga unificada de ventas para todos los dashboards:
+  // En modo anual o sin rango de fechas fijas, mantenemos el año completo en memoria (mes: null) para que los 12 meses estén siempre disponibles en las gráficas y el cambio de mes sea instantáneo
+  const filtrosVentasRaw = useMemo(() => {
+    if (tipoRango === "anio" || tipoRango === "todo" || !fechaDesde) {
+      return { ...filtros, mes: null };
+    }
+    return filtros;
+  }, [filtros, tipoRango, fechaDesde]);
+
   const { data: rawVentas, isLoading: cVentas, isFetching: cFetching } = useQuery({
-    queryKey: ["bi-fact-ventas", filtros],
-    queryFn: () => obtenerVentasRaw(filtros),
+    queryKey: ["bi-fact-ventas", filtrosVentasRaw],
+    queryFn: () => obtenerVentasRaw(filtrosVentasRaw),
     staleTime: 60 * 1000,
     // En modo "Mes Actual" esperamos a conocer el último mes con datos
     enabled: tipoRango !== "mesActual" || rangoTotal !== undefined,
   });
 
+  const filtrosYoYRaw = useMemo(() => {
+    if (!filtrosYoY) return null;
+    if (tipoRango === "anio" || tipoRango === "todo" || !fechaDesde) {
+      return { ...filtrosYoY, mes: null };
+    }
+    return filtrosYoY;
+  }, [filtrosYoY, tipoRango, fechaDesde]);
+
   // Carga on-demand de ventas del año anterior (automática para vendedores, configurable para admin)
   const { data: rawVentasYoY, isLoading: cYoYLoading } = useQuery({
-    queryKey: ["bi-fact-ventas-yoy", filtrosYoY],
-    queryFn: () => (filtrosYoY ? obtenerVentasRaw(filtrosYoY) : Promise.resolve([])),
-    enabled: Boolean(habilitarYoY && filtrosYoY),
+    queryKey: ["bi-fact-ventas-yoy", filtrosYoYRaw],
+    queryFn: () => (filtrosYoYRaw ? obtenerVentasRaw(filtrosYoYRaw) : Promise.resolve([])),
+    enabled: Boolean(habilitarYoY && filtrosYoYRaw),
     staleTime: 60 * 1000,
   });
 
