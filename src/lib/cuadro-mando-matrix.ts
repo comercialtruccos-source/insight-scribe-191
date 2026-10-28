@@ -10308,6 +10308,7 @@ export const VENDEDOR_ID_TO_CMI_KEY: Record<number, string> = {
   9935: "MAYORCA",
   8974: "MAYORCA",
   4793: "MAYORCA",
+  59048: "MAYORCA",
   25: "TOTAL FREDY",
   60968: "MARKETPLACE",
   60967: "BEATRIZ SANCHEZ",
@@ -10442,6 +10443,25 @@ export function obtenerRegistroCMI(filtros: FiltrosBI): CMIEntity | null {
     if (key && CMI_ENTITIES[key]) return CMI_ENTITIES[key];
     const nomUpper = String(filtros.vendedor_id).trim().toUpperCase();
     if (CMI_ENTITIES[nomUpper]) return CMI_ENTITIES[nomUpper];
+
+    if (nomUpper.includes("DIEGO")) return CMI_ENTITIES["TOTAL DIEGO"] || null;
+    if (nomUpper.includes("FREDY")) return CMI_ENTITIES["TOTAL FREDY"] || null;
+    if (nomUpper.includes("LINA")) return CMI_ENTITIES["LINA GARCIA"] || null;
+    if (nomUpper.includes("CLAUDIA")) return CMI_ENTITIES["CLAUDIA GIRALDO"] || null;
+    if (nomUpper.includes("VILLA")) return CMI_ENTITIES["LUIS VILLA"] || null;
+    if (nomUpper.includes("QUINTANA")) return CMI_ENTITIES["JUAN DAVID QUINTANA"] || null;
+    if (nomUpper.includes("ALEIDA")) return CMI_ENTITIES["ALEIDA GALLEGO"] || null;
+    if (nomUpper.includes("HERRERA")) return CMI_ENTITIES["ALEJANDRA HERRERA"] || null;
+    if (nomUpper.includes("MAYORCA")) return CMI_ENTITIES["MAYORCA"] || null;
+    if (nomUpper.includes("DIANA") || nomUpper.includes("SANTANDER")) {
+      const ents = [
+        CMI_ENTITIES["DIANA AGUDELO"],
+        CMI_ENTITIES["JONATHAN LOPEZ"],
+        CMI_ENTITIES["CAMILO ZULUAGA"],
+        CMI_ENTITIES["JONATHAN LOPEZ RAPPAZ"],
+      ].filter(Boolean) as CMIEntity[];
+      return combinarEntidadesCMI(ents, "DIANA AGUDELO (SANTANDERES)");
+    }
   }
 
   // 2. Grupo de vendedores asignados a la cuenta del comercial
@@ -10449,15 +10469,30 @@ export function obtenerRegistroCMI(filtros: FiltrosBI): CMIEntity | null {
     const ids = filtros.vendedor_ids.map(Number);
     // Juan Diego Giraldo
     if (ids.includes(16) && ids.includes(12)) {
-      return CMI_ENTITIES["TOTAL DIEGO"] || null;
+      const ents = [
+        CMI_ENTITIES["DIEGO GIRALDO-MEDELLIN"],
+        CMI_ENTITIES["DIEGO GIRALDO CORRERIA"],
+        CMI_ENTITIES["DIEGO GIRALDO RAPPAZ"],
+      ].filter(Boolean) as CMIEntity[];
+      return ents.length > 1 ? combinarEntidadesCMI(ents, "JUAN DIEGO GIRALDO") : (CMI_ENTITIES["TOTAL DIEGO"] || null);
     }
     // Fredy Sanchez
     if (ids.includes(10) && ids.includes(7)) {
-      return CMI_ENTITIES["TOTAL FREDY"] || null;
+      const ents = [
+        CMI_ENTITIES["JOHN FREDY MEDELLIN"],
+        CMI_ENTITIES["JOHN FREDY CORRERIA"],
+      ].filter(Boolean) as CMIEntity[];
+      return ents.length > 1 ? combinarEntidadesCMI(ents, "FREDY SANCHEZ") : (CMI_ENTITIES["TOTAL FREDY"] || null);
     }
     // Diana Agudelo (Santanderes)
     if (ids.includes(58819) && (ids.includes(113) || ids.includes(58592))) {
-      return CMI_ENTITIES["TOTAL SANTANDERES"] || null;
+      const ents = [
+        CMI_ENTITIES["DIANA AGUDELO"],
+        CMI_ENTITIES["JONATHAN LOPEZ"],
+        CMI_ENTITIES["CAMILO ZULUAGA"],
+        CMI_ENTITIES["JONATHAN LOPEZ RAPPAZ"],
+      ].filter(Boolean) as CMIEntity[];
+      return combinarEntidadesCMI(ents, "DIANA AGUDELO (SANTANDERES)");
     }
     // Lina Garcia
     if (ids.includes(11)) {
@@ -10468,16 +10503,25 @@ export function obtenerRegistroCMI(filtros: FiltrosBI): CMIEntity | null {
       return CMI_ENTITIES["CLAUDIA GIRALDO"] || null;
     }
     // Mayorca
-    if (ids.includes(4541) || ids.includes(4936) || ids.includes(9935)) {
+    if (ids.includes(4541) || ids.includes(4936) || ids.includes(9935) || ids.includes(59048)) {
       return CMI_ENTITIES["MAYORCA"] || null;
     }
-    // Tienda Virtual / Redes
+    // Tienda Virtual / Redes (Erica Usuaga)
     if (ids.includes(108) && ids.includes(226)) {
-      return CMI_ENTITIES["CANAL DETAL (TV - REDES - SHWR)"] || CMI_ENTITIES["TIENDA VIRTUAL"] || null;
+      const ents = [
+        CMI_ENTITIES["TIENDA VIRTUAL"],
+        CMI_ENTITIES["REDES SOCIALES"],
+        CMI_ENTITIES["TRJUSA WEB"],
+      ].filter(Boolean) as CMIEntity[];
+      return combinarEntidadesCMI(ents, "CANAL DETAL (TV - REDES - SHWR)");
     }
     // Cristina Restrepo (Exportaciones)
     if (ids.includes(51) || ids.includes(57255)) {
-      return CMI_ENTITIES["CANAL MAYORISTA INTERNACIONAL"] || CMI_ENTITIES["TRUCCO'S EXPORTACION"] || null;
+      const ents = [
+        CMI_ENTITIES["TRUCCO'S EXPORTACION"],
+        CMI_ENTITIES["OLGA ZULUAGA"],
+      ].filter(Boolean) as CMIEntity[];
+      return ents.length > 1 ? combinarEntidadesCMI(ents, "EXPORTACIONES") : (ents[0] || null);
     }
     // Angela Acevedo (Digital Mayorista)
     if (ids.includes(58326) || ids.includes(5)) {
