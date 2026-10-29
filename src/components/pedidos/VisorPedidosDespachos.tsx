@@ -583,8 +583,8 @@ export function VisorPedidosDespachos({
         </Dialog>
       )}
 
-      {/* RENDERIZADO CONDICIONAL DE LA VISTA OFICIAL DE ARCHIVO HGI (SUPABASE) */}
-      {fuenteActiva === "hgi_archivo" && tieneDatosHGI ? (
+      {/* RENDERIZADO CONDICIONAL DE LA VISTA OFICIAL DE ARCHIVO HGI (SUPABASE / INDEXEDDB) */}
+      {(tieneDatosHGI && fuenteActiva !== "base_datos") || (!esAdmin && tieneDatosHGI) ? (
         <VisorPedidosDespachosHGI
           onAbrirCarga={esAdmin ? () => setModalCargaAbierto(true) : undefined}
           vendedorIdFiltro={vendedorIdFiltro}

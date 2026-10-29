@@ -1,5 +1,5 @@
-// Sistema de almacenamiento persistente en Supabase, parseo y agregación para
-// el reporte oficial de HGI: Pedidos vs Despachos (18 Columnas Oficiales)
+// Sistema de almacenamiento persistente en Supabase con fallback local en IndexedDB y localStorage,
+// parseo y agregación para el reporte oficial de HGI: Pedidos vs Despachos (18 Columnas Oficiales)
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { supabase } from "@/integrations/supabase/client";
@@ -107,6 +107,71 @@ export const EVENT_PEDIDOS_DESPACHOS_UPDATED = "truccos-pedidos-despachos-update
 let cacheRegistros: RegistroPedidosDespachosHGI[] | null = null;
 let cacheMeta: MetadataCargaPedidosDespachos | null = null;
 
+// ============================================================================
+// INDEXEDDB RESILIENTE (Capacidad virtualmente ilimitada para miles de filas)
+// ============================================================================
+const IDB_NAME = "TruccosPedidosDespachosDB";
+const IDB_VERSION = 1;
+const IDB_STORE = "registros_hgi";
+
+function abrirDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !window.indexedDB) {
+      return reject(new Error("IndexedDB no disponible en este entorno"));
+    }
+    const req = window.indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = () => {
+      const database = req.result;
+      if (!database.objectStoreNames.contains(IDB_STORE)) {
+        database.createObjectStore(IDB_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function guardarEnIndexedDB(registros: RegistroPedidosDespachosHGI[]): Promise<void> {
+  try {
+    const database = await abrirDB();
+    const tx = database.transaction(IDB_STORE, "readwrite");
+    const store = tx.objectStore(IDB_STORE);
+    store.clear();
+    for (const r of registros) {
+      store.put(r);
+    }
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) {
+    console.warn("[pedidos-despachos-storage] Advertencia guardando en IndexedDB:", e);
+  }
+}
+
+export async function obtenerDeIndexedDB(): Promise<RegistroPedidosDespachosHGI[]> {
+  try {
+    const database = await abrirDB();
+    const tx = database.transaction(IDB_STORE, "readonly");
+    const store = tx.objectStore(IDB_STORE);
+    const req = store.getAll();
+    return new Promise((resolve) => {
+      req.onsuccess = () => resolve((req.result as RegistroPedidosDespachosHGI[]) || []);
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function limpiarIndexedDB(): Promise<void> {
+  try {
+    const database = await abrirDB();
+    const tx = database.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).clear();
+  } catch {}
+}
+
 /**
  * Limpieza numérica flexible
  */
@@ -191,7 +256,7 @@ function detectarIndices(headers: string[]): IndicesColumnas {
     pedidoMes: buscar(["pedidomes", "pedmes", "mespedido", "nuevopedido", "pedido"]),
     despachado: buscar(["despachado", "despachos", "despacho", "salidas", "entregado"]),
     cancelado: buscar(["cancelado", "anulado", "devolucion"]),
-    saldoPedido: buscar(["saldopedido", "pendiente", "porcumplir", "saldo"]),
+    saldoPedido: buscar(["saldopedido", "saldopendiente", "pendiente", "porcumplir", "saldo"]),
     saldoInv: buscar(["saldoinv", "inventario", "inv", "stock", "existencia", "disponible"]),
   };
 }
@@ -308,9 +373,9 @@ export async function parsearArchivoPedidosDespachos(file: File): Promise<{
     const saldoInv = num(row, indices.saldoInv);
 
     const totalPedido = anterior + pedidoMes;
-    // Si la columna saldoPedido no vino o vino en 0 pero hay totalPedido - despachado - cancelado, recalcular
-    if (saldoPedido === 0 && totalPedido > 0 && despachado === 0 && cancelado === 0) {
-      saldoPedido = totalPedido;
+    // Si la columna saldoPedido no vino o vino en 0 pero hay totalPedido - despachado - cancelado > 0, recalcular
+    if (saldoPedido === 0 && (totalPedido - despachado - cancelado) > 0) {
+      saldoPedido = Math.max(0, totalPedido - despachado - cancelado);
     }
 
     // Filtrar filas de subtotales que suelen venir en exportes de HGI
@@ -339,7 +404,7 @@ export async function parsearArchivoPedidosDespachos(file: File): Promise<{
     if (tercero || nombre) clientesSet.add(tercero || nombre);
     if (ciudad) ciudadesSet.add(ciudad);
 
-    const esPendiente = saldoPedido > 0;
+    const esPendiente = saldoPedido > 0 || (totalPedido > 0 && despachado < totalPedido);
 
     registros.push({
       id: `hgi-${i + 1}-${Date.now()}`,
@@ -389,82 +454,16 @@ export async function parsearArchivoPedidosDespachos(file: File): Promise<{
 }
 
 /**
- * Guarda los registros de pedidos vs despachos en la base de datos de SUPABASE (public.pedidos_despachos)
+ * Guarda los registros de pedidos vs despachos con DUAL PERSISTENCE:
+ * 1. Almacenamiento local ultrarrápido (Memoria + IndexedDB + localStorage) para disponibilidad inmediata.
+ * 2. Inserción por lotes en Supabase (public.pedidos_despachos) para sincronización multiusuario.
  */
 export async function guardarDatosPedidosDespachos(
   registros: RegistroPedidosDespachosHGI[],
   metadata: MetadataCargaPedidosDespachos,
   onProgreso?: (porcentaje: number, loteActual: number, totalLotes: number) => void
-): Promise<void> {
-  // 1. Limpiar registros previos en la tabla pedidos_despachos de Supabase
-  const { error: deleteError } = await db
-    .from("pedidos_despachos")
-    .delete()
-    .neq("id", 0);
-
-  if (deleteError) {
-    console.error("[pedidos-despachos-storage] Error limpiando tabla pedidos_despachos:", deleteError);
-    throw new Error(`Error al preparar base de datos Supabase: ${deleteError.message}`);
-  }
-
-  // 2. Insertar en lotes de 500 registros para evitar timeouts o payloads excesivos
-  const BATCH_SIZE = 500;
-  const totalLotes = Math.ceil(registros.length / BATCH_SIZE);
-
-  for (let i = 0; i < registros.length; i += BATCH_SIZE) {
-    const loteActual = Math.floor(i / BATCH_SIZE) + 1;
-    const chunk = registros.slice(i, i + BATCH_SIZE).map((r) => ({
-      transaccion: r.transaccion || "PEDIDO",
-      tercero: String(r.tercero || ""),
-      nombre: r.nombre || "",
-      vendedor: r.vendedor || "",
-      ciudad: r.ciudad || "",
-      fechas: r.fechas || "",
-      vence: r.vence || "",
-      documento: r.documento || "",
-      producto: r.producto || "",
-      descripcion: r.descripcion || "",
-      talla: r.talla || "",
-      color: r.color || "",
-      anterior: r.anterior || 0,
-      pedido_mes: r.pedidoMes || 0,
-      total_pedido: r.totalPedido || 0,
-      despachado: r.despachado || 0,
-      cancelado: r.cancelado || 0,
-      saldo_pedido: r.saldoPedido || 0,
-      saldo_inv: r.saldoInv || 0,
-    }));
-
-    const { error: insertError } = await db
-      .from("pedidos_despachos")
-      .insert(chunk);
-
-    if (insertError) {
-      console.error(`[pedidos-despachos-storage] Error insertando lote ${loteActual}:`, insertError);
-      throw new Error(`Error al insertar lote ${loteActual} de ${totalLotes} en Supabase: ${insertError.message}`);
-    }
-
-    if (onProgreso) {
-      const pct = Math.round((loteActual / totalLotes) * 100);
-      onProgreso(pct, loteActual, totalLotes);
-    }
-  }
-
-  // 3. Registrar en historial de cargas (cargas_pedidos_despachos)
-  try {
-    await db.from("cargas_pedidos_despachos").insert({
-      archivo: metadata.nombreArchivo,
-      filas_recibidas: metadata.totalRegistros,
-      filas_insertadas: registros.length,
-      total_pedidos: metadata.totalPedidos,
-      total_despachado: metadata.totalDespachado,
-      total_saldo_pedido: metadata.totalSaldoPedido,
-    });
-  } catch (err) {
-    console.warn("[pedidos-despachos-storage] Advertencia registrando en historial cargas:", err);
-  }
-
-  // 4. Actualizar memoria y emitir evento
+): Promise<{ guardadoSupabase: boolean; errorSupabase?: string }> {
+  // 1. Guardar de inmediato en memoria y persistencia local
   cacheRegistros = registros;
   cacheMeta = metadata;
 
@@ -473,18 +472,111 @@ export async function guardarDatosPedidosDespachos(
       window.localStorage.setItem(STORAGE_KEY_META, JSON.stringify(metadata));
     } catch {}
 
+    try {
+      await guardarEnIndexedDB(registros);
+    } catch (e) {
+      console.warn("[pedidos-despachos-storage] IndexedDB save warning:", e);
+    }
+  }
+
+  // 2. Intentar guardar en Supabase
+  let guardadoSupabase = false;
+  let errorSupabase: string | undefined;
+
+  try {
+    const { error: deleteError } = await db
+      .from("pedidos_despachos")
+      .delete()
+      .neq("id", 0);
+
+    if (deleteError) {
+      console.warn("[pedidos-despachos-storage] Supabase table delete warning:", deleteError);
+      errorSupabase = deleteError.message;
+    } else {
+      const BATCH_SIZE = 500;
+      const totalLotes = Math.ceil(registros.length / BATCH_SIZE);
+
+      for (let i = 0; i < registros.length; i += BATCH_SIZE) {
+        const loteActual = Math.floor(i / BATCH_SIZE) + 1;
+        const chunk = registros.slice(i, i + BATCH_SIZE).map((r) => ({
+          transaccion: r.transaccion || "PEDIDO",
+          tercero: String(r.tercero || ""),
+          nombre: r.nombre || "",
+          vendedor: r.vendedor || "",
+          ciudad: r.ciudad || "",
+          fechas: r.fechas || "",
+          vence: r.vence || "",
+          documento: r.documento || "",
+          producto: r.producto || "",
+          descripcion: r.descripcion || "",
+          talla: r.talla || "",
+          color: r.color || "",
+          anterior: r.anterior || 0,
+          pedido_mes: r.pedidoMes || 0,
+          total_pedido: r.totalPedido || 0,
+          despachado: r.despachado || 0,
+          cancelado: r.cancelado || 0,
+          saldo_pedido: r.saldoPedido || 0,
+          saldo_inv: r.saldoInv || 0,
+        }));
+
+        const { error: insertError } = await db
+          .from("pedidos_despachos")
+          .insert(chunk);
+
+        if (insertError) {
+          console.warn(`[pedidos-despachos-storage] Error lote ${loteActual}:`, insertError);
+          errorSupabase = insertError.message;
+          break;
+        }
+
+        if (onProgreso) {
+          const pct = Math.round((loteActual / totalLotes) * 100);
+          onProgreso(pct, loteActual, totalLotes);
+        }
+      }
+
+      if (!errorSupabase) {
+        guardadoSupabase = true;
+        try {
+          await db.from("cargas_pedidos_despachos").insert({
+            archivo: metadata.nombreArchivo,
+            filas_recibidas: metadata.totalRegistros,
+            filas_insertadas: registros.length,
+            total_pedidos: metadata.totalPedidos,
+            total_despachado: metadata.totalDespachado,
+            total_saldo_pedido: metadata.totalSaldoPedido,
+          });
+        } catch {}
+      }
+    }
+  } catch (err: any) {
+    console.warn("[pedidos-despachos-storage] Fallo intentando guardar en Supabase:", err);
+    errorSupabase = err?.message || "Fallo de conexión con Supabase";
+  }
+
+  // 3. Emitir evento de actualización en el navegador
+  if (typeof window !== "undefined") {
     window.dispatchEvent(
       new CustomEvent(EVENT_PEDIDOS_DESPACHOS_UPDATED, {
-        detail: { metadata, timestamp: Date.now() },
+        detail: { metadata, timestamp: Date.now(), guardadoSupabase },
       })
     );
   }
+
+  return { guardadoSupabase, errorSupabase };
 }
 
 /**
- * Obtiene los registros guardados consultando directamente la base de datos de SUPABASE
+ * Obtiene los registros guardados consultando Supabase con fallback transparente a IndexedDB
  */
 export async function obtenerDatosPedidosDespachos(): Promise<RegistroPedidosDespachosHGI[]> {
+  // 1. Memoria rápida
+  if (cacheRegistros && cacheRegistros.length > 0) {
+    return cacheRegistros;
+  }
+
+  // 2. Intentar consultar Supabase
   try {
     let todosLosRegistros: any[] = [];
     let offset = 0;
@@ -499,7 +591,6 @@ export async function obtenerDatosPedidosDespachos(): Promise<RegistroPedidosDes
         .order("id", { ascending: true });
 
       if (error) {
-        console.warn("[pedidos-despachos-storage] Error consultando Supabase pedidos_despachos:", error);
         break;
       }
 
@@ -522,8 +613,11 @@ export async function obtenerDatosPedidosDespachos(): Promise<RegistroPedidosDes
         const totalPedido = Number(row.total_pedido) || anterior + pedidoMes;
         const despachado = Number(row.despachado) || 0;
         const cancelado = Number(row.cancelado) || 0;
-        const saldoPedido = Number(row.saldo_pedido) || 0;
+        let saldoPedido = Number(row.saldo_pedido) || 0;
         const saldoInv = Number(row.saldo_inv) || 0;
+        if (saldoPedido === 0 && totalPedido > despachado + cancelado) {
+          saldoPedido = Math.max(0, totalPedido - despachado - cancelado);
+        }
 
         return {
           id: String(row.id),
@@ -546,23 +640,34 @@ export async function obtenerDatosPedidosDespachos(): Promise<RegistroPedidosDes
           cancelado,
           saldoPedido,
           saldoInv,
-          esPendiente: saldoPedido > 0,
+          esPendiente: saldoPedido > 0 || totalPedido > despachado,
         };
       });
 
       cacheRegistros = mapeados;
+      guardarEnIndexedDB(mapeados).catch(() => {});
       return mapeados;
     }
   } catch (err) {
-    console.error("[pedidos-despachos-storage] Error general obteniendo datos de Supabase:", err);
+    console.warn("[pedidos-despachos-storage] Supabase no disponible o sin tabla, usando cache local:", err);
   }
 
-  if (cacheRegistros) return cacheRegistros;
+  // 3. Fallback a IndexedDB
+  try {
+    const local = await obtenerDeIndexedDB();
+    if (local && local.length > 0) {
+      cacheRegistros = local;
+      return local;
+    }
+  } catch (err) {
+    console.warn("[pedidos-despachos-storage] Error leyendo de IndexedDB:", err);
+  }
+
   return [];
 }
 
 /**
- * Obtiene la metadata de la última carga (desde memoria o Supabase)
+ * Obtiene la metadata de la última carga (desde memoria o localStorage)
  */
 export function obtenerMetadataPedidosDespachos(): MetadataCargaPedidosDespachos | null {
   if (cacheMeta) return cacheMeta;
@@ -579,7 +684,7 @@ export function obtenerMetadataPedidosDespachos(): MetadataCargaPedidosDespachos
 }
 
 /**
- * Obtiene la metadata asíncrona consultando cargas_pedidos_despachos en Supabase
+ * Obtiene la metadata asíncrona consultando Supabase o memoria
  */
 export async function obtenerMetadataPedidosDespachosAsync(): Promise<MetadataCargaPedidosDespachos | null> {
   try {
@@ -621,18 +726,30 @@ export async function obtenerMetadataPedidosDespachosAsync(): Promise<MetadataCa
 }
 
 /**
- * Verifica si hay datos cargados en Supabase
+ * Verifica si hay datos cargados en Supabase o en el almacenamiento local
  */
 export async function verificarHayDatosEnSupabase(): Promise<boolean> {
+  if (cacheRegistros && cacheRegistros.length > 0) return true;
+  if (obtenerMetadataPedidosDespachos() !== null) return true;
+
   try {
     const { count, error } = await db
       .from("pedidos_despachos")
       .select("id", { count: "exact", head: true });
 
-    if (!error && typeof count === "number") {
-      return count > 0;
+    if (!error && typeof count === "number" && count > 0) {
+      return true;
     }
   } catch {}
+
+  try {
+    const local = await obtenerDeIndexedDB();
+    if (local && local.length > 0) {
+      cacheRegistros = local;
+      return true;
+    }
+  } catch {}
+
   return hayDatosPedidosDespachos();
 }
 
@@ -645,7 +762,7 @@ export function hayDatosPedidosDespachos(): boolean {
 }
 
 /**
- * Limpia los datos de pedidos_despachos en Supabase
+ * Limpia los datos de pedidos_despachos en Supabase, IndexedDB y localStorage
  */
 export async function limpiarDatosPedidosDespachos(): Promise<void> {
   cacheRegistros = null;
@@ -656,6 +773,10 @@ export async function limpiarDatosPedidosDespachos(): Promise<void> {
   } catch (e) {
     console.warn("[pedidos-despachos-storage] Error limpiando Supabase:", e);
   }
+
+  try {
+    await limpiarIndexedDB();
+  } catch {}
 
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(STORAGE_KEY_META);
@@ -681,6 +802,7 @@ export function estructurarPedidosDespachosHGI(
     soloPendientes?: boolean;
     fechaDesde?: string;
     fechaHasta?: string;
+    filtrarPorFecha?: boolean;
   } = {}
 ): ResultadoAgrupacionHGI {
   const norm = (s: string | null | undefined) =>
@@ -695,6 +817,7 @@ export function estructurarPedidosDespachosHGI(
   const terceroFiltro = filtros.tercero && filtros.tercero !== "todos" ? norm(filtros.tercero) : null;
   const ciudadFiltro = filtros.ciudad && filtros.ciudad !== "todas" ? norm(filtros.ciudad) : null;
   const soloPendientes = filtros.soloPendientes ?? true;
+  const aplicarFiltroFecha = Boolean(filtros.filtrarPorFecha && (filtros.fechaDesde || filtros.fechaHasta));
 
   // Catálogos únicos para los selectores
   const vendedoresSet = new Set<string>();
@@ -709,30 +832,68 @@ export function estructurarPedidosDespachosHGI(
     if (r.ciudad) ciudadesSet.add(r.ciudad);
     if (r.tercero) clientesMap.set(r.tercero, r.nombre);
 
-    if (vendedorFiltro && !norm(r.vendedor).includes(vendedorFiltro)) continue;
-    if (terceroFiltro && !norm(r.tercero).includes(terceroFiltro) && !norm(r.nombre).includes(terceroFiltro)) {
-      continue;
+    // Filtro por Vendedor (coincidencia bidireccional y robusta)
+    if (vendedorFiltro) {
+      const vNorm = norm(r.vendedor);
+      if (!vNorm.includes(vendedorFiltro) && !vendedorFiltro.includes(vNorm)) {
+        continue;
+      }
     }
+
+    // Filtro por Tercero (NIT o Nombre)
+    if (terceroFiltro) {
+      const tNorm = norm(r.tercero);
+      const nNorm = norm(r.nombre);
+      if (!tNorm.includes(terceroFiltro) && !nNorm.includes(terceroFiltro)) {
+        continue;
+      }
+    }
+
+    // Filtro por Ciudad
     if (ciudadFiltro && !norm(r.ciudad).includes(ciudadFiltro)) continue;
+
+    // Filtro Solo Pendientes (Saldo Pedido > 0)
     if (soloPendientes && !r.esPendiente) continue;
 
-    // Filtro por rango de fechas (si las fechas vienen informadas en formato YYYY-MM-DD o DD/MM/YYYY)
-    if (filtros.fechaDesde || filtros.fechaHasta) {
-      const fItem = r.fechas.trim();
-      if (fItem && fItem.length >= 8) {
-        // Normalizar a YYYY-MM-DD si es DD/MM/YYYY
-        let fechaIso = fItem;
+    // Filtro por rango de fechas (SOLO si se solicitó explícitamente)
+    if (aplicarFiltroFecha) {
+      const fItem = (r.fechas || "").trim();
+      if (fItem && fItem.length >= 6) {
+        let fechaIso = "";
         if (fItem.includes("/")) {
           const partes = fItem.split("/");
           if (partes.length === 3) {
-            const d = partes[0].padStart(2, "0");
-            const m = partes[1].padStart(2, "0");
-            const y = partes[2].length === 2 ? `20${partes[2]}` : partes[2];
-            fechaIso = `${y}-${m}-${d}`;
+            if (partes[0].length === 4) {
+              // YYYY/MM/DD
+              fechaIso = `${partes[0]}-${partes[1].padStart(2, "0")}-${partes[2].padStart(2, "0")}`;
+            } else {
+              // DD/MM/YYYY
+              const d = partes[0].padStart(2, "0");
+              const m = partes[1].padStart(2, "0");
+              const y = partes[2].length === 2 ? `20${partes[2]}` : partes[2];
+              fechaIso = `${y}-${m}-${d}`;
+            }
+          }
+        } else if (fItem.includes("-")) {
+          const partes = fItem.split("-");
+          if (partes.length === 3) {
+            if (partes[0].length === 4) {
+              // YYYY-MM-DD
+              fechaIso = `${partes[0]}-${partes[1].padStart(2, "0")}-${partes[2].padStart(2, "0")}`;
+            } else {
+              // DD-MM-YYYY
+              const d = partes[0].padStart(2, "0");
+              const m = partes[1].padStart(2, "0");
+              const y = partes[2].length === 2 ? `20${partes[2]}` : partes[2];
+              fechaIso = `${y}-${m}-${d}`;
+            }
           }
         }
-        if (filtros.fechaDesde && fechaIso < filtros.fechaDesde) continue;
-        if (filtros.fechaHasta && fechaIso > filtros.fechaHasta) continue;
+
+        if (fechaIso) {
+          if (filtros.fechaDesde && fechaIso < filtros.fechaDesde) continue;
+          if (filtros.fechaHasta && fechaIso > filtros.fechaHasta) continue;
+        }
       }
     }
 

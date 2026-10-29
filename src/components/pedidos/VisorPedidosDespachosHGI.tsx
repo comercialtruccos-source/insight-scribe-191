@@ -5,6 +5,7 @@ import {
   obtenerMetadataPedidosDespachos,
   obtenerMetadataPedidosDespachosAsync,
   estructurarPedidosDespachosHGI,
+  EVENT_PEDIDOS_DESPACHOS_UPDATED,
   type RegistroPedidosDespachosHGI,
   type MetadataCargaPedidosDespachos,
   type GrupoVendedorHGI,
@@ -88,6 +89,9 @@ export function VisorPedidosDespachosHGI({
   const [vistaMovil, setVistaMovil] = useState<"tarjetas" | "tabla">("tarjetas");
   const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
 
+  // Control de filtro de fecha: por defecto falso para mostrar todas las referencias pendientes sin recortar historial
+  const [filtrarPorFecha, setFiltrarPorFecha] = useState(false);
+
   // Fechas estilo visor HGI
   const [fechaDesde, setFechaDesde] = useState(() => {
     if (fechaDesdeGlobal) return fechaDesdeGlobal;
@@ -127,21 +131,23 @@ export function VisorPedidosDespachosHGI({
 
   // Sincronizar vendedor seleccionado si el usuario es un vendedor específico
   useEffect(() => {
-    if (vendedorIdFiltro && vendedorIdFiltro !== "todos") {
-      if (typeof vendedorIdFiltro === "number" && dimVendedores) {
+    if (!vendedorIdFiltro || vendedorIdFiltro === "todos") {
+      setVendedorSeleccionado("todos");
+      return;
+    }
+    if (typeof vendedorIdFiltro === "number") {
+      if (dimVendedores && dimVendedores.length > 0) {
         const match = dimVendedores.find((v) => v.id === vendedorIdFiltro);
         if (match) {
           setVendedorSeleccionado(match.nombre);
-          return;
         }
       }
-      setVendedorSeleccionado(String(vendedorIdFiltro));
-    } else {
-      setVendedorSeleccionado("todos");
+    } else if (typeof vendedorIdFiltro === "string" && isNaN(Number(vendedorIdFiltro))) {
+      setVendedorSeleccionado(vendedorIdFiltro);
     }
   }, [vendedorIdFiltro, dimVendedores]);
 
-  // Cargar datos oficiales persistidos directamente desde SUPABASE
+  // Cargar datos oficiales persistidos directamente desde SUPABASE o IndexedDB local
   const {
     data: registros = [],
     isLoading,
@@ -153,14 +159,23 @@ export function VisorPedidosDespachosHGI({
       const data = await obtenerDatosPedidosDespachos();
       return data || [];
     },
-    staleTime: 1000 * 60 * 5, // 5 minutos
+    staleTime: 1000 * 30, // 30 segundos
   });
+
+  // Escuchar eventos de actualización reactiva
+  useEffect(() => {
+    const handleActualizacion = () => {
+      refetch();
+    };
+    window.addEventListener(EVENT_PEDIDOS_DESPACHOS_UPDATED, handleActualizacion);
+    return () => window.removeEventListener(EVENT_PEDIDOS_DESPACHOS_UPDATED, handleActualizacion);
+  }, [refetch]);
 
   // Cargar metadata de la carga
   const { data: metadataAsync } = useQuery<MetadataCargaPedidosDespachos | null>({
     queryKey: ["pedidos-despachos-metadata"],
     queryFn: () => obtenerMetadataPedidosDespachosAsync(),
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 30,
   });
 
   const metadata = metadataAsync || obtenerMetadataPedidosDespachos();
@@ -175,6 +190,7 @@ export function VisorPedidosDespachosHGI({
       soloPendientes,
       fechaDesde,
       fechaHasta,
+      filtrarPorFecha,
     });
   }, [
     registros,
@@ -185,6 +201,7 @@ export function VisorPedidosDespachosHGI({
     soloPendientes,
     fechaDesde,
     fechaHasta,
+    filtrarPorFecha,
   ]);
 
   const { vendedores, kpis, catalogos } = agrupado;
@@ -331,7 +348,9 @@ export function VisorPedidosDespachosHGI({
             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background rounded-lg border border-border text-[11px] text-muted-foreground">
               <Clock className="h-3.5 w-3.5 text-amber-500" />
               <span>Periodo:</span>
-              <span className="font-semibold text-foreground">{fechaDesde} al {fechaHasta}</span>
+              <span className="font-semibold text-foreground">
+                {filtrarPorFecha ? `${fechaDesde} al ${fechaHasta}` : "Histórico Completo (Sin filtro de fecha)"}
+              </span>
               <span className="text-muted-foreground/50">|</span>
               <span>Modo:</span>
               <span className="font-semibold text-foreground">HGI OFICIAL</span>
@@ -454,7 +473,10 @@ export function VisorPedidosDespachosHGI({
                   <input
                     type="date"
                     value={fechaDesde}
-                    onChange={(e) => setFechaDesde(e.target.value)}
+                    onChange={(e) => {
+                      setFechaDesde(e.target.value);
+                      setFiltrarPorFecha(true);
+                    }}
                     className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden w-full"
                   />
                 </div>
@@ -463,7 +485,10 @@ export function VisorPedidosDespachosHGI({
                   <input
                     type="date"
                     value={fechaHasta}
-                    onChange={(e) => setFechaHasta(e.target.value)}
+                    onChange={(e) => {
+                      setFechaHasta(e.target.value);
+                      setFiltrarPorFecha(true);
+                    }}
                     className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden w-full"
                   />
                 </div>
@@ -485,6 +510,17 @@ export function VisorPedidosDespachosHGI({
               <span className="text-muted-foreground font-medium">Periodos:</span>
               <button
                 type="button"
+                onClick={() => setFiltrarPorFecha(false)}
+                className={`px-2 py-0.5 rounded border transition-colors ${
+                  !filtrarPorFecha
+                    ? "bg-teal-600 text-white border-teal-600 font-bold shadow-xs"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Todo el Historial
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   const now = new Date();
                   const y = now.getFullYear();
@@ -492,18 +528,10 @@ export function VisorPedidosDespachosHGI({
                   const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
                   setFechaDesde(`${y}-${m}-01`);
                   setFechaHasta(`${y}-${m}-${String(lastDay).padStart(2, "0")}`);
+                  setFiltrarPorFecha(true);
                 }}
                 className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  (() => {
-                    const now = new Date();
-                    const y = now.getFullYear();
-                    const m = String(now.getMonth() + 1).padStart(2, "0");
-                    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
-                    return (
-                      fechaDesde === `${y}-${m}-01` &&
-                      fechaHasta === `${y}-${m}-${String(lastDay).padStart(2, "0")}`
-                    );
-                  })()
+                  filtrarPorFecha && fechaDesde.endsWith("-01") && !fechaDesde.includes("-01-01")
                     ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
                     : "bg-background border-border text-muted-foreground hover:text-foreground"
                 }`}
@@ -512,10 +540,14 @@ export function VisorPedidosDespachosHGI({
               </button>
               <button
                 type="button"
-                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2025-12-31"); }}
+                onClick={() => {
+                  setFechaDesde("2025-01-01");
+                  setFechaHasta("2025-12-31");
+                  setFiltrarPorFecha(true);
+                }}
                 className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  fechaDesde === "2025-01-01" && fechaHasta === "2025-12-31"
-                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                  filtrarPorFecha && fechaDesde === "2025-01-01" && fechaHasta === "2025-12-31"
+                    ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
                     : "bg-background border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -523,25 +555,18 @@ export function VisorPedidosDespachosHGI({
               </button>
               <button
                 type="button"
-                onClick={() => { setFechaDesde("2026-01-01"); setFechaHasta("2026-12-31"); }}
+                onClick={() => {
+                  setFechaDesde("2026-01-01");
+                  setFechaHasta("2026-12-31");
+                  setFiltrarPorFecha(true);
+                }}
                 className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  fechaDesde === "2026-01-01" && fechaHasta === "2026-12-31"
-                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                  filtrarPorFecha && fechaDesde === "2026-01-01" && fechaHasta === "2026-12-31"
+                    ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
                     : "bg-background border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
                 2026
-              </button>
-              <button
-                type="button"
-                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2026-12-31"); }}
-                className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  fechaDesde === "2025-01-01" && fechaHasta === "2026-12-31"
-                    ? "bg-primary text-primary-foreground border-primary font-bold"
-                    : "bg-background border-border text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Todo
               </button>
             </div>
           </div>
@@ -939,8 +964,50 @@ export function VisorPedidosDespachosHGI({
                 <span>Cargando matriz oficial de pedidos vs. despachos desde Supabase...</span>
               </div>
             ) : vendedores.length === 0 ? (
-              <div className="py-16 text-center text-sm text-muted-foreground">
-                No se encontraron pedidos ni despachos para los filtros seleccionados.
+              <div className="py-16 text-center text-sm text-muted-foreground space-y-3">
+                <div className="p-3 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 inline-block">
+                  <Package className="h-8 w-8" />
+                </div>
+                <p className="font-semibold text-foreground text-sm">
+                  {soloPendientes
+                    ? "No hay pedidos con saldo pendiente de despacho para los filtros seleccionados."
+                    : "No se encontraron pedidos ni despachos para los filtros seleccionados."}
+                </p>
+                <div className="flex items-center justify-center gap-2 flex-wrap text-xs pt-1">
+                  {soloPendientes && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSoloPendientes(false)}
+                      className="text-xs"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                      Ver Todo el Histórico
+                    </Button>
+                  )}
+                  {filtrarPorFecha && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFiltrarPorFecha(false)}
+                      className="text-xs"
+                    >
+                      <Clock className="h-3.5 w-3.5 mr-1" />
+                      Quitar Filtro de Fecha (Ver Todo)
+                    </Button>
+                  )}
+                  {esAdmin && onAbrirCarga && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={onAbrirCarga}
+                      className="text-xs bg-teal-600 hover:bg-teal-700 text-white"
+                    >
+                      <UploadCloud className="h-3.5 w-3.5 mr-1" />
+                      Cargar / Actualizar Archivo HGI
+                    </Button>
+                  )}
+                </div>
               </div>
             ) : (
               <table className="w-full text-left text-xs border-collapse">

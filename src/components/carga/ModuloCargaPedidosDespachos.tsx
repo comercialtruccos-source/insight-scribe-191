@@ -186,7 +186,7 @@ export function ModuloCargaPedidosDespachos({
       setProcesando(true);
       setErrorSqlSupabase(null);
 
-      await guardarDatosPedidosDespachos(
+      const resultado = await guardarDatosPedidosDespachos(
         registrosParseados,
         metaParseada,
         (porcentaje, loteActual, totalLotes) => {
@@ -199,22 +199,29 @@ export function ModuloCargaPedidosDespachos({
       queryClient.invalidateQueries({ queryKey: ["visor-pedidos-despachos"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-hgi-data"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-hay-datos"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-metadata"] });
 
-      toast.success("¡Reporte de Pedidos vs Despachos sincronizado con Supabase!", {
-        description: `Se guardaron ${metaParseada.totalRegistros.toLocaleString("es-CO")} filas en la base de datos oficial.`,
-      });
+      if (resultado.guardadoSupabase) {
+        toast.success("¡Reporte de Pedidos vs Despachos sincronizado con Supabase!", {
+          description: `Se guardaron ${metaParseada.totalRegistros.toLocaleString("es-CO")} filas en la base de datos oficial.`,
+        });
+      } else {
+        toast.success("¡Reporte de Pedidos vs Despachos cargado exitosamente!", {
+          description: `Se activaron ${metaParseada.totalRegistros.toLocaleString("es-CO")} filas para consulta inmediata en el visor.`,
+        });
+        if (resultado.errorSupabase) {
+          setErrorSqlSupabase(resultado.errorSupabase);
+        }
+      }
 
       if (onCargaExitosa) {
         onCargaExitosa();
       }
     } catch (err: any) {
-      console.error("[ModuloCargaPedidosDespachos] Error guardando en Supabase:", err);
-      const msg = err?.message || "Error al guardar en Supabase";
+      console.error("[ModuloCargaPedidosDespachos] Error:", err);
+      const msg = err?.message || "Error al procesar la carga";
       setErrorCarga(msg);
-      if (msg.includes("does not exist") || msg.includes("42P01") || msg.includes("pedidos_despachos")) {
-        setErrorSqlSupabase(msg);
-      }
-      toast.error("Error al sincronizar con Supabase", { description: msg });
+      toast.error("Error al procesar archivo", { description: msg });
     } finally {
       setProcesando(false);
       setProgreso(null);
@@ -232,8 +239,9 @@ export function ModuloCargaPedidosDespachos({
       queryClient.invalidateQueries({ queryKey: ["visor-pedidos-despachos"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-hgi-data"] });
       queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-hay-datos"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-metadata"] });
 
-      toast.info("Se han eliminado los datos cargados de Pedidos vs Despachos en Supabase.");
+      toast.info("Se han eliminado los datos cargados de Pedidos vs Despachos.");
     } catch (err) {
       console.error("[ModuloCargaPedidosDespachos] Error al limpiar:", err);
       toast.error("Error al limpiar los datos");
