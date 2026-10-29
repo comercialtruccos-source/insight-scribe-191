@@ -57,6 +57,7 @@ import {
   Tag,
   Layers,
   Factory,
+  Truck,
 } from "lucide-react";
 import {
   BarChart,
@@ -72,6 +73,7 @@ import {
 interface VisorPedidosDespachosHGIProps {
   onAbrirCarga?: () => void;
   onNavegarAProgramacion?: () => void;
+  onNavegarABodega?: () => void;
   vendedorIdFiltro?: string | number | "todos";
   terceroIdFiltro?: string | number | "todos";
   vendedorIdsPermitidos?: number[];
@@ -86,6 +88,7 @@ interface VisorPedidosDespachosHGIProps {
 export function VisorPedidosDespachosHGI({
   onAbrirCarga,
   onNavegarAProgramacion,
+  onNavegarABodega,
   vendedorIdFiltro = "todos",
   terceroIdFiltro = "todos",
   vendedorIdsPermitidos,
@@ -1006,6 +1009,19 @@ export function VisorPedidosDespachosHGI({
             >
               <Factory className="h-3.5 w-3.5" />
               <span>Programación Producción</span>
+            </Button>
+          )}
+
+          {esAdmin && onNavegarABodega && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={onNavegarABodega}
+              className="h-7 text-xs bg-teal-600 hover:bg-teal-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
+              title="Abrir el centro de Alistamiento y Despachos de Bodega (Pedidos con inventario disponible)"
+            >
+              <Truck className="h-3.5 w-3.5" />
+              <span>Despachos Bodega</span>
             </Button>
           )}
         </div>

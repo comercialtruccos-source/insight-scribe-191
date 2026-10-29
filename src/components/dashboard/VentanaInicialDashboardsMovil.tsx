@@ -19,6 +19,7 @@ import {
   Target,
   Layers,
   Factory,
+  Truck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -199,6 +200,19 @@ export function VentanaInicialDashboardsMovil({
             colorBorde: "border-indigo-500/30 active:border-indigo-500/60",
             colorFondo: "bg-indigo-500/5 active:bg-indigo-500/10",
             colorBadge: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30",
+          },
+          {
+            id: "despachos-bodega",
+            numero: "11",
+            titulo: "Despachos y Bodega",
+            subtitulo: "Pedidos con inventario disponible para picking, empaque y despacho",
+            badge: "Solo Admin",
+            icono: Truck,
+            colorGradiente: "from-teal-600 to-emerald-600",
+            colorTexto: "text-teal-700 dark:text-teal-300",
+            colorBorde: "border-teal-500/30 active:border-teal-500/60",
+            colorFondo: "bg-teal-500/5 active:bg-teal-500/10",
+            colorBadge: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30",
           },
           {
             id: "carga",
