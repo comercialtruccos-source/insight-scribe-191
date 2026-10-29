@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Target,
   Layers,
+  Factory,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -185,6 +186,19 @@ export function VentanaInicialDashboardsMovil({
             colorBorde: "border-rose-500/30 active:border-rose-500/60",
             colorFondo: "bg-rose-500/5 active:bg-rose-500/10",
             colorBadge: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
+          },
+          {
+            id: "programacion-produccion",
+            numero: "10",
+            titulo: "Programación de Producción",
+            subtitulo: "Referencias con pedido sin inventario para evaluar reprogramación",
+            badge: "Solo Admin",
+            icono: Factory,
+            colorGradiente: "from-indigo-600 to-cyan-600",
+            colorTexto: "text-indigo-700 dark:text-indigo-300",
+            colorBorde: "border-indigo-500/30 active:border-indigo-500/60",
+            colorFondo: "bg-indigo-500/5 active:bg-indigo-500/10",
+            colorBadge: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30",
           },
           {
             id: "carga",

@@ -70,6 +70,7 @@ import {
 } from "recharts";
 
 interface VisorPedidosDespachosProps {
+  onNavegarAProgramacion?: () => void;
   vendedorIdFiltro?: number | "todos";
   vendedorIdsPermitidos?: number[];
   vendedorIds?: number[];
@@ -94,6 +95,7 @@ function normalizarTexto(texto: string | null | undefined): string {
 }
 
 export function VisorPedidosDespachos({
+  onNavegarAProgramacion,
   vendedorIdFiltro = "todos",
   vendedorIdsPermitidos,
   vendedorIds,
@@ -594,6 +596,7 @@ export function VisorPedidosDespachos({
       {(tieneDatosHGI && fuenteActiva !== "base_datos") || (!esAdmin && tieneDatosHGI) ? (
         <VisorPedidosDespachosHGI
           onAbrirCarga={esAdmin ? () => setModalCargaAbierto(true) : undefined}
+          onNavegarAProgramacion={onNavegarAProgramacion}
           vendedorIdFiltro={vendedorIdFiltro}
           terceroIdFiltro={terceroIdFiltro}
           vendedorIdsPermitidos={vendedorIdsPermitidos}

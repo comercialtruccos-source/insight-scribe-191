@@ -48,6 +48,7 @@ import { MultiSelectVendedores } from "@/components/vendedores/MultiSelectVended
 import { BotonVolverInicio } from "@/components/dashboard/BotonVolverInicio";
 import { VentanaInicialDashboardsMovil } from "@/components/dashboard/VentanaInicialDashboardsMovil";
 import { DashboardCorrerias } from "@/components/correrias/DashboardCorrerias";
+import { InformeProgramacionProduccion } from "@/components/produccion/InformeProgramacionProduccion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -1407,6 +1408,8 @@ function Panel() {
     } else if (tabActivo === "carga" && !puedeVerCargar) {
       setTabActivo("d1");
     } else if (tabActivo === "correrias" && !esAdmin) {
+      setTabActivo("d1");
+    } else if (tabActivo === "programacion-produccion" && !esAdmin) {
       setTabActivo("d1");
     } else if (tabActivo === "d3" && !puedeVerDigital) {
       setTabActivo("d1");
@@ -8929,6 +8932,7 @@ function Panel() {
           {/* ========================================================================= */}
           <TabsContent value="explorador" className="space-y-4">
             <VisorPedidosDespachos
+              onNavegarAProgramacion={esAdmin ? () => setTabActivo("programacion-produccion") : undefined}
               vendedorIdFiltro={vendedorId !== "todos" ? Number(vendedorId) : "todos"}
               vendedorIds={vendedorIds.length > 0 ? vendedorIds.map(Number) : undefined}
               vendedorIdsPermitidos={vendedorIdsPermitidos || undefined}
@@ -8998,6 +9002,18 @@ function Panel() {
                 cargandoVentas={cVentas}
                 esAdmin={esAdmin}
                 filtrosGlobales={filtros}
+              />
+            </TabsContent>
+          )}
+
+          {/* ========================================================================= */}
+          {/* DASHBOARD 10: PROGRAMACIÓN DE PRODUCCIÓN (DÉFICIT INVENTARIO - SOLO ADMINS) */}
+          {/* ========================================================================= */}
+          {esAdmin && (
+            <TabsContent value="programacion-produccion" className="space-y-6">
+              <InformeProgramacionProduccion
+                esAdmin={esAdmin}
+                onVolverInicio={() => setTabActivo("d1")}
               />
             </TabsContent>
           )}

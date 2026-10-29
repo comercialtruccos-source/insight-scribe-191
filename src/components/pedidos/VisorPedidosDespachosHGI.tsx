@@ -56,6 +56,7 @@ import {
   Clock,
   Tag,
   Layers,
+  Factory,
 } from "lucide-react";
 import {
   BarChart,
@@ -70,6 +71,7 @@ import {
 
 interface VisorPedidosDespachosHGIProps {
   onAbrirCarga?: () => void;
+  onNavegarAProgramacion?: () => void;
   vendedorIdFiltro?: string | number | "todos";
   terceroIdFiltro?: string | number | "todos";
   vendedorIdsPermitidos?: number[];
@@ -83,6 +85,7 @@ interface VisorPedidosDespachosHGIProps {
 
 export function VisorPedidosDespachosHGI({
   onAbrirCarga,
+  onNavegarAProgramacion,
   vendedorIdFiltro = "todos",
   terceroIdFiltro = "todos",
   vendedorIdsPermitidos,
@@ -992,6 +995,19 @@ export function VisorPedidosDespachosHGI({
             <Download className="mr-1 h-3.5 w-3.5" />
             Exportar CSV
           </Button>
+
+          {esAdmin && onNavegarAProgramacion && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={onNavegarAProgramacion}
+              className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 shadow-2xs cursor-pointer"
+              title="Abrir el informe de Programación de Producción para referencias con pedido sin inventario"
+            >
+              <Factory className="h-3.5 w-3.5" />
+              <span>Programación Producción</span>
+            </Button>
+          )}
         </div>
       </div>
 
