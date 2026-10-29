@@ -127,7 +127,7 @@ export function VisorPedidosDespachos({
     }
   }, [anioGlobal, mesGlobal, fechaDesdeGlobal, fechaHastaGlobal]);
   const [modoVista, setModoVista] = useState<"datos" | "grafico" | "ambos">("datos");
-  const [soloPendientes, setSoloPendientes] = useState(false);
+  const [soloPendientes, setSoloPendientes] = useState(true);
   const [correriaSeleccionada, setCorreriaSeleccionada] = useState<string>("todas");
   const [busqueda, setBusqueda] = useState("");
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState<number | "todos">(
@@ -250,11 +250,14 @@ export function VisorPedidosDespachos({
         let prodsCoincidentes: ItemProductoPedidoDespacho[] = [];
 
         if (vCoincideTodo || vtCoincideTodo) {
-          // Si el vendedor o el cliente coincide plenamente con la búsqueda, mostrar todos sus productos
-          prodsCoincidentes = t.productos;
+          // Si el vendedor o el cliente coincide plenamente con la búsqueda, mostrar productos respetando el filtro de pendientes
+          prodsCoincidentes = soloPendientes
+            ? t.productos.filter((p) => p.esPendiente)
+            : t.productos;
         } else {
           // Filtrar los productos individuales que cumplan la combinación de términos
           prodsCoincidentes = t.productos.filter((p) => {
+            if (soloPendientes && !p.esPendiente) return false;
             const pText = normalizarTexto(
               `${p.producto} ${p.descripcion || ""} ${p.sku || ""} ${p.color || ""} ${p.talla || ""}`
             );
@@ -269,19 +272,21 @@ export function VisorPedidosDespachos({
           const despCant = prodsCoincidentes.reduce((s, p) => s + p.despachosCantidad, 0);
           const despVal = prodsCoincidentes.reduce((s, p) => s + p.despachosValor, 0);
           const totCant = Math.max(0, pedCant - despCant);
-          const totVal = Math.max(0, pedVal - despVal);
+          const totVal = totCant > 0 ? Math.max(0, pedVal - despVal) : 0;
 
-          tercerosFiltrados.push({
-            ...t,
-            pedidosCantidad: pedCant,
-            pedidosValor: pedVal,
-            despachosCantidad: despCant,
-            despachosValor: despVal,
-            totalGeneralCantidad: totCant,
-            totalGeneralValor: totVal,
-            esPendiente: totCant > 0,
-            productos: prodsCoincidentes,
-          });
+          if (!soloPendientes || totCant > 0) {
+            tercerosFiltrados.push({
+              ...t,
+              pedidosCantidad: pedCant,
+              pedidosValor: pedVal,
+              despachosCantidad: despCant,
+              despachosValor: despVal,
+              totalGeneralCantidad: totCant,
+              totalGeneralValor: totVal,
+              esPendiente: totCant > 0,
+              productos: prodsCoincidentes,
+            });
+          }
         }
       }
 
@@ -291,24 +296,26 @@ export function VisorPedidosDespachos({
         const vDespCant = tercerosFiltrados.reduce((s, t) => s + t.despachosCantidad, 0);
         const vDespVal = tercerosFiltrados.reduce((s, t) => s + t.despachosValor, 0);
         const vTotCant = Math.max(0, vPedCant - vDespCant);
-        const vTotVal = Math.max(0, vPedVal - vDespVal);
+        const vTotVal = vTotCant > 0 ? Math.max(0, vPedVal - vDespVal) : 0;
 
-        resultado.push({
-          ...v,
-          pedidosCantidad: vPedCant,
-          pedidosValor: vPedVal,
-          despachosCantidad: vDespCant,
-          despachosValor: vDespVal,
-          totalGeneralCantidad: vTotCant,
-          totalGeneralValor: vTotVal,
-          esPendiente: vTotCant > 0,
-          terceros: tercerosFiltrados,
-        });
+        if (!soloPendientes || vTotCant > 0) {
+          resultado.push({
+            ...v,
+            pedidosCantidad: vPedCant,
+            pedidosValor: vPedVal,
+            despachosCantidad: vDespCant,
+            despachosValor: vDespVal,
+            totalGeneralCantidad: vTotCant,
+            totalGeneralValor: vTotVal,
+            esPendiente: vTotCant > 0,
+            terceros: tercerosFiltrados,
+          });
+        }
       }
     }
 
     return resultado;
-  }, [data?.vendedores, terceroSeleccionado, queryTokens]);
+  }, [data?.vendedores, terceroSeleccionado, queryTokens, soloPendientes]);
 
   // Estadísticas de coincidencia de búsqueda
   const estadisticasBusqueda = useMemo(() => {
@@ -770,21 +777,41 @@ export function VisorPedidosDespachos({
           </div>
         </div>
 
-        {/* Acciones Rápidas */}
+        {/* Acciones Rápidas: Selector de Modo (Solo Pendientes vs Histórico) */}
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant={soloPendientes ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSoloPendientes(!soloPendientes)}
-            className={`h-7 text-xs font-semibold gap-1.5 ${
-              soloPendientes
-                ? "bg-amber-600 hover:bg-amber-700 text-white"
-                : "border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
-            }`}
-          >
-            <AlertTriangle className="h-3.5 w-3.5" />
-            <span>{soloPendientes ? "Mostrando Solo Pendientes" : "Filtrar Solo Pendientes"}</span>
-          </Button>
+          <div className="inline-flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setSoloPendientes(true)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
+                soloPendientes
+                  ? "bg-amber-600 text-white shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span>Solo Pendientes</span>
+              {kpis?.totalPendienteCantidad ? (
+                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white font-mono">
+                  {kpis.totalPendienteCantidad.toLocaleString("es-CO")}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSoloPendientes(false)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
+                !soloPendientes
+                  ? "bg-primary text-primary-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Ver Todo (Histórico)</span>
+            </button>
+          </div>
 
           <Button variant="outline" size="sm" onClick={expandirTodos} className="h-7 text-xs">
             Expandir Todo
@@ -1155,9 +1182,13 @@ export function VisorPedidosDespachos({
                                         <span className="font-semibold text-foreground line-clamp-1">
                                           {prod.producto}
                                         </span>
-                                        {prod.esPendiente && (
+                                        {prod.esPendiente ? (
                                           <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 shrink-0">
                                             Pendiente
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-[9px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 shrink-0">
+                                            Completado
                                           </Badge>
                                         )}
                                       </div>
@@ -1352,9 +1383,13 @@ export function VisorPedidosDespachos({
                                   >
                                     <div className="flex items-center justify-end gap-1">
                                       <span>{p.totalGeneralCantidad.toLocaleString("es-CO")}</span>
-                                      {p.esPendiente && (
-                                        <span className="text-[9px] px-1 py-0 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30">
+                                      {p.esPendiente ? (
+                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30">
                                           Pend
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-500/30">
+                                          Listo
                                         </span>
                                       )}
                                     </div>

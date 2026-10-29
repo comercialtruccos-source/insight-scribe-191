@@ -5344,7 +5344,7 @@ export async function obtenerPedidosVsDespachos(
         .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
         .eq("anio", anio)
         .eq("mes", mes)
-        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%")
+        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%,transaccion.ilike.%FACTURA%")
         .gte("fecha", fechaDesde)
         .lte("fecha", fechaHasta);
 
@@ -5395,7 +5395,7 @@ export async function obtenerPedidosVsDespachos(
       let q = supabase
         .from("fact_ventas")
         .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
-        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%")
+        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%,transaccion.ilike.%FACTURA%")
         .gte("fecha", fechaDesde)
         .lte("fecha", fechaHasta);
 
@@ -5409,31 +5409,39 @@ export async function obtenerPedidosVsDespachos(
     }
   }
 
-  // Agrupación jerárquica: Vendedor -> Tercero -> Producto
-  const vendedoresMap = new Map<
-    string,
-    {
-      vendedorId: number | string;
-      vendedorNombre: string;
-      tercerosMap: Map<
-        string,
-        {
-          terceroId: number | string;
-          terceroNombre: string;
-          terceroCodigo?: string | null;
-          productosMap: Map<string, ItemProductoPedidoDespacho>;
-        }
-      >;
-    }
-  >();
+  // Agrupación y conciliación jerárquica:
+  // Paso 1: Conciliación por Cliente + Producto para resolver pedidos vs despachos/facturas
+  type ProductoAcumulador = {
+    producto: string;
+    descripcion: string | null;
+    sku: string | null;
+    color: string | null;
+    talla: string | null;
+    vendedorId: number | string;
+    vendedorNombre: string;
+    pedidosCantidad: number;
+    pedidosValor: number;
+    salidasCantidad: number;
+    salidasValor: number;
+    facturasCantidad: number;
+    facturasValor: number;
+  };
+
+  type TerceroAcumulador = {
+    terceroId: number | string;
+    terceroNombre: string;
+    terceroCodigo?: string | null;
+    vendedorId: number | string;
+    vendedorNombre: string;
+    productosMap: Map<string, ProductoAcumulador>;
+  };
+
+  const tercerosGlobalMap = new Map<string, TerceroAcumulador>();
 
   const tBusq = filtros.tercero_busqueda?.trim().toLowerCase() || null;
   const pBusq = filtros.producto_busqueda?.trim().toLowerCase() || null;
 
   for (const r of rawRows) {
-    const vId = Number(r.vendedor_id) || Number(r.vendedor2_id) || 0;
-    const vNombre = (vId ? vMap.get(vId) : null) || (vId ? `Asesor ID ${vId}` : "VENDEDOR GENERAL");
-
     const tId = Number(r.tercero_id) || 0;
     const tInfo = tId ? tMap.get(tId) : null;
     const infoT = resolverInfoTercero(tId, tInfo);
@@ -5451,26 +5459,37 @@ export async function obtenerPedidosVsDespachos(
       continue;
     }
 
-    if (!vendedoresMap.has(vNombre)) {
-      vendedoresMap.set(vNombre, {
-        vendedorId: vId || vNombre,
-        vendedorNombre: vNombre,
-        tercerosMap: new Map(),
-      });
-    }
+    const vId = Number(r.vendedor_id) || Number(r.vendedor2_id) || 0;
+    const vNombre = (vId ? vMap.get(vId) : null) || (vId ? `Asesor ID ${vId}` : "VENDEDOR GENERAL");
 
-    const vend = vendedoresMap.get(vNombre)!;
     const tKey = tId ? String(tId) : tNombre;
-    if (!vend.tercerosMap.has(tKey)) {
-      vend.tercerosMap.set(tKey, {
+    if (!tercerosGlobalMap.has(tKey)) {
+      tercerosGlobalMap.set(tKey, {
         terceroId: tId || tNombre,
         terceroNombre: tNombre,
         terceroCodigo: tCodigo,
+        vendedorId: vId || vNombre,
+        vendedorNombre: vNombre,
         productosMap: new Map(),
       });
     }
 
-    const terc = vend.tercerosMap.get(tKey)!;
+    const terc = tercerosGlobalMap.get(tKey)!;
+
+    const cant = Number(r.cantidad || 0);
+    const val = Number(r.valor || 0);
+    const trans = String(r.transaccion || "").toUpperCase();
+
+    const esPedido = trans.includes("PEDIDO");
+    const esSalida = trans.includes("DESPACHO") || trans.includes("SALIDA") || trans.includes("REMISION");
+    const esFactura = trans.includes("FACTURA");
+
+    // Si la fila es un pedido y tiene vendedor, atribuir el cliente y el pedido a este vendedor
+    if (esPedido && vId > 0) {
+      terc.vendedorId = vId;
+      terc.vendedorNombre = vNombre;
+    }
+
     if (!terc.productosMap.has(prodCodigo)) {
       terc.productosMap.set(prodCodigo, {
         producto: prodCodigo,
@@ -5478,35 +5497,55 @@ export async function obtenerPedidosVsDespachos(
         sku: r.sku ? String(r.sku) : null,
         color: r.color ? String(r.color) : null,
         talla: r.talla ? String(r.talla) : null,
+        vendedorId: vId || vNombre,
+        vendedorNombre: vNombre,
         pedidosCantidad: 0,
         pedidosValor: 0,
-        despachosCantidad: 0,
-        despachosValor: 0,
-        totalGeneralCantidad: 0,
-        totalGeneralValor: 0,
-        esPendiente: false,
+        salidasCantidad: 0,
+        salidasValor: 0,
+        facturasCantidad: 0,
+        facturasValor: 0,
       });
     }
 
     const prod = terc.productosMap.get(prodCodigo)!;
-    const cant = Number(r.cantidad || 0);
-    const val = Number(r.valor || 0);
-    const trans = String(r.transaccion || "").toUpperCase();
-
-    // En HGI: Los pedidos y salidas por despacho están explícitamente etiquetados en la columna transaccion.
-    const esPedido = trans.includes("PEDIDO");
-    const esDespacho = trans.includes("DESPACHO") || trans.includes("SALIDA") || trans.includes("REMISION");
+    if (prodDesc && !prod.descripcion) prod.descripcion = prodDesc;
+    if (r.sku && !prod.sku) prod.sku = String(r.sku);
+    if (r.color && !prod.color) prod.color = String(r.color);
+    if (r.talla && !prod.talla) prod.talla = String(r.talla);
+    if (esPedido && vId > 0) {
+      prod.vendedorId = vId;
+      prod.vendedorNombre = vNombre;
+    }
 
     if (esPedido) {
       prod.pedidosCantidad += Math.abs(cant);
       prod.pedidosValor += Math.abs(val);
-    } else if (esDespacho) {
-      prod.despachosCantidad += Math.abs(cant);
-      prod.despachosValor += Math.abs(val);
+    } else if (esSalida) {
+      prod.salidasCantidad += Math.abs(cant);
+      prod.salidasValor += Math.abs(val);
+    } else if (esFactura) {
+      prod.facturasCantidad += Math.abs(cant);
+      prod.facturasValor += Math.abs(val);
     }
   }
 
-  // Estructurar resultado y calcular balances
+  // Paso 2: Agrupar por Vendedor y Tercero, calculando saldos pendientes conciliados
+  const vendedoresMap = new Map<
+    string,
+    {
+      vendedorId: number | string;
+      vendedorNombre: string;
+      terceros: GrupoTerceroPedidoDespacho[];
+      pedidosCantidad: number;
+      pedidosValor: number;
+      despachosCantidad: number;
+      despachosValor: number;
+      totalGeneralCantidad: number;
+      totalGeneralValor: number;
+    }
+  >();
+
   let globalPedidosCant = 0;
   let globalPedidosVal = 0;
   let globalDespachosCant = 0;
@@ -5515,108 +5554,136 @@ export async function obtenerPedidosVsDespachos(
   let globalPendienteVal = 0;
   let globalClientesConPendientes = 0;
 
-  const vendedoresResultado: GrupoVendedorPedidoDespacho[] = [];
+  for (const tData of tercerosGlobalMap.values()) {
+    const prodsList: ItemProductoPedidoDespacho[] = [];
+    let tPedCant = 0;
+    let tPedVal = 0;
+    let tDespCant = 0;
+    let tDespVal = 0;
+    let tTotCant = 0;
+    let tTotVal = 0;
 
-  for (const vData of vendedoresMap.values()) {
-    let vPedCant = 0;
-    let vPedVal = 0;
-    let vDespCant = 0;
-    let vDespVal = 0;
-    let vTotCant = 0;
-    let vTotVal = 0;
+    for (const p of tData.productosMap.values()) {
+      // Conciliación de despachos: evitar duplicar si existen Salida por Despacho y Factura Electrónica
+      const despCant = Math.max(p.salidasCantidad, p.facturasCantidad);
+      const despVal = Math.max(p.salidasValor, p.facturasValor);
+      const pendCant = Math.max(0, p.pedidosCantidad - despCant);
+      const pendVal = pendCant > 0 ? Math.max(0, p.pedidosValor - despVal) : 0;
+      const esPendiente = pendCant > 0;
 
-    const tercerosResultado: GrupoTerceroPedidoDespacho[] = [];
+      // Actualizar globales (acumula todas las referencias analizadas)
+      globalPedidosCant += p.pedidosCantidad;
+      globalPedidosVal += p.pedidosValor;
+      globalDespachosCant += despCant;
+      globalDespachosVal += despVal;
+      globalPendienteCant += pendCant;
+      globalPendienteVal += pendVal;
 
-    for (const tData of vData.tercerosMap.values()) {
-      let tPedCant = 0;
-      let tPedVal = 0;
-      let tDespCant = 0;
-      let tDespVal = 0;
+      const itemProd: ItemProductoPedidoDespacho = {
+        producto: p.producto,
+        descripcion: p.descripcion,
+        sku: p.sku,
+        color: p.color,
+        talla: p.talla,
+        pedidosCantidad: p.pedidosCantidad,
+        pedidosValor: p.pedidosValor,
+        despachosCantidad: despCant,
+        despachosValor: despVal,
+        totalGeneralCantidad: pendCant,
+        totalGeneralValor: pendVal,
+        esPendiente,
+      };
 
-      const prodsList: ItemProductoPedidoDespacho[] = [];
-
-      for (const p of tData.productosMap.values()) {
-        p.totalGeneralCantidad = Math.max(0, p.pedidosCantidad - p.despachosCantidad);
-        p.totalGeneralValor = Math.max(0, p.pedidosValor - p.despachosValor);
-        p.esPendiente = p.totalGeneralCantidad > 0;
-
-        if (filtros.solo_pendientes && !p.esPendiente) {
-          continue;
-        }
-
-        prodsList.push(p);
-
-        tPedCant += p.pedidosCantidad;
-        tPedVal += p.pedidosValor;
-        tDespCant += p.despachosCantidad;
-        tDespVal += p.despachosValor;
-      }
-
-      if (filtros.solo_pendientes && prodsList.length === 0) {
+      if (filtros.solo_pendientes && !esPendiente) {
         continue;
       }
 
-      // Ordenar productos por mayor cantidad pendiente o mayor pedido
-      prodsList.sort((a, b) => b.totalGeneralCantidad - a.totalGeneralCantidad || b.pedidosCantidad - a.pedidosCantidad);
-
-      const tTotalCant = Math.max(0, tPedCant - tDespCant);
-      const tTotalVal = Math.max(0, tPedVal - tDespVal);
-      const tEsPendiente = tTotalCant > 0;
-
-      if (tEsPendiente) {
-        globalClientesConPendientes++;
-      }
-
-      tercerosResultado.push({
-        terceroId: tData.terceroId,
-        terceroNombre: tData.terceroNombre,
-        terceroCodigo: tData.terceroCodigo,
-        pedidosCantidad: tPedCant,
-        pedidosValor: tPedVal,
-        despachosCantidad: tDespCant,
-        despachosValor: tDespVal,
-        totalGeneralCantidad: tTotalCant,
-        totalGeneralValor: tTotalVal,
-        esPendiente: tEsPendiente,
-        productos: prodsList,
-      });
-
-      vPedCant += tPedCant;
-      vPedVal += tPedVal;
-      vDespCant += tDespCant;
-      vDespVal += tDespVal;
-      vTotCant += tTotalCant;
-      vTotVal += tTotalVal;
+      prodsList.push(itemProd);
+      tPedCant += p.pedidosCantidad;
+      tPedVal += p.pedidosValor;
+      tDespCant += despCant;
+      tDespVal += despVal;
+      tTotCant += pendCant;
+      tTotVal += pendVal;
     }
 
-    if (filtros.solo_pendientes && tercerosResultado.length === 0) {
+    if (filtros.solo_pendientes && prodsList.length === 0) {
+      continue;
+    }
+
+    // Ordenar productos por mayor cantidad pendiente o mayor pedido
+    prodsList.sort((a, b) => b.totalGeneralCantidad - a.totalGeneralCantidad || b.pedidosCantidad - a.pedidosCantidad);
+
+    const tEsPendiente = tTotCant > 0;
+    if (tEsPendiente) {
+      globalClientesConPendientes++;
+    }
+
+    const grupoTercero: GrupoTerceroPedidoDespacho = {
+      terceroId: tData.terceroId,
+      terceroNombre: tData.terceroNombre,
+      terceroCodigo: tData.terceroCodigo,
+      pedidosCantidad: tPedCant,
+      pedidosValor: tPedVal,
+      despachosCantidad: tDespCant,
+      despachosValor: tDespVal,
+      totalGeneralCantidad: tTotCant,
+      totalGeneralValor: tTotVal,
+      esPendiente: tEsPendiente,
+      productos: prodsList,
+    };
+
+    // Asignar al vendedor
+    const vKey = tData.vendedorNombre;
+    if (!vendedoresMap.has(vKey)) {
+      vendedoresMap.set(vKey, {
+        vendedorId: tData.vendedorId,
+        vendedorNombre: tData.vendedorNombre,
+        terceros: [],
+        pedidosCantidad: 0,
+        pedidosValor: 0,
+        despachosCantidad: 0,
+        despachosValor: 0,
+        totalGeneralCantidad: 0,
+        totalGeneralValor: 0,
+      });
+    }
+
+    const vend = vendedoresMap.get(vKey)!;
+    vend.terceros.push(grupoTercero);
+    vend.pedidosCantidad += tPedCant;
+    vend.pedidosValor += tPedVal;
+    vend.despachosCantidad += tDespCant;
+    vend.despachosValor += tDespVal;
+    vend.totalGeneralCantidad += tTotCant;
+    vend.totalGeneralValor += tTotVal;
+  }
+
+  // Construir vendedoresResultado
+  const vendedoresResultado: GrupoVendedorPedidoDespacho[] = [];
+
+  for (const vData of vendedoresMap.values()) {
+    if (filtros.solo_pendientes && vData.terceros.length === 0) {
       continue;
     }
 
     // Ordenar clientes por mayor cantidad pendiente
-    tercerosResultado.sort(
+    vData.terceros.sort(
       (a, b) => b.totalGeneralCantidad - a.totalGeneralCantidad || b.pedidosCantidad - a.pedidosCantidad
     );
 
     vendedoresResultado.push({
       vendedorId: vData.vendedorId,
       vendedorNombre: vData.vendedorNombre,
-      pedidosCantidad: vPedCant,
-      pedidosValor: vPedVal,
-      despachosCantidad: vDespCant,
-      despachosValor: vDespVal,
-      totalGeneralCantidad: vTotCant,
-      totalGeneralValor: vTotVal,
-      esPendiente: vTotCant > 0,
-      terceros: tercerosResultado,
+      pedidosCantidad: vData.pedidosCantidad,
+      pedidosValor: vData.pedidosValor,
+      despachosCantidad: vData.despachosCantidad,
+      despachosValor: vData.despachosValor,
+      totalGeneralCantidad: vData.totalGeneralCantidad,
+      totalGeneralValor: vData.totalGeneralValor,
+      esPendiente: vData.totalGeneralCantidad > 0,
+      terceros: vData.terceros,
     });
-
-    globalPedidosCant += vPedCant;
-    globalPedidosVal += vPedVal;
-    globalDespachosCant += vDespCant;
-    globalDespachosVal += vDespVal;
-    globalPendienteCant += vTotCant;
-    globalPendienteVal += vTotVal;
   }
 
   // Ordenar vendedores
