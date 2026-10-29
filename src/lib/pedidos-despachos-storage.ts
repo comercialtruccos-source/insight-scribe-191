@@ -1,7 +1,8 @@
-// Sistema de almacenamiento persistente, parseo y agregación para
+// Sistema de almacenamiento persistente en Supabase, parseo y agregación para
 // el reporte oficial de HGI: Pedidos vs Despachos (18 Columnas Oficiales)
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface RegistroPedidosDespachosHGI {
   id: string;
@@ -99,77 +100,9 @@ export const STORAGE_KEY_META = "TRUCCOS_PEDIDOS_DESPACHOS_META_V1";
 export const STORAGE_KEY_DATA = "TRUCCOS_PEDIDOS_DESPACHOS_DATA_V1";
 export const EVENT_PEDIDOS_DESPACHOS_UPDATED = "truccos-pedidos-despachos-updated";
 
-// Cache en memoria
+// Cache en memoria para renderizado ultra veloz
 let cacheRegistros: RegistroPedidosDespachosHGI[] | null = null;
 let cacheMeta: MetadataCargaPedidosDespachos | null = null;
-let inicializado = false;
-
-// Configuración IndexedDB para soportar archivos de gran tamaño sin límite de 5MB
-const IDB_NAME = "TruccosPedidosDespachosDB";
-const IDB_VERSION = 1;
-const IDB_STORE = "hgi_records";
-
-function abrirIndexedDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === "undefined" || !window.indexedDB) {
-      return reject(new Error("IndexedDB no disponible"));
-    }
-    const req = window.indexedDB.open(IDB_NAME, IDB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE, { keyPath: "key" });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function guardarEnIDB(key: string, data: unknown): Promise<void> {
-  try {
-    const db = await abrirIndexedDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, "readwrite");
-      const store = tx.objectStore(IDB_STORE);
-      const req = store.put({ key, data });
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
-  } catch (err) {
-    console.warn("[pedidos-despachos-storage] Fallback guardado en localStorage:", err);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(key, JSON.stringify(data));
-    }
-  }
-}
-
-async function leerDeIDB<T>(key: string): Promise<T | null> {
-  try {
-    const db = await abrirIndexedDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, "readonly");
-      const store = tx.objectStore(IDB_STORE);
-      const req = store.get(key);
-      req.onsuccess = () => {
-        resolve(req.result ? (req.result.data as T) : null);
-      };
-      req.onerror = () => reject(req.error);
-    });
-  } catch {
-    if (typeof window !== "undefined") {
-      const raw = window.localStorage.getItem(key);
-      if (raw) {
-        try {
-          return JSON.parse(raw) as T;
-        } catch {
-          return null;
-        }
-      }
-    }
-    return null;
-  }
-}
 
 /**
  * Limpieza numérica flexible
@@ -300,30 +233,34 @@ export async function parsearArchivoPedidosDespachos(file: File): Promise<{
   let indices: IndicesColumnas | null = null;
 
   for (let i = 0; i < Math.min(15, matrizFilas.length); i++) {
-    const fila = (matrizFilas[i] || []).map((c) => String(c || "").trim());
-    const match = detectarIndices(fila);
-    // Verificamos si encuentra al menos 4 columnas clave (ej. tercero/nombre, producto, despachado/saldo)
-    let encontradas = 0;
-    if (match.tercero !== -1 || match.nombre !== -1) encontradas++;
-    if (match.producto !== -1 || match.descripcion !== -1) encontradas++;
-    if (match.vendedor !== -1) encontradas++;
-    if (match.despachado !== -1 || match.saldoPedido !== -1 || match.pedidoMes !== -1) encontradas++;
+    const fila = matrizFilas[i].map(String);
+    const ind = detectarIndices(fila);
+    let encontrados = 0;
+    if (ind.producto !== -1) encontrados++;
+    if (ind.tercero !== -1 || ind.nombre !== -1) encontrados++;
+    if (ind.vendedor !== -1) encontrados++;
+    if (ind.saldoPedido !== -1 || ind.despachado !== -1 || ind.pedidoMes !== -1) encontrados++;
 
-    if (encontradas >= 3) {
+    if (encontrados >= 3) {
       filaHeaderIdx = i;
-      indices = match;
+      indices = ind;
       break;
     }
   }
 
   if (filaHeaderIdx === -1 || !indices) {
     throw new Error(
-      "No se identificaron los encabezados requeridos (Transaccion, Tercero, Nombre, Vendedor, Ciudad, Fechas, Vence, Documento, Producto, Descripcion, Talla, Color, Anterior, Pedido Mes, Despachado, Cancelado, Saldo Pedido, Saldo Inv)."
+      "No se identificaron los encabezados oficiales requeridos (Transaccion, Tercero, Nombre, Vendedor, Ciudad, Fechas, Vence, Documento, Producto, Descripcion, Talla, Color, Anterior, Pedido Mes, Despachado, Cancelado, Saldo Pedido, Saldo Inv)."
     );
   }
 
-  const headers = (matrizFilas[filaHeaderIdx] || []).map((c) => String(c || "").trim());
+  const headers = matrizFilas[filaHeaderIdx].map(String);
+  const filasDatos = matrizFilas.slice(filaHeaderIdx + 1);
+
   const registros: RegistroPedidosDespachosHGI[] = [];
+  const vendedoresSet = new Set<string>();
+  const clientesSet = new Set<string>();
+  const ciudadesSet = new Set<string>();
 
   let sumAnterior = 0;
   let sumPedidoMes = 0;
@@ -333,48 +270,59 @@ export async function parsearArchivoPedidosDespachos(file: File): Promise<{
   let sumSaldoPedido = 0;
   let sumSaldoInv = 0;
 
-  const vendedoresSet = new Set<string>();
-  const clientesSet = new Set<string>();
-  const ciudadesSet = new Set<string>();
+  const val = (row: string[], idx: number): string => {
+    if (idx === -1 || idx >= row.length) return "";
+    return String(row[idx] ?? "").trim();
+  };
 
-  for (let i = filaHeaderIdx + 1; i < matrizFilas.length; i++) {
-    const fila = matrizFilas[i] || [];
-    if (!fila || fila.length === 0) continue;
+  const num = (row: string[], idx: number): number => {
+    if (idx === -1 || idx >= row.length) return 0;
+    return limpiarNumero(row[idx]);
+  };
 
-    const valStr = (idx: number) => (idx !== -1 && fila[idx] !== undefined ? String(fila[idx]).trim() : "");
-    const valNum = (idx: number) => (idx !== -1 && fila[idx] !== undefined ? limpiarNumero(fila[idx]) : 0);
+  for (let i = 0; i < filasDatos.length; i++) {
+    const row = filasDatos[i];
+    if (!row || row.every((c) => !c || String(c).trim() === "")) continue;
 
-    const transaccion = valStr(indices.transaccion) || "PEDIDO";
-    const tercero = valStr(indices.tercero);
-    const nombre = valStr(indices.nombre);
-    const vendedor = valStr(indices.vendedor) || "GENERAL";
-    const ciudad = valStr(indices.ciudad) || "MEDELLIN";
-    const fechas = valStr(indices.fechas);
-    const vence = valStr(indices.vence);
-    const documento = valStr(indices.documento);
-    const producto = valStr(indices.producto);
-    const descripcion = valStr(indices.descripcion);
-    const talla = valStr(indices.talla);
-    const color = valStr(indices.color);
+    const producto = val(row, indices.producto);
+    const nombre = val(row, indices.nombre);
+    const tercero = val(row, indices.tercero);
+    const vendedor = val(row, indices.vendedor);
+    const ciudad = val(row, indices.ciudad);
+    const descripcion = val(row, indices.descripcion);
+    const talla = val(row, indices.talla);
+    const color = val(row, indices.color);
+    const documento = val(row, indices.documento);
+    const transaccion = val(row, indices.transaccion) || "PEDIDO";
+    const fechas = val(row, indices.fechas);
+    const vence = val(row, indices.vence);
 
-    // Omitir filas que sean totales o estén completamente vacías
-    if (!tercero && !nombre && !producto && !documento) continue;
-    if (nombre.toUpperCase().includes("TOTAL GENERAL") || tercero.toUpperCase().includes("TOTAL")) continue;
+    const anterior = num(row, indices.anterior);
+    const pedidoMes = num(row, indices.pedidoMes);
+    const despachado = num(row, indices.despachado);
+    const cancelado = num(row, indices.cancelado);
+    let saldoPedido = num(row, indices.saldoPedido);
+    const saldoInv = num(row, indices.saldoInv);
 
-    const anterior = valNum(indices.anterior);
-    const pedidoMes = valNum(indices.pedidoMes);
-    const despachado = valNum(indices.despachado);
-    const cancelado = valNum(indices.cancelado);
-
-    let saldoPedido = valNum(indices.saldoPedido);
-    // Si saldoPedido viene en 0 o no estaba mapeado, calcular por fórmula
-    if (indices.saldoPedido === -1 && (anterior !== 0 || pedidoMes !== 0)) {
-      saldoPedido = Math.max(0, anterior + pedidoMes - despachado - cancelado);
+    const totalPedido = anterior + pedidoMes;
+    // Si la columna saldoPedido no vino o vino en 0 pero hay totalPedido - despachado - cancelado, recalcular
+    if (saldoPedido === 0 && totalPedido > 0 && despachado === 0 && cancelado === 0) {
+      saldoPedido = totalPedido;
     }
 
-    const saldoInv = valNum(indices.saldoInv);
-    const totalPedido = anterior + pedidoMes;
-    const esPendiente = saldoPedido > 0;
+    // Filtrar filas de subtotales que suelen venir en exportes de HGI
+    const nombreUpper = nombre.toUpperCase();
+    const prodUpper = producto.toUpperCase();
+    if (
+      nombreUpper.includes("TOTAL") ||
+      nombreUpper.includes("SUBTOTAL") ||
+      prodUpper.includes("TOTAL") ||
+      prodUpper.includes("SUBTOTAL")
+    ) {
+      continue;
+    }
+
+    if (!producto && !nombre && !tercero) continue;
 
     sumAnterior += anterior;
     sumPedidoMes += pedidoMes;
@@ -384,20 +332,22 @@ export async function parsearArchivoPedidosDespachos(file: File): Promise<{
     sumSaldoPedido += saldoPedido;
     sumSaldoInv += saldoInv;
 
-    if (vendedor) vendedoresSet.add(vendedor.toUpperCase());
-    if (tercero || nombre) clientesSet.add(`${tercero}|${nombre}`.toUpperCase());
-    if (ciudad) ciudadesSet.add(ciudad.toUpperCase());
+    if (vendedor) vendedoresSet.add(vendedor);
+    if (tercero || nombre) clientesSet.add(tercero || nombre);
+    if (ciudad) ciudadesSet.add(ciudad);
+
+    const esPendiente = saldoPedido > 0;
 
     registros.push({
-      id: `${i}-${documento}-${producto}-${talla}-${color}`,
+      id: `hgi-${i + 1}-${Date.now()}`,
       transaccion,
-      tercero: tercero || "S/N",
-      nombre: nombre || "CLIENTE GENERAL",
+      tercero: tercero || "SIN_NIT",
+      nombre: nombre || "CLIENTE NO DEFINIDO",
       vendedor: vendedor || "SIN ASIGNAR",
-      ciudad: ciudad || "COLOMBIA",
+      ciudad: ciudad || "SIN CIUDAD",
       fechas,
       vence,
-      documento: documento || `PED-${i}`,
+      documento: documento || `PED-${i + 1}`,
       producto: producto || "SIN_REF",
       descripcion: descripcion || "PRODUCTO HGI",
       talla,
@@ -436,98 +386,282 @@ export async function parsearArchivoPedidosDespachos(file: File): Promise<{
 }
 
 /**
- * Guarda los registros de pedidos vs despachos en almacenamiento persistente
+ * Guarda los registros de pedidos vs despachos en la base de datos de SUPABASE (public.pedidos_despachos)
  */
 export async function guardarDatosPedidosDespachos(
   registros: RegistroPedidosDespachosHGI[],
-  metadata: MetadataCargaPedidosDespachos
+  metadata: MetadataCargaPedidosDespachos,
+  onProgreso?: (porcentaje: number, loteActual: number, totalLotes: number) => void
 ): Promise<void> {
+  // 1. Limpiar registros previos en la tabla pedidos_despachos de Supabase
+  const { error: deleteError } = await supabase
+    .from("pedidos_despachos")
+    .delete()
+    .neq("id", 0);
+
+  if (deleteError) {
+    console.error("[pedidos-despachos-storage] Error limpiando tabla pedidos_despachos:", deleteError);
+    throw new Error(`Error al preparar base de datos Supabase: ${deleteError.message}`);
+  }
+
+  // 2. Insertar en lotes de 500 registros para evitar timeouts o payloads excesivos
+  const BATCH_SIZE = 500;
+  const totalLotes = Math.ceil(registros.length / BATCH_SIZE);
+
+  for (let i = 0; i < registros.length; i += BATCH_SIZE) {
+    const loteActual = Math.floor(i / BATCH_SIZE) + 1;
+    const chunk = registros.slice(i, i + BATCH_SIZE).map((r) => ({
+      transaccion: r.transaccion || "PEDIDO",
+      tercero: String(r.tercero || ""),
+      nombre: r.nombre || "",
+      vendedor: r.vendedor || "",
+      ciudad: r.ciudad || "",
+      fechas: r.fechas || "",
+      vence: r.vence || "",
+      documento: r.documento || "",
+      producto: r.producto || "",
+      descripcion: r.descripcion || "",
+      talla: r.talla || "",
+      color: r.color || "",
+      anterior: r.anterior || 0,
+      pedido_mes: r.pedidoMes || 0,
+      total_pedido: r.totalPedido || 0,
+      despachado: r.despachado || 0,
+      cancelado: r.cancelado || 0,
+      saldo_pedido: r.saldoPedido || 0,
+      saldo_inv: r.saldoInv || 0,
+    }));
+
+    const { error: insertError } = await supabase
+      .from("pedidos_despachos")
+      .insert(chunk);
+
+    if (insertError) {
+      console.error(`[pedidos-despachos-storage] Error insertando lote ${loteActual}:`, insertError);
+      throw new Error(`Error al insertar lote ${loteActual} de ${totalLotes} en Supabase: ${insertError.message}`);
+    }
+
+    if (onProgreso) {
+      const pct = Math.round((loteActual / totalLotes) * 100);
+      onProgreso(pct, loteActual, totalLotes);
+    }
+  }
+
+  // 3. Registrar en historial de cargas (cargas_pedidos_despachos)
+  try {
+    await supabase.from("cargas_pedidos_despachos").insert({
+      archivo: metadata.nombreArchivo,
+      filas_recibidas: metadata.totalRegistros,
+      filas_insertadas: registros.length,
+      total_pedidos: metadata.totalPedidos,
+      total_despachado: metadata.totalDespachado,
+      total_saldo_pedido: metadata.totalSaldoPedido,
+    });
+  } catch (err) {
+    console.warn("[pedidos-despachos-storage] Advertencia registrando en historial cargas:", err);
+  }
+
+  // 4. Actualizar memoria y emitir evento
   cacheRegistros = registros;
   cacheMeta = metadata;
-  inicializado = true;
-
-  await guardarEnIDB(STORAGE_KEY_DATA, registros);
 
   if (typeof window !== "undefined") {
     try {
       window.localStorage.setItem(STORAGE_KEY_META, JSON.stringify(metadata));
-    } catch (e) {
-      console.warn("[pedidos-despachos-storage] Error guardando meta:", e);
-    }
+    } catch {}
 
-    try {
-      window.dispatchEvent(
-        new CustomEvent(EVENT_PEDIDOS_DESPACHOS_UPDATED, {
-          detail: { metadata, timestamp: Date.now() },
-        })
-      );
-    } catch {
-      // Ignorar si no soporta CustomEvent
-    }
+    window.dispatchEvent(
+      new CustomEvent(EVENT_PEDIDOS_DESPACHOS_UPDATED, {
+        detail: { metadata, timestamp: Date.now() },
+      })
+    );
   }
 }
 
 /**
- * Obtiene los registros guardados
+ * Obtiene los registros guardados consultando directamente la base de datos de SUPABASE
  */
-export async function obtenerDatosPedidosDespachos(): Promise<RegistroPedidosDespachosHGI[] | null> {
+export async function obtenerDatosPedidosDespachos(): Promise<RegistroPedidosDespachosHGI[]> {
+  try {
+    let todosLosRegistros: any[] = [];
+    let offset = 0;
+    const limit = 1000;
+    let hayMas = true;
+
+    while (hayMas) {
+      const { data, error } = await supabase
+        .from("pedidos_despachos")
+        .select("*")
+        .range(offset, offset + limit - 1)
+        .order("id", { ascending: true });
+
+      if (error) {
+        console.warn("[pedidos-despachos-storage] Error consultando Supabase pedidos_despachos:", error);
+        break;
+      }
+
+      if (!data || data.length === 0) {
+        hayMas = false;
+      } else {
+        todosLosRegistros = todosLosRegistros.concat(data);
+        if (data.length < limit) {
+          hayMas = false;
+        } else {
+          offset += limit;
+        }
+      }
+    }
+
+    if (todosLosRegistros.length > 0) {
+      const mapeados: RegistroPedidosDespachosHGI[] = todosLosRegistros.map((row) => {
+        const anterior = Number(row.anterior) || 0;
+        const pedidoMes = Number(row.pedido_mes) || 0;
+        const totalPedido = Number(row.total_pedido) || anterior + pedidoMes;
+        const despachado = Number(row.despachado) || 0;
+        const cancelado = Number(row.cancelado) || 0;
+        const saldoPedido = Number(row.saldo_pedido) || 0;
+        const saldoInv = Number(row.saldo_inv) || 0;
+
+        return {
+          id: String(row.id),
+          transaccion: row.transaccion || "PEDIDO",
+          tercero: String(row.tercero || ""),
+          nombre: row.nombre || "",
+          vendedor: row.vendedor || "",
+          ciudad: row.ciudad || "",
+          fechas: row.fechas || "",
+          vence: row.vence || "",
+          documento: row.documento || "",
+          producto: row.producto || "",
+          descripcion: row.descripcion || "",
+          talla: row.talla || "",
+          color: row.color || "",
+          anterior,
+          pedidoMes,
+          totalPedido,
+          despachado,
+          cancelado,
+          saldoPedido,
+          saldoInv,
+          esPendiente: saldoPedido > 0,
+        };
+      });
+
+      cacheRegistros = mapeados;
+      return mapeados;
+    }
+  } catch (err) {
+    console.error("[pedidos-despachos-storage] Error general obteniendo datos de Supabase:", err);
+  }
+
   if (cacheRegistros) return cacheRegistros;
-  const data = await leerDeIDB<RegistroPedidosDespachosHGI[]>(STORAGE_KEY_DATA);
-  if (data) cacheRegistros = data;
-  return cacheRegistros;
+  return [];
 }
 
 /**
- * Obtiene la metadata de la última carga
+ * Obtiene la metadata de la última carga (desde memoria o Supabase)
  */
 export function obtenerMetadataPedidosDespachos(): MetadataCargaPedidosDespachos | null {
   if (cacheMeta) return cacheMeta;
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY_META);
-    if (raw) {
-      cacheMeta = JSON.parse(raw);
-    }
-  } catch {
-    return null;
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY_META);
+      if (raw) {
+        cacheMeta = JSON.parse(raw);
+        return cacheMeta;
+      }
+    } catch {}
   }
-  return cacheMeta;
+  return null;
 }
 
 /**
- * Verifica si hay datos cargados
+ * Obtiene la metadata asíncrona consultando cargas_pedidos_despachos en Supabase
+ */
+export async function obtenerMetadataPedidosDespachosAsync(): Promise<MetadataCargaPedidosDespachos | null> {
+  try {
+    const { data, error } = await supabase
+      .from("cargas_pedidos_despachos")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!error && data) {
+      const meta: MetadataCargaPedidosDespachos = {
+        fechaCarga: data.created_at,
+        nombreArchivo: data.archivo || "Reporte Oficial HGI",
+        totalRegistros: data.filas_insertadas || 0,
+        totalAnterior: 0,
+        totalPedidoMes: 0,
+        totalPedidos: Number(data.total_pedidos) || 0,
+        totalDespachado: Number(data.total_despachado) || 0,
+        totalCancelado: 0,
+        totalSaldoPedido: Number(data.total_saldo_pedido) || 0,
+        totalSaldoInv: 0,
+        nivelServicioPct:
+          Number(data.total_pedidos) > 0
+            ? (Number(data.total_despachado) / Number(data.total_pedidos)) * 100
+            : 100,
+        vendedoresCount: 0,
+        clientesCount: 0,
+        ciudadesCount: 0,
+      };
+      cacheMeta = meta;
+      return meta;
+    }
+  } catch (err) {
+    console.warn("[pedidos-despachos-storage] Error consultando cargas_pedidos_despachos:", err);
+  }
+
+  return obtenerMetadataPedidosDespachos();
+}
+
+/**
+ * Verifica si hay datos cargados en Supabase
+ */
+export async function verificarHayDatosEnSupabase(): Promise<boolean> {
+  try {
+    const { count, error } = await supabase
+      .from("pedidos_despachos")
+      .select("id", { count: "exact", head: true });
+
+    if (!error && typeof count === "number") {
+      return count > 0;
+    }
+  } catch {}
+  return hayDatosPedidosDespachos();
+}
+
+/**
+ * Verifica de forma síncrona si hay datos conocidos
  */
 export function hayDatosPedidosDespachos(): boolean {
+  if (cacheRegistros && cacheRegistros.length > 0) return true;
   return obtenerMetadataPedidosDespachos() !== null;
 }
 
 /**
- * Limpia los datos cargados
+ * Limpia los datos de pedidos_despachos en Supabase
  */
 export async function limpiarDatosPedidosDespachos(): Promise<void> {
   cacheRegistros = null;
   cacheMeta = null;
-  inicializado = true;
 
   try {
-    const db = await abrirIndexedDB();
-    const tx = db.transaction(IDB_STORE, "readwrite");
-    tx.objectStore(IDB_STORE).delete(STORAGE_KEY_DATA);
-  } catch {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(STORAGE_KEY_DATA);
-    }
+    await supabase.from("pedidos_despachos").delete().neq("id", 0);
+  } catch (e) {
+    console.warn("[pedidos-despachos-storage] Error limpiando Supabase:", e);
   }
 
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(STORAGE_KEY_META);
-    try {
-      window.dispatchEvent(
-        new CustomEvent(EVENT_PEDIDOS_DESPACHOS_UPDATED, {
-          detail: { metadata: null, timestamp: Date.now() },
-        })
-      );
-    } catch {}
+    window.localStorage.removeItem(STORAGE_KEY_DATA);
+    window.dispatchEvent(
+      new CustomEvent(EVENT_PEDIDOS_DESPACHOS_UPDATED, {
+        detail: { metadata: null, timestamp: Date.now() },
+      })
+    );
   }
 }
 
@@ -579,6 +713,26 @@ export function estructurarPedidosDespachosHGI(
     if (ciudadFiltro && !norm(r.ciudad).includes(ciudadFiltro)) continue;
     if (soloPendientes && !r.esPendiente) continue;
 
+    // Filtro por rango de fechas (si las fechas vienen informadas en formato YYYY-MM-DD o DD/MM/YYYY)
+    if (filtros.fechaDesde || filtros.fechaHasta) {
+      const fItem = r.fechas.trim();
+      if (fItem && fItem.length >= 8) {
+        // Normalizar a YYYY-MM-DD si es DD/MM/YYYY
+        let fechaIso = fItem;
+        if (fItem.includes("/")) {
+          const partes = fItem.split("/");
+          if (partes.length === 3) {
+            const d = partes[0].padStart(2, "0");
+            const m = partes[1].padStart(2, "0");
+            const y = partes[2].length === 2 ? `20${partes[2]}` : partes[2];
+            fechaIso = `${y}-${m}-${d}`;
+          }
+        }
+        if (filtros.fechaDesde && fechaIso < filtros.fechaDesde) continue;
+        if (filtros.fechaHasta && fechaIso > filtros.fechaHasta) continue;
+      }
+    }
+
     // Filtro de búsqueda textual multi-término
     if (queryTokens.length > 0) {
       const filaTexto = norm(
@@ -592,7 +746,6 @@ export function estructurarPedidosDespachosHGI(
   }
 
   // 2. Agrupación jerárquica: Vendedor -> Tercero -> Items
-  // vendedorKey -> Map<terceroKey, GrupoTerceroHGI>
   const vendedoresMap = new Map<string, Map<string, GrupoTerceroHGI>>();
 
   for (const r of registrosFiltrados) {
@@ -659,7 +812,6 @@ export function estructurarPedidosDespachosHGI(
     const tercerosList: GrupoTerceroHGI[] = [];
 
     for (const tObj of tMap.values()) {
-      // Ordenar items de cada cliente por mayor saldo pendiente o mayor pedido
       tObj.items.sort((a, b) => b.saldoPedido - a.saldoPedido || b.totalPedido - a.totalPedido);
 
       tercerosList.push(tObj);
@@ -678,7 +830,6 @@ export function estructurarPedidosDespachosHGI(
       }
     }
 
-    // Ordenar clientes por saldo pendiente descendente
     tercerosList.sort((a, b) => b.saldoPedido - a.saldoPedido || b.totalPedido - a.totalPedido);
 
     resultadoVendedores.push({
@@ -703,7 +854,6 @@ export function estructurarPedidosDespachosHGI(
     kpiSaldoInv += vInv;
   }
 
-  // Ordenar vendedores por mayor saldo pendiente o alfabéticamente
   resultadoVendedores.sort((a, b) => b.saldoPedido - a.saldoPedido || a.vendedor.localeCompare(b.vendedor));
 
   const nivelServicio = kpiTotalPedido > 0 ? (kpiDespachado / kpiTotalPedido) * 100 : 100;

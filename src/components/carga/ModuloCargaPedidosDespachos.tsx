@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
   FileSpreadsheet,
   UploadCloud,
@@ -24,14 +25,18 @@ import {
   Truck,
   Users,
   Check,
+  Copy,
+  ExternalLink,
+  Database,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   parsearArchivoPedidosDespachos,
   guardarDatosPedidosDespachos,
   obtenerMetadataPedidosDespachos,
+  obtenerMetadataPedidosDespachosAsync,
   limpiarDatosPedidosDespachos,
-  hayDatosPedidosDespachos,
+  verificarHayDatosEnSupabase,
   type RegistroPedidosDespachosHGI,
   type MetadataCargaPedidosDespachos,
 } from "@/lib/pedidos-despachos-storage";
@@ -58,6 +63,56 @@ const COLUMNAS_OFICIALES = [
   "Saldo Inv",
 ];
 
+const SQL_MIGRACION = `-- SQL para crear tabla pedidos_despachos en Supabase
+CREATE TABLE IF NOT EXISTS public.pedidos_despachos (
+  id BIGSERIAL PRIMARY KEY,
+  transaccion TEXT NOT NULL DEFAULT 'PEDIDO',
+  tercero TEXT NOT NULL DEFAULT '',
+  nombre TEXT NOT NULL DEFAULT '',
+  vendedor TEXT NOT NULL DEFAULT '',
+  ciudad TEXT NOT NULL DEFAULT '',
+  fechas TEXT DEFAULT '',
+  vence TEXT DEFAULT '',
+  documento TEXT DEFAULT '',
+  producto TEXT NOT NULL DEFAULT '',
+  descripcion TEXT DEFAULT '',
+  talla TEXT DEFAULT '',
+  color TEXT DEFAULT '',
+  anterior NUMERIC NOT NULL DEFAULT 0,
+  pedido_mes NUMERIC NOT NULL DEFAULT 0,
+  total_pedido NUMERIC NOT NULL DEFAULT 0,
+  despachado NUMERIC NOT NULL DEFAULT 0,
+  cancelado NUMERIC NOT NULL DEFAULT 0,
+  saldo_pedido NUMERIC NOT NULL DEFAULT 0,
+  saldo_inv NUMERIC NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.cargas_pedidos_despachos (
+  id BIGSERIAL PRIMARY KEY,
+  archivo TEXT NOT NULL,
+  filas_recibidas INTEGER NOT NULL DEFAULT 0,
+  filas_insertadas INTEGER NOT NULL DEFAULT 0,
+  total_pedidos NUMERIC NOT NULL DEFAULT 0,
+  total_despachado NUMERIC NOT NULL DEFAULT 0,
+  total_saldo_pedido NUMERIC NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pedidos_despachos_vendedor ON public.pedidos_despachos(vendedor);
+CREATE INDEX IF NOT EXISTS idx_pedidos_despachos_tercero ON public.pedidos_despachos(tercero);
+CREATE INDEX IF NOT EXISTS idx_pedidos_despachos_producto ON public.pedidos_despachos(producto);
+CREATE INDEX IF NOT EXISTS idx_pedidos_despachos_saldo ON public.pedidos_despachos(saldo_pedido);
+
+ALTER TABLE public.pedidos_despachos DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cargas_pedidos_despachos DISABLE ROW LEVEL SECURITY;
+
+GRANT ALL ON TABLE public.pedidos_despachos TO postgres, anon, authenticated, service_role;
+GRANT ALL ON TABLE public.cargas_pedidos_despachos TO postgres, anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+`;
+
 export function ModuloCargaPedidosDespachos({
   onCargaExitosa,
 }: {
@@ -67,20 +122,28 @@ export function ModuloCargaPedidosDespachos({
 
   const [archivo, setArchivo] = useState<File | null>(null);
   const [procesando, setProcesando] = useState(false);
+  const [progreso, setProgreso] = useState<{ pct: number; lote: number; total: number } | null>(null);
   const [registrosParseados, setRegistrosParseados] = useState<RegistroPedidosDespachosHGI[] | null>(null);
   const [metaParseada, setMetaParseada] = useState<MetadataCargaPedidosDespachos | null>(null);
   const [headersEncontrados, setHeadersEncontrados] = useState<string[]>([]);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const [errorSqlSupabase, setErrorSqlSupabase] = useState<string | null>(null);
   const [busquedaPreview, setBusquedaPreview] = useState("");
 
   const [metaActiva, setMetaActiva] = useState<MetadataCargaPedidosDespachos | null>(() =>
     obtenerMetadataPedidosDespachos()
   );
-  const [hayDatos, setHayDatos] = useState(() => hayDatosPedidosDespachos());
+  const [hayDatos, setHayDatos] = useState(false);
 
-  const refrescarEstado = () => {
-    setMetaActiva(obtenerMetadataPedidosDespachos());
-    setHayDatos(hayDatosPedidosDespachos());
+  const refrescarEstado = async () => {
+    try {
+      const hay = await verificarHayDatosEnSupabase();
+      setHayDatos(hay);
+      const meta = await obtenerMetadataPedidosDespachosAsync();
+      setMetaActiva(meta);
+    } catch {
+      setHayDatos(false);
+    }
   };
 
   useEffect(() => {
@@ -90,8 +153,10 @@ export function ModuloCargaPedidosDespachos({
   const alSeleccionarArchivo = async (file: File | null) => {
     setArchivo(file);
     setErrorCarga(null);
+    setErrorSqlSupabase(null);
     setRegistrosParseados(null);
     setMetaParseada(null);
+    setProgreso(null);
 
     if (!file) return;
 
@@ -120,39 +185,56 @@ export function ModuloCargaPedidosDespachos({
 
     try {
       setProcesando(true);
-      await guardarDatosPedidosDespachos(registrosParseados, metaParseada);
-      refrescarEstado();
+      setErrorSqlSupabase(null);
+
+      await guardarDatosPedidosDespachos(
+        registrosParseados,
+        metaParseada,
+        (porcentaje, loteActual, totalLotes) => {
+          setProgreso({ pct: porcentaje, lote: loteActual, total: totalLotes });
+        }
+      );
+
+      await refrescarEstado();
 
       queryClient.invalidateQueries({ queryKey: ["visor-pedidos-despachos"] });
-      queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-hgi"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-hgi-data"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-hay-datos"] });
 
-      toast.success("¡Reporte de Pedidos vs Despachos sincronizado con éxito!", {
-        description: `El visor ahora muestra los datos oficiales cargados (${metaParseada.totalRegistros.toLocaleString("es-CO")} filas).`,
+      toast.success("¡Reporte de Pedidos vs Despachos sincronizado con Supabase!", {
+        description: `Se guardaron ${metaParseada.totalRegistros.toLocaleString("es-CO")} filas en la base de datos oficial.`,
       });
 
       if (onCargaExitosa) {
         onCargaExitosa();
       }
     } catch (err: any) {
-      console.error("[ModuloCargaPedidosDespachos] Error guardando:", err);
-      toast.error("Error al guardar los datos cargados");
+      console.error("[ModuloCargaPedidosDespachos] Error guardando en Supabase:", err);
+      const msg = err?.message || "Error al guardar en Supabase";
+      setErrorCarga(msg);
+      if (msg.includes("does not exist") || msg.includes("42P01") || msg.includes("pedidos_despachos")) {
+        setErrorSqlSupabase(msg);
+      }
+      toast.error("Error al sincronizar con Supabase", { description: msg });
     } finally {
       setProcesando(false);
+      setProgreso(null);
     }
   };
 
   const limpiarCarga = async () => {
     try {
       await limpiarDatosPedidosDespachos();
-      refrescarEstado();
+      await refrescarEstado();
       setRegistrosParseados(null);
       setMetaParseada(null);
       setArchivo(null);
 
       queryClient.invalidateQueries({ queryKey: ["visor-pedidos-despachos"] });
-      queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-hgi"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-hgi-data"] });
+      queryClient.invalidateQueries({ queryKey: ["pedidos-despachos-hay-datos"] });
 
-      toast.info("Se han eliminado los datos cargados de Pedidos vs Despachos.");
+      toast.info("Se han eliminado los datos cargados de Pedidos vs Despachos en Supabase.");
     } catch (err) {
       console.error("[ModuloCargaPedidosDespachos] Error al limpiar:", err);
       toast.error("Error al limpiar los datos");
@@ -211,6 +293,11 @@ export function ModuloCargaPedidosDespachos({
     toast.success("Plantilla descargada en formato Excel (.xlsx)");
   };
 
+  const copiarSql = () => {
+    navigator.clipboard.writeText(SQL_MIGRACION);
+    toast.success("SQL copiado al portapapeles. Pégalo en Supabase SQL Editor.");
+  };
+
   const previewFiltrada = (registrosParseados || []).filter((r) => {
     if (!busquedaPreview.trim()) return true;
     const b = busquedaPreview.toLowerCase();
@@ -240,9 +327,13 @@ export function ModuloCargaPedidosDespachos({
               <Badge variant="outline" className="bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30 text-[10px] font-bold">
                 18 Columnas Oficiales
               </Badge>
+              <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold flex items-center gap-1">
+                <Database className="h-3 w-3" />
+                <span>Base de Datos Supabase</span>
+              </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-3xl">
-              Carga el archivo plano exportado directamente de HGI con los saldos de pedidos, despachos, cancelaciones e inventario. El sistema visualizará estos datos en la matriz jerárquica de <strong>Pedidos vs Despachos</strong>.
+              Carga el archivo plano exportado directamente de HGI con los saldos de pedidos, despachos, cancelaciones e inventario. Los datos se guardan de forma centralizada en la base de datos de <strong>Supabase</strong> para que todos los asesores y administradores consulten en tiempo real.
             </p>
           </div>
         </div>
@@ -258,6 +349,50 @@ export function ModuloCargaPedidosDespachos({
         </Button>
       </div>
 
+      {/* Alerta de Tabla no creada si aplica */}
+      {errorSqlSupabase && (
+        <Card className="border-amber-500/40 bg-amber-500/10">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <h4 className="font-bold text-sm text-foreground">
+                  La tabla `public.pedidos_despachos` aún no existe en Supabase
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Ejecuta el script SQL en el editor de Supabase para crear las tablas e índices oficiales.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={copiarSql}
+                className="text-xs font-semibold gap-1.5 bg-background shadow-2xs"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                <span>Copiar SQL de Creación</span>
+              </Button>
+              <a
+                href="https://supabase.com/dashboard/project/tdanxpksmfnwzdgzttau/sql/new"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="text-xs font-semibold gap-1.5 shadow-2xs"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Abrir Editor SQL de Supabase</span>
+                </Button>
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 2. Estado del Archivo Activo en el Sistema */}
       {hayDatos && metaActiva && (
         <Card className="border-emerald-500/30 bg-emerald-500/5">
@@ -269,7 +404,7 @@ export function ModuloCargaPedidosDespachos({
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-sm text-foreground">
-                    Archivo Activo en el Dashboard: {metaActiva.nombreArchivo}
+                    Datos Activos en Supabase: {metaActiva.nombreArchivo}
                   </span>
                   <Badge variant="secondary" className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-semibold border-emerald-500/30">
                     Sincronizado
@@ -344,7 +479,7 @@ export function ModuloCargaPedidosDespachos({
               {archivo ? `Archivo seleccionado: ${archivo.name}` : "Arrastra aquí tu archivo Excel (.xlsx, .xls) o CSV"}
             </p>
             <p className="text-xs text-muted-foreground">
-              Exportación del informe de Pedidos vs Despachos desde HGI ERP. Tamaño máximo: 50 MB.
+              Exportación del informe de Pedidos vs Despachos desde HGI ERP con las 18 columnas oficiales.
             </p>
           </div>
 
@@ -384,6 +519,17 @@ export function ModuloCargaPedidosDespachos({
             </label>
           </div>
 
+          {/* Barra de progreso de guardado en Supabase */}
+          {progreso && (
+            <div className="w-full max-w-md space-y-1.5 pt-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground font-mono">
+                <span>Guardando en Supabase: Lote {progreso.lote} de {progreso.total}</span>
+                <span className="font-bold text-foreground">{progreso.pct}%</span>
+              </div>
+              <Progress value={progreso.pct} className="h-2" />
+            </div>
+          )}
+
           {errorCarga && (
             <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2 max-w-lg mt-3">
               <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -404,7 +550,7 @@ export function ModuloCargaPedidosDespachos({
                   <span>Vista Previa de Validación ({metaParseada.totalRegistros.toLocaleString("es-CO")} registros)</span>
                 </CardTitle>
                 <CardDescription className="text-xs mt-0.5">
-                  Verifica que los totales coincidan con el reporte de HGI antes de aplicar.
+                  Verifica que los totales coincidan con el reporte de HGI antes de subir a la base de datos Supabase.
                 </CardDescription>
               </div>
 
@@ -429,7 +575,7 @@ export function ModuloCargaPedidosDespachos({
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 text-xs shadow-2xs"
                 >
                   <Check className="h-4 w-4" />
-                  <span>Aplicar y Sincronizar al Dashboard</span>
+                  <span>Subir a Base de Datos Supabase</span>
                 </Button>
               </div>
             </div>
@@ -518,41 +664,25 @@ export function ModuloCargaPedidosDespachos({
                 </thead>
                 <tbody className="divide-y divide-border/40 font-mono text-[11px]">
                   {previewFiltrada.slice(0, 15).map((r, idx) => (
-                    <tr key={r.id || idx} className="hover:bg-muted/20">
-                      <td className="py-1.5 px-2.5 font-sans whitespace-nowrap">{r.vendedor}</td>
-                      <td className="py-1.5 px-2.5 font-sans whitespace-nowrap">
-                        <span className="font-semibold">{r.nombre}</span>
-                        <span className="text-[10px] text-muted-foreground ml-1">({r.tercero})</span>
+                    <tr key={idx} className="hover:bg-muted/30">
+                      <td className="py-2 px-2.5 font-sans font-medium text-foreground">{r.vendedor}</td>
+                      <td className="py-2 px-2.5 font-sans">{r.nombre}</td>
+                      <td className="py-2 px-2.5 text-muted-foreground">{r.ciudad}</td>
+                      <td className="py-2 px-2.5">{r.documento}</td>
+                      <td className="py-2 px-2.5 font-bold text-primary">{r.producto}</td>
+                      <td className="py-2 px-2.5 text-muted-foreground">{r.talla} / {r.color}</td>
+                      <td className="py-2 px-2 text-right">{r.anterior}</td>
+                      <td className="py-2 px-2 text-right text-purple-600 dark:text-purple-400">{r.pedidoMes}</td>
+                      <td className="py-2 px-2 text-right text-blue-600 dark:text-blue-400">{r.despachado}</td>
+                      <td className="py-2 px-2 text-right text-rose-600 dark:text-rose-400">{r.cancelado}</td>
+                      <td className={`py-2 px-2 text-right font-bold ${
+                        r.saldoPedido > 0
+                          ? "text-amber-700 dark:text-amber-300 bg-amber-500/10"
+                          : "text-muted-foreground"
+                      }`}>
+                        {r.saldoPedido}
                       </td>
-                      <td className="py-1.5 px-2.5 font-sans text-muted-foreground whitespace-nowrap">{r.ciudad}</td>
-                      <td className="py-1.5 px-2.5 text-muted-foreground whitespace-nowrap">{r.documento}</td>
-                      <td className="py-1.5 px-2.5 font-sans whitespace-nowrap">
-                        <span className="font-bold text-primary">{r.producto}</span>
-                        {r.descripcion && (
-                          <span className="text-[10px] text-muted-foreground ml-1 truncate max-w-[140px] inline-block align-bottom">
-                            ({r.descripcion})
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-1.5 px-2.5 text-muted-foreground whitespace-nowrap">
-                        {r.talla} / {r.color}
-                      </td>
-                      <td className="py-1.5 px-2 text-right">{r.anterior || 0}</td>
-                      <td className="py-1.5 px-2 text-right text-purple-600 dark:text-purple-400 font-bold">
-                        {r.pedidoMes || 0}
-                      </td>
-                      <td className="py-1.5 px-2 text-right text-blue-600 dark:text-blue-400">{r.despachado || 0}</td>
-                      <td className="py-1.5 px-2 text-right text-rose-600 dark:text-rose-400">{r.cancelado || 0}</td>
-                      <td
-                        className={`py-1.5 px-2 text-right font-bold ${
-                          r.saldoPedido > 0
-                            ? "text-amber-700 dark:text-amber-300 bg-amber-500/10 font-bold"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {r.saldoPedido || 0}
-                      </td>
-                      <td className="py-1.5 px-2 text-right text-muted-foreground">{r.saldoInv || 0}</td>
+                      <td className="py-2 px-2 text-right text-muted-foreground">{r.saldoInv}</td>
                     </tr>
                   ))}
                 </tbody>

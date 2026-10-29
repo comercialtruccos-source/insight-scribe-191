@@ -3,13 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 import {
   obtenerDatosPedidosDespachos,
   obtenerMetadataPedidosDespachos,
+  obtenerMetadataPedidosDespachosAsync,
   estructurarPedidosDespachosHGI,
   type RegistroPedidosDespachosHGI,
   type MetadataCargaPedidosDespachos,
   type GrupoVendedorHGI,
   type GrupoTerceroHGI,
 } from "@/lib/pedidos-despachos-storage";
-import { cn, formatoHGI } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { cn, formatoHGI, formatoCOPFull } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +26,7 @@ import {
   Package,
   Truck,
   User,
+  Users,
   Building2,
   MapPin,
   ChevronDown,
@@ -34,6 +37,14 @@ import {
   FileCheck2,
   Ban,
   Boxes,
+  Calendar,
+  Save,
+  Palette,
+  Scissors,
+  Plus,
+  Clock,
+  Tag,
+  Layers,
 } from "lucide-react";
 import {
   BarChart,
@@ -50,12 +61,24 @@ interface VisorPedidosDespachosHGIProps {
   onAbrirCarga?: () => void;
   vendedorIdFiltro?: string | number | "todos";
   terceroIdFiltro?: string | number | "todos";
+  vendedorIdsPermitidos?: number[];
+  esAdmin?: boolean;
+  anioGlobal?: string;
+  mesGlobal?: string;
+  fechaDesdeGlobal?: string;
+  fechaHastaGlobal?: string;
 }
 
 export function VisorPedidosDespachosHGI({
   onAbrirCarga,
   vendedorIdFiltro = "todos",
   terceroIdFiltro = "todos",
+  vendedorIdsPermitidos,
+  esAdmin = false,
+  anioGlobal,
+  mesGlobal,
+  fechaDesdeGlobal,
+  fechaHastaGlobal,
 }: VisorPedidosDespachosHGIProps) {
   const [modoVista, setModoVista] = useState<"datos" | "grafico" | "ambos">("datos");
   const [soloPendientes, setSoloPendientes] = useState(true);
@@ -66,20 +89,82 @@ export function VisorPedidosDespachosHGI({
   const [vistaMovil, setVistaMovil] = useState<"tarjetas" | "tabla">("tarjetas");
   const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
 
-  // Cargar datos persistidos
+  // Fechas estilo visor HGI
+  const [fechaDesde, setFechaDesde] = useState(() => {
+    if (fechaDesdeGlobal) return fechaDesdeGlobal;
+    const ahora = new Date();
+    const y = anioGlobal ? parseInt(anioGlobal, 10) || ahora.getFullYear() : ahora.getFullYear();
+    const m = mesGlobal && mesGlobal !== "todos" ? String(parseInt(mesGlobal, 10)).padStart(2, "0") : String(ahora.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}-01`;
+  });
+
+  const [fechaHasta, setFechaHasta] = useState(() => {
+    if (fechaHastaGlobal) return fechaHastaGlobal;
+    const ahora = new Date();
+    const y = anioGlobal ? parseInt(anioGlobal, 10) || ahora.getFullYear() : ahora.getFullYear();
+    const m = mesGlobal && mesGlobal !== "todos" ? parseInt(mesGlobal, 10) : ahora.getMonth() + 1;
+    const ultimoDia = new Date(y, m, 0).getDate();
+    return `${y}-${String(m).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+  });
+
+  // Opciones de configuración de tabla estilo visor HGI
+  const [mostrarSubtotalesColumna, setMostrarSubtotalesColumna] = useState(true);
+  const [mostrarTotalesColumna, setMostrarTotalesColumna] = useState(true);
+  const [mostrarSubtotalesFila, setMostrarSubtotalesFila] = useState(true);
+  const [mostrarTotalesFila, setMostrarTotalesFila] = useState(true);
+
+  // Cargar catálogo de vendedores de dim_vendedor para mapear IDs si es necesario
+  const { data: dimVendedores } = useQuery<{ id: number; nombre: string }[]>({
+    queryKey: ["visor-hgi-dim-vendedores"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("dim_vendedor")
+        .select("id, nombre")
+        .not("nombre", "is", null);
+      return (data || []).map((v) => ({ id: Number(v.id), nombre: String(v.nombre) }));
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+
+  // Sincronizar vendedor seleccionado si el usuario es un vendedor específico
+  useEffect(() => {
+    if (vendedorIdFiltro && vendedorIdFiltro !== "todos") {
+      if (typeof vendedorIdFiltro === "number" && dimVendedores) {
+        const match = dimVendedores.find((v) => v.id === vendedorIdFiltro);
+        if (match) {
+          setVendedorSeleccionado(match.nombre);
+          return;
+        }
+      }
+      setVendedorSeleccionado(String(vendedorIdFiltro));
+    } else {
+      setVendedorSeleccionado("todos");
+    }
+  }, [vendedorIdFiltro, dimVendedores]);
+
+  // Cargar datos oficiales persistidos directamente desde SUPABASE
   const {
     data: registros = [],
     isLoading,
     refetch,
+    isFetching,
   } = useQuery<RegistroPedidosDespachosHGI[]>({
     queryKey: ["pedidos-despachos-hgi-data"],
     queryFn: async () => {
       const data = await obtenerDatosPedidosDespachos();
       return data || [];
     },
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 
-  const metadata = useMemo(() => obtenerMetadataPedidosDespachos(), [registros]);
+  // Cargar metadata de la carga
+  const { data: metadataAsync } = useQuery<MetadataCargaPedidosDespachos | null>({
+    queryKey: ["pedidos-despachos-metadata"],
+    queryFn: () => obtenerMetadataPedidosDespachosAsync(),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const metadata = metadataAsync || obtenerMetadataPedidosDespachos();
 
   // Estructurar con filtros
   const agrupado = useMemo(() => {
@@ -89,8 +174,19 @@ export function VisorPedidosDespachosHGI({
       ciudad: ciudadSeleccionada,
       busqueda,
       soloPendientes,
+      fechaDesde,
+      fechaHasta,
     });
-  }, [registros, vendedorSeleccionado, terceroSeleccionado, ciudadSeleccionada, busqueda, soloPendientes]);
+  }, [
+    registros,
+    vendedorSeleccionado,
+    terceroSeleccionado,
+    ciudadSeleccionada,
+    busqueda,
+    soloPendientes,
+    fechaDesde,
+    fechaHasta,
+  ]);
 
   const { vendedores, kpis, catalogos } = agrupado;
 
@@ -155,6 +251,7 @@ export function VisorPedidosDespachosHGI({
     ];
 
     const filas: string[][] = [];
+
     for (const v of vendedores) {
       for (const t of v.terceros) {
         for (const it of t.items) {
@@ -162,7 +259,7 @@ export function VisorPedidosDespachosHGI({
             v.vendedor,
             t.tercero,
             t.nombre,
-            it.ciudad,
+            t.ciudad,
             it.documento,
             it.fechas,
             it.vence,
@@ -221,151 +318,316 @@ export function VisorPedidosDespachosHGI({
   }, [vendedores]);
 
   return (
-    <div className="space-y-4">
-      {/* 1. Barra de Control y Fuente de Datos */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-card border border-border rounded-xl shadow-2xs">
-        <div className="flex items-center gap-2.5">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 font-bold shrink-0">
-            <FileSpreadsheet className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-foreground font-display">
-                Reporte Oficial: Pedidos vs. Despachos (HGI)
-              </span>
-              <Badge variant="outline" className="bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30 text-[10px] font-bold">
-                18 Columnas Oficiales
-              </Badge>
+    <div className="space-y-4 font-sans text-xs">
+      {/* 1. Barra de Ventana / Encabezado de Empresa (Estilo HGI Visor de Datos) */}
+      <div className="bg-muted/40 border border-border/80 rounded-xl p-3 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 pb-2.5 border-b border-border/60">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background rounded-lg border border-border text-[11px] font-semibold text-foreground">
+              <Building2 className="h-3.5 w-3.5 text-primary" />
+              <span>Empresa:</span>
+              <span className="font-bold text-primary">TRUCCO S FASHION S.A.S.</span>
             </div>
+
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background rounded-lg border border-border text-[11px] text-muted-foreground">
+              <Clock className="h-3.5 w-3.5 text-amber-500" />
+              <span>Periodo:</span>
+              <span className="font-semibold text-foreground">{fechaDesde} al {fechaHasta}</span>
+              <span className="text-muted-foreground/50">|</span>
+              <span>Modo:</span>
+              <span className="font-semibold text-foreground">HGI OFICIAL</span>
+            </div>
+
             {metadata && (
-              <p className="text-[11px] text-muted-foreground font-mono">
-                Archivo: <span className="font-bold text-foreground">{metadata.nombreArchivo}</span> • Cargado: {new Date(metadata.fechaCarga).toLocaleDateString("es-CO")} • {metadata.totalRegistros.toLocaleString("es-CO")} filas
-              </p>
+              <Badge variant="outline" className="text-[11px] font-mono py-1 px-2.5 border-teal-500/30 bg-teal-500/5 text-teal-700 dark:text-teal-300">
+                {metadata.nombreArchivo} • {metadata.totalRegistros.toLocaleString("es-CO")} registros
+              </Badge>
             )}
           </div>
-        </div>
 
-        {onAbrirCarga && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onAbrirCarga}
-            className="text-xs font-semibold gap-1.5 shrink-0 border-teal-500/40 hover:bg-teal-500/10 text-teal-700 dark:text-teal-300"
-          >
-            <UploadCloud className="h-3.5 w-3.5" />
-            <span>Cargar / Actualizar Archivo HGI</span>
-          </Button>
-        )}
-      </div>
-
-      {/* 2. Filtros Dinámicos */}
-      <Card className="p-3 border border-border">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-          {/* Selector de Asesor */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <User className="h-3 w-3 text-primary" />
-              <span>Asesor Comercial ({catalogos.vendedores.length})</span>
-            </label>
-            <select
-              value={vendedorSeleccionado}
-              onChange={(e) => setVendedorSeleccionado(e.target.value)}
-              className="w-full h-8 text-xs rounded-md border border-input bg-background px-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="todos">Todos los Asesores</option>
-              {catalogos.vendedores.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Selector de Cliente */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <Building2 className="h-3 w-3 text-indigo-500" />
-              <span>Cliente ({catalogos.clientes.length})</span>
-            </label>
-            <select
-              value={terceroSeleccionado}
-              onChange={(e) => setTerceroSeleccionado(e.target.value)}
-              className="w-full h-8 text-xs rounded-md border border-input bg-background px-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="todos">Todos los Clientes</option>
-              {catalogos.clientes.map((c) => (
-                <option key={c.tercero} value={c.tercero}>
-                  {c.nombre} ({c.tercero})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Selector de Ciudad */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <MapPin className="h-3 w-3 text-emerald-500" />
-              <span>Ciudad ({catalogos.ciudades.length})</span>
-            </label>
-            <select
-              value={ciudadSeleccionada}
-              onChange={(e) => setCiudadSeleccionada(e.target.value)}
-              className="w-full h-8 text-xs rounded-md border border-input bg-background px-2.5 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="todas">Todas las Ciudades</option>
-              {catalogos.ciudades.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Selector Modo Vista (Datos vs Gráfico) */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-              <BarChart3 className="h-3 w-3 text-purple-500" />
-              <span>Tipo de Visualización</span>
-            </label>
-            <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-md border border-border">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-muted-foreground">Vista:</span>
+            <div className="inline-flex rounded-lg border border-border bg-background p-0.5">
               <button
                 type="button"
                 onClick={() => setModoVista("datos")}
-                className={cn(
-                  "flex-1 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer",
-                  modoVista === "datos" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground"
-                )}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  modoVista === "datos"
+                    ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                Tabla
+                Datos
               </button>
               <button
                 type="button"
                 onClick={() => setModoVista("grafico")}
-                className={cn(
-                  "flex-1 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer",
-                  modoVista === "grafico" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground"
-                )}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  modoVista === "grafico"
+                    ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
                 Gráfico
               </button>
               <button
                 type="button"
                 onClick={() => setModoVista("ambos")}
-                className={cn(
-                  "flex-1 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer",
-                  modoVista === "ambos" ? "bg-primary text-primary-foreground shadow-2xs" : "text-muted-foreground"
-                )}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                  modoVista === "ambos"
+                    ? "bg-primary text-primary-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
                 Ambos
               </button>
             </div>
           </div>
         </div>
-      </Card>
 
-      {/* 3. Barra de Búsqueda y Botones de Acción */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20 p-2.5 rounded-xl border border-border">
-        {/* Selector de Modo: Solo Pendientes vs Todo el Histórico */}
+        {/* 2. Barra de Control / Filtros de Plantilla HGI */}
+        <div className="pt-2.5 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+          {/* Consulta & Plantilla & Asesor & Cliente */}
+          <div className="md:col-span-5 flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 min-w-[70px]">
+              <span className="text-muted-foreground font-medium">Consulta:</span>
+              <span className="font-bold text-foreground">Documentos</span>
+            </div>
+            <div className="flex items-center gap-1 px-2 py-1 bg-background border rounded-md">
+              <span className="text-muted-foreground text-[10.5px]">Plantilla:</span>
+              <span className="font-bold text-primary font-mono text-[11px]">PEDIDOSVS.DESPACHOS</span>
+              <Save className="h-3 w-3 text-muted-foreground ml-1" />
+            </div>
+
+            {/* Selector de Asesor Comercial */}
+            {esAdmin ? (
+              <div className="flex items-center gap-1 px-2 py-1 bg-background border rounded-md">
+                <User className="h-3 w-3 text-primary shrink-0" />
+                <span className="text-muted-foreground text-[10.5px]">Asesor:</span>
+                <select
+                  value={vendedorSeleccionado}
+                  onChange={(e) => setVendedorSeleccionado(e.target.value)}
+                  className="bg-transparent border-0 text-[11px] font-bold text-foreground focus:outline-hidden cursor-pointer max-w-[170px] truncate"
+                >
+                  <option value="todos">Todos los Asesores ({catalogos.vendedores.length})</option>
+                  {catalogos.vendedores.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 px-2 py-1 bg-background border rounded-md text-[11px]">
+                <User className="h-3 w-3 text-primary shrink-0" />
+                <span className="text-muted-foreground text-[10.5px]">Asesor:</span>
+                <span className="font-bold text-foreground truncate max-w-[170px]">
+                  {vendedorSeleccionado !== "todos" ? vendedorSeleccionado : "Mi Cartera"}
+                </span>
+              </div>
+            )}
+
+            {/* Selector de Cliente / Comprador (Tercero) */}
+            <div className="flex items-center gap-1 px-2 py-1 bg-background border rounded-md">
+              <Users className="h-3 w-3 text-indigo-500 shrink-0" />
+              <span className="text-muted-foreground text-[10.5px]">Cliente:</span>
+              <select
+                value={terceroSeleccionado}
+                onChange={(e) => setTerceroSeleccionado(e.target.value)}
+                className="bg-transparent border-0 text-[11px] font-bold text-foreground focus:outline-hidden cursor-pointer max-w-[190px] truncate"
+              >
+                <option value="todos">Todos los Clientes ({catalogos.clientes.length})</option>
+                {catalogos.clientes.map((c) => (
+                  <option key={c.tercero} value={c.tercero}>
+                    {c.nombre} ({c.tercero})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Rango de Fechas y Accesos Rápidos */}
+          <div className="md:col-span-4 flex flex-col items-center gap-1.5 justify-center w-full">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full justify-center">
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 bg-background border rounded-lg px-2 py-1 w-full sm:w-auto">
+                <div className="flex items-center gap-1 flex-1 min-w-[120px]">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <input
+                    type="date"
+                    value={fechaDesde}
+                    onChange={(e) => setFechaDesde(e.target.value)}
+                    className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden w-full"
+                  />
+                </div>
+                <span className="text-muted-foreground font-semibold text-xs px-0.5">a</span>
+                <div className="flex items-center gap-1 flex-1 min-w-[120px]">
+                  <input
+                    type="date"
+                    value={fechaHasta}
+                    onChange={(e) => setFechaHasta(e.target.value)}
+                    className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden w-full"
+                  />
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                className="h-8 px-2.5 shrink-0"
+                title="Refrescar datos oficiales"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
+              </Button>
+            </div>
+
+            {/* Botones de Periodo Rápido */}
+            <div className="flex items-center gap-1 text-[10px] flex-wrap justify-center">
+              <span className="text-muted-foreground font-medium">Periodos:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  const y = now.getFullYear();
+                  const m = String(now.getMonth() + 1).padStart(2, "0");
+                  const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+                  setFechaDesde(`${y}-${m}-01`);
+                  setFechaHasta(`${y}-${m}-${String(lastDay).padStart(2, "0")}`);
+                }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  (() => {
+                    const now = new Date();
+                    const y = now.getFullYear();
+                    const m = String(now.getMonth() + 1).padStart(2, "0");
+                    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+                    return (
+                      fechaDesde === `${y}-${m}-01` &&
+                      fechaHasta === `${y}-${m}-${String(lastDay).padStart(2, "0")}`
+                    );
+                  })()
+                    ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Mes Actual
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2025-12-31"); }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  fechaDesde === "2025-01-01" && fechaHasta === "2025-12-31"
+                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                2025
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFechaDesde("2026-01-01"); setFechaHasta("2026-12-31"); }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  fechaDesde === "2026-01-01" && fechaHasta === "2026-12-31"
+                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                2026
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2026-12-31"); }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  fechaDesde === "2025-01-01" && fechaHasta === "2026-12-31"
+                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Todo
+              </button>
+            </div>
+          </div>
+
+          {/* Opciones de Totales y Subtotales (Checkboxes HGI) */}
+          <div className="md:col-span-3 flex items-center justify-end gap-3 flex-wrap text-[10.5px]">
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={mostrarSubtotalesColumna}
+                onChange={(e) => setMostrarSubtotalesColumna(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-0"
+              />
+              <span>SubTotales Col.</span>
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={mostrarTotalesColumna}
+                onChange={(e) => setMostrarTotalesColumna(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-0"
+              />
+              <span>Totales Col.</span>
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={mostrarSubtotalesFila}
+                onChange={(e) => setMostrarSubtotalesFila(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-0"
+              />
+              <span>SubTotales Fila</span>
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={mostrarTotalesFila}
+                onChange={(e) => setMostrarTotalesFila(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-0"
+              />
+              <span>Totales Fila</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Barra de Dimensiones y Métricas (Pills HGI) */}
+      <div className="flex items-center justify-between gap-2 flex-wrap py-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10.5px] uppercase font-bold text-muted-foreground mr-1">Dimensiones:</span>
+          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-[10.5px] font-medium border text-foreground">
+            <Package className="h-3 w-3 text-cyan-500" />
+            <span>Producto</span>
+          </div>
+          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-[10.5px] font-medium border text-foreground">
+            <Palette className="h-3 w-3 text-pink-500" />
+            <span>Color</span>
+          </div>
+          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-[10.5px] font-medium border text-foreground">
+            <Scissors className="h-3 w-3 text-purple-500" />
+            <span>TallaP</span>
+          </div>
+          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-[10.5px] font-medium border text-foreground">
+            <Tag className="h-3 w-3 text-emerald-500" />
+            <span>Linea</span>
+          </div>
+          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-[10.5px] font-medium border text-foreground">
+            <Layers className="h-3 w-3 text-blue-500" />
+            <span>COLECCION</span>
+          </div>
+
+          <span className="text-muted-foreground/40 mx-1">|</span>
+
+          <span className="text-[10.5px] uppercase font-bold text-muted-foreground mr-1">Métricas:</span>
+          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[10.5px] font-bold border border-emerald-500/30">
+            <Plus className="h-3 w-3" />
+            <span>Cantidad</span>
+          </div>
+          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[10.5px] font-bold border border-emerald-500/30">
+            <Plus className="h-3 w-3" />
+            <span>Saldo Unds</span>
+          </div>
+        </div>
+
+        {/* Acciones Rápidas: Solo Pendientes vs Histórico */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 shadow-2xs">
             <button
@@ -412,119 +674,101 @@ export function VisorPedidosDespachosHGI({
             Exportar CSV
           </Button>
         </div>
-
-        {/* Buscador de texto en vivo */}
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Buscar asesor, cliente, doc, ref, talla..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="pl-8 pr-7 h-8 text-xs"
-          />
-          {busqueda && (
-            <button
-              type="button"
-              onClick={() => setBusqueda("")}
-              className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
       </div>
 
-      {busqueda && (
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-[11px] font-mono py-1 px-2.5 border">
-            {estadisticasBusqueda.totalTerceros} {estadisticasBusqueda.totalTerceros === 1 ? "cliente" : "clientes"} • {estadisticasBusqueda.totalItems} {estadisticasBusqueda.totalItems === 1 ? "referencia" : "referencias"}
-          </Badge>
-        </div>
-      )}
-
-      {/* 4. Tarjetas KPI Ejecutivas */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+      {/* 4. Tarjetas KPI de Resumen Ejecutivo de Despachos vs Pedidos */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
         <Card className="p-3 border-l-4 border-l-purple-500">
           <div className="flex items-center justify-between text-muted-foreground mb-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Total Pedidos</span>
-            <Package className="h-3.5 w-3.5 text-purple-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Total Pedidos</span>
+            <Package className="h-4 w-4 text-purple-500" />
           </div>
           <div className="text-base sm:text-lg font-bold font-mono text-foreground">
             {kpis.totalPedidos.toLocaleString("es-CO")} unds
           </div>
-          <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+          <div className="text-[11px] text-muted-foreground font-mono truncate">
             Ant: {kpis.totalAnterior.toLocaleString("es-CO")} • Mes: {kpis.totalPedidoMes.toLocaleString("es-CO")}
           </div>
         </Card>
 
         <Card className="p-3 border-l-4 border-l-blue-500">
           <div className="flex items-center justify-between text-muted-foreground mb-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Despachados</span>
-            <Truck className="h-3.5 w-3.5 text-blue-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Salidas Despacho</span>
+            <Truck className="h-4 w-4 text-blue-500" />
           </div>
-          <div className="text-base sm:text-lg font-bold font-mono text-blue-600 dark:text-blue-400">
+          <div className="text-base sm:text-lg font-bold font-mono text-foreground">
             {kpis.totalDespachado.toLocaleString("es-CO")} unds
           </div>
-          <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-            Fulfillment bodega
+          <div className="text-[11px] text-muted-foreground font-mono truncate">
+            Cancelados: {kpis.totalCancelado.toLocaleString("es-CO")} unds
           </div>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-amber-500">
-          <div className="flex items-center justify-between text-muted-foreground mb-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Saldo Pendiente</span>
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+        <Card className="p-3 border-l-4 border-l-amber-500 bg-amber-500/5">
+          <div className="flex items-center justify-between text-amber-700 dark:text-amber-400 mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Pendiente Despacho</span>
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
           </div>
-          <div className="text-base sm:text-lg font-bold font-mono text-amber-600 dark:text-amber-400">
+          <div className="text-base sm:text-lg font-extrabold font-mono text-amber-700 dark:text-amber-300">
             {kpis.totalSaldoPedido.toLocaleString("es-CO")} unds
           </div>
-          <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-            Por entregar
-          </div>
-        </Card>
-
-        <Card className="p-3 border-l-4 border-l-rose-500">
-          <div className="flex items-center justify-between text-muted-foreground mb-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Cancelados</span>
-            <Ban className="h-3.5 w-3.5 text-rose-500" />
-          </div>
-          <div className="text-base sm:text-lg font-bold font-mono text-rose-600 dark:text-rose-400">
-            {kpis.totalCancelado.toLocaleString("es-CO")} unds
-          </div>
-          <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-            Anulados / devoluciones
+          <div className="text-[11px] text-amber-600/80 dark:text-amber-400/80 font-mono font-medium truncate">
+            Stock Bodega: {kpis.totalSaldoInv.toLocaleString("es-CO")} unds
           </div>
         </Card>
 
         <Card className="p-3 border-l-4 border-l-emerald-500">
           <div className="flex items-center justify-between text-muted-foreground mb-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Nivel Servicio</span>
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Nivel de Servicio</span>
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
           </div>
           <div className="text-base sm:text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">
-            {kpis.nivelServicioPct.toFixed(1)}%
+            {Number(kpis.nivelServicioPct || 0).toFixed(2)}%
           </div>
-          <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-            Cumplimiento despachos
-          </div>
+          <div className="text-[10px] text-muted-foreground">Unidades entregadas vs pedidas</div>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-indigo-500">
+        <Card className="p-3 border-l-4 border-l-indigo-500 col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between text-muted-foreground mb-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Clientes Pend.</span>
-            <Users className="h-3.5 w-3.5 text-indigo-500" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider">Clientes Pendientes</span>
+            <Users className="h-4 w-4 text-indigo-500" />
           </div>
-          <div className="text-base sm:text-lg font-bold font-mono text-indigo-600 dark:text-indigo-400">
+          <div className="text-base sm:text-lg font-bold font-mono text-foreground">
             {kpis.clientesConPendientesCount} <span className="text-xs font-normal text-muted-foreground">/ {kpis.clientesCount}</span>
           </div>
-          <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-            Stock Bodega: {kpis.totalSaldoInv.toLocaleString("es-CO")}
-          </div>
+          <div className="text-[10px] text-muted-foreground">Clientes con saldo de entrega</div>
         </Card>
       </div>
 
-      {/* 5. Vista de Gráfico */}
+      {/* 5. Buscador Multi-criterio */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por vendedor, cliente, NIT, ciudad, documento, referencia, descripción o talla..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="pl-8 text-xs font-medium"
+          />
+          {busqueda && (
+            <button
+              type="button"
+              onClick={() => setBusqueda("")}
+              className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {busqueda && (
+          <Badge variant="outline" className="text-xs font-mono h-8 px-3 shrink-0">
+            {estadisticasBusqueda.totalTerceros} clientes • {estadisticasBusqueda.totalItems} referencias
+          </Badge>
+        )}
+      </div>
+
+      {/* 6. Vista de Gráfico (si está activo) */}
       {(modoVista === "grafico" || modoVista === "ambos") && (
         <Card className="p-4">
           <CardHeader className="p-0 pb-3">
@@ -538,7 +782,7 @@ export function VisorPedidosDespachosHGI({
           </CardHeader>
           <CardContent className="p-0">
             {datosGrafico.length === 0 ? (
-              <div className="h-[260px] flex items-center justify-center text-muted-foreground text-xs">
+              <div className="h-[240px] flex items-center justify-center text-muted-foreground text-xs">
                 No hay datos disponibles para graficar con los filtros aplicados.
               </div>
             ) : (
@@ -561,7 +805,7 @@ export function VisorPedidosDespachosHGI({
         </Card>
       )}
 
-      {/* 6. Matriz Pivot Jerárquica: Visor de Datos Estilo HGI */}
+      {/* 7. Matriz Pivot Jerárquica: Visor de Datos Estilo HGI */}
       {(modoVista === "datos" || modoVista === "ambos") && (
         <Card className="overflow-hidden border border-border">
           {/* Selector móvil de vista */}
@@ -693,7 +937,7 @@ export function VisorPedidosDespachosHGI({
             {isLoading ? (
               <div className="py-16 text-center text-sm text-muted-foreground flex flex-col items-center justify-center gap-2">
                 <RefreshCw className="h-6 w-6 animate-spin text-primary" />
-                <span>Cargando matriz de pedidos vs. despachos...</span>
+                <span>Cargando matriz oficial de pedidos vs. despachos desde Supabase...</span>
               </div>
             ) : vendedores.length === 0 ? (
               <div className="py-16 text-center text-sm text-muted-foreground">
