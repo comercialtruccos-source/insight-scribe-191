@@ -58,6 +58,7 @@ import {
   Layers,
   Factory,
   Truck,
+  PackageCheck,
 } from "lucide-react";
 import {
   BarChart,
@@ -83,6 +84,7 @@ interface VisorPedidosDespachosHGIProps {
   mesGlobal?: string;
   fechaDesdeGlobal?: string;
   fechaHastaGlobal?: string;
+  filtroDisponibilidadInicial?: "disponibles" | "pendientes" | "sin_stock" | "todos";
 }
 
 export function VisorPedidosDespachosHGI({
@@ -98,9 +100,14 @@ export function VisorPedidosDespachosHGI({
   mesGlobal,
   fechaDesdeGlobal,
   fechaHastaGlobal,
+  filtroDisponibilidadInicial = "disponibles",
 }: VisorPedidosDespachosHGIProps) {
   const [modoVista, setModoVista] = useState<"datos" | "grafico" | "ambos">("datos");
-  const [soloPendientes, setSoloPendientes] = useState(true);
+  // Filtro de Disponibilidad de Inventario: "disponibles" (listos para despacho con stock), "pendientes" (todos los pedidos pendientes), "sin_stock" (déficit) o "todos" (histórico)
+  const [filtroDisponibilidad, setFiltroDisponibilidad] = useState<
+    "disponibles" | "pendientes" | "sin_stock" | "todos"
+  >(filtroDisponibilidadInicial);
+  const soloPendientes = filtroDisponibilidad !== "todos";
   const [busqueda, setBusqueda] = useState("");
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState<string>("todos");
   const [terceroSeleccionado, setTerceroSeleccionado] = useState<string>("todos");
@@ -310,6 +317,66 @@ export function VisorPedidosDespachosHGI({
     return obtenerRangoFechasCorreria(correriaActivaClave, anioCorreria);
   }, [filtrarPorFecha, correriaActivaClave, anioCorreria]);
 
+  // Estadísticas globales de disponibilidad de inventario para el ámbito actual del usuario/vendedor
+  const statsDisponibilidad = useMemo(() => {
+    let pendientesUds = 0;
+    let disponiblesUds = 0;
+    let sinStockUds = 0;
+    let totalUds = 0;
+    const pedidosConStockSet = new Set<string>();
+    const clientesConStockSet = new Set<string>();
+
+    if (!registros || registros.length === 0) {
+      return {
+        pendientesUds: 0,
+        disponiblesUds: 0,
+        sinStockUds: 0,
+        totalUds: 0,
+        pedidosConStockCount: 0,
+        clientesConStockCount: 0,
+      };
+    }
+
+    const permitidosNorm = vendedorNombresPermitidos
+      ? vendedorNombresPermitidos.map((n) => n.toLowerCase().trim()).filter(Boolean)
+      : null;
+
+    for (const r of registros) {
+      if (permitidosNorm !== null) {
+        if (permitidosNorm.length === 0 || !r.vendedor) continue;
+        const vNorm = r.vendedor.toLowerCase().trim();
+        const coincide = permitidosNorm.some(
+          (p) => vNorm === p || (p.length >= 3 && vNorm.includes(p)) || (vNorm.length >= 3 && p.includes(vNorm))
+        );
+        if (!coincide) continue;
+      }
+
+      totalUds += r.totalPedido || 0;
+      const sPed = r.saldoPedido || 0;
+      const sInv = r.saldoInv || 0;
+
+      if (sPed > 0) {
+        pendientesUds += sPed;
+        if (sInv > 0) {
+          disponiblesUds += Math.min(sPed, sInv);
+          if (r.documento) pedidosConStockSet.add(r.documento);
+          if (r.tercero) clientesConStockSet.add(r.tercero);
+        } else {
+          sinStockUds += sPed;
+        }
+      }
+    }
+
+    return {
+      pendientesUds,
+      disponiblesUds,
+      sinStockUds,
+      totalUds,
+      pedidosConStockCount: pedidosConStockSet.size,
+      clientesConStockCount: clientesConStockSet.size,
+    };
+  }, [registros, vendedorNombresPermitidos]);
+
   // Estructurar con filtros aplicando seguridad por asesor y fechas de correría
   const agrupado = useMemo(() => {
     return estructurarPedidosDespachosHGI(registros, {
@@ -320,6 +387,7 @@ export function VisorPedidosDespachosHGI({
       ciudad: ciudadSeleccionada,
       busqueda,
       soloPendientes,
+      filtroDisponibilidad,
       fechaDesde,
       fechaHasta,
       filtrarPorFecha,
@@ -334,6 +402,7 @@ export function VisorPedidosDespachosHGI({
     ciudadSeleccionada,
     busqueda,
     soloPendientes,
+    filtroDisponibilidad,
     fechaDesde,
     fechaHasta,
     filtrarPorFecha,
@@ -952,35 +1021,103 @@ export function VisorPedidosDespachosHGI({
           </div>
         </div>
 
-        {/* Acciones Rápidas: Solo Pendientes vs Histórico */}
+        {/* Acciones Rápidas: Filtros de Disponibilidad y Estado */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 shadow-2xs">
+          <div className="inline-flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 shadow-2xs flex-wrap gap-0.5">
+            {/* Opción 1: Con Inventario Disponible (NUEVO FILTRO PARA VENDEDORES) */}
             <button
               type="button"
-              onClick={() => setSoloPendientes(true)}
+              onClick={() => setFiltroDisponibilidad("disponibles")}
+              title="Mostrar únicamente pedidos con inventario disponible en bodega listos para despachar al cliente"
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
-                soloPendientes
-                  ? "bg-amber-600 text-white shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground"
+                filtroDisponibilidad === "disponibles"
+                  ? "bg-emerald-600 text-white shadow-xs font-bold ring-1 ring-emerald-400"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              )}
+            >
+              <PackageCheck className="h-3.5 w-3.5" />
+              <span>Con Inventario</span>
+              {statsDisponibilidad.disponiblesUds > 0 && (
+                <span
+                  className={cn(
+                    "ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold",
+                    filtroDisponibilidad === "disponibles"
+                      ? "bg-white/20 text-white"
+                      : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                  )}
+                >
+                  {statsDisponibilidad.disponiblesUds.toLocaleString("es-CO")}
+                </span>
+              )}
+            </button>
+
+            {/* Opción 2: Solo Pendientes (Todos los que tienen saldo pendiente) */}
+            <button
+              type="button"
+              onClick={() => setFiltroDisponibilidad("pendientes")}
+              title="Mostrar todos los pedidos con saldo pendiente de entrega (con o sin inventario)"
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
+                filtroDisponibilidad === "pendientes"
+                  ? "bg-amber-600 text-white shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
               )}
             >
               <AlertTriangle className="h-3.5 w-3.5" />
               <span>Solo Pendientes</span>
-              {kpis.totalSaldoPedido > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white font-mono">
-                  {kpis.totalSaldoPedido.toLocaleString("es-CO")}
+              {statsDisponibilidad.pendientesUds > 0 && (
+                <span
+                  className={cn(
+                    "ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono",
+                    filtroDisponibilidad === "pendientes"
+                      ? "bg-white/20 text-white"
+                      : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                  )}
+                >
+                  {statsDisponibilidad.pendientesUds.toLocaleString("es-CO")}
                 </span>
               )}
             </button>
+
+            {/* Opción 3: Sin Stock (Déficit / En Producción) */}
             <button
               type="button"
-              onClick={() => setSoloPendientes(false)}
+              onClick={() => setFiltroDisponibilidad("sin_stock")}
+              title="Mostrar pedidos pendientes que NO tienen existencias en bodega (requieren producción)"
+              className={cn(
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
+                filtroDisponibilidad === "sin_stock"
+                  ? "bg-rose-600 text-white shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              )}
+            >
+              <Boxes className="h-3.5 w-3.5" />
+              <span>Sin Stock</span>
+              {statsDisponibilidad.sinStockUds > 0 && (
+                <span
+                  className={cn(
+                    "ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-mono",
+                    filtroDisponibilidad === "sin_stock"
+                      ? "bg-white/20 text-white"
+                      : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30"
+                  )}
+                >
+                  {statsDisponibilidad.sinStockUds.toLocaleString("es-CO")}
+                </span>
+              )}
+            </button>
+
+            {/* Opción 4: Ver Todo el Histórico */}
+            <button
+              type="button"
+              onClick={() => setFiltroDisponibilidad("todos")}
+              title="Ver todos los pedidos y despachos históricos sin ningún filtro de inventario"
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
-                !soloPendientes
-                  ? "bg-primary text-primary-foreground shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground"
+                filtroDisponibilidad === "todos"
+                  ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
               )}
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -1027,6 +1164,58 @@ export function VisorPedidosDespachosHGI({
         </div>
       </div>
 
+      {/* BANNER INFORMATIVO SEGÚN FILTRO DE DISPONIBILIDAD */}
+      {filtroDisponibilidad === "disponibles" && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-emerald-600 text-white shrink-0 shadow-2xs">
+              <PackageCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-extrabold text-xs sm:text-sm">
+                  Filtro Activo: Unidades Disponibles en Bodega para Despacho
+                </span>
+                <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 text-[10px] font-mono font-bold">
+                  {statsDisponibilidad.disponiblesUds.toLocaleString("es-CO")} unds listas
+                </Badge>
+              </div>
+              <p className="text-[11px] text-emerald-800 dark:text-emerald-200 mt-0.5">
+                Mostrando únicamente los pedidos con existencias físicas en bodega para que puedas coordinar la entrega y hacer seguimiento oportuno al cliente.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+            <Badge variant="outline" className="border-emerald-500/40 bg-background/80 text-[11px] font-mono">
+              {statsDisponibilidad.pedidosConStockCount} pedidos • {statsDisponibilidad.clientesConStockCount} clientes
+            </Badge>
+          </div>
+        </div>
+      )}
+
+      {filtroDisponibilidad === "sin_stock" && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-950 dark:text-rose-100 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-rose-600 text-white shrink-0 shadow-2xs">
+              <Boxes className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-extrabold text-xs sm:text-sm">
+                  Filtro Activo: Pedidos Pendientes Sin Stock (En Producción)
+                </span>
+                <Badge className="bg-rose-600 text-white hover:bg-rose-600 text-[10px] font-mono font-bold">
+                  {statsDisponibilidad.sinStockUds.toLocaleString("es-CO")} unds pendientes
+                </Badge>
+              </div>
+              <p className="text-[11px] text-rose-800 dark:text-rose-200 mt-0.5">
+                Mostrando pedidos pendientes que actualmente no cuentan con existencias en bodega y requieren programación o reposición de fábrica.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 4. Tarjetas KPI de Resumen Ejecutivo de Despachos vs Pedidos */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
         <Card className="p-3 border-l-4 border-l-purple-500">
@@ -1055,15 +1244,49 @@ export function VisorPedidosDespachosHGI({
           </div>
         </Card>
 
-        <Card className="p-3 border-l-4 border-l-amber-500 bg-amber-500/5">
-          <div className="flex items-center justify-between text-amber-700 dark:text-amber-400 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Pendiente Despacho</span>
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
+        <Card
+          className={cn(
+            "p-3 border-l-4 transition-colors",
+            filtroDisponibilidad === "disponibles"
+              ? "border-l-emerald-500 bg-emerald-500/5"
+              : "border-l-amber-500 bg-amber-500/5"
+          )}
+        >
+          <div
+            className={cn(
+              "flex items-center justify-between mb-1",
+              filtroDisponibilidad === "disponibles"
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-amber-700 dark:text-amber-400"
+            )}
+          >
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              {filtroDisponibilidad === "disponibles" ? "Disponible Despacho" : "Pendiente Despacho"}
+            </span>
+            {filtroDisponibilidad === "disponibles" ? (
+              <PackageCheck className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            )}
           </div>
-          <div className="text-base sm:text-lg font-extrabold font-mono text-amber-700 dark:text-amber-300">
+          <div
+            className={cn(
+              "text-base sm:text-lg font-extrabold font-mono",
+              filtroDisponibilidad === "disponibles"
+                ? "text-emerald-700 dark:text-emerald-300"
+                : "text-amber-700 dark:text-amber-300"
+            )}
+          >
             {kpis.totalSaldoPedido.toLocaleString("es-CO")} unds
           </div>
-          <div className="text-[11px] text-amber-600/80 dark:text-amber-400/80 font-mono font-medium truncate">
+          <div
+            className={cn(
+              "text-[11px] font-mono font-medium truncate",
+              filtroDisponibilidad === "disponibles"
+                ? "text-emerald-600/80 dark:text-emerald-400/80"
+                : "text-amber-600/80 dark:text-amber-400/80"
+            )}
+          >
             Stock Bodega: {kpis.totalSaldoInv.toLocaleString("es-CO")} unds
           </div>
         </Card>
@@ -1204,8 +1427,16 @@ export function VisorPedidosDespachosHGI({
                       {v.terceros.map((t) => {
                         const clave = `${v.vendedor}|${t.tercero}|${t.nombre}`;
                         const expandido = Boolean(expandidos[clave]);
+                        const tieneStockDisponible = t.saldoInv > 0 && t.saldoPedido > 0;
+                        const unidadesDisponibles = tieneStockDisponible ? Math.min(t.saldoInv, t.saldoPedido) : 0;
                         return (
-                          <div key={clave} className="border border-border/80 rounded-lg p-2.5 bg-card">
+                          <div
+                            key={clave}
+                            className={cn(
+                              "border rounded-lg p-2.5 bg-card transition-colors",
+                              tieneStockDisponible ? "border-emerald-500/40 bg-emerald-500/5" : "border-border/80"
+                            )}
+                          >
                             <div className="flex items-start justify-between gap-2">
                               <div>
                                 <span className="font-bold text-xs text-foreground">{t.nombre}</span>
@@ -1213,15 +1444,22 @@ export function VisorPedidosDespachosHGI({
                                   NIT: {t.tercero} • {t.ciudad}
                                 </div>
                               </div>
-                              {t.esPendiente ? (
-                                <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30">
-                                  Pendiente
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-[9px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
-                                  Listo
-                                </Badge>
-                              )}
+                              <div className="flex flex-col items-end gap-1">
+                                {tieneStockDisponible && (
+                                  <Badge className="text-[9px] bg-emerald-600 text-white font-mono font-bold shadow-2xs">
+                                    📦 {unidadesDisponibles} disp
+                                  </Badge>
+                                )}
+                                {t.esPendiente ? (
+                                  <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30">
+                                    Pendiente
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[9px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+                                    Listo
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
 
                             <div className="grid grid-cols-4 gap-1 text-[10px] font-mono text-center pt-2 mt-2 border-t border-border/40">
@@ -1237,9 +1475,20 @@ export function VisorPedidosDespachosHGI({
                                 <span className="text-[8.5px] block">SALDO</span>
                                 <span className="font-bold">{t.saldoPedido}</span>
                               </div>
-                              <div className="bg-muted/30 p-1 rounded">
-                                <span className="text-[8.5px] text-muted-foreground block">STOCK</span>
-                                <span className="font-bold">{t.saldoInv}</span>
+                              <div
+                                className={cn(
+                                  "p-1 rounded",
+                                  tieneStockDisponible
+                                    ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 font-bold"
+                                    : "bg-muted/30"
+                                )}
+                              >
+                                <span className="text-[8.5px] text-muted-foreground block">
+                                  {tieneStockDisponible ? "DISP" : "STOCK"}
+                                </span>
+                                <span className="font-bold">
+                                  {tieneStockDisponible ? unidadesDisponibles : t.saldoInv}
+                                </span>
                               </div>
                             </div>
 
@@ -1254,23 +1503,37 @@ export function VisorPedidosDespachosHGI({
 
                             {expandido && (
                               <div className="mt-2 divide-y divide-border/40 space-y-1.5 pt-1">
-                                {t.items.map((it, idx) => (
-                                  <div key={it.id || idx} className="text-[10px] pt-1.5 first:pt-0">
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-bold text-primary">{it.producto}</span>
-                                      <span className="font-mono text-muted-foreground">Doc: {it.documento}</span>
+                                {t.items.map((it, idx) => {
+                                  const tieneStockItem = it.saldoInv > 0 && it.saldoPedido > 0;
+                                  const disponiblesItem = tieneStockItem ? Math.min(it.saldoInv, it.saldoPedido) : 0;
+                                  return (
+                                    <div key={it.id || idx} className="text-[10px] pt-1.5 first:pt-0">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-bold text-primary">{it.producto}</span>
+                                        <span className="font-mono text-muted-foreground">Doc: {it.documento}</span>
+                                      </div>
+                                      <p className="text-muted-foreground text-[9.5px] truncate">{it.descripcion}</p>
+                                      <div className="flex items-center justify-between font-mono text-[9px] mt-0.5 text-muted-foreground">
+                                        <span>T:{it.talla} C:{it.color}</span>
+                                        <span>Ped:{it.totalPedido}</span>
+                                        <span>Desp:{it.despachado}</span>
+                                        <span className={cn("font-bold", it.saldoPedido > 0 ? "text-amber-600 dark:text-amber-400" : "")}>
+                                          Saldo:{it.saldoPedido}
+                                        </span>
+                                      </div>
+                                      {tieneStockItem && (
+                                        <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 text-[8.5px] font-bold">
+                                          <PackageCheck className="h-2.5 w-2.5" />
+                                          <span>
+                                            {it.saldoInv >= it.saldoPedido
+                                              ? `Listo en bodega (${disponiblesItem} unds)`
+                                              : `Despacho parcial disponible (${disponiblesItem} de ${it.saldoPedido} unds)`}
+                                          </span>
+                                        </div>
+                                      )}
                                     </div>
-                                    <p className="text-muted-foreground text-[9.5px] truncate">{it.descripcion}</p>
-                                    <div className="flex items-center justify-between font-mono text-[9px] mt-0.5 text-muted-foreground">
-                                      <span>T:{it.talla} C:{it.color}</span>
-                                      <span>Ped:{it.totalPedido}</span>
-                                      <span>Desp:{it.despachado}</span>
-                                      <span className={cn("font-bold", it.saldoPedido > 0 ? "text-amber-600 dark:text-amber-400" : "")}>
-                                        Saldo:{it.saldoPedido}
-                                      </span>
-                                    </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -1296,16 +1559,31 @@ export function VisorPedidosDespachosHGI({
                   <Package className="h-8 w-8" />
                 </div>
                 <p className="font-semibold text-foreground text-sm">
-                  {soloPendientes
+                  {filtroDisponibilidad === "disponibles"
+                    ? "No hay pedidos con inventario disponible en bodega para los filtros seleccionados."
+                    : filtroDisponibilidad === "sin_stock"
+                    ? "No hay pedidos pendientes sin inventario para los filtros seleccionados."
+                    : soloPendientes
                     ? "No hay pedidos con saldo pendiente de despacho para los filtros seleccionados."
                     : "No se encontraron pedidos ni despachos para los filtros seleccionados."}
                 </p>
                 <div className="flex items-center justify-center gap-2 flex-wrap text-xs pt-1">
+                  {filtroDisponibilidad === "disponibles" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFiltroDisponibilidad("pendientes")}
+                      className="text-xs"
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5 mr-1 text-amber-500" />
+                      Ver Todos los Pedidos Pendientes
+                    </Button>
+                  )}
                   {soloPendientes && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setSoloPendientes(false)}
+                      onClick={() => setFiltroDisponibilidad("todos")}
                       className="text-xs"
                     >
                       <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
@@ -1436,13 +1714,24 @@ export function VisorPedidosDespachosHGI({
                       {v.terceros.map((t) => {
                         const clave = `${v.vendedor}|${t.tercero}|${t.nombre}`;
                         const expandido = Boolean(expandidos[clave]);
+                        const tieneStockDisponible = t.saldoInv > 0 && t.saldoPedido > 0;
+                        const unidadesDisponibles = tieneStockDisponible ? Math.min(t.saldoInv, t.saldoPedido) : 0;
                         return (
                           <React.Fragment key={clave}>
                             {/* Fila Resumen del Cliente */}
-                            <tr className={cn("hover:bg-muted/30 transition-colors font-medium", t.esPendiente ? "bg-amber-500/5" : "")}>
+                            <tr
+                              className={cn(
+                                "hover:bg-muted/30 transition-colors font-medium",
+                                tieneStockDisponible
+                                  ? "bg-emerald-500/5 hover:bg-emerald-500/10"
+                                  : t.esPendiente
+                                  ? "bg-amber-500/5 hover:bg-amber-500/10"
+                                  : ""
+                              )}
+                            >
                               <td className="py-1.5 px-3 border-r border-border/40 text-muted-foreground font-sans"></td>
                               <td className="py-1.5 px-3 border-r border-border/40 font-sans">
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <button
                                     type="button"
                                     onClick={() => toggleExpandir(clave)}
@@ -1453,6 +1742,12 @@ export function VisorPedidosDespachosHGI({
                                   </button>
                                   <span className="font-semibold text-foreground">{t.nombre}</span>
                                   <span className="text-[10px] text-muted-foreground">({t.tercero})</span>
+                                  {tieneStockDisponible && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[9px] font-bold font-mono">
+                                      <PackageCheck className="h-2.5 w-2.5" />
+                                      {unidadesDisponibles} disp
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               <td className="py-1.5 px-2 border-r border-border/40 text-muted-foreground font-sans">{t.ciudad}</td>
@@ -1480,48 +1775,104 @@ export function VisorPedidosDespachosHGI({
                                   )}
                                 </div>
                               </td>
-                              <td className="py-1.5 px-2 text-right text-muted-foreground">{t.saldoInv ? t.saldoInv.toLocaleString("es-CO") : "-"}</td>
+                              <td
+                                className={cn(
+                                  "py-1.5 px-2 text-right",
+                                  tieneStockDisponible
+                                    ? "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 font-bold"
+                                    : "text-muted-foreground"
+                                )}
+                              >
+                                <div className="flex items-center justify-end gap-1">
+                                  <span>{t.saldoInv ? t.saldoInv.toLocaleString("es-CO") : "-"}</span>
+                                  {tieneStockDisponible && (
+                                    <span className="text-[8.5px] px-1 py-0.2 rounded bg-emerald-600 text-white font-bold shadow-2xs">
+                                      {t.saldoInv >= t.saldoPedido ? "✓ 100%" : "Parcial"}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
                             </tr>
 
                             {/* Detalle de Referencias (Si está expandido) */}
                             {expandido &&
-                              t.items.map((it, idx) => (
-                                <tr key={it.id || idx} className={cn("hover:bg-muted/20 transition-colors text-[10.5px]", it.esPendiente ? "bg-amber-500/5" : "")}>
-                                  <td className="py-1 px-3 border-r border-border/40 text-muted-foreground font-sans"></td>
-                                  <td className="py-1 px-3 border-r border-border/40 text-muted-foreground font-sans pl-8 text-[10px]">
-                                    ↳ Fechas: {it.fechas || "S/N"} {it.vence ? `• Vence: ${it.vence}` : ""}
-                                  </td>
-                                  <td className="py-1 px-2 border-r border-border/40 text-muted-foreground font-sans">{it.ciudad}</td>
-                                  <td className="py-1 px-2 border-r border-border/40 text-muted-foreground">{it.documento}</td>
-                                  <td className="py-1 px-3 border-r border-border/80 font-sans">
-                                    <span className="font-bold text-primary">{it.producto}</span>
-                                    {it.descripcion && (
-                                      <span className="text-[9.5px] text-muted-foreground ml-1 truncate max-w-[150px] inline-block align-bottom">
-                                        ({it.descripcion})
-                                      </span>
+                              t.items.map((it, idx) => {
+                                const tieneStockItem = it.saldoInv > 0 && it.saldoPedido > 0;
+                                const disponiblesItem = tieneStockItem ? Math.min(it.saldoInv, it.saldoPedido) : 0;
+                                return (
+                                  <tr
+                                    key={it.id || idx}
+                                    className={cn(
+                                      "hover:bg-muted/20 transition-colors text-[10.5px]",
+                                      tieneStockItem
+                                        ? "bg-emerald-500/5 hover:bg-emerald-500/10"
+                                        : it.esPendiente
+                                        ? "bg-amber-500/5"
+                                        : ""
                                     )}
-                                  </td>
-                                  <td className="py-1 px-2 border-r border-border/80 text-muted-foreground">
-                                    {it.talla || "-"} / {it.color || "-"}
-                                  </td>
-                                  <td className="py-1 px-2 text-right border-r border-border/40">{it.anterior || "-"}</td>
-                                  <td className="py-1 px-2 text-right border-r border-border/40 text-purple-600 dark:text-purple-400 font-bold">{it.pedidoMes || "-"}</td>
-                                  <td className="py-1 px-2 text-right border-r border-border/80 font-bold">{it.totalPedido}</td>
-                                  <td className="py-1 px-3 text-right border-r border-border/80 text-blue-600 dark:text-blue-400">{it.despachado || "-"}</td>
-                                  <td className="py-1 px-2 text-right border-r border-border/80 text-rose-600 dark:text-rose-400">{it.cancelado || "-"}</td>
-                                  <td className={cn("py-1 px-3 text-right border-r border-border/80 font-bold", it.esPendiente ? "text-amber-700 dark:text-amber-400 bg-amber-500/10" : "text-muted-foreground")}>
-                                    <div className="flex items-center justify-end gap-1">
-                                      <span>{it.saldoPedido}</span>
-                                      {it.esPendiente && (
-                                        <span className="text-[8.5px] px-1 py-0 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30">
-                                          Pend
+                                  >
+                                    <td className="py-1 px-3 border-r border-border/40 text-muted-foreground font-sans"></td>
+                                    <td className="py-1 px-3 border-r border-border/40 text-muted-foreground font-sans pl-8 text-[10px]">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span>↳ Fechas: {it.fechas || "S/N"} {it.vence ? `• Vence: ${it.vence}` : ""}</span>
+                                        {tieneStockItem && (
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 text-[9px] font-bold font-mono">
+                                            <PackageCheck className="h-2.5 w-2.5" />
+                                            {it.saldoInv >= it.saldoPedido
+                                              ? "Listo para entrega inmediata"
+                                              : `Despacho parcial (${disponiblesItem} de ${it.saldoPedido} unds)`}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-1 px-2 border-r border-border/40 text-muted-foreground font-sans">{it.ciudad}</td>
+                                    <td className="py-1 px-2 border-r border-border/40 text-muted-foreground">{it.documento}</td>
+                                    <td className="py-1 px-3 border-r border-border/80 font-sans">
+                                      <span className="font-bold text-primary">{it.producto}</span>
+                                      {it.descripcion && (
+                                        <span className="text-[9.5px] text-muted-foreground ml-1 truncate max-w-[150px] inline-block align-bottom">
+                                          ({it.descripcion})
                                         </span>
                                       )}
-                                    </div>
-                                  </td>
-                                  <td className="py-1 px-2 text-right text-muted-foreground">{it.saldoInv || "-"}</td>
-                                </tr>
-                              ))}
+                                    </td>
+                                    <td className="py-1 px-2 border-r border-border/80 text-muted-foreground">
+                                      {it.talla || "-"} / {it.color || "-"}
+                                    </td>
+                                    <td className="py-1 px-2 text-right border-r border-border/40">{it.anterior || "-"}</td>
+                                    <td className="py-1 px-2 text-right border-r border-border/40 text-purple-600 dark:text-purple-400 font-bold">{it.pedidoMes || "-"}</td>
+                                    <td className="py-1 px-2 text-right border-r border-border/80 font-bold">{it.totalPedido}</td>
+                                    <td className="py-1 px-3 text-right border-r border-border/80 text-blue-600 dark:text-blue-400">{it.despachado || "-"}</td>
+                                    <td className="py-1 px-2 text-right border-r border-border/80 text-rose-600 dark:text-rose-400">{it.cancelado || "-"}</td>
+                                    <td className={cn("py-1 px-3 text-right border-r border-border/80 font-bold", it.esPendiente ? "text-amber-700 dark:text-amber-400 bg-amber-500/10" : "text-muted-foreground")}>
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span>{it.saldoPedido}</span>
+                                        {it.esPendiente && (
+                                          <span className="text-[8.5px] px-1 py-0 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30">
+                                            Pend
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td
+                                      className={cn(
+                                        "py-1 px-2 text-right",
+                                        tieneStockItem
+                                          ? "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 font-bold"
+                                          : "text-muted-foreground"
+                                      )}
+                                    >
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span>{it.saldoInv || "-"}</span>
+                                        {tieneStockItem && (
+                                          <span className="text-[8px] px-1 py-0.2 rounded bg-emerald-600 text-white font-bold shadow-2xs">
+                                            {it.saldoInv >= it.saldoPedido ? "✓ Listo" : `Disp: ${disponiblesItem}`}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                           </React.Fragment>
                         );
                       })}

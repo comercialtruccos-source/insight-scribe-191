@@ -802,6 +802,7 @@ export function estructurarPedidosDespachosHGI(
     ciudad?: string;
     busqueda?: string;
     soloPendientes?: boolean;
+    filtroDisponibilidad?: "todos" | "pendientes" | "disponibles" | "sin_stock";
     fechaDesde?: string;
     fechaHasta?: string;
     filtrarPorFecha?: boolean;
@@ -880,8 +881,22 @@ export function estructurarPedidosDespachosHGI(
     // Filtro por Ciudad
     if (ciudadFiltro && !norm(r.ciudad).includes(ciudadFiltro)) continue;
 
-    // Filtro Solo Pendientes (Saldo Pedido > 0)
-    if (soloPendientes && !r.esPendiente) continue;
+    // Filtro por Disponibilidad de Inventario / Pendientes
+    if (filtros.filtroDisponibilidad) {
+      if (filtros.filtroDisponibilidad === "disponibles") {
+        // Solo pedidos con saldo pendiente Y con existencias en bodega listas para despachar
+        if (!r.esPendiente || (r.saldoInv || 0) <= 0) continue;
+      } else if (filtros.filtroDisponibilidad === "sin_stock") {
+        // Solo pedidos pendientes SIN existencias en bodega (déficit de producción)
+        if (!r.esPendiente || (r.saldoInv || 0) > 0) continue;
+      } else if (filtros.filtroDisponibilidad === "pendientes") {
+        // Todos los pedidos pendientes (con y sin inventario)
+        if (!r.esPendiente) continue;
+      }
+      // "todos" no filtra por saldo ni inventario
+    } else if (soloPendientes && !r.esPendiente) {
+      continue;
+    }
 
     // Filtro por rango de fechas (SOLO si se solicitó explícitamente)
     if (aplicarFiltroFecha) {
