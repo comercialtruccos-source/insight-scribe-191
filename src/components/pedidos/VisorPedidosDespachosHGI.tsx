@@ -24,7 +24,6 @@ import {
   FileSpreadsheet,
   BarChart3,
   Package,
-  Truck,
   User,
   Users,
   Building2,
@@ -694,7 +693,7 @@ export function VisorPedidosDespachosHGI({
         <Card className="p-3 border-l-4 border-l-blue-500">
           <div className="flex items-center justify-between text-muted-foreground mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Salidas Despacho</span>
-            <Truck className="h-4 w-4 text-blue-500" />
+            <Package className="h-4 w-4 text-blue-500" />
           </div>
           <div className="text-base sm:text-lg font-bold font-mono text-foreground">
             {kpis.totalDespachado.toLocaleString("es-CO")} unds

@@ -38,7 +38,6 @@ import {
   ChevronDown,
   ChevronRight,
   Package,
-  Truck,
   AlertTriangle,
   CheckCircle2,
   FileSpreadsheet,
@@ -1024,7 +1023,7 @@ export function VisorPedidosDespachos({
         <Card className="p-3 border-l-4 border-l-blue-500">
           <div className="flex items-center justify-between text-muted-foreground mb-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider">Salidas Despacho</span>
-            <Truck className="h-4 w-4 text-blue-500" />
+            <Package className="h-4 w-4 text-blue-500" />
           </div>
           <div className="text-base sm:text-lg font-bold font-mono text-foreground">
             {(kpis?.totalDespachosCantidad ?? 0).toLocaleString("es-CO")} unds
@@ -1292,7 +1291,7 @@ export function VisorPedidosDespachos({
                             <div className="bg-muted/30 rounded-xl p-2.5 space-y-1.5 border border-border/50">
                               <div className="flex items-center justify-between text-[11px]">
                                 <span className="text-muted-foreground font-medium flex items-center gap-1">
-                                  <Truck className="h-3 w-3 text-blue-500" />
+                                  <Package className="h-3 w-3 text-blue-500" />
                                   Despacho: {pctDespacho}%
                                 </span>
                                 <span className="font-mono text-foreground font-bold">

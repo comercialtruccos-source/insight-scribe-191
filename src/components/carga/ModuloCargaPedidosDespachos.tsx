@@ -22,7 +22,6 @@ import {
   Sparkles,
   RefreshCw,
   Package,
-  Truck,
   Users,
   Check,
   Copy,

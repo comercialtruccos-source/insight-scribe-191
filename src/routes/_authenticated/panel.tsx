@@ -142,7 +142,6 @@ import {
   ChevronRight,
   LogOut,
   Filter,
-  Truck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vendedores-dialog";
@@ -9015,7 +9014,7 @@ function Panel() {
                   onClick={() => setSubTabCarga("pedidos_despachos")}
                   className="text-xs font-semibold gap-2 shadow-2xs"
                 >
-                  <Truck className="h-4 w-4 text-teal-500" />
+                  <Package className="h-4 w-4 text-teal-500" />
                   <span>Pedidos vs Despachos (HGI - 18 Columnas)</span>
                   <Badge variant="secondary" className="text-[10px] bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20 font-semibold">
                     Reporte Oficial
