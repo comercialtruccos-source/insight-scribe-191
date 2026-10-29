@@ -149,6 +149,7 @@ import { MentorComercialDrawer } from "@/components/mentor/MentorComercialDrawer
 import { SankeyFlujoComercial } from "@/components/sankey/SankeyFlujoComercial";
 import { ModuloCargaReferencias } from "@/components/carga/ModuloCargaReferencias";
 import { ModuloCargaCMI } from "@/components/carga/ModuloCargaCMI";
+import { ModuloCargaPedidosDespachos } from "@/components/carga/ModuloCargaPedidosDespachos";
 import { BarraNavegacionDashboards } from "@/components/dashboard/BarraNavegacionDashboards";
 import { calcularDiagnosticoMentor } from "@/lib/mentor-comercial";
 import { useInventarioReal } from "@/lib/inventario-api";
@@ -608,7 +609,7 @@ function Panel() {
   const [metaArchivo, setMetaArchivo] = useState<MetadataArchivo | null>(null);
   const [hojaSeleccionada, setHojaSeleccionada] = useState<string | null>(null);
   const [esPivotOInvalido, setEsPivotOInvalido] = useState(false);
-  const [subTabCarga, setSubTabCarga] = useState<"ventas" | "referencias" | "cmi">("ventas");
+  const [subTabCarga, setSubTabCarga] = useState<"ventas" | "referencias" | "cmi" | "pedidos_despachos">("pedidos_despachos");
 
   useEffect(() => {
     const handleCmiUpdated = () => {
@@ -9008,6 +9009,18 @@ function Panel() {
               {/* SELECTOR DE TIPO DE CARGA: VENTAS HISTÓRICAS VS CATÁLOGO DE REFERENCIAS VS CMI */}
               <div className="flex items-center gap-2 border-b border-border/60 pb-3 flex-wrap">
                 <Button
+                  variant={subTabCarga === "pedidos_despachos" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSubTabCarga("pedidos_despachos")}
+                  className="text-xs font-semibold gap-2 shadow-2xs"
+                >
+                  <Truck className="h-4 w-4 text-teal-500" />
+                  <span>Pedidos vs Despachos (HGI - 18 Columnas)</span>
+                  <Badge variant="secondary" className="text-[10px] bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20 font-semibold">
+                    Reporte Oficial
+                  </Badge>
+                </Button>
+                <Button
                   variant={subTabCarga === "cmi" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setSubTabCarga("cmi")}
@@ -9042,7 +9055,9 @@ function Panel() {
                 </Button>
               </div>
 
-              {subTabCarga === "cmi" ? (
+              {subTabCarga === "pedidos_despachos" ? (
+                <ModuloCargaPedidosDespachos onCargaExitosa={() => setTabActivo("explorador")} />
+              ) : subTabCarga === "cmi" ? (
                 <ModuloCargaCMI />
               ) : subTabCarga === "referencias" ? (
                 <ModuloCargaReferencias />
