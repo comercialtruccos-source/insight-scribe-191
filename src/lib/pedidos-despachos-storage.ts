@@ -4,6 +4,9 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { supabase } from "@/integrations/supabase/client";
 
+// Cliente dinámico para tablas personalizadas de Supabase
+const db = supabase as any;
+
 export interface RegistroPedidosDespachosHGI {
   id: string;
   transaccion: string;
@@ -394,7 +397,7 @@ export async function guardarDatosPedidosDespachos(
   onProgreso?: (porcentaje: number, loteActual: number, totalLotes: number) => void
 ): Promise<void> {
   // 1. Limpiar registros previos en la tabla pedidos_despachos de Supabase
-  const { error: deleteError } = await supabase
+  const { error: deleteError } = await db
     .from("pedidos_despachos")
     .delete()
     .neq("id", 0);
@@ -432,7 +435,7 @@ export async function guardarDatosPedidosDespachos(
       saldo_inv: r.saldoInv || 0,
     }));
 
-    const { error: insertError } = await supabase
+    const { error: insertError } = await db
       .from("pedidos_despachos")
       .insert(chunk);
 
@@ -449,7 +452,7 @@ export async function guardarDatosPedidosDespachos(
 
   // 3. Registrar en historial de cargas (cargas_pedidos_despachos)
   try {
-    await supabase.from("cargas_pedidos_despachos").insert({
+    await db.from("cargas_pedidos_despachos").insert({
       archivo: metadata.nombreArchivo,
       filas_recibidas: metadata.totalRegistros,
       filas_insertadas: registros.length,
@@ -489,7 +492,7 @@ export async function obtenerDatosPedidosDespachos(): Promise<RegistroPedidosDes
     let hayMas = true;
 
     while (hayMas) {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("pedidos_despachos")
         .select("*")
         .range(offset, offset + limit - 1)
@@ -580,7 +583,7 @@ export function obtenerMetadataPedidosDespachos(): MetadataCargaPedidosDespachos
  */
 export async function obtenerMetadataPedidosDespachosAsync(): Promise<MetadataCargaPedidosDespachos | null> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("cargas_pedidos_despachos")
       .select("*")
       .order("created_at", { ascending: false })
@@ -622,7 +625,7 @@ export async function obtenerMetadataPedidosDespachosAsync(): Promise<MetadataCa
  */
 export async function verificarHayDatosEnSupabase(): Promise<boolean> {
   try {
-    const { count, error } = await supabase
+    const { count, error } = await db
       .from("pedidos_despachos")
       .select("id", { count: "exact", head: true });
 
@@ -649,7 +652,7 @@ export async function limpiarDatosPedidosDespachos(): Promise<void> {
   cacheMeta = null;
 
   try {
-    await supabase.from("pedidos_despachos").delete().neq("id", 0);
+    await db.from("pedidos_despachos").delete().neq("id", 0);
   } catch (e) {
     console.warn("[pedidos-despachos-storage] Error limpiando Supabase:", e);
   }

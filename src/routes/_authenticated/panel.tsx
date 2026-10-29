@@ -142,6 +142,7 @@ import {
   ChevronRight,
   LogOut,
   Filter,
+  Truck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminPermisosVendedoresDialog } from "@/components/admin-permisos-vendedores-dialog";
