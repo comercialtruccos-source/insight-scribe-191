@@ -796,6 +796,8 @@ export function estructurarPedidosDespachosHGI(
   registros: RegistroPedidosDespachosHGI[],
   filtros: {
     vendedor?: string;
+    vendedorNombresPermitidos?: string[];
+    vendedorIdsPermitidos?: number[];
     tercero?: string;
     ciudad?: string;
     busqueda?: string;
@@ -819,6 +821,12 @@ export function estructurarPedidosDespachosHGI(
   const soloPendientes = filtros.soloPendientes ?? true;
   const aplicarFiltroFecha = Boolean(filtros.filtrarPorFecha && (filtros.fechaDesde || filtros.fechaHasta));
 
+  // Preparar lista de asesores comerciales autorizados para el usuario
+  const permitidosNorm = filtros.vendedorNombresPermitidos
+    ? filtros.vendedorNombresPermitidos.map(norm).filter(Boolean)
+    : null;
+  const tieneRestriccionAsesor = permitidosNorm !== null;
+
   // Catálogos únicos para los selectores
   const vendedoresSet = new Set<string>();
   const ciudadesSet = new Set<string>();
@@ -828,13 +836,32 @@ export function estructurarPedidosDespachosHGI(
   const registrosFiltrados: RegistroPedidosDespachosHGI[] = [];
 
   for (const r of registros) {
+    const vNorm = norm(r.vendedor);
+
+    // SEGURIDAD POR ASESOR: Si el usuario es un asesor, solo puede ver sus propios pedidos
+    if (tieneRestriccionAsesor) {
+      if (permitidosNorm.length === 0 || !vNorm) {
+        // Usuario con rol asesor pero sin vendedor asignado o registro sin vendedor: no tiene acceso
+        continue;
+      }
+      const coincideAsesor = permitidosNorm.some((pNom) => {
+        return (
+          vNorm === pNom ||
+          (pNom.length >= 3 && vNorm.includes(pNom)) ||
+          (vNorm.length >= 3 && pNom.includes(vNorm))
+        );
+      });
+      if (!coincideAsesor) {
+        continue;
+      }
+    }
+
     if (r.vendedor) vendedoresSet.add(r.vendedor);
     if (r.ciudad) ciudadesSet.add(r.ciudad);
     if (r.tercero) clientesMap.set(r.tercero, r.nombre);
 
     // Filtro por Vendedor (coincidencia bidireccional y robusta)
     if (vendedorFiltro) {
-      const vNorm = norm(r.vendedor);
       if (!vNorm.includes(vendedorFiltro) && !vendedorFiltro.includes(vNorm)) {
         continue;
       }

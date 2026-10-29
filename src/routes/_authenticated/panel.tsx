@@ -8933,6 +8933,7 @@ function Panel() {
               vendedorIds={vendedorIds.length > 0 ? vendedorIds.map(Number) : undefined}
               vendedorIdsPermitidos={vendedorIdsPermitidos || undefined}
               esAdmin={esAdmin}
+              asesorNombre={permisoActual?.nombre || undefined}
               terceroIdFiltro={terceroId !== "todos" ? Number(terceroId) : "todos"}
               onSelectTercero={(id) => {
                 setTerceroId(id ? String(id) : "todos");

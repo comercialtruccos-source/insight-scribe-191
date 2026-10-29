@@ -432,3 +432,93 @@ export function cerrarSesionActiva(): void {
   }
 }
 
+/**
+ * Obtiene la lista de nombres y variaciones de vendedor autorizados para un asesor comercial.
+ * Permite filtrar de forma estricta los registros de HGI para que cada vendedor solo vea sus propios pedidos.
+ * Si el usuario es administrador (rol === "admin"), retorna undefined (sin restricción).
+ */
+export function obtenerNombresVendedoresAutorizados(
+  permiso: PermisoUsuario | null,
+  dimVendedores?: { id: number; nombre: string }[]
+): string[] | undefined {
+  if (!permiso || permiso.rol === "admin") {
+    return undefined; // Administrador: sin restricción, puede consultar todo
+  }
+
+  const nombres = new Set<string>();
+
+  // 1. Nombre oficial del asesor
+  if (permiso.nombre && permiso.nombre.trim()) {
+    nombres.add(permiso.nombre.trim());
+  }
+
+  // 2. Mapear cada ID asignado de dim_vendedor a su nombre real
+  if (permiso.vendedorIds && permiso.vendedorIds.length > 0 && dimVendedores) {
+    for (const vId of permiso.vendedorIds) {
+      const vFound = dimVendedores.find((dv) => dv.id === vId);
+      if (vFound && vFound.nombre) {
+        nombres.add(vFound.nombre.trim());
+      }
+    }
+  }
+
+  // 3. Diccionario preconfigurado de alias y sub-carteras comerciales oficiales de Trucco's
+  const pNomUpper = (permiso.nombre || "").toUpperCase();
+  const pEmailLower = (permiso.email || "").toLowerCase();
+
+  if (pNomUpper.includes("LUIS VILLA") || pEmailLower.includes("luisvilla")) {
+    nombres.add("LUIS VILLA");
+    nombres.add("Luis Villa");
+  } else if (pNomUpper.includes("LINA GARCIA") || pEmailLower.includes("linagarcia")) {
+    nombres.add("LINA GARCIA");
+    nombres.add("LINA PLUSS");
+  } else if (pNomUpper.includes("FREDY") || pEmailLower.includes("fredy")) {
+    nombres.add("FREDY SANCHEZ");
+    nombres.add("JOHN FREDY MEDELLIN");
+    nombres.add("JOHN FREDY CORRERIA");
+    nombres.add("JOHN FREDY");
+  } else if (pNomUpper.includes("DIEGO GIRALDO") || pEmailLower.includes("juandiegogiraldo")) {
+    nombres.add("JUAN DIEGO GIRALDO");
+    nombres.add("DIEGO GIRALDO");
+    nombres.add("DIEGO GIRALDO-MEDELLIN");
+    nombres.add("Diego Giraldo Correria");
+    nombres.add("DIEGO GIRALDO RAPPAZ");
+  } else if (pNomUpper.includes("CLAUDIA GIRALDO") || pEmailLower.includes("claudiagiraldo")) {
+    nombres.add("CLAUDIA GIRALDO");
+    nombres.add("Claudia Giraldo");
+  } else if (pNomUpper.includes("DIANA AGUDELO") || pEmailLower.includes("dianaagudelo")) {
+    nombres.add("DIANA AGUDELO");
+    nombres.add("JONATHAN LOPEZ");
+    nombres.add("CAMILO ZULUAGA");
+    nombres.add("JONATHAN LOPEZ RAPPAZ");
+  } else if (pNomUpper.includes("JUAN DAVID QUINTANA") || pEmailLower.includes("juandavidquintana")) {
+    nombres.add("JUAN DAVID QUINTANA");
+  } else if (pNomUpper.includes("ERICA USUAGA") || pEmailLower.includes("ericausuaga")) {
+    nombres.add("ERICA USUAGA");
+    nombres.add("TIENDA VIRTUAL");
+    nombres.add("REDES SOCIALES");
+    nombres.add("TRJUSA WEB");
+  } else if (pNomUpper.includes("ANGELA ACEVEDO") || pEmailLower.includes("angelaacevedo")) {
+    nombres.add("ANGELA ACEVEDO");
+    nombres.add("MAYORISTA DIGITAL");
+    nombres.add("LEADS MAYORISTAS");
+    nombres.add("ANGELA MACARENA");
+  } else if (pNomUpper.includes("CRISTINA RESTREPO") || pEmailLower.includes("cristinarestrepo")) {
+    nombres.add("CRISTINA RESTREPO");
+    nombres.add("TRUCCO'S EXPORTACION");
+    nombres.add("Olga Zuluaga");
+  } else if (pNomUpper.includes("ALEIDA GALLEGO") || pEmailLower.includes("aleidagallego")) {
+    nombres.add("ALEIDA GALLEGO");
+  } else if (pNomUpper.includes("ALEJANDRA HERRERA") || pEmailLower.includes("alejandraherrera")) {
+    nombres.add("ALEJANDRA HERRERA");
+  } else if (pNomUpper.includes("MAYORCA") || pEmailLower.includes("mayorca")) {
+    nombres.add("MAYORCA");
+    nombres.add("LINA MARIA ZULUAGA");
+    nombres.add("ANNY FERNANDA YARCE MEJIA");
+    nombres.add("SALOME CASTELLANOS");
+    nombres.add("GLORIA MONTOYA");
+  }
+
+  return Array.from(nombres);
+}
+

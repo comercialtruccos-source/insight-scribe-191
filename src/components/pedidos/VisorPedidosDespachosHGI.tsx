@@ -12,6 +12,11 @@ import {
   type GrupoTerceroHGI,
 } from "@/lib/pedidos-despachos-storage";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  obtenerNombresVendedoresAutorizados,
+  obtenerPermisoUsuario,
+  obtenerSesionActiva,
+} from "@/lib/permisos-vendedores";
 import { cn, formatoHGI, formatoCOPFull } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,6 +67,7 @@ interface VisorPedidosDespachosHGIProps {
   vendedorIdFiltro?: string | number | "todos";
   terceroIdFiltro?: string | number | "todos";
   vendedorIdsPermitidos?: number[];
+  asesorNombre?: string;
   esAdmin?: boolean;
   anioGlobal?: string;
   mesGlobal?: string;
@@ -74,6 +80,7 @@ export function VisorPedidosDespachosHGI({
   vendedorIdFiltro = "todos",
   terceroIdFiltro = "todos",
   vendedorIdsPermitidos,
+  asesorNombre,
   esAdmin = false,
   anioGlobal,
   mesGlobal,
@@ -129,8 +136,26 @@ export function VisorPedidosDespachosHGI({
     staleTime: 1000 * 60 * 30,
   });
 
+  // Lista de nombres comerciales y sub-carteras autorizadas para este usuario (si es asesor)
+  const vendedorNombresPermitidos = useMemo<string[] | undefined>(() => {
+    if (esAdmin) return undefined;
+    const ses = obtenerSesionActiva();
+    const permiso = obtenerPermisoUsuario(ses?.email, ses?.id);
+    const autorizados = obtenerNombresVendedoresAutorizados(permiso, dimVendedores);
+    if (autorizados && autorizados.length > 0) return autorizados;
+    if (asesorNombre) return [asesorNombre];
+    return [];
+  }, [esAdmin, asesorNombre, dimVendedores]);
+
   // Sincronizar vendedor seleccionado si el usuario es un vendedor específico
   useEffect(() => {
+    if (!esAdmin) {
+      // Para asesores comerciales, la restricción de seguridad 'vendedorNombresPermitidos'
+      // aísla de forma automática y estricta todas sus sub-carteras. Mantener "todos" para
+      // que no se excluya ninguna de sus zonas asignadas.
+      setVendedorSeleccionado("todos");
+      return;
+    }
     if (!vendedorIdFiltro || vendedorIdFiltro === "todos") {
       setVendedorSeleccionado("todos");
       return;
@@ -145,7 +170,7 @@ export function VisorPedidosDespachosHGI({
     } else if (typeof vendedorIdFiltro === "string" && isNaN(Number(vendedorIdFiltro))) {
       setVendedorSeleccionado(vendedorIdFiltro);
     }
-  }, [vendedorIdFiltro, dimVendedores]);
+  }, [vendedorIdFiltro, dimVendedores, esAdmin]);
 
   // Cargar datos oficiales persistidos directamente desde SUPABASE o IndexedDB local
   const {
@@ -180,10 +205,12 @@ export function VisorPedidosDespachosHGI({
 
   const metadata = metadataAsync || obtenerMetadataPedidosDespachos();
 
-  // Estructurar con filtros
+  // Estructurar con filtros aplicando seguridad por asesor
   const agrupado = useMemo(() => {
     return estructurarPedidosDespachosHGI(registros, {
       vendedor: vendedorSeleccionado,
+      vendedorNombresPermitidos,
+      vendedorIdsPermitidos,
       tercero: terceroSeleccionado,
       ciudad: ciudadSeleccionada,
       busqueda,
@@ -195,6 +222,8 @@ export function VisorPedidosDespachosHGI({
   }, [
     registros,
     vendedorSeleccionado,
+    vendedorNombresPermitidos,
+    vendedorIdsPermitidos,
     terceroSeleccionado,
     ciudadSeleccionada,
     busqueda,
@@ -358,7 +387,7 @@ export function VisorPedidosDespachosHGI({
 
             {metadata && (
               <Badge variant="outline" className="text-[11px] font-mono py-1 px-2.5 border-teal-500/30 bg-teal-500/5 text-teal-700 dark:text-teal-300">
-                {metadata.nombreArchivo} • {metadata.totalRegistros.toLocaleString("es-CO")} registros
+                {metadata.nombreArchivo} • {esAdmin ? `${metadata.totalRegistros.toLocaleString("es-CO")} registros` : `${kpis.clientesCount} clientes • ${kpis.totalSaldoPedido.toLocaleString("es-CO")} pendientes`}
               </Badge>
             )}
           </div>
@@ -436,12 +465,15 @@ export function VisorPedidosDespachosHGI({
                 </select>
               </div>
             ) : (
-              <div className="flex items-center gap-1 px-2 py-1 bg-background border rounded-md text-[11px]">
-                <User className="h-3 w-3 text-primary shrink-0" />
-                <span className="text-muted-foreground text-[10.5px]">Asesor:</span>
-                <span className="font-bold text-foreground truncate max-w-[170px]">
-                  {vendedorSeleccionado !== "todos" ? vendedorSeleccionado : "Mi Cartera"}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/20 rounded-md text-[11px]">
+                <User className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="text-muted-foreground text-[10.5px]">Asesor Asignado:</span>
+                <span className="font-bold text-primary truncate max-w-[190px]">
+                  {asesorNombre || (catalogos.vendedores.length > 0 ? catalogos.vendedores.join(" / ") : "Mis Pedidos")}
                 </span>
+                <Badge variant="outline" className="text-[9.5px] py-0 px-1.5 h-4 bg-primary/10 text-primary border-primary/30 font-semibold">
+                  Mis Pedidos
+                </Badge>
               </div>
             )}
 

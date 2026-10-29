@@ -73,6 +73,7 @@ interface VisorPedidosDespachosProps {
   vendedorIdFiltro?: number | "todos";
   vendedorIdsPermitidos?: number[];
   vendedorIds?: number[];
+  asesorNombre?: string;
   esAdmin?: boolean;
   terceroIdFiltro?: number | "todos";
   onSelectTercero?: (terceroId: number | null) => void;
@@ -96,6 +97,7 @@ export function VisorPedidosDespachos({
   vendedorIdFiltro = "todos",
   vendedorIdsPermitidos,
   vendedorIds,
+  asesorNombre,
   esAdmin = false,
   terceroIdFiltro = "todos",
   onSelectTercero,
@@ -269,6 +271,11 @@ export function VisorPedidosDespachos({
   const vendedoresFiltrados = useMemo(() => {
     if (!data?.vendedores) return [];
     let list = data.vendedores;
+
+    // SEGURIDAD POR ASESOR: Filtrar vendedores si el usuario no es admin
+    if (!esAdmin && vendedorIdsPermitidos && vendedorIdsPermitidos.length > 0) {
+      list = list.filter((v) => vendedorIdsPermitidos.includes(Number(v.vendedorId)));
+    }
 
     // 1. Filtrar por tercero si está seleccionado específicamente en el dropdown
     if (terceroSeleccionado !== "todos") {
@@ -590,6 +597,7 @@ export function VisorPedidosDespachos({
           vendedorIdFiltro={vendedorIdFiltro}
           terceroIdFiltro={terceroIdFiltro}
           vendedorIdsPermitidos={vendedorIdsPermitidos}
+          asesorNombre={asesorNombre}
           esAdmin={esAdmin}
           anioGlobal={anioGlobal}
           mesGlobal={mesGlobal}
