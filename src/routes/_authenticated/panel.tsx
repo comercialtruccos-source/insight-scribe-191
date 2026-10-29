@@ -8936,6 +8936,10 @@ function Panel() {
               onSelectTercero={(id) => {
                 setTerceroId(id ? String(id) : "todos");
               }}
+              anioGlobal={anio}
+              mesGlobal={mes}
+              fechaDesdeGlobal={fechaDesde}
+              fechaHastaGlobal={fechaHasta}
             />
           </TabsContent>
 

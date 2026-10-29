@@ -40,6 +40,7 @@ import {
   Trash2,
   Plus,
   RefreshCw,
+  X,
 } from "lucide-react";
 import {
   BarChart,
@@ -59,6 +60,20 @@ interface VisorPedidosDespachosProps {
   esAdmin?: boolean;
   terceroIdFiltro?: number | "todos";
   onSelectTercero?: (terceroId: number | null) => void;
+  anioGlobal?: string;
+  mesGlobal?: string;
+  fechaDesdeGlobal?: string;
+  fechaHastaGlobal?: string;
+}
+
+// Función auxiliar para normalizar textos (elimina acentos/tildes, espacios extra y pasa a minúsculas)
+function normalizarTexto(texto: string | null | undefined): string {
+  if (!texto) return "";
+  return String(texto)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 export function VisorPedidosDespachos({
@@ -68,21 +83,49 @@ export function VisorPedidosDespachos({
   esAdmin = false,
   terceroIdFiltro = "todos",
   onSelectTercero,
+  anioGlobal,
+  mesGlobal,
+  fechaDesdeGlobal,
+  fechaHastaGlobal,
 }: VisorPedidosDespachosProps) {
   // Filtros de encabezado HGI (inicializados en el mes y año actual por defecto)
   const [fechaDesde, setFechaDesde] = useState(() => {
+    if (fechaDesdeGlobal) return fechaDesdeGlobal;
     const ahora = new Date();
-    const y = ahora.getFullYear();
-    const m = String(ahora.getMonth() + 1).padStart(2, "0");
+    const y = anioGlobal ? parseInt(anioGlobal, 10) || ahora.getFullYear() : ahora.getFullYear();
+    const m = mesGlobal && mesGlobal !== "todos" ? String(parseInt(mesGlobal, 10)).padStart(2, "0") : String(ahora.getMonth() + 1).padStart(2, "0");
     return `${y}-${m}-01`;
   });
   const [fechaHasta, setFechaHasta] = useState(() => {
+    if (fechaHastaGlobal) return fechaHastaGlobal;
     const ahora = new Date();
-    const y = ahora.getFullYear();
-    const m = ahora.getMonth() + 1;
+    const y = anioGlobal ? parseInt(anioGlobal, 10) || ahora.getFullYear() : ahora.getFullYear();
+    const m = mesGlobal && mesGlobal !== "todos" ? parseInt(mesGlobal, 10) : ahora.getMonth() + 1;
     const ultimoDia = new Date(y, m, 0).getDate();
     return `${y}-${String(m).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
   });
+
+  // Sincronización reactiva con filtros de fecha globales del panel
+  React.useEffect(() => {
+    if (fechaDesdeGlobal && fechaHastaGlobal) {
+      setFechaDesde(fechaDesdeGlobal);
+      setFechaHasta(fechaHastaGlobal);
+    } else if (anioGlobal) {
+      const anioNum = parseInt(anioGlobal, 10);
+      if (!isNaN(anioNum)) {
+        if (mesGlobal && mesGlobal !== "todos") {
+          const mesNum = parseInt(mesGlobal, 10);
+          const mStr = String(mesNum).padStart(2, "0");
+          const ultimoDia = new Date(anioNum, mesNum, 0).getDate();
+          setFechaDesde(`${anioNum}-${mStr}-01`);
+          setFechaHasta(`${anioNum}-${mStr}-${String(ultimoDia).padStart(2, "0")}`);
+        } else {
+          setFechaDesde(`${anioNum}-01-01`);
+          setFechaHasta(`${anioNum}-12-31`);
+        }
+      }
+    }
+  }, [anioGlobal, mesGlobal, fechaDesdeGlobal, fechaHastaGlobal]);
   const [modoVista, setModoVista] = useState<"datos" | "grafico" | "ambos">("datos");
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [correriaSeleccionada, setCorreriaSeleccionada] = useState<string>("todas");
@@ -165,11 +208,17 @@ export function VisorPedidosDespachos({
       }),
   });
 
-  // Filtro de búsqueda local por texto (Tercero, Vendedor o Producto) y filtro de cliente
+  // Filtro de búsqueda multi-criterio e insensible a tildes/acentos
+  const queryTokens = useMemo(() => {
+    return normalizarTexto(busqueda).split(/\s+/).filter(Boolean);
+  }, [busqueda]);
+
+  // Filtro de búsqueda local por texto (Tercero, Vendedor, Producto, Color, Talla, SKU) y filtro de cliente
   const vendedoresFiltrados = useMemo(() => {
     if (!data?.vendedores) return [];
     let list = data.vendedores;
 
+    // 1. Filtrar por tercero si está seleccionado específicamente en el dropdown
     if (terceroSeleccionado !== "todos") {
       list = list
         .map((v) => ({
@@ -179,37 +228,100 @@ export function VisorPedidosDespachos({
         .filter((v) => v.terceros.length > 0);
     }
 
-    if (busqueda.trim()) {
-      const b = busqueda.trim().toLowerCase();
-      list = list
-        .map((v) => {
-          const coincideVendedor = v.vendedorNombre.toLowerCase().includes(b);
-          const tercerosFiltrados = v.terceros.filter((t) => {
-            const coincideTercero =
-              t.terceroNombre.toLowerCase().includes(b) ||
-              (t.terceroCodigo && t.terceroCodigo.toLowerCase().includes(b));
-            const coincideProducto = t.productos.some(
-              (p) =>
-                p.producto.toLowerCase().includes(b) ||
-                (p.descripcion && p.descripcion.toLowerCase().includes(b)) ||
-                (p.sku && p.sku.toLowerCase().includes(b))
-            );
-            return coincideTercero || coincideProducto || coincideVendedor;
-          });
-
-          if (coincideVendedor || tercerosFiltrados.length > 0) {
-            return {
-              ...v,
-              terceros: coincideVendedor ? v.terceros : tercerosFiltrados,
-            };
-          }
-          return null;
-        })
-        .filter((v): v is GrupoVendedorPedidoDespacho => v !== null);
+    // 2. Si no hay términos de búsqueda textual, devolver la lista base
+    if (queryTokens.length === 0) {
+      return list;
     }
 
-    return list;
-  }, [data?.vendedores, terceroSeleccionado, busqueda]);
+    // 3. Filtrar por términos de búsqueda (todos los tokens deben coincidir en vendedor, tercero o producto)
+    const resultado: GrupoVendedorPedidoDespacho[] = [];
+
+    for (const v of list) {
+      const vText = normalizarTexto(`${v.vendedorNombre} ${v.vendedorId}`);
+      const vCoincideTodo = queryTokens.every((tok) => vText.includes(tok));
+
+      const tercerosFiltrados: GrupoTerceroPedidoDespacho[] = [];
+
+      for (const t of v.terceros) {
+        const tText = normalizarTexto(`${t.terceroNombre} ${t.terceroCodigo || ""} ${t.terceroId}`);
+        const vtText = `${vText} ${tText}`;
+        const vtCoincideTodo = queryTokens.every((tok) => vtText.includes(tok));
+
+        let prodsCoincidentes: ItemProductoPedidoDespacho[] = [];
+
+        if (vCoincideTodo || vtCoincideTodo) {
+          // Si el vendedor o el cliente coincide plenamente con la búsqueda, mostrar todos sus productos
+          prodsCoincidentes = t.productos;
+        } else {
+          // Filtrar los productos individuales que cumplan la combinación de términos
+          prodsCoincidentes = t.productos.filter((p) => {
+            const pText = normalizarTexto(
+              `${p.producto} ${p.descripcion || ""} ${p.sku || ""} ${p.color || ""} ${p.talla || ""}`
+            );
+            const filaCompleta = `${vtText} ${pText}`;
+            return queryTokens.every((tok) => filaCompleta.includes(tok));
+          });
+        }
+
+        if (prodsCoincidentes.length > 0) {
+          const pedCant = prodsCoincidentes.reduce((s, p) => s + p.pedidosCantidad, 0);
+          const pedVal = prodsCoincidentes.reduce((s, p) => s + p.pedidosValor, 0);
+          const despCant = prodsCoincidentes.reduce((s, p) => s + p.despachosCantidad, 0);
+          const despVal = prodsCoincidentes.reduce((s, p) => s + p.despachosValor, 0);
+          const totCant = Math.max(0, pedCant - despCant);
+          const totVal = Math.max(0, pedVal - despVal);
+
+          tercerosFiltrados.push({
+            ...t,
+            pedidosCantidad: pedCant,
+            pedidosValor: pedVal,
+            despachosCantidad: despCant,
+            despachosValor: despVal,
+            totalGeneralCantidad: totCant,
+            totalGeneralValor: totVal,
+            esPendiente: totCant > 0,
+            productos: prodsCoincidentes,
+          });
+        }
+      }
+
+      if (tercerosFiltrados.length > 0) {
+        const vPedCant = tercerosFiltrados.reduce((s, t) => s + t.pedidosCantidad, 0);
+        const vPedVal = tercerosFiltrados.reduce((s, t) => s + t.pedidosValor, 0);
+        const vDespCant = tercerosFiltrados.reduce((s, t) => s + t.despachosCantidad, 0);
+        const vDespVal = tercerosFiltrados.reduce((s, t) => s + t.despachosValor, 0);
+        const vTotCant = Math.max(0, vPedCant - vDespCant);
+        const vTotVal = Math.max(0, vPedVal - vDespVal);
+
+        resultado.push({
+          ...v,
+          pedidosCantidad: vPedCant,
+          pedidosValor: vPedVal,
+          despachosCantidad: vDespCant,
+          despachosValor: vDespVal,
+          totalGeneralCantidad: vTotCant,
+          totalGeneralValor: vTotVal,
+          esPendiente: vTotCant > 0,
+          terceros: tercerosFiltrados,
+        });
+      }
+    }
+
+    return resultado;
+  }, [data?.vendedores, terceroSeleccionado, queryTokens]);
+
+  // Estadísticas de coincidencia de búsqueda
+  const estadisticasBusqueda = useMemo(() => {
+    let totalTerceros = 0;
+    let totalProductos = 0;
+    for (const v of vendedoresFiltrados) {
+      totalTerceros += v.terceros.length;
+      for (const t of v.terceros) {
+        totalProductos += t.productos.length;
+      }
+    }
+    return { totalTerceros, totalProductos };
+  }, [vendedoresFiltrados]);
 
   // Manejo de expansión / colapso
   const toggleExpandir = (clave: string) => {
@@ -285,7 +397,45 @@ export function VisorPedidosDespachos({
     return clientes.sort((a, b) => b.pendientes - a.pendientes || b.pedidos - a.pedidos).slice(0, 15);
   }, [vendedoresFiltrados]);
 
-  const kpis = data?.kpis;
+  // KPIs consolidados dinámicamente según la selección y filtros de búsqueda activos
+  const kpis = useMemo(() => {
+    let pedCant = 0;
+    let pedVal = 0;
+    let despCant = 0;
+    let despVal = 0;
+    let pendCant = 0;
+    let pendVal = 0;
+    let clientesConPend = 0;
+
+    for (const v of vendedoresFiltrados) {
+      for (const t of v.terceros) {
+        pedCant += t.pedidosCantidad;
+        pedVal += t.pedidosValor;
+        despCant += t.despachosCantidad;
+        despVal += t.despachosValor;
+        pendCant += t.totalGeneralCantidad;
+        pendVal += t.totalGeneralValor;
+        if (t.totalGeneralCantidad > 0) {
+          clientesConPend++;
+        }
+      }
+    }
+
+    const nivelServicio =
+      pedCant > 0 ? (despCant / pedCant) * 100 : pedCant === 0 && despCant === 0 ? 100 : 0;
+
+    return {
+      totalPedidosCantidad: pedCant,
+      totalPedidosValor: pedVal,
+      totalDespachosCantidad: despCant,
+      totalDespachosValor: despVal,
+      totalPendienteCantidad: pendCant,
+      totalPendienteValor: pendVal,
+      nivelServicioPct: Number(nivelServicio.toFixed(2)),
+      totalClientesConPendientes: clientesConPend,
+      totalRegistros: data?.kpis?.totalRegistros ?? 0,
+    };
+  }, [vendedoresFiltrados, data?.kpis?.totalRegistros]);
 
   return (
     <div className="space-y-4 font-sans text-xs">
@@ -714,20 +864,35 @@ export function VisorPedidosDespachos({
       </div>
 
       {/* Buscador de Terceros o Productos */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por cliente/tercero, referencia de producto o vendedor..."
+            placeholder="Buscar por cliente/NIT, referencia, descripción, color, talla o asesor..."
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            className="pl-9 h-9 text-xs"
+            className="pl-9 pr-8 h-9 text-xs"
           />
+          {busqueda && (
+            <button
+              type="button"
+              onClick={() => setBusqueda("")}
+              className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded-full"
+              title="Borrar búsqueda"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
-        {busqueda && (
-          <Button variant="ghost" size="sm" onClick={() => setBusqueda("")} className="h-9 text-xs">
-            Limpiar
-          </Button>
+        {busqueda.trim() && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge variant="secondary" className="text-[11px] font-mono py-1 px-2.5 border">
+              {estadisticasBusqueda.totalTerceros} {estadisticasBusqueda.totalTerceros === 1 ? "cliente" : "clientes"} • {estadisticasBusqueda.totalProductos} {estadisticasBusqueda.totalProductos === 1 ? "ítem" : "ítems"}
+            </Badge>
+            <Button variant="ghost" size="sm" onClick={() => setBusqueda("")} className="h-8 text-xs px-2.5">
+              Limpiar
+            </Button>
+          </div>
         )}
       </div>
 
@@ -857,7 +1022,7 @@ export function VisorPedidosDespachos({
                     <div className="space-y-2.5">
                       {v.terceros.map((t) => {
                         const clave = `${v.vendedorNombre}|${t.terceroNombre}`;
-                        const estaExpandido = expandidos[clave] ?? false;
+                        const estaExpandido = Boolean(busqueda.trim()) || (expandidos[clave] ?? false);
                         const pctDespacho = t.pedidosCantidad > 0
                           ? Math.min(100, Math.round((t.despachosCantidad / t.pedidosCantidad) * 100))
                           : 0;
@@ -1108,7 +1273,7 @@ export function VisorPedidosDespachos({
                       {/* Filas de Terceros y Productos bajo este Vendedor */}
                       {v.terceros.map((t) => {
                         const clave = `${v.vendedorNombre}|${t.terceroNombre}`;
-                        const estaExpandido = expandidos[clave] ?? true; // Expandido por defecto para visibilidad inmediata
+                        const estaExpandido = Boolean(busqueda.trim()) || (expandidos[clave] ?? true); // Expandido si hay búsqueda o por defecto para visibilidad inmediata
 
                         return (
                           <React.Fragment key={clave}>
@@ -1329,7 +1494,11 @@ export function VisorPedidosDespachos({
                       <td className="py-3 px-3 border-r border-border" colSpan={3}>
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary" />
-                          <span>TOTAL GENERAL CONSOLIDADO</span>
+                          <span>
+                            {busqueda.trim()
+                              ? "TOTAL FILTRADO POR BÚSQUEDA"
+                              : "TOTAL GENERAL CONSOLIDADO"}
+                          </span>
                         </div>
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-purple-700 dark:text-purple-300 border-r border-border/40">
@@ -1339,10 +1508,10 @@ export function VisorPedidosDespachos({
                         {formatoHGI(kpis.totalPedidosValor)}
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-blue-700 dark:text-blue-300 border-r border-border/40">
-                        {(-kpis.totalDespachosCantidad).toLocaleString("es-CO")}
+                        {kpis.totalDespachosCantidad.toLocaleString("es-CO")}
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-blue-700 dark:text-blue-300 border-r border-border">
-                        {formatoHGI(-kpis.totalDespachosValor)}
+                        {formatoHGI(kpis.totalDespachosValor)}
                       </td>
                       <td className="py-3 px-3 text-right font-mono text-amber-700 dark:text-amber-300 bg-amber-500/20 border-r border-border/40">
                         {kpis.totalPendienteCantidad.toLocaleString("es-CO")}

@@ -5344,7 +5344,7 @@ export async function obtenerPedidosVsDespachos(
         .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
         .eq("anio", anio)
         .eq("mes", mes)
-        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%")
+        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%")
         .gte("fecha", fechaDesde)
         .lte("fecha", fechaHasta);
 
@@ -5395,7 +5395,7 @@ export async function obtenerPedidosVsDespachos(
       let q = supabase
         .from("fact_ventas")
         .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
-        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%")
+        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%")
         .gte("fecha", fechaDesde)
         .lte("fecha", fechaHasta);
 
@@ -5432,7 +5432,7 @@ export async function obtenerPedidosVsDespachos(
 
   for (const r of rawRows) {
     const vId = Number(r.vendedor_id) || Number(r.vendedor2_id) || 0;
-    const vNombre = (vId ? vMap.get(vId) : null) || "VENDEDOR GENERAL";
+    const vNombre = (vId ? vMap.get(vId) : null) || (vId ? `Asesor ID ${vId}` : "VENDEDOR GENERAL");
 
     const tId = Number(r.tercero_id) || 0;
     const tInfo = tId ? tMap.get(tId) : null;
@@ -5495,7 +5495,7 @@ export async function obtenerPedidosVsDespachos(
 
     // En HGI: Los pedidos y salidas por despacho están explícitamente etiquetados en la columna transaccion.
     const esPedido = trans.includes("PEDIDO");
-    const esDespacho = trans.includes("DESPACHO") || trans.includes("SALIDA");
+    const esDespacho = trans.includes("DESPACHO") || trans.includes("SALIDA") || trans.includes("REMISION");
 
     if (esPedido) {
       prod.pedidosCantidad += Math.abs(cant);
