@@ -805,6 +805,7 @@ export function estructurarPedidosDespachosHGI(
     fechaDesde?: string;
     fechaHasta?: string;
     filtrarPorFecha?: boolean;
+    criterioFecha?: "fechas" | "vence";
   } = {}
 ): ResultadoAgrupacionHGI {
   const norm = (s: string | null | undefined) =>
@@ -884,7 +885,8 @@ export function estructurarPedidosDespachosHGI(
 
     // Filtro por rango de fechas (SOLO si se solicitó explícitamente)
     if (aplicarFiltroFecha) {
-      const fItem = (r.fechas || "").trim();
+      const campoFechaRaw = filtros.criterioFecha === "vence" ? r.vence : r.fechas;
+      const fItem = (campoFechaRaw || "").trim();
       if (fItem && fItem.length >= 6) {
         let fechaIso = "";
         if (fItem.includes("/")) {

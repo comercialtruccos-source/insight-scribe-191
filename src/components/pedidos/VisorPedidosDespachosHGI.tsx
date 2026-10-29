@@ -17,6 +17,12 @@ import {
   obtenerPermisoUsuario,
   obtenerSesionActiva,
 } from "@/lib/permisos-vendedores";
+import {
+  CORRERIAS_OFICIALES,
+  obtenerRangoFechasCorreria,
+  detectarCorreriaPorFecha,
+  type InfoCorreriaCorte,
+} from "@/lib/correrias-config";
 import { cn, formatoHGI, formatoCOPFull } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -147,6 +153,17 @@ export function VisorPedidosDespachosHGI({
     return [];
   }, [esAdmin, asesorNombre, dimVendedores]);
 
+  // Estados para filtro por Correrías (Cortes C1 a C5)
+  const [anioCorreria, setAnioCorreria] = useState<number>(() => {
+    if (anioGlobal) {
+      const a = parseInt(anioGlobal, 10);
+      if (!isNaN(a) && a >= 2020) return a;
+    }
+    return new Date().getFullYear();
+  });
+  const [correriaActivaClave, setCorreriaActivaClave] = useState<string | null>(null);
+  const [criterioFecha, setCriterioFecha] = useState<"fechas" | "vence">("fechas");
+
   // Sincronizar vendedor seleccionado si el usuario es un vendedor específico
   useEffect(() => {
     if (!esAdmin) {
@@ -205,7 +222,89 @@ export function VisorPedidosDespachosHGI({
 
   const metadata = metadataAsync || obtenerMetadataPedidosDespachos();
 
-  // Estructurar con filtros aplicando seguridad por asesor
+  // Estadísticas rápidas por correría (unidades totales y pendientes) para el año seleccionado
+  const statsCorrerias = useMemo(() => {
+    const stats: Record<string, { pedidos: number; pendientes: number; despachados: number }> = {};
+    for (const c of CORRERIAS_OFICIALES) {
+      stats[c.clave] = { pedidos: 0, pendientes: 0, despachados: 0 };
+    }
+
+    if (!registros || registros.length === 0) return stats;
+
+    const permitidosNorm = vendedorNombresPermitidos
+      ? vendedorNombresPermitidos.map((n) => n.toLowerCase().trim()).filter(Boolean)
+      : null;
+
+    for (const r of registros) {
+      if (permitidosNorm !== null) {
+        if (permitidosNorm.length === 0 || !r.vendedor) continue;
+        const vNorm = r.vendedor.toLowerCase().trim();
+        const coincide = permitidosNorm.some(
+          (p) => vNorm === p || (p.length >= 3 && vNorm.includes(p)) || (vNorm.length >= 3 && p.includes(vNorm))
+        );
+        if (!coincide) continue;
+      }
+
+      const campoFecha = criterioFecha === "vence" ? r.vence : r.fechas;
+      if (!campoFecha) continue;
+
+      let fechaIso = campoFecha.trim();
+      if (fechaIso.includes("/")) {
+        const parts = fechaIso.split("/");
+        if (parts.length === 3) {
+          if (parts[0].length === 4) {
+            fechaIso = `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+          } else {
+            const y = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+            fechaIso = `${y}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+          }
+        }
+      }
+
+      const anioFila = parseInt(fechaIso.slice(0, 4), 10);
+      if (anioFila !== anioCorreria) continue;
+      const mesDia = fechaIso.slice(5, 10);
+
+      for (const corr of CORRERIAS_OFICIALES) {
+        if (mesDia >= corr.mesInicio && mesDia <= corr.mesFin) {
+          stats[corr.clave].pedidos += r.totalPedido || 0;
+          stats[corr.clave].pendientes += r.saldoPedido || 0;
+          stats[corr.clave].despachados += r.despachado || 0;
+          break;
+        }
+      }
+    }
+
+    return stats;
+  }, [registros, anioCorreria, vendedorNombresPermitidos, criterioFecha]);
+
+  // Manejador para activar una correría con sus fechas oficiales
+  const seleccionarCorreria = (clave: string, anio: number = anioCorreria) => {
+    const rango = obtenerRangoFechasCorreria(clave, anio);
+    if (!rango) return;
+
+    setAnioCorreria(anio);
+    setFechaDesde(rango.fechaDesde);
+    setFechaHasta(rango.fechaHasta);
+    setFiltrarPorFecha(true);
+    setCorreriaActivaClave(rango.clave);
+  };
+
+  // Cambiar el año de análisis de correrías
+  const cambiarAnioCorreria = (nuevoAnio: number) => {
+    setAnioCorreria(nuevoAnio);
+    if (correriaActivaClave) {
+      seleccionarCorreria(correriaActivaClave, nuevoAnio);
+    }
+  };
+
+  // Información de la correría activa actual
+  const correriaActivaInfo = useMemo(() => {
+    if (!filtrarPorFecha || !correriaActivaClave) return null;
+    return obtenerRangoFechasCorreria(correriaActivaClave, anioCorreria);
+  }, [filtrarPorFecha, correriaActivaClave, anioCorreria]);
+
+  // Estructurar con filtros aplicando seguridad por asesor y fechas de correría
   const agrupado = useMemo(() => {
     return estructurarPedidosDespachosHGI(registros, {
       vendedor: vendedorSeleccionado,
@@ -218,6 +317,7 @@ export function VisorPedidosDespachosHGI({
       fechaDesde,
       fechaHasta,
       filtrarPorFecha,
+      criterioFecha,
     });
   }, [
     registros,
@@ -231,6 +331,7 @@ export function VisorPedidosDespachosHGI({
     fechaDesde,
     fechaHasta,
     filtrarPorFecha,
+    criterioFecha,
   ]);
 
   const { vendedores, kpis, catalogos } = agrupado;
@@ -375,10 +476,14 @@ export function VisorPedidosDespachosHGI({
             </div>
 
             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background rounded-lg border border-border text-[11px] text-muted-foreground">
-              <Clock className="h-3.5 w-3.5 text-amber-500" />
+              <Clock className="h-3.5 w-3.5 text-indigo-500" />
               <span>Periodo:</span>
               <span className="font-semibold text-foreground">
-                {filtrarPorFecha ? `${fechaDesde} al ${fechaHasta}` : "Histórico Completo (Sin filtro de fecha)"}
+                {correriaActivaInfo
+                  ? `Correría ${correriaActivaInfo.etiqueta} (${fechaDesde} al ${fechaHasta})`
+                  : filtrarPorFecha
+                  ? `${fechaDesde} al ${fechaHasta}`
+                  : "Histórico Completo (Sin filtro de fecha)"}
               </span>
               <span className="text-muted-foreground/50">|</span>
               <span>Modo:</span>
@@ -435,7 +540,7 @@ export function VisorPedidosDespachosHGI({
         {/* 2. Barra de Control / Filtros de Plantilla HGI */}
         <div className="pt-2.5 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           {/* Consulta & Plantilla & Asesor & Cliente */}
-          <div className="md:col-span-5 flex items-center gap-2 flex-wrap">
+          <div className="md:col-span-4 flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 min-w-[70px]">
               <span className="text-muted-foreground font-medium">Consulta:</span>
               <span className="font-bold text-foreground">Documentos</span>
@@ -496,11 +601,12 @@ export function VisorPedidosDespachosHGI({
             </div>
           </div>
 
-          {/* Rango de Fechas y Accesos Rápidos */}
-          <div className="md:col-span-4 flex flex-col items-center gap-1.5 justify-center w-full">
+          {/* Rango de Fechas, Periodos y Filtros por Correrías (C1 a C5) */}
+          <div className="md:col-span-5 flex flex-col items-center gap-1.5 justify-center w-full">
+            {/* Fila 1: Fechas desde/hasta + selector de Criterio + botón refrescar */}
             <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full justify-center">
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 bg-background border rounded-lg px-2 py-1 w-full sm:w-auto">
-                <div className="flex items-center gap-1 flex-1 min-w-[120px]">
+                <div className="flex items-center gap-1 flex-1 min-w-[115px]">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <input
                     type="date"
@@ -508,23 +614,39 @@ export function VisorPedidosDespachosHGI({
                     onChange={(e) => {
                       setFechaDesde(e.target.value);
                       setFiltrarPorFecha(true);
+                      setCorreriaActivaClave(null);
                     }}
                     className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden w-full"
                   />
                 </div>
                 <span className="text-muted-foreground font-semibold text-xs px-0.5">a</span>
-                <div className="flex items-center gap-1 flex-1 min-w-[120px]">
+                <div className="flex items-center gap-1 flex-1 min-w-[115px]">
                   <input
                     type="date"
                     value={fechaHasta}
                     onChange={(e) => {
                       setFechaHasta(e.target.value);
                       setFiltrarPorFecha(true);
+                      setCorreriaActivaClave(null);
                     }}
                     className="bg-transparent border-0 text-[11px] font-mono text-foreground focus:outline-hidden w-full"
                   />
                 </div>
               </div>
+
+              {/* Selector de Criterio de Corte (Fecha Pedido vs Fecha Vence) */}
+              <div className="flex items-center gap-1 px-1.5 py-1 bg-background border rounded-lg text-[10px] shrink-0">
+                <span className="text-muted-foreground text-[9.5px]">Corte:</span>
+                <button
+                  type="button"
+                  onClick={() => setCriterioFecha((prev) => (prev === "fechas" ? "vence" : "fechas"))}
+                  className="font-bold text-primary hover:underline cursor-pointer"
+                  title="Clic para alternar entre Fecha de Pedido y Fecha de Entrega/Vence"
+                >
+                  {criterioFecha === "fechas" ? "F. Pedido" : "F. Vence"}
+                </button>
+              </div>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -537,12 +659,15 @@ export function VisorPedidosDespachosHGI({
               </Button>
             </div>
 
-            {/* Botones de Periodo Rápido */}
+            {/* Fila 2: Botones de Periodo Rápido */}
             <div className="flex items-center gap-1 text-[10px] flex-wrap justify-center">
               <span className="text-muted-foreground font-medium">Periodos:</span>
               <button
                 type="button"
-                onClick={() => setFiltrarPorFecha(false)}
+                onClick={() => {
+                  setFiltrarPorFecha(false);
+                  setCorreriaActivaClave(null);
+                }}
                 className={`px-2 py-0.5 rounded border transition-colors ${
                   !filtrarPorFecha
                     ? "bg-teal-600 text-white border-teal-600 font-bold shadow-xs"
@@ -561,9 +686,10 @@ export function VisorPedidosDespachosHGI({
                   setFechaDesde(`${y}-${m}-01`);
                   setFechaHasta(`${y}-${m}-${String(lastDay).padStart(2, "0")}`);
                   setFiltrarPorFecha(true);
+                  setCorreriaActivaClave(null);
                 }}
                 className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  filtrarPorFecha && fechaDesde.endsWith("-01") && !fechaDesde.includes("-01-01")
+                  filtrarPorFecha && !correriaActivaClave && fechaDesde.endsWith("-01") && !fechaDesde.includes("-01-01")
                     ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
                     : "bg-background border-border text-muted-foreground hover:text-foreground"
                 }`}
@@ -576,9 +702,11 @@ export function VisorPedidosDespachosHGI({
                   setFechaDesde("2025-01-01");
                   setFechaHasta("2025-12-31");
                   setFiltrarPorFecha(true);
+                  setCorreriaActivaClave(null);
+                  setAnioCorreria(2025);
                 }}
                 className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  filtrarPorFecha && fechaDesde === "2025-01-01" && fechaHasta === "2025-12-31"
+                  filtrarPorFecha && !correriaActivaClave && fechaDesde === "2025-01-01" && fechaHasta === "2025-12-31"
                     ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
                     : "bg-background border-border text-muted-foreground hover:text-foreground"
                 }`}
@@ -591,9 +719,11 @@ export function VisorPedidosDespachosHGI({
                   setFechaDesde("2026-01-01");
                   setFechaHasta("2026-12-31");
                   setFiltrarPorFecha(true);
+                  setCorreriaActivaClave(null);
+                  setAnioCorreria(2026);
                 }}
                 className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  filtrarPorFecha && fechaDesde === "2026-01-01" && fechaHasta === "2026-12-31"
+                  filtrarPorFecha && !correriaActivaClave && fechaDesde === "2026-01-01" && fechaHasta === "2026-12-31"
                     ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
                     : "bg-background border-border text-muted-foreground hover:text-foreground"
                 }`}
@@ -601,6 +731,139 @@ export function VisorPedidosDespachosHGI({
                 2026
               </button>
             </div>
+
+            {/* Fila 3: Filtro por Correrías (Cortes C1 a C5 con fechas oficiales de colección) */}
+            <div className="flex items-center gap-1 text-[10px] flex-wrap justify-center pt-1 border-t border-border/50 w-full">
+              <span className="text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-0.5">
+                <Layers className="h-3 w-3" />
+                Correrías:
+              </span>
+
+              {/* Selector de Año de Correría */}
+              <div className="inline-flex rounded border border-border bg-muted/40 p-0.5 text-[9.5px]">
+                <button
+                  type="button"
+                  onClick={() => cambiarAnioCorreria(2026)}
+                  className={`px-1.5 py-0.2 rounded font-bold transition-all ${
+                    anioCorreria === 2026
+                      ? "bg-indigo-600 text-white shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  2026
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cambiarAnioCorreria(2025)}
+                  className={`px-1.5 py-0.2 rounded font-bold transition-all ${
+                    anioCorreria === 2025
+                      ? "bg-indigo-600 text-white shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  2025
+                </button>
+              </div>
+
+              {/* Botones C1 .. C5 */}
+              {CORRERIAS_OFICIALES.map((c) => {
+                const esActiva =
+                  filtrarPorFecha &&
+                  correriaActivaClave === c.clave &&
+                  anioCorreria === Number(fechaDesde.slice(0, 4));
+                const stats = statsCorrerias[c.clave];
+                const tienePendientes = stats && stats.pendientes > 0;
+
+                return (
+                  <button
+                    key={c.clave}
+                    type="button"
+                    onClick={() => seleccionarCorreria(c.clave, anioCorreria)}
+                    title={`${c.nombre} ${anioCorreria}: ${c.rangoTexto} (${c.descripcion}) - ${stats?.pedidos || 0} pedidos, ${stats?.pendientes || 0} pendientes`}
+                    className={`px-1.5 py-0.5 rounded border transition-all flex items-center gap-1 cursor-pointer ${
+                      esActiva
+                        ? "bg-indigo-600 text-white border-indigo-600 font-bold shadow-xs ring-1 ring-indigo-400"
+                        : "bg-background border-border text-foreground hover:border-indigo-400/60 hover:text-indigo-600"
+                    }`}
+                  >
+                    <span>{c.clave}</span>
+                    {tienePendientes && (
+                      <span
+                        className={`text-[8.5px] px-1 py-0 rounded-full font-mono ${
+                          esActiva
+                            ? "bg-indigo-700 text-white"
+                            : "bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold"
+                        }`}
+                      >
+                        {stats.pendientes > 999
+                          ? `${(stats.pendientes / 1000).toFixed(1)}k`
+                          : stats.pendientes}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* Selector desplegable de Correría rápida */}
+              <select
+                value={
+                  filtrarPorFecha && correriaActivaClave
+                    ? `${correriaActivaClave}___${anioCorreria}`
+                    : "todas"
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "todas") {
+                    setFiltrarPorFecha(false);
+                    setCorreriaActivaClave(null);
+                  } else {
+                    const [cClave, aStr] = val.split("___");
+                    seleccionarCorreria(cClave, parseInt(aStr, 10));
+                  }
+                }}
+                className="bg-background border border-border text-[9.5px] font-semibold text-foreground rounded px-1.5 py-0.5 cursor-pointer max-w-[130px] truncate"
+              >
+                <option value="todas">Todas las Correrías</option>
+                <optgroup label="Correrías 2026">
+                  {CORRERIAS_OFICIALES.map((c) => (
+                    <option key={`opt_2026_${c.clave}`} value={`${c.clave}___2026`}>
+                      {c.clave} (2026): {c.rangoTexto}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Correrías 2025">
+                  {CORRERIAS_OFICIALES.map((c) => (
+                    <option key={`opt_2025_${c.clave}`} value={`${c.clave}___2025`}>
+                      {c.clave} (2025): {c.rangoTexto}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            {/* Fila 4: Indicador de corte activo por correría */}
+            {correriaActivaInfo && filtrarPorFecha && (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-700 dark:text-indigo-300 animate-in fade-in">
+                <Tag className="h-3 w-3 shrink-0 text-indigo-500" />
+                <span className="font-bold">
+                  Corte: {correriaActivaInfo.etiqueta}
+                </span>
+                <span className="font-mono text-muted-foreground text-[9.5px]">
+                  ({correriaActivaInfo.rangoTexto})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFiltrarPorFecha(false);
+                    setCorreriaActivaClave(null);
+                  }}
+                  className="ml-1 text-muted-foreground hover:text-foreground p-0.5 cursor-pointer"
+                  title="Quitar corte de correría (Ver todo)"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Opciones de Totales y Subtotales (Checkboxes HGI) */}
