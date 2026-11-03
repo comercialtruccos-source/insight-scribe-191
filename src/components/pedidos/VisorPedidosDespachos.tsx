@@ -16,21 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { VisorPedidosDespachosHGI } from "./VisorPedidosDespachosHGI";
-import { ModuloCargaPedidosDespachos } from "@/components/carga/ModuloCargaPedidosDespachos";
-import {
-  hayDatosPedidosDespachos,
-  obtenerMetadataPedidosDespachos,
-  verificarHayDatosEnSupabase,
-  EVENT_PEDIDOS_DESPACHOS_UPDATED,
-} from "@/lib/pedidos-despachos-storage";
-import {
   Search,
   Download,
   Calendar,
@@ -55,7 +40,6 @@ import {
   Plus,
   RefreshCw,
   X,
-  UploadCloud,
   Database,
 } from "lucide-react";
 import {
@@ -110,21 +94,27 @@ export function VisorPedidosDespachos({
   fechaDesdeGlobal,
   fechaHastaGlobal,
 }: VisorPedidosDespachosProps) {
-  // Filtros de encabezado HGI (inicializados en el mes y año actual por defecto)
+  // Filtros de fecha: por defecto abarcan el año completo para visualizar pedidos históricos
   const [fechaDesde, setFechaDesde] = useState(() => {
-    if (fechaDesdeGlobal) return fechaDesdeGlobal;
+    if (fechaDesdeGlobal && mesGlobal && mesGlobal !== "todos") return fechaDesdeGlobal;
     const ahora = new Date();
     const y = anioGlobal ? parseInt(anioGlobal, 10) || ahora.getFullYear() : ahora.getFullYear();
-    const m = mesGlobal && mesGlobal !== "todos" ? String(parseInt(mesGlobal, 10)).padStart(2, "0") : String(ahora.getMonth() + 1).padStart(2, "0");
-    return `${y}-${m}-01`;
+    if (mesGlobal && mesGlobal !== "todos") {
+      const m = String(parseInt(mesGlobal, 10)).padStart(2, "0");
+      return `${y}-${m}-01`;
+    }
+    return `${y}-01-01`;
   });
   const [fechaHasta, setFechaHasta] = useState(() => {
-    if (fechaHastaGlobal) return fechaHastaGlobal;
+    if (fechaHastaGlobal && mesGlobal && mesGlobal !== "todos") return fechaHastaGlobal;
     const ahora = new Date();
     const y = anioGlobal ? parseInt(anioGlobal, 10) || ahora.getFullYear() : ahora.getFullYear();
-    const m = mesGlobal && mesGlobal !== "todos" ? parseInt(mesGlobal, 10) : ahora.getMonth() + 1;
-    const ultimoDia = new Date(y, m, 0).getDate();
-    return `${y}-${String(m).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+    if (mesGlobal && mesGlobal !== "todos") {
+      const m = parseInt(mesGlobal, 10);
+      const ultimoDia = new Date(y, m, 0).getDate();
+      return `${y}-${String(m).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+    }
+    return `${y}-12-31`;
   });
 
   // Sincronización reactiva con filtros de fecha globales del panel
@@ -149,7 +139,8 @@ export function VisorPedidosDespachos({
     }
   }, [anioGlobal, mesGlobal, fechaDesdeGlobal, fechaHastaGlobal]);
   const [modoVista, setModoVista] = useState<"datos" | "grafico" | "ambos">("datos");
-  const [soloPendientes, setSoloPendientes] = useState(true);
+  // Por defecto 'false' para ver todos los productos que han pedido antes y no solo los pendientes
+  const [soloPendientes, setSoloPendientes] = useState(false);
   const [correriaSeleccionada, setCorreriaSeleccionada] = useState<string>("todas");
   const [busqueda, setBusqueda] = useState("");
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState<number | "todos">(
@@ -159,42 +150,6 @@ export function VisorPedidosDespachos({
     terceroIdFiltro || "todos"
   );
   const [vistaMovil, setVistaMovil] = useState<"tarjetas" | "tabla">("tarjetas");
-
-  // Estados para reporte oficial cargado de HGI (18 columnas)
-  const [hayArchivoHGI, setHayArchivoHGI] = useState(() => hayDatosPedidosDespachos());
-  const [metaArchivoHGI, setMetaArchivoHGI] = useState(() => obtenerMetadataPedidosDespachos());
-  const [fuenteActiva, setFuenteActiva] = useState<"hgi_archivo" | "base_datos">(() =>
-    hayDatosPedidosDespachos() ? "hgi_archivo" : "base_datos"
-  );
-  const [modalCargaAbierto, setModalCargaAbierto] = useState(false);
-
-  // Consulta reactiva si hay datos oficiales de HGI en Supabase (public.pedidos_despachos)
-  const { data: hayDatosSupabase = false } = useQuery<boolean>({
-    queryKey: ["pedidos-despachos-hay-datos"],
-    queryFn: () => verificarHayDatosEnSupabase(),
-    staleTime: 1000 * 60 * 2,
-  });
-
-  const tieneDatosHGI = hayArchivoHGI || hayDatosSupabase;
-
-  useEffect(() => {
-    if (tieneDatosHGI) {
-      setFuenteActiva("hgi_archivo");
-    }
-  }, [tieneDatosHGI]);
-
-  useEffect(() => {
-    const handleActualizacion = () => {
-      const hay = hayDatosPedidosDespachos();
-      setHayArchivoHGI(hay);
-      setMetaArchivoHGI(obtenerMetadataPedidosDespachos());
-      if (hay) {
-        setFuenteActiva("hgi_archivo");
-      }
-    };
-    window.addEventListener(EVENT_PEDIDOS_DESPACHOS_UPDATED, handleActualizacion);
-    return () => window.removeEventListener(EVENT_PEDIDOS_DESPACHOS_UPDATED, handleActualizacion);
-  }, []);
 
   React.useEffect(() => {
     setVendedorSeleccionado(vendedorIdFiltro);
@@ -509,123 +464,48 @@ export function VisorPedidosDespachos({
 
   return (
     <div className="space-y-4 font-sans text-xs">
-      {/* Selector de Fuente: Solo visible para administradores */}
-      {esAdmin && (
+      {/* Encabezado y Accesos Rápidos de Administración */}
+      {esAdmin && (onNavegarAProgramacion || onNavegarABodega) && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card shadow-2xs">
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="inline-flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => setFuenteActiva("hgi_archivo")}
-                disabled={!tieneDatosHGI}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer",
-                  fuenteActiva === "hgi_archivo"
-                    ? "bg-teal-600 text-white shadow-2xs"
-                    : tieneDatosHGI
-                    ? "text-muted-foreground hover:text-foreground"
-                    : "text-muted-foreground/40 cursor-not-allowed"
-                )}
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                <span>Reporte Oficial HGI (18 Columnas - ERP)</span>
-                {tieneDatosHGI && (
-                  <Badge variant="secondary" className="ml-1 text-[9px] bg-white/20 text-white py-0 px-1.5 font-mono">
-                    Supabase
-                  </Badge>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFuenteActiva("base_datos")}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer",
-                  fuenteActiva === "base_datos"
-                    ? "bg-primary text-primary-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Database className="h-3.5 w-3.5" />
-                <span>Cruce Base de Ventas (32 Columnas)</span>
-              </button>
-            </div>
-
-            {tieneDatosHGI && metaArchivoHGI && fuenteActiva === "hgi_archivo" && (
-              <Badge variant="outline" className="text-[11px] font-mono py-1 px-2.5 border-teal-500/30 bg-teal-500/5 text-teal-700 dark:text-teal-300">
-                {metaArchivoHGI.nombreArchivo} • {metaArchivoHGI.totalRegistros.toLocaleString("es-CO")} registros
-              </Badge>
-            )}
+            <Badge variant="outline" className="text-xs font-semibold py-1 px-2.5 border-primary/30 bg-primary/5 text-primary">
+              <Database className="h-3.5 w-3.5 mr-1 text-primary" />
+              Base de Ventas y Pedidos Original (fact_ventas)
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              Cruce directo de pedidos tomados vs. salidas de bodega / facturación históricas
+            </span>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setModalCargaAbierto(true)}
-            className="text-xs font-semibold gap-1.5 shrink-0 border-teal-500/40 hover:bg-teal-500/10 text-teal-700 dark:text-teal-300"
-          >
-            <UploadCloud className="h-3.5 w-3.5" />
-            <span>{tieneDatosHGI ? "Actualizar Archivo HGI" : "Cargar Archivo HGI"}</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            {onNavegarAProgramacion && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onNavegarAProgramacion}
+                className="text-xs font-semibold gap-1.5 border-purple-500/40 hover:bg-purple-500/10 text-purple-700 dark:text-purple-300"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span>Programación Producción</span>
+              </Button>
+            )}
+            {onNavegarABodega && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onNavegarABodega}
+                className="text-xs font-semibold gap-1.5 border-blue-500/40 hover:bg-blue-500/10 text-blue-700 dark:text-blue-300"
+              >
+                <Package className="h-3.5 w-3.5" />
+                <span>Despachos Bodega</span>
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Modal Dialog para Carga de Archivo (SOLO PARA ADMINISTRADORES) */}
-      {esAdmin && (
-        <Dialog open={modalCargaAbierto} onOpenChange={setModalCargaAbierto}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold font-display flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-                <span>Cargar Reporte Oficial de Pedidos vs. Despachos (HGI)</span>
-              </DialogTitle>
-              <DialogDescription className="text-xs">
-                Sube el archivo plano exportado de HGI con las 18 columnas oficiales para sincronizar en Supabase.
-              </DialogDescription>
-            </DialogHeader>
-
-            <ModuloCargaPedidosDespachos
-              onCargaExitosa={() => {
-                setModalCargaAbierto(false);
-                setFuenteActiva("hgi_archivo");
-              }}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* RENDERIZADO CONDICIONAL DE LA VISTA OFICIAL DE ARCHIVO HGI (SUPABASE / INDEXEDDB) */}
-      {(tieneDatosHGI && fuenteActiva !== "base_datos") || (!esAdmin && tieneDatosHGI) ? (
-        <VisorPedidosDespachosHGI
-          onAbrirCarga={esAdmin ? () => setModalCargaAbierto(true) : undefined}
-          onNavegarAProgramacion={onNavegarAProgramacion}
-          onNavegarABodega={onNavegarABodega}
-          vendedorIdFiltro={vendedorIdFiltro}
-          terceroIdFiltro={terceroIdFiltro}
-          vendedorIdsPermitidos={vendedorIdsPermitidos}
-          asesorNombre={asesorNombre}
-          esAdmin={esAdmin}
-          anioGlobal={anioGlobal}
-          mesGlobal={mesGlobal}
-          fechaDesdeGlobal={fechaDesdeGlobal}
-          fechaHastaGlobal={fechaHastaGlobal}
-        />
-      ) : (
-        <>
-          {/* Banner explicativo de diferencias técnicas en el cruce de fact_ventas */}
-          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-900 dark:text-amber-100 text-xs flex items-start gap-2.5 shadow-2xs">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-            <div>
-              <p className="font-bold text-[12px]">Vista de Cruce Matemático sobre Archivo de Ventas (32 Columnas)</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                Esta vista calcula la diferencia aritmética directa entre transacciones de PEDIDOS y SALIDAS/FACTURAS cargadas en <code className="bg-muted px-1 rounded font-mono text-[10px]">fact_ventas</code>. 
-                <strong className="text-foreground"> ¿Por qué difiere del ERP?</strong> En la base de ventas no existen columnas para órdenes canceladas (<code className="bg-muted px-1 rounded font-mono text-[10px]">Cancelado</code>), órdenes cerradas por fin de colección, ni stock disponible en bodega (<code className="bg-muted px-1 rounded font-mono text-[10px]">Saldo Inv</code>), y el filtro por mes no incluye pedidos pendientes originados en meses anteriores (<code className="bg-muted px-1 rounded font-mono text-[10px]">Anterior</code>). Para ver las cifras oficiales auditadas coincidentes al 100% con HGI ERP, utilice la pestaña <strong className="text-teal-700 dark:text-teal-300">"Reporte Oficial HGI"</strong>.
-              </p>
-            </div>
-          </div>
-
-          {/* 1. Barra de Ventana / Encabezado de Empresa (Estilo HGI Visor de Datos) */}
-          <div className="bg-muted/40 border border-border/80 rounded-xl p-3 shadow-xs">
+      {/* 1. Barra de Ventana / Encabezado de Empresa (Estilo HGI Visor de Datos) */}
+      <div className="bg-muted/40 border border-border/80 rounded-xl p-3 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 pb-2.5 border-b border-border/60">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background rounded-lg border border-border text-[11px] font-semibold text-foreground">
@@ -781,6 +661,17 @@ export function VisorPedidosDespachos({
               <span className="text-muted-foreground font-medium">Periodos:</span>
               <button
                 type="button"
+                onClick={() => { setFechaDesde("2026-01-01"); setFechaHasta("2026-12-31"); }}
+                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                  fechaDesde === "2026-01-01" && fechaHasta === "2026-12-31"
+                    ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Año 2026
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   const now = new Date();
                   const y = now.getFullYear();
@@ -808,36 +699,14 @@ export function VisorPedidosDespachos({
               </button>
               <button
                 type="button"
-                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2025-12-31"); }}
+                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2026-12-31"); }}
                 className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  fechaDesde === "2025-01-01" && fechaHasta === "2025-12-31"
-                    ? "bg-primary text-primary-foreground border-primary font-bold"
+                  fechaDesde === "2025-01-01" && fechaHasta === "2026-12-31"
+                    ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
                     : "bg-background border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
-                2025 (Año Macro)
-              </button>
-              <button
-                type="button"
-                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2025-06-30"); }}
-                className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  fechaDesde === "2025-01-01" && fechaHasta === "2025-06-30"
-                    ? "bg-primary text-primary-foreground border-primary font-bold"
-                    : "bg-background border-border text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                S1 2025
-              </button>
-              <button
-                type="button"
-                onClick={() => { setFechaDesde("2026-01-01"); setFechaHasta("2026-12-31"); }}
-                className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  fechaDesde === "2026-01-01" && fechaHasta === "2026-12-31"
-                    ? "bg-primary text-primary-foreground border-primary font-bold"
-                    : "bg-background border-border text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                2026
+                Todo el Historial
               </button>
               <button
                 type="button"
@@ -863,14 +732,14 @@ export function VisorPedidosDespachos({
               </button>
               <button
                 type="button"
-                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2026-12-31"); }}
+                onClick={() => { setFechaDesde("2025-01-01"); setFechaHasta("2025-12-31"); }}
                 className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  fechaDesde === "2025-01-01" && fechaHasta === "2026-12-31"
+                  fechaDesde === "2025-01-01" && fechaHasta === "2025-12-31"
                     ? "bg-primary text-primary-foreground border-primary font-bold"
                     : "bg-background border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Todo
+                2025
               </button>
             </div>
           </div>
@@ -960,11 +829,24 @@ export function VisorPedidosDespachos({
           <div className="inline-flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 shadow-2xs">
             <button
               type="button"
+              onClick={() => setSoloPendientes(false)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
+                !soloPendientes
+                  ? "bg-primary text-primary-foreground shadow-2xs font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Ver Todo (Histórico)</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setSoloPendientes(true)}
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
                 soloPendientes
-                  ? "bg-amber-600 text-white shadow-2xs"
+                  ? "bg-amber-600 text-white shadow-2xs font-bold"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -975,19 +857,6 @@ export function VisorPedidosDespachos({
                   {kpis.totalPendienteCantidad.toLocaleString("es-CO")}
                 </span>
               ) : null}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSoloPendientes(false)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
-                !soloPendientes
-                  ? "bg-primary text-primary-foreground shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Ver Todo (Histórico)</span>
             </button>
           </div>
 
@@ -1357,9 +1226,24 @@ export function VisorPedidosDespachos({
                                   {t.productos.map((prod, pIdx) => (
                                     <div key={`${clave}-${prod.producto}-${pIdx}`} className="pt-2 first:pt-0 space-y-1 text-[11px]">
                                       <div className="flex items-start justify-between gap-1.5">
-                                        <span className="font-semibold text-foreground line-clamp-1">
-                                          {prod.producto}
-                                        </span>
+                                        <div>
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="font-semibold text-foreground">
+                                              {prod.producto}
+                                            </span>
+                                            {prod.descripcion && (
+                                              <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">
+                                                ({prod.descripcion})
+                                              </span>
+                                            )}
+                                          </div>
+                                          {(prod.talla || prod.color) && (
+                                            <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-0.5">
+                                              {prod.talla && <span className="px-1 rounded bg-muted/80">T: {prod.talla}</span>}
+                                              {prod.color && <span className="px-1 rounded bg-muted/80">C: {prod.color}</span>}
+                                            </div>
+                                          )}
+                                        </div>
                                         {prod.esPendiente ? (
                                           <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 shrink-0">
                                             Pendiente
@@ -1523,14 +1407,30 @@ export function VisorPedidosDespachos({
                                     )}
                                   </td>
 
-                                  {/* Columna Producto (Código y descripción) */}
+                                  {/* Columna Producto (Código, descripción, talla, color) */}
                                   <td className="py-1.5 px-3 border-r border-border/80 font-mono text-foreground">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="font-semibold text-primary">{p.producto}</span>
-                                      {p.descripcion && (
-                                        <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
-                                          ({p.descripcion})
-                                        </span>
+                                    <div className="flex flex-col gap-0.5">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-semibold text-primary">{p.producto}</span>
+                                        {p.descripcion && (
+                                          <span className="text-[10px] text-muted-foreground truncate max-w-[180px]" title={p.descripcion}>
+                                            ({p.descripcion})
+                                          </span>
+                                        )}
+                                      </div>
+                                      {(p.talla || p.color) && (
+                                        <div className="flex items-center gap-1 text-[9px] flex-wrap">
+                                          {p.talla && (
+                                            <span className="px-1 py-0.2 rounded bg-muted/70 text-muted-foreground border border-border/40 font-sans">
+                                              T: {p.talla}
+                                            </span>
+                                          )}
+                                          {p.color && (
+                                            <span className="px-1 py-0.2 rounded bg-muted/70 text-muted-foreground border border-border/40 font-sans">
+                                              C: {p.color}
+                                            </span>
+                                          )}
+                                        </div>
                                       )}
                                     </div>
                                   </td>
@@ -1739,8 +1639,6 @@ export function VisorPedidosDespachos({
             )}
           </div>
         </Card>
-      )}
-        </>
       )}
     </div>
   );

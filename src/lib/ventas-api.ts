@@ -5407,6 +5407,8 @@ export async function obtenerPedidosVsDespachos(
     sku: string | null;
     color: string | null;
     talla: string | null;
+    coloresSet: Set<string>;
+    tallasSet: Set<string>;
     vendedorId: number | string;
     vendedorNombre: string;
     pedidosCantidad: number;
@@ -5487,6 +5489,8 @@ export async function obtenerPedidosVsDespachos(
         sku: r.sku ? String(r.sku) : null,
         color: r.color ? String(r.color) : null,
         talla: r.talla ? String(r.talla) : null,
+        coloresSet: new Set(),
+        tallasSet: new Set(),
         vendedorId: vId || vNombre,
         vendedorNombre: vNombre,
         pedidosCantidad: 0,
@@ -5501,8 +5505,20 @@ export async function obtenerPedidosVsDespachos(
     const prod = terc.productosMap.get(prodCodigo)!;
     if (prodDesc && !prod.descripcion) prod.descripcion = prodDesc;
     if (r.sku && !prod.sku) prod.sku = String(r.sku);
-    if (r.color && !prod.color) prod.color = String(r.color);
-    if (r.talla && !prod.talla) prod.talla = String(r.talla);
+    if (r.color) {
+      const cStr = String(r.color).trim();
+      if (cStr) {
+        prod.coloresSet.add(cStr);
+        if (!prod.color) prod.color = cStr;
+      }
+    }
+    if (r.talla) {
+      const tStr = String(r.talla).trim();
+      if (tStr) {
+        prod.tallasSet.add(tStr);
+        if (!prod.talla) prod.talla = tStr;
+      }
+    }
     if (esPedido && vId > 0) {
       prod.vendedorId = vId;
       prod.vendedorNombre = vNombre;
@@ -5554,6 +5570,11 @@ export async function obtenerPedidosVsDespachos(
     let tTotVal = 0;
 
     for (const p of tData.productosMap.values()) {
+      // Omitir productos si no tuvieron pedidos ni salidas ni facturas
+      if (p.pedidosCantidad === 0 && p.salidasCantidad === 0 && p.facturasCantidad === 0) {
+        continue;
+      }
+
       // Conciliación de despachos: evitar duplicar si existen Salida por Despacho y Factura Electrónica
       const despCant = Math.max(p.salidasCantidad, p.facturasCantidad);
       const despVal = Math.max(p.salidasValor, p.facturasValor);
@@ -5561,20 +5582,23 @@ export async function obtenerPedidosVsDespachos(
       const pendVal = pendCant > 0 ? Math.max(0, p.pedidosValor - despVal) : 0;
       const esPendiente = pendCant > 0;
 
-      // Actualizar globales (acumula todas las referencias analizadas)
-      globalPedidosCant += p.pedidosCantidad;
-      globalPedidosVal += p.pedidosValor;
-      globalDespachosCant += despCant;
-      globalDespachosVal += despVal;
-      globalPendienteCant += pendCant;
-      globalPendienteVal += pendVal;
+      // Si el filtro solo_pendientes está activo, omitir productos completamente despachados o sin saldo
+      if (filtros.solo_pendientes && !esPendiente) {
+        continue;
+      }
+
+      // Consolidar tallas y colores únicos en cadenas legibles
+      const tallasArr = Array.from(p.tallasSet);
+      const coloresArr = Array.from(p.coloresSet);
+      const tallaStr = tallasArr.length > 0 ? tallasArr.join(", ") : p.talla;
+      const colorStr = coloresArr.length > 0 ? coloresArr.join(", ") : p.color;
 
       const itemProd: ItemProductoPedidoDespacho = {
         producto: p.producto,
         descripcion: p.descripcion,
         sku: p.sku,
-        color: p.color,
-        talla: p.talla,
+        color: colorStr,
+        talla: tallaStr,
         pedidosCantidad: p.pedidosCantidad,
         pedidosValor: p.pedidosValor,
         despachosCantidad: despCant,
@@ -5583,10 +5607,6 @@ export async function obtenerPedidosVsDespachos(
         totalGeneralValor: pendVal,
         esPendiente,
       };
-
-      if (filtros.solo_pendientes && !esPendiente) {
-        continue;
-      }
 
       prodsList.push(itemProd);
       tPedCant += p.pedidosCantidad;
@@ -5597,11 +5617,19 @@ export async function obtenerPedidosVsDespachos(
       tTotVal += pendVal;
     }
 
-    if (filtros.solo_pendientes && prodsList.length === 0) {
+    if (prodsList.length === 0) {
       continue;
     }
 
-    // Ordenar productos por mayor cantidad pendiente o mayor pedido
+    // Actualizar acumuladores globales
+    globalPedidosCant += tPedCant;
+    globalPedidosVal += tPedVal;
+    globalDespachosCant += tDespCant;
+    globalDespachosVal += tDespVal;
+    globalPendienteCant += tTotCant;
+    globalPendienteVal += tTotVal;
+
+    // Ordenar productos: primero los que tienen saldo pendiente, luego por mayor pedido
     prodsList.sort((a, b) => b.totalGeneralCantidad - a.totalGeneralCantidad || b.pedidosCantidad - a.pedidosCantidad);
 
     const tEsPendiente = tTotCant > 0;
