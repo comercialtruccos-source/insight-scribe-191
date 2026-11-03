@@ -11,6 +11,7 @@ import {
   combinarEntidadesCMI,
 } from "./cuadro-mando-matrix";
 import { USUARIOS_INICIALES_PRECONFIGURADOS } from "./permisos-vendedores";
+import { CORRERIAS_OFICIALES } from "./correrias-config";
 
 export type FiltrosBI = {
   anio?: number | null | undefined;
@@ -5344,12 +5345,29 @@ export async function obtenerPedidosVsDespachos(
         .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
         .eq("anio", anio)
         .eq("mes", mes)
-        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%PED %,transaccion.ilike.PED%,transaccion.ilike.%ORDEN%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%,transaccion.ilike.%FACTURA%,transaccion.ilike.%ENTREGA%")
+        .in("transaccion", [
+          "PEDIDOS",
+          "PEDIDO",
+          "SALIDA POR DESPACHO",
+          "SALIDAS POR DESPACHO",
+          "DESPACHO",
+          "FACTURA DE VENTA ELECTRONICA",
+          "FACTURA DE VENTA",
+          "NOTA CREDITO ELECTRONICA",
+        ])
         .gte("fecha", fechaDesde)
         .lte("fecha", fechaHasta);
 
       if (filtros.correria_id && filtros.correria_id !== "todas") {
-        q = q.eq("correria_id", Number(filtros.correria_id));
+        let cId = Number(filtros.correria_id);
+        if (isNaN(cId)) {
+          const cNorm = String(filtros.correria_id).trim().toUpperCase();
+          const corr = CORRERIAS_OFICIALES.find((co) => co.clave === cNorm || co.nombre.toUpperCase().startsWith(cNorm));
+          if (corr) cId = corr.id;
+        }
+        if (!isNaN(cId) && cId > 0) {
+          q = q.eq("correria_id", cId);
+        }
       }
 
       if (filtros.tercero_id) {
@@ -5359,7 +5377,11 @@ export async function obtenerPedidosVsDespachos(
       }
 
       const { data, error } = await q.range(offset, offset + CHUNK_SIZE - 1);
-      if (error || !data || data.length === 0) break;
+      if (error) {
+        console.error(`[obtenerPedidosVsDespachos] Error en mes ${anio}-${mes} offset ${offset}:`, error);
+        break;
+      }
+      if (!data || data.length === 0) break;
       for (const r of data) {
         // Filtrado en memoria de vendedores para evitar timeout por doble .or() en PostgREST
         if (filtros.vendedor_id) {
@@ -5454,9 +5476,10 @@ export async function obtenerPedidosVsDespachos(
     const vId = Number(r.vendedor_id) || Number(r.vendedor2_id) || 0;
     const vNombre = (vId ? vMap.get(vId) : null) || (vId ? `Asesor ID ${vId}` : "VENDEDOR GENERAL");
 
-    const tKey = tId ? String(tId) : tNombre;
-    if (!tercerosGlobalMap.has(tKey)) {
-      tercerosGlobalMap.set(tKey, {
+    // Clave compuesta vendedor + tercero para garantizar aislamiento estricto de cartera por asesor
+    const vtKey = `${vNombre}|${tId || tNombre}`;
+    if (!tercerosGlobalMap.has(vtKey)) {
+      tercerosGlobalMap.set(vtKey, {
         terceroId: tId || tNombre,
         terceroNombre: tNombre,
         terceroCodigo: tCodigo,
@@ -5466,7 +5489,7 @@ export async function obtenerPedidosVsDespachos(
       });
     }
 
-    const terc = tercerosGlobalMap.get(tKey)!;
+    const terc = tercerosGlobalMap.get(vtKey)!;
 
     const cant = Number(r.cantidad || 0);
     const val = Number(r.valor || 0);
@@ -5475,12 +5498,6 @@ export async function obtenerPedidosVsDespachos(
     const esPedido = trans.includes("PEDIDO") || trans.startsWith("PED") || /\bPED\b/.test(trans) || trans.includes("ORDEN");
     const esSalida = trans.includes("DESPACHO") || trans.includes("SALIDA") || trans.includes("REMISION") || trans.includes("ENTREGA") || trans.startsWith("DESP");
     const esFactura = trans.includes("FACTURA") || trans.startsWith("FAC");
-
-    // Si la fila es un pedido y tiene vendedor, atribuir el cliente y el pedido a este vendedor
-    if (esPedido && vId > 0) {
-      terc.vendedorId = vId;
-      terc.vendedorNombre = vNombre;
-    }
 
     if (!terc.productosMap.has(prodCodigo)) {
       terc.productosMap.set(prodCodigo, {
@@ -5518,10 +5535,6 @@ export async function obtenerPedidosVsDespachos(
         prod.tallasSet.add(tStr);
         if (!prod.talla) prod.talla = tStr;
       }
-    }
-    if (esPedido && vId > 0) {
-      prod.vendedorId = vId;
-      prod.vendedorNombre = vNombre;
     }
 
     if (esPedido) {
@@ -5704,8 +5717,8 @@ export async function obtenerPedidosVsDespachos(
     });
   }
 
-  // Ordenar vendedores
-  vendedoresResultado.sort((a, b) => a.vendedorNombre.localeCompare(b.vendedorNombre));
+  // Ordenar vendedores: primero aquellos con mayor saldo pendiente, luego alfabéticamente
+  vendedoresResultado.sort((a, b) => b.totalGeneralCantidad - a.totalGeneralCantidad || a.vendedorNombre.localeCompare(b.vendedorNombre));
 
   const nivelServicio =
     globalPedidosCant > 0 ? (globalDespachosCant / globalPedidosCant) * 100 : 100;

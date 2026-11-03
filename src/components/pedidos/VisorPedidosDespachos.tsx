@@ -10,6 +10,7 @@ import {
   CatalogoItem,
   fetchAllDimTercero,
 } from "@/lib/ventas-api";
+import { CORRERIAS_OFICIALES } from "@/lib/correrias-config";
 import { cn, formatoCOPFull, formatoHGI } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -96,52 +97,52 @@ export function VisorPedidosDespachos({
 }: VisorPedidosDespachosProps) {
   // Filtros de fecha: por defecto abarcan el año completo para visualizar pedidos históricos
   const [fechaDesde, setFechaDesde] = useState(() => {
-    if (fechaDesdeGlobal && mesGlobal && mesGlobal !== "todos") return fechaDesdeGlobal;
+    if (fechaDesdeGlobal && fechaHastaGlobal) return fechaDesdeGlobal;
     const ahora = new Date();
     const y = anioGlobal ? parseInt(anioGlobal, 10) || ahora.getFullYear() : ahora.getFullYear();
-    if (mesGlobal && mesGlobal !== "todos") {
-      const m = String(parseInt(mesGlobal, 10)).padStart(2, "0");
-      return `${y}-${m}-01`;
-    }
     return `${y}-01-01`;
   });
   const [fechaHasta, setFechaHasta] = useState(() => {
-    if (fechaHastaGlobal && mesGlobal && mesGlobal !== "todos") return fechaHastaGlobal;
+    if (fechaDesdeGlobal && fechaHastaGlobal) return fechaHastaGlobal;
     const ahora = new Date();
     const y = anioGlobal ? parseInt(anioGlobal, 10) || ahora.getFullYear() : ahora.getFullYear();
-    if (mesGlobal && mesGlobal !== "todos") {
-      const m = parseInt(mesGlobal, 10);
-      const ultimoDia = new Date(y, m, 0).getDate();
-      return `${y}-${String(m).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
-    }
     return `${y}-12-31`;
   });
 
-  // Sincronización reactiva con filtros de fecha globales del panel
+  // Sincronización reactiva con filtros de fecha globales del panel cuando se definen explícitamente
   React.useEffect(() => {
     if (fechaDesdeGlobal && fechaHastaGlobal) {
       setFechaDesde(fechaDesdeGlobal);
       setFechaHasta(fechaHastaGlobal);
-    } else if (anioGlobal) {
-      const anioNum = parseInt(anioGlobal, 10);
-      if (!isNaN(anioNum)) {
-        if (mesGlobal && mesGlobal !== "todos") {
-          const mesNum = parseInt(mesGlobal, 10);
-          const mStr = String(mesNum).padStart(2, "0");
-          const ultimoDia = new Date(anioNum, mesNum, 0).getDate();
-          setFechaDesde(`${anioNum}-${mStr}-01`);
-          setFechaHasta(`${anioNum}-${mStr}-${String(ultimoDia).padStart(2, "0")}`);
-        } else {
-          setFechaDesde(`${anioNum}-01-01`);
-          setFechaHasta(`${anioNum}-12-31`);
-        }
-      }
     }
-  }, [anioGlobal, mesGlobal, fechaDesdeGlobal, fechaHastaGlobal]);
+  }, [fechaDesdeGlobal, fechaHastaGlobal]);
+
   const [modoVista, setModoVista] = useState<"datos" | "grafico" | "ambos">("datos");
   // Por defecto 'false' para ver todos los productos que han pedido antes y no solo los pendientes
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [correriaSeleccionada, setCorreriaSeleccionada] = useState<string>("todas");
+
+  // Al seleccionar una correría, ajustar automáticamente las fechas según la configuración oficial
+  const handleCambioCorreria = (val: string) => {
+    setCorreriaSeleccionada(val);
+    const ahora = new Date();
+    const y = anioGlobal ? parseInt(anioGlobal, 10) || ahora.getFullYear() : ahora.getFullYear();
+
+    if (val === "todas") {
+      setFechaDesde(`${y}-01-01`);
+      setFechaHasta(`${y}-12-31`);
+      return;
+    }
+
+    const numId = Number(val);
+    const corr = CORRERIAS_OFICIALES.find(
+      (c) => c.id === numId || c.clave === val.toUpperCase()
+    );
+    if (corr) {
+      setFechaDesde(`${y}-${corr.mesInicio}`);
+      setFechaHasta(`${y}-${corr.mesFin}`);
+    }
+  };
   const [busqueda, setBusqueda] = useState("");
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState<number | "todos">(
     vendedorIdFiltro
@@ -584,7 +585,7 @@ export function VisorPedidosDespachos({
               <span className="text-muted-foreground text-[10.5px]">Correría:</span>
               <select
                 value={correriaSeleccionada}
-                onChange={(e) => setCorreriaSeleccionada(e.target.value)}
+                onChange={(e) => handleCambioCorreria(e.target.value)}
                 className="bg-transparent border-0 text-[11px] font-bold text-foreground focus:outline-hidden cursor-pointer font-mono"
               >
                 <option value="todas">Todas</option>
