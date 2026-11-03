@@ -9050,6 +9050,9 @@ function Panel() {
                 >
                   <FileSpreadsheet className="h-4 w-4" />
                   <span>Base de Ventas y Pedidos Histórica (32 Columnas)</span>
+                  <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-semibold">
+                    Fuente Maestra Transaccional
+                  </Badge>
                 </Button>
                 <Button
                   variant={subTabCarga === "cmi" ? "default" : "outline"}
@@ -9057,11 +9060,8 @@ function Panel() {
                   onClick={() => setSubTabCarga("cmi")}
                   className="text-xs font-semibold gap-2 shadow-2xs"
                 >
-                  <Sparkles className="h-4 w-4 text-emerald-500" />
-                  <span>Cuadro de Mando Integral (CMI Oficial 2026)</span>
-                  <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-semibold">
-                    Sincronización Automática
-                  </Badge>
+                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                  <span>Metas Presupuestales CMI (Opcional)</span>
                 </Button>
                 <Button
                   variant={subTabCarga === "referencias" ? "default" : "outline"}

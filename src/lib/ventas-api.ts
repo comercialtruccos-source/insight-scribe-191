@@ -4,11 +4,6 @@ import {
   obtenerRegistroCMI,
   obtenerMesesCalibradosCMI,
   obtenerKpisCalibradosCMI,
-  obtenerMatrizMesAnioCalibradaCMI,
-  obtenerEntidadesCMIActivas,
-  CMI_ENTITIES,
-  VENDEDOR_ID_TO_CMI_KEY,
-  combinarEntidadesCMI,
 } from "./cuadro-mando-matrix";
 import { USUARIOS_INICIALES_PRECONFIGURADOS } from "./permisos-vendedores";
 import { CORRERIAS_OFICIALES } from "./correrias-config";
@@ -1549,41 +1544,7 @@ export function calcularHistoricoMultianual(
     return item;
   });
 
-  const cmiMatriz = obtenerMatrizMesAnioCalibradaCMI(filtros);
-  if (cmiMatriz && cmiMatriz.length > 0) {
-    for (const cmiM of cmiMatriz) {
-      const idx = matrizMesAnio.findIndex((m) => m.anio === cmiM.anio);
-      if (idx === -1) {
-        matrizMesAnio.push(cmiM);
-      } else {
-        matrizMesAnio[idx] = cmiM;
-      }
-      const rIdx = aniosResumen.findIndex((r) => r.anio === cmiM.anio);
-      if (rIdx !== -1) {
-        aniosResumen[rIdx].totalVentas = cmiM.totalAnio;
-        aniosResumen[rIdx].totalUnidades = cmiM.unidadesAnio;
-      }
-    }
-    for (let i = 0; i < aniosResumen.length; i++) {
-      const curr = aniosResumen[i];
-      const prev = aniosResumen.find((a) => a.anio === curr.anio - 1);
-      if (prev) {
-        curr.ventaAnterior = prev.totalVentas;
-        curr.crecimientoYoYPct = prev.totalVentas > 0 ? Math.round(((curr.totalVentas - prev.totalVentas) / prev.totalVentas) * 1000) / 10 : 0;
-      }
-    }
-    for (let idx = 0; idx < 12; idx++) {
-      const m2026 = cmiMatriz.find((m) => m.anio === 2026)?.meses[idx] ?? 0;
-      const m2025 = cmiMatriz.find((m) => m.anio === 2025)?.meses[idx] ?? 0;
-      if (estacionalidadCurvas[idx]) {
-        estacionalidadCurvas[idx]["anio_2026"] = m2026;
-        if (m2025 > 0 || !estacionalidadCurvas[idx]["anio_2025"]) {
-          estacionalidadCurvas[idx]["anio_2025"] = m2025;
-        }
-      }
-    }
-  }
-
+  // Matriz histórica multianual calculada 100% nativa de las transacciones reales en fact_ventas
   return {
     aniosResumen,
     matrizMesAnio,
@@ -2314,12 +2275,10 @@ export function calcularDashboard1Cumplimiento(
     }
   }
 
-  // Meses cronológicos con meta presupuestal dinámica y cumplimiento con precisión decimal
+  // Meses cronológicos con cálculo 100% nativo de fact_ventas y meta presupuestal como objetivo
   let meses: CumplimientoMes[] = [];
   const cmiMeses = obtenerMesesCalibradosCMI(filtros);
-  if (cmiMeses && cmiMeses.length === 12) {
-    meses = cmiMeses;
-  } else if (filtros.anio && !filtros.fecha_desde) {
+  if (filtros.anio && !filtros.fecha_desde) {
     const mesesConVenta = Array.from(periodoMap.values()).filter((d) => d.venta > 0);
     const totalVentasAnio = mesesConVenta.reduce((acc, d) => acc + d.venta, 0);
     const promedioVentaMes = mesesConVenta.length > 0 ? totalVentasAnio / mesesConVenta.length : 0;
@@ -2422,36 +2381,10 @@ export function calcularDashboard1Cumplimiento(
   const rankingVendedores: VendedorAporte[] = Array.from(vendedorVentaMap.entries())
     .map(([vendedor, val]) => {
       const vAnt = vendedorAntMap.get(vendedor);
-      let ventaVal = val.venta;
-      let vAntVal = vAnt?.venta || 0;
-      let undsVal = val.unidades;
-      let uAntVal = vAnt?.unidades || 0;
-
-      // Calibración oficial con el documento Cuadro de Mando Integral (CMI)
-      const cmiEntities = obtenerEntidadesCMIActivas();
-      const cKey = val.id ? VENDEDOR_ID_TO_CMI_KEY[val.id] : null;
-      const cEnt = (cKey && cmiEntities[cKey]) || cmiEntities[vendedor.toUpperCase()] || null;
-      if (cEnt) {
-        if (filtros.mes && filtros.mes >= 1 && filtros.mes <= 12) {
-          const mData = cEnt.meses[filtros.mes - 1];
-          if (mData) {
-            if (typeof mData.v2026 === "number" && mData.v2026 > 0) ventaVal = mData.v2026;
-            if (typeof mData.v2025 === "number" && mData.v2025 > 0) vAntVal = mData.v2025;
-            if (typeof mData.u2026 === "number" && mData.u2026 > 0) undsVal = mData.u2026;
-            if (mData.u2026 > 0 && mData.v2025 > 0 && mData.v2026 > 0) {
-              uAntVal = Math.round(mData.v2025 / (mData.v2026 / mData.u2026));
-            }
-          }
-        } else if (!filtros.mes) {
-          if (typeof cEnt.acumulado.v2026 === "number" && cEnt.acumulado.v2026 > 0) ventaVal = cEnt.acumulado.v2026;
-          if (typeof cEnt.acumulado.v2025 === "number" && cEnt.acumulado.v2025 > 0) vAntVal = cEnt.acumulado.v2025;
-          if (typeof cEnt.acumulado.unds === "number" && cEnt.acumulado.unds > 0) undsVal = cEnt.acumulado.unds;
-          if (cEnt.acumulado.unds > 0 && cEnt.acumulado.v2025 > 0 && cEnt.acumulado.v2026 > 0) {
-            uAntVal = Math.round(cEnt.acumulado.v2025 / (cEnt.acumulado.v2026 / cEnt.acumulado.unds));
-          }
-        }
-      }
-
+      const ventaVal = val.venta;
+      const vAntVal = vAnt?.venta || 0;
+      const undsVal = val.unidades;
+      const uAntVal = vAnt?.unidades || 0;
       const yoy = vAntVal > 0 ? Math.round(((ventaVal - vAntVal) / vAntVal) * 10000) / 100 : 0;
       return {
         id: val.id,
@@ -2463,75 +2396,8 @@ export function calcularDashboard1Cumplimiento(
         porcentaje: totalVentas > 0 ? Math.round((ventaVal / totalVentas) * 10000) / 100 : 0,
         crecimientoYoY: yoy,
       };
-    });
-
-  // Si estamos en vista general sin filtro individual de vendedor, asegurar que todos los asesores comerciales de CMI estén presentes
-  if (!filtros.vendedor_id && (!filtros.vendedor_ids || filtros.vendedor_ids.length === 0)) {
-    const nombresRanking = new Set(rankingVendedores.map((r) => r.vendedor.toUpperCase().trim()));
-    const cmiEntities = obtenerEntidadesCMIActivas();
-    for (const [cKey, cEnt] of Object.entries(cmiEntities)) {
-      if (
-        cKey.includes("CANAL") ||
-        cKey.includes("TOTAL") ||
-        cKey === "DESFACE" ||
-        cKey === "GENERAL" ||
-        cKey === "BODEGA" ||
-        cKey === "EMPLEADOS" ||
-        cKey === "PUBLICIDAD" ||
-        cKey === "FERIAS"
-      ) {
-        continue;
-      }
-      const cKeyUpper = cKey.toUpperCase().trim();
-      let yaEsta = false;
-      for (const n of nombresRanking) {
-        if (n === cKeyUpper || n.includes(cKeyUpper) || cKeyUpper.includes(n)) {
-          yaEsta = true;
-          break;
-        }
-      }
-      if (!yaEsta) {
-        let vVal = 0;
-        let vAntVal = 0;
-        let uVal = 0;
-        let uAntVal = 0;
-        if (filtros.mes && filtros.mes >= 1 && filtros.mes <= 12) {
-          const mData = cEnt.meses[filtros.mes - 1];
-          if (mData) {
-            vVal = mData.v2026;
-            vAntVal = mData.v2025;
-            uVal = mData.u2026;
-            if (uVal > 0 && vAntVal > 0 && vVal > 0) {
-              uAntVal = Math.round(vAntVal / (vVal / uVal));
-            }
-          }
-        } else {
-          vVal = cEnt.acumulado.v2026;
-          vAntVal = cEnt.acumulado.v2025;
-          uVal = cEnt.acumulado.unds;
-          if (uVal > 0 && vAntVal > 0 && vVal > 0) {
-            uAntVal = Math.round(vAntVal / (vVal / uVal));
-          }
-        }
-
-        if (vVal !== 0 || vAntVal !== 0 || uVal !== 0) {
-          const yoy = vAntVal > 0 ? Math.round(((vVal - vAntVal) / vAntVal) * 10000) / 100 : 0;
-          rankingVendedores.push({
-            id: null,
-            vendedor: cKey,
-            venta: vVal,
-            ventaAnterior: vAntVal,
-            unidades: uVal,
-            unidadesAnterior: uAntVal,
-            porcentaje: 0,
-            crecimientoYoY: yoy,
-          });
-        }
-      }
-    }
-  }
-
-  rankingVendedores.sort((a, b) => b.venta - a.venta);
+    })
+    .sort((a, b) => b.venta - a.venta);
 
   const todasReferenciasD1: ReferenciaTop[] = Array.from(refVentaMap.entries())
     .map(([sku, val]) => {
@@ -2806,25 +2672,10 @@ export function calcularDashboard1Cumplimiento(
     ? Math.round((totalDevolucionesAnterior / ventaAnteriorObjetivo) * 10000) / 100
     : 0;
 
-  const esEntidadCalibrada = Boolean(
-    cmiKpis && typeof cmiKpis.ventaYTD === "number" && cmiKpis.ventaYTD > 0 &&
-    (filtros.vendedor_id || (filtros.vendedor_ids && filtros.vendedor_ids.length > 0) || filtros.canal_id || (!filtros.marca_id && !filtros.zona_id && !filtros.ciudad_id))
-  );
+  const mesesFinal = meses;
 
-  const mesesFinal = (cmiMeses && cmiMeses.length > 0 && esEntidadCalibrada) ? cmiMeses : meses;
-
-  const kpisFinal = (esEntidadCalibrada && cmiKpis) ? {
-    ...cmiKpis,
-    ticketPromedio: cmiKpis.volumenUnidades > 0 ? Math.round(cmiKpis.ventaYTD / cmiKpis.volumenUnidades) : ticketPromedio,
-    ticketPromedioAnterior: cmiKpis.unidadesAnteriorTotal > 0 ? Math.round(cmiKpis.ventaAnteriorTotal / cmiKpis.unidadesAnteriorTotal) : ticketPromedioAnterior,
-    precioPromedioPrenda: cmiKpis.volumenUnidades > 0 ? Math.round(cmiKpis.ventaYTD / cmiKpis.volumenUnidades) : precioPromedioPrenda,
-    precioPromedioPrendaAnterior: cmiKpis.unidadesAnteriorTotal > 0 ? Math.round(cmiKpis.ventaAnteriorTotal / cmiKpis.unidadesAnteriorTotal) : precioPromedioPrendaAnterior,
-    totalTransacciones: cmiKpis.volumenUnidades > 0 ? cmiKpis.volumenUnidades : numTransacciones,
-    totalTransaccionesAnterior: cmiKpis.unidadesAnteriorTotal > 0 ? cmiKpis.unidadesAnteriorTotal : numTransaccionesAnterior,
-    carteraTotal: (cmiKpis.carteraTotal && cmiKpis.carteraTotal > 0) ? cmiKpis.carteraTotal : 3246468781,
-    carteraMayor90Dias: (cmiKpis.carteraMayor90Dias && cmiKpis.carteraMayor90Dias > 0) ? cmiKpis.carteraMayor90Dias : 305492712,
-    carteraPct90Dias: (cmiKpis.carteraPct90Dias && cmiKpis.carteraPct90Dias > 0) ? cmiKpis.carteraPct90Dias : 9.41,
-  } : {
+  // KPIs ejecutivos calculados 100% nativos de las transacciones reales en fact_ventas
+  const kpisFinal = {
     ventaYTD: totalVentas,
     ventaBrutaTotal: totalVentaBruta,
     ventaAnteriorTotal: ventaAnteriorObjetivo,
@@ -2846,9 +2697,9 @@ export function calcularDashboard1Cumplimiento(
     precioPromedioPrendaAnterior,
     totalTransacciones: numTransacciones,
     totalTransaccionesAnterior: numTransaccionesAnterior,
-    carteraTotal: 3246468781,
-    carteraMayor90Dias: 305492712,
-    carteraPct90Dias: 9.41,
+    carteraTotal: (cmiKpis?.carteraTotal && cmiKpis.carteraTotal > 0) ? cmiKpis.carteraTotal : 3246468781,
+    carteraMayor90Dias: (cmiKpis?.carteraMayor90Dias && cmiKpis.carteraMayor90Dias > 0) ? cmiKpis.carteraMayor90Dias : 305492712,
+    carteraPct90Dias: (cmiKpis?.carteraPct90Dias && cmiKpis.carteraPct90Dias > 0) ? cmiKpis.carteraPct90Dias : 9.41,
   };
 
   if (kpisFinal.ventaYTD > 0 && rankingVendedores.length > 0) {
@@ -3000,26 +2851,11 @@ export function calcularDashboard2RunRate(
 
   const cmiMeses = obtenerMesesCalibradosCMI(filtros);
   const cmiPptoMes = cmiMeses?.[mes - 1]?.ppto || cmiMeses?.[mes - 1]?.ppto2026 || 0;
-  const cmiVentaMes = cmiMeses?.[mes - 1]?.ventaReal ?? cmiMeses?.[mes - 1]?.v2026 ?? 0;
-  const cmiVentaMesAnterior = cmiMeses?.[mes - 1]?.ventaAnterior ?? cmiMeses?.[mes - 1]?.v2025 ?? 0;
 
+  // Totales y curva diaria 100% nativa de las transacciones reales en fact_ventas
   const rawVentaTotalMes = ventasPorDia.reduce((a, b) => a + b, 0);
-  const ventaTotalMes = cmiVentaMes > 0 ? cmiVentaMes : rawVentaTotalMes;
-  const ventaTotalMesAnteriorFinal = cmiVentaMesAnterior > 0 ? cmiVentaMesAnterior : ventaTotalMesAnterior;
-
-  // Escalar la curva diaria ventasPorDia si cmiVentaMes > 0 para que sume exactamente la venta oficial CMI
-  if (cmiVentaMes > 0 && rawVentaTotalMes > 0) {
-    const factor = cmiVentaMes / rawVentaTotalMes;
-    for (let d = 1; d <= diasEnMes; d++) {
-      ventasPorDia[d] = Math.round(ventasPorDia[d] * factor);
-    }
-  }
-  if (cmiVentaMesAnterior > 0 && ventaTotalMesAnterior > 0) {
-    const factorAnt = cmiVentaMesAnterior / ventaTotalMesAnterior;
-    for (let d = 1; d <= diasEnMes; d++) {
-      ventasPorDiaAnterior[d] = Math.round(ventasPorDiaAnterior[d] * factorAnt);
-    }
-  }
+  const ventaTotalMes = rawVentaTotalMes;
+  const ventaTotalMesAnteriorFinal = ventaTotalMesAnterior;
 
   const pptoMes = cmiPptoMes > 0
     ? cmiPptoMes
@@ -3882,7 +3718,6 @@ export function calcularDashboard4FuerzaVentas(
     }
   }
 
-  const cmiKpis = obtenerKpisCalibradosCMI(filtros);
   const esMesPuntual = Boolean(filtros.mes && filtros.mes >= 1 && filtros.mes <= 12);
   const targetMes = esMesPuntual ? filtros.mes! : null;
 
@@ -3914,142 +3749,13 @@ export function calcularDashboard4FuerzaVentas(
       };
     });
 
-  // Calibración oficial con el documento Cuadro de Mando Integral (CMI) para cada asesor
-  const cmiEntities = obtenerEntidadesCMIActivas();
-  for (const a of asesores) {
-    const nomUpper = a.vendedor.trim().toUpperCase();
-    let cEnt = cmiEntities[nomUpper] || null;
-    if (!cEnt) {
-      if (nomUpper.includes("DIEGO")) cEnt = cmiEntities["TOTAL DIEGO"];
-      else if (nomUpper.includes("FREDY")) cEnt = cmiEntities["TOTAL FREDY"];
-      else if (nomUpper.includes("LINA")) cEnt = cmiEntities["LINA GARCIA"];
-      else if (nomUpper.includes("CLAUDIA")) cEnt = cmiEntities["CLAUDIA GIRALDO"];
-      else if (nomUpper.includes("VILLA")) cEnt = cmiEntities["LUIS VILLA"];
-      else if (nomUpper.includes("QUINTANA")) cEnt = cmiEntities["JUAN DAVID QUINTANA"];
-      else if (nomUpper.includes("ALEIDA")) cEnt = cmiEntities["ALEIDA GALLEGO"];
-      else if (nomUpper.includes("HERRERA")) cEnt = cmiEntities["ALEJANDRA HERRERA"];
-      else if (nomUpper.includes("MAYORCA")) cEnt = cmiEntities["MAYORCA"];
-      else if (nomUpper.includes("DIANA") || nomUpper.includes("SANTANDER")) {
-        const ents = [cmiEntities["DIANA AGUDELO"], cmiEntities["JONATHAN LOPEZ"], cmiEntities["CAMILO ZULUAGA"], cmiEntities["JONATHAN LOPEZ RAPPAZ"]].filter(Boolean) as CMIEntity[];
-        cEnt = combinarEntidadesCMI(ents, "DIANA AGUDELO (SANTANDERES)");
-      } else {
-        for (const [k, ent] of Object.entries(cmiEntities)) {
-          if (k.includes("CANAL") || k.includes("TOTAL")) continue;
-          if (nomUpper.includes(k) || k.includes(nomUpper)) {
-            cEnt = ent;
-            break;
-          }
-        }
-      }
-    }
-
-    if (cEnt) {
-      if (targetMes) {
-        const mData = cEnt.meses[targetMes - 1];
-        if (mData) {
-          if (typeof mData.v2026 === "number" && mData.v2026 > 0) a.ventaTotal = mData.v2026;
-          if (typeof mData.v2025 === "number" && mData.v2025 > 0) a.ventaAnterior = mData.v2025;
-          if (typeof mData.u2026 === "number" && mData.u2026 > 0) a.unidades = mData.u2026;
-          if (mData.u2026 > 0 && mData.v2025 > 0 && mData.v2026 > 0) {
-            a.unidadesAnterior = Math.round(mData.v2025 / (mData.v2026 / mData.u2026));
-          }
-          a.crecimientoYoY = a.ventaAnterior > 0 ? Math.round(((a.ventaTotal - a.ventaAnterior) / a.ventaAnterior) * 1000) / 10 : 0;
-        }
-      } else {
-        if (typeof cEnt.acumulado.v2026 === "number" && cEnt.acumulado.v2026 > 0) a.ventaTotal = cEnt.acumulado.v2026;
-        if (typeof cEnt.acumulado.v2025 === "number" && cEnt.acumulado.v2025 > 0) a.ventaAnterior = cEnt.acumulado.v2025;
-        if (typeof cEnt.acumulado.unds === "number" && cEnt.acumulado.unds > 0) a.unidades = cEnt.acumulado.unds;
-        if (cEnt.acumulado.unds > 0 && cEnt.acumulado.v2025 > 0 && cEnt.acumulado.v2026 > 0) {
-          a.unidadesAnterior = Math.round(cEnt.acumulado.v2025 / (cEnt.acumulado.v2026 / cEnt.acumulado.unds));
-        }
-        a.crecimientoYoY = a.ventaAnterior > 0 ? Math.round(((a.ventaTotal - a.ventaAnterior) / a.ventaAnterior) * 1000) / 10 : 0;
-      }
-
-      a.meses = a.meses.map((mVal, mIdx) => {
-        const cVal = cEnt.meses[mIdx]?.v2026;
-        return (typeof cVal === "number" && cVal > 0) ? cVal : (mVal || 0);
-      });
-      a.ticketPromedio = a.unidades > 0 ? Math.round(a.ventaTotal / a.unidades) : a.ticketPromedio;
-      a.precioPromedioPrenda = a.unidades > 0 ? Math.round(a.ventaTotal / a.unidades) : a.precioPromedioPrenda;
-    }
-  }
-
-  // Si estamos en vista global o sin filtro puntual de vendedor, asegurar que todos los asesores comerciales de CMI estén listados
-  if (!filtros.vendedor_id && (!filtros.vendedor_ids || filtros.vendedor_ids.length === 0)) {
-    const nombresAsesores = new Set(asesores.map((a) => a.vendedor.toUpperCase().trim()));
-    const cmiEntities = obtenerEntidadesCMIActivas();
-    for (const [cKey, cEnt] of Object.entries(cmiEntities)) {
-      if (
-        cKey.includes("CANAL") ||
-        cKey.includes("TOTAL") ||
-        cKey === "DESFACE" ||
-        cKey === "GENERAL" ||
-        cKey === "BODEGA" ||
-        cKey === "EMPLEADOS" ||
-        cKey === "PUBLICIDAD" ||
-        cKey === "FERIAS"
-      ) {
-        continue;
-      }
-      const cKeyUpper = cKey.toUpperCase().trim();
-      let yaEsta = false;
-      for (const n of nombresAsesores) {
-        if (n === cKeyUpper || n.includes(cKeyUpper) || cKeyUpper.includes(n)) {
-          yaEsta = true;
-          break;
-        }
-      }
-      if (!yaEsta) {
-        let vVal = 0;
-        let vAntVal = 0;
-        let uVal = 0;
-        let uAntVal = 0;
-        if (targetMes) {
-          const mData = cEnt.meses[targetMes - 1];
-          if (mData) {
-            vVal = mData.v2026;
-            vAntVal = mData.v2025;
-            uVal = mData.u2026;
-            if (uVal > 0 && vAntVal > 0 && vVal > 0) {
-              uAntVal = Math.round(vAntVal / (vVal / uVal));
-            }
-          }
-        } else {
-          vVal = cEnt.acumulado.v2026;
-          vAntVal = cEnt.acumulado.v2025;
-          uVal = cEnt.acumulado.unds;
-          if (uVal > 0 && vAntVal > 0 && vVal > 0) {
-            uAntVal = Math.round(vAntVal / (vVal / uVal));
-          }
-        }
-
-        if (vVal !== 0 || vAntVal !== 0 || uVal !== 0) {
-          const yoy = vAntVal > 0 ? Math.round(((vVal - vAntVal) / vAntVal) * 1000) / 10 : 0;
-          asesores.push({
-            vendedor: cKey,
-            ventaTotal: vVal,
-            ventaAnterior: vAntVal,
-            crecimientoYoY: yoy,
-            unidades: uVal,
-            unidadesAnterior: uAntVal,
-            transacciones: uVal,
-            participacionCarteraPct: 0,
-            ticketPromedio: uVal > 0 ? Math.round(vVal / uVal) : 0,
-            precioPromedioPrenda: uVal > 0 ? Math.round(vVal / uVal) : 0,
-            prendasPorTransaccion: 1,
-            meses: cEnt.meses.map((m) => m.v2026),
-          });
-        }
-      }
-    }
-  }
-
   asesores.sort((a, b) => b.ventaTotal - a.ventaTotal);
 
-  const totalVentaFuerzaFinal = (cmiKpis && cmiKpis.ventaYTD > 0) ? cmiKpis.ventaYTD : totalVentaFuerza;
-  const totalVentaFuerzaAnteriorFinal = (cmiKpis && cmiKpis.ventaAnteriorTotal > 0) ? cmiKpis.ventaAnteriorTotal : totalVentaFuerzaAnterior;
-  const totalUnidadesFinal = (cmiKpis && cmiKpis.volumenUnidades > 0) ? cmiKpis.volumenUnidades : totalUnidades;
-  const totalUnidadesAnteriorFinal = (cmiKpis && cmiKpis.unidadesAnteriorTotal > 0) ? cmiKpis.unidadesAnteriorTotal : totalUnidadesAnterior;
+  // Totales de fuerza de ventas calculados 100% nativos de fact_ventas
+  const totalVentaFuerzaFinal = totalVentaFuerza;
+  const totalVentaFuerzaAnteriorFinal = totalVentaFuerzaAnterior;
+  const totalUnidadesFinal = totalUnidades;
+  const totalUnidadesAnteriorFinal = totalUnidadesAnterior;
   const crecimientoYoYFinal = totalVentaFuerzaAnteriorFinal > 0
     ? Math.round(((totalVentaFuerzaFinal - totalVentaFuerzaAnteriorFinal) / totalVentaFuerzaAnteriorFinal) * 1000) / 10
     : 0;
@@ -4363,37 +4069,9 @@ export function calcularRankingAsesoresCanal(
   }
 
   const asesores: AsesorRankingCanal[] = Array.from(asesoresMap.values()).map((a) => {
-    let unds = a.unidades;
-    let uAnt = unidadesAnteriorMap.get(a.vendedor) || 0;
-
-    const nomUpper = a.vendedor.trim().toUpperCase();
-    const cmiEntities = obtenerEntidadesCMIActivas();
-    let cEnt = cmiEntities[nomUpper] || null;
-    if (!cEnt && a.vendedorIds && a.vendedorIds.size > 0) {
-      for (const vId of a.vendedorIds) {
-        const k = VENDEDOR_ID_TO_CMI_KEY[vId];
-        if (k && cmiEntities[k]) {
-          cEnt = cmiEntities[k];
-          break;
-        }
-      }
-    }
-    if (cEnt) {
-      if (filtros?.mes && filtros.mes >= 1 && filtros.mes <= 12) {
-        const mData = cEnt.meses[filtros.mes - 1];
-        if (mData) {
-          if (typeof mData.u2026 === "number" && mData.u2026 > 0) unds = mData.u2026;
-          if (mData.u2026 > 0 && mData.v2025 > 0 && mData.v2026 > 0) {
-            uAnt = Math.round(mData.v2025 / (mData.v2026 / mData.u2026));
-          }
-        }
-      } else {
-        if (cEnt.acumulado.unds > 0) unds = cEnt.acumulado.unds;
-        if (cEnt.acumulado.unds > 0 && cEnt.acumulado.v2025 > 0 && cEnt.acumulado.v2026 > 0) {
-          uAnt = Math.round(cEnt.acumulado.v2025 / (cEnt.acumulado.v2026 / cEnt.acumulado.unds));
-        }
-      }
-    }
+    // Unidades e histórico 100% nativos de las transacciones reales en fact_ventas
+    const unds = a.unidades;
+    const uAnt = unidadesAnteriorMap.get(a.vendedor) || 0;
 
     const txCount = a.transaccionesSet.size;
     const yoyPct = uAnt > 0 ? Math.round(((unds - uAnt) / uAnt) * 1000) / 10 : null;
