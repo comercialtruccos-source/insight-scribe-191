@@ -7,6 +7,7 @@ import {
   GrupoVendedorPedidoDespacho,
   GrupoTerceroPedidoDespacho,
   ItemProductoPedidoDespacho,
+  ItemSkuPedidoDespacho,
   CatalogoItem,
   fetchAllDimTercero,
 } from "@/lib/ventas-api";
@@ -191,6 +192,8 @@ export function VisorPedidosDespachos({
 
   // Estado de filas expandidas (claves: `${vendedorNombre}|${terceroNombre}`)
   const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
+  // Estado de SKUs expandidos por producto (claves: `${vendedorNombre}|${terceroNombre}|${producto}`)
+  const [skusExpandidos, setSkusExpandidos] = useState<Record<string, boolean>>({});
 
   // Query para obtener datos agrupados
   const { data, isLoading, refetch, isFetching } = useQuery<ResultadoPedidosDespachos>({
@@ -277,8 +280,9 @@ export function VisorPedidosDespachos({
           // Filtrar los productos individuales que cumplan la combinación de términos
           prodsCoincidentes = t.productos.filter((p) => {
             if (soloPendientes && !p.esPendiente) return false;
+            const skusTexto = (p.skus || []).map((s) => `${s.sku} ${s.talla || ""} ${s.color || ""}`).join(" ");
             const pText = normalizarTexto(
-              `${p.producto} ${p.descripcion || ""} ${p.sku || ""} ${p.color || ""} ${p.talla || ""}`
+              `${p.producto} ${p.descripcion || ""} ${p.sku || ""} ${p.color || ""} ${p.talla || ""} ${skusTexto}`
             );
             const filaCompleta = `${vtText} ${pText}`;
             return queryTokens.every((tok) => filaCompleta.includes(tok));
@@ -371,28 +375,60 @@ export function VisorPedidosDespachos({
     setExpandidos({});
   };
 
-  // Exportar a CSV
+  // Manejo de expansión / colapso de SKUs individuales por referencia
+  const toggleExpandirSku = (prodKey: string) => {
+    setSkusExpandidos((prev) => ({
+      ...prev,
+      [prodKey]: !prev[prodKey],
+    }));
+  };
+
+  const expandirTodosSkus = () => {
+    const nuevo: Record<string, boolean> = {};
+    for (const v of vendedoresFiltrados) {
+      for (const t of v.terceros) {
+        for (const p of t.productos) {
+          nuevo[`${v.vendedorNombre}|${t.terceroNombre}|${p.producto}`] = true;
+        }
+      }
+    }
+    setSkusExpandidos(nuevo);
+  };
+
+  const colapsarTodosSkus = () => {
+    setSkusExpandidos({});
+  };
+
+  // Exportar a CSV incluyendo desglose por SKU
   const exportarCSV = () => {
     if (!vendedoresFiltrados || vendedoresFiltrados.length === 0) return;
 
     const lineas: string[] = [];
     lineas.push(
-      "Vendedor,Tercero,Codigo_Producto,Descripcion_Producto,Pedidos_Cantidad,Pedidos_Valor,Salida_Despacho_Cantidad,Salida_Despacho_Valor,Total_General_Cantidad,Total_General_Valor,Estado"
+      "Tipo_Fila,Vendedor,Tercero,Codigo_Producto_O_SKU,Descripcion,Talla,Color,Pedidos_Cantidad,Pedidos_Valor,Salida_Despacho_Cantidad,Salida_Despacho_Valor,Total_General_Cantidad,Total_General_Valor,Estado"
     );
 
     for (const v of vendedoresFiltrados) {
       for (const t of v.terceros) {
         for (const p of t.productos) {
           lineas.push(
-            `"${v.vendedorNombre}","${t.terceroNombre}","${p.producto}","${p.descripcion || ""}","${p.pedidosCantidad}","${p.pedidosValor}","${p.despachosCantidad}","${p.despachosValor}","${p.totalGeneralCantidad}","${p.totalGeneralValor}","${p.esPendiente ? "PENDIENTE" : "COMPLETADO"}"`
+            `"REFERENCIA","${v.vendedorNombre}","${t.terceroNombre}","${p.producto}","${p.descripcion || ""}","${p.talla || ""}","${p.color || ""}","${p.pedidosCantidad}","${p.pedidosValor}","${p.despachosCantidad}","${p.despachosValor}","${p.totalGeneralCantidad}","${p.totalGeneralValor}","${p.esPendiente ? "PENDIENTE" : "COMPLETADO"}"`
           );
+
+          if (p.skus && p.skus.length > 0) {
+            for (const s of p.skus) {
+              lineas.push(
+                `"SKU","${v.vendedorNombre}","${t.terceroNombre}","${s.sku}","${p.descripcion || ""}","${s.talla || ""}","${s.color || ""}","${s.pedidosCantidad}","${s.pedidosValor}","${s.despachosCantidad}","${s.despachosValor}","${s.totalGeneralCantidad}","${s.totalGeneralValor}","${s.esPendiente ? "PENDIENTE" : "COMPLETADO"}"`
+              );
+            }
+          }
         }
         lineas.push(
-          `"${v.vendedorNombre}","${t.terceroNombre} TOTAL","—","Subtotal Cliente","${t.pedidosCantidad}","${t.pedidosValor}","${t.despachosCantidad}","${t.despachosValor}","${t.totalGeneralCantidad}","${t.totalGeneralValor}","${t.esPendiente ? "PENDIENTE" : "COMPLETADO"}"`
+          `"SUBTOTAL_CLIENTE","${v.vendedorNombre}","${t.terceroNombre} TOTAL","—","Subtotal Cliente","—","—","${t.pedidosCantidad}","${t.pedidosValor}","${t.despachosCantidad}","${t.despachosValor}","${t.totalGeneralCantidad}","${t.totalGeneralValor}","${t.esPendiente ? "PENDIENTE" : "COMPLETADO"}"`
         );
       }
       lineas.push(
-        `"${v.vendedorNombre} TOTAL","—","—","Subtotal Vendedor","${v.pedidosCantidad}","${v.pedidosValor}","${v.despachosCantidad}","${v.despachosValor}","${v.totalGeneralCantidad}","${v.totalGeneralValor}","${v.esPendiente ? "PENDIENTE" : "COMPLETADO"}"`
+        `"SUBTOTAL_VENDEDOR","${v.vendedorNombre} TOTAL","—","—","Subtotal Vendedor","—","—","${v.pedidosCantidad}","${v.pedidosValor}","${v.despachosCantidad}","${v.despachosValor}","${v.totalGeneralCantidad}","${v.totalGeneralValor}","${v.esPendiente ? "PENDIENTE" : "COMPLETADO"}"`
       );
     }
 
@@ -862,10 +898,20 @@ export function VisorPedidosDespachos({
           </div>
 
           <Button variant="outline" size="sm" onClick={expandirTodos} className="h-7 text-xs">
-            Expandir Todo
+            Expandir Clientes
           </Button>
           <Button variant="outline" size="sm" onClick={colapsarTodos} className="h-7 text-xs">
-            Contraer Todo
+            Contraer Clientes
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={Object.values(skusExpandidos).some(Boolean) ? colapsarTodosSkus : expandirTodosSkus}
+            className="h-7 text-xs font-medium"
+            title="Expandir o contraer desglose de SKUs para todas las referencias"
+          >
+            <Layers className="mr-1 h-3.5 w-3.5 text-primary" />
+            {Object.values(skusExpandidos).some(Boolean) ? "Contraer SKUs" : "Expandir SKUs"}
           </Button>
           <Button variant="outline" size="sm" onClick={exportarCSV} className="h-7 text-xs">
             <Download className="mr-1 h-3.5 w-3.5" />
@@ -1224,46 +1270,141 @@ export function VisorPedidosDespachos({
 
                               {estaExpandido && (
                                 <div className="mt-2 divide-y divide-border/40 bg-muted/20 rounded-lg p-2 border border-border/50 space-y-2">
-                                  {t.productos.map((prod, pIdx) => (
-                                    <div key={`${clave}-${prod.producto}-${pIdx}`} className="pt-2 first:pt-0 space-y-1 text-[11px]">
-                                      <div className="flex items-start justify-between gap-1.5">
-                                        <div>
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="font-semibold text-foreground">
-                                              {prod.producto}
-                                            </span>
+                                  {t.productos.map((prod, pIdx) => {
+                                    const prodKey = `${clave}|${prod.producto}`;
+                                    const tieneSkus = Boolean(prod.skus && prod.skus.length > 0);
+                                    const buscaSku = Boolean(
+                                      busqueda.trim() &&
+                                        prod.skus?.some((s) =>
+                                          normalizarTexto(`${s.sku} ${s.talla || ""} ${s.color || ""}`).includes(
+                                            normalizarTexto(busqueda.trim())
+                                          )
+                                        )
+                                    );
+                                    const estaSkuExpandido = Boolean(skusExpandidos[prodKey] || buscaSku);
+                                    const skusAMostrar = soloPendientes
+                                      ? (prod.skus || []).filter((s) => s.esPendiente)
+                                      : (prod.skus || []);
+
+                                    return (
+                                      <div key={`${clave}-${prod.producto}-${pIdx}`} className="pt-2 first:pt-0 space-y-1.5 text-[11px]">
+                                        <div className="flex items-start justify-between gap-1.5">
+                                          <div>
+                                            <button
+                                              type="button"
+                                              onClick={() => tieneSkus && toggleExpandirSku(prodKey)}
+                                              disabled={!tieneSkus}
+                                              className={cn(
+                                                "flex items-center gap-1.5 font-semibold text-foreground text-left",
+                                                tieneSkus ? "hover:text-primary cursor-pointer group" : ""
+                                              )}
+                                            >
+                                              <span className="text-primary group-hover:underline">{prod.producto}</span>
+                                              {tieneSkus && (
+                                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-primary/10 text-primary border-primary/20">
+                                                  {prod.skus!.length} SKUs
+                                                </Badge>
+                                              )}
+                                            </button>
                                             {prod.descripcion && (
-                                              <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">
+                                              <span className="text-[10px] text-muted-foreground truncate max-w-[160px] block">
                                                 ({prod.descripcion})
                                               </span>
                                             )}
+                                            {(prod.talla || prod.color) && (
+                                              <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-0.5">
+                                                {prod.talla && <span className="px-1 rounded bg-muted/80">T: {prod.talla}</span>}
+                                                {prod.color && <span className="px-1 rounded bg-muted/80">C: {prod.color}</span>}
+                                              </div>
+                                            )}
                                           </div>
-                                          {(prod.talla || prod.color) && (
-                                            <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-0.5">
-                                              {prod.talla && <span className="px-1 rounded bg-muted/80">T: {prod.talla}</span>}
-                                              {prod.color && <span className="px-1 rounded bg-muted/80">C: {prod.color}</span>}
-                                            </div>
+                                          {prod.esPendiente ? (
+                                            <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 shrink-0">
+                                              Pendiente
+                                            </Badge>
+                                          ) : (
+                                            <Badge variant="outline" className="text-[9px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 shrink-0">
+                                              Completado
+                                            </Badge>
                                           )}
                                         </div>
-                                        {prod.esPendiente ? (
-                                          <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 shrink-0">
-                                            Pendiente
-                                          </Badge>
-                                        ) : (
-                                          <Badge variant="outline" className="text-[9px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 shrink-0">
-                                            Completado
-                                          </Badge>
+
+                                        <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                                          <span>Ped: {prod.pedidosCantidad} ({formatoHGI(prod.pedidosValor)})</span>
+                                          <span>Desp: {prod.despachosCantidad}</span>
+                                          <span className={cn("font-bold", prod.esPendiente ? "text-amber-700 dark:text-amber-300" : "")}>
+                                            Pend: {prod.totalGeneralCantidad}
+                                          </span>
+                                        </div>
+
+                                        {/* Desglose de SKUs en Móvil */}
+                                        {tieneSkus && (
+                                          <div className="pt-0.5">
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleExpandirSku(prodKey)}
+                                              className="w-full flex items-center justify-between text-[10px] font-medium py-1 px-2 rounded bg-primary/5 hover:bg-primary/10 text-primary transition-colors cursor-pointer"
+                                            >
+                                              <span className="flex items-center gap-1">
+                                                <Tag className="h-3 w-3" />
+                                                {estaSkuExpandido
+                                                  ? "Ocultar desglose de SKUs"
+                                                  : `Ver ${skusAMostrar.length} SKUs ${soloPendientes ? "pendientes" : ""}`}
+                                              </span>
+                                              {estaSkuExpandido ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                            </button>
+
+                                            {estaSkuExpandido && (
+                                              <div className="mt-1 space-y-1.5 pl-2 border-l-2 border-primary/30 py-1">
+                                                {skusAMostrar.length === 0 ? (
+                                                  <div className="text-[10px] italic text-muted-foreground">
+                                                    No hay SKUs pendientes para esta referencia.
+                                                  </div>
+                                                ) : (
+                                                  skusAMostrar.map((s, sIdx) => (
+                                                    <div
+                                                      key={`${prodKey}-m-sku-${s.sku}-${sIdx}`}
+                                                      className={`p-1.5 rounded border text-[10.5px] space-y-0.5 font-mono ${
+                                                        s.esPendiente
+                                                          ? "bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-100"
+                                                          : "bg-background/80 border-border/60 text-foreground"
+                                                      }`}
+                                                    >
+                                                      <div className="flex items-center justify-between font-bold">
+                                                        <span className="text-foreground tracking-tight">{s.sku}</span>
+                                                        {s.esPendiente ? (
+                                                          <span className="px-1.5 py-0.2 rounded text-[8.5px] bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/40">
+                                                            {s.totalGeneralCantidad} Pend
+                                                          </span>
+                                                        ) : (
+                                                          <span className="px-1.5 py-0.2 rounded text-[8.5px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                                            Listo
+                                                          </span>
+                                                        )}
+                                                      </div>
+                                                      {(s.talla || s.color) && (
+                                                        <div className="flex items-center gap-2 text-[9px] text-muted-foreground font-sans">
+                                                          {s.talla && <span>Talla: <b className="text-foreground">{s.talla}</b></span>}
+                                                          {s.color && <span>Color: <b className="text-foreground">{s.color}</b></span>}
+                                                        </div>
+                                                      )}
+                                                      <div className="flex items-center justify-between text-[9px] text-muted-foreground">
+                                                        <span>Ped: {s.pedidosCantidad}</span>
+                                                        <span>Desp: {s.despachosCantidad}</span>
+                                                        <span className={s.esPendiente ? "font-bold text-amber-700 dark:text-amber-300" : ""}>
+                                                          Saldo: {s.totalGeneralCantidad}
+                                                        </span>
+                                                      </div>
+                                                    </div>
+                                                  ))
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
                                         )}
                                       </div>
-                                      <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
-                                        <span>Ped: {prod.pedidosCantidad} ({formatoHGI(prod.pedidosValor)})</span>
-                                        <span>Desp: {prod.despachosCantidad}</span>
-                                        <span className={cn("font-bold", prod.esPendiente ? "text-amber-700 dark:text-amber-300" : "")}>
-                                          Pend: {prod.totalGeneralCantidad}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
@@ -1373,117 +1514,290 @@ export function VisorPedidosDespachos({
                           <React.Fragment key={clave}>
                             {/* Productos individuales si está expandido */}
                             {estaExpandido &&
-                              t.productos.map((p, idx) => (
-                                <tr
-                                  key={`${clave}|${p.producto}|${idx}`}
-                                  className={`hover:bg-muted/20 transition-colors ${
-                                    p.esPendiente ? "bg-amber-500/5 dark:bg-amber-500/10" : ""
-                                  }`}
-                                >
-                                  {/* Columna Vendedor: se muestra solo en la primera fila o espacio en blanco */}
-                                  <td className="py-1.5 px-3 border-r border-border/40 font-medium text-muted-foreground whitespace-nowrap">
-                                    {idx === 0 ? v.vendedorNombre : ""}
-                                  </td>
+                              t.productos.map((p, idx) => {
+                                const prodKey = `${clave}|${p.producto}`;
+                                const tieneSkus = Boolean(p.skus && p.skus.length > 0);
+                                const buscaSku = Boolean(
+                                  busqueda.trim() &&
+                                    p.skus?.some((s) =>
+                                      normalizarTexto(`${s.sku} ${s.talla || ""} ${s.color || ""}`).includes(
+                                        normalizarTexto(busqueda.trim())
+                                      )
+                                    )
+                                );
+                                const estaSkuExpandido = Boolean(skusExpandidos[prodKey] || buscaSku);
+                                const skusAMostrar = soloPendientes
+                                  ? (p.skus || []).filter((s) => s.esPendiente)
+                                  : (p.skus || []);
 
-                                  {/* Columna Tercero con Botón de Colapso */}
-                                  <td className="py-1.5 px-3 border-r border-border/40 font-medium text-foreground whitespace-nowrap">
-                                    {idx === 0 ? (
-                                      <div className="flex items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          onClick={() => toggleExpandir(clave)}
-                                          className="p-0.5 rounded hover:bg-muted text-muted-foreground"
-                                          title={estaExpandido ? "Contraer productos" : "Expandir productos"}
-                                        >
-                                          {estaExpandido ? (
-                                            <ChevronDown className="h-3.5 w-3.5 text-primary" />
-                                          ) : (
-                                            <ChevronRight className="h-3.5 w-3.5" />
-                                          )}
-                                        </button>
-                                        <span className="font-semibold">{t.terceroNombre}</span>
-                                      </div>
-                                    ) : (
-                                      ""
-                                    )}
-                                  </td>
+                                return (
+                                  <React.Fragment key={`${clave}|${p.producto}|${idx}`}>
+                                    <tr
+                                      className={`hover:bg-muted/20 transition-colors ${
+                                        p.esPendiente ? "bg-amber-500/5 dark:bg-amber-500/10" : ""
+                                      } ${estaSkuExpandido ? "border-b-0" : ""}`}
+                                    >
+                                      {/* Columna Vendedor: se muestra solo en la primera fila o espacio en blanco */}
+                                      <td className="py-1.5 px-3 border-r border-border/40 font-medium text-muted-foreground whitespace-nowrap">
+                                        {idx === 0 ? v.vendedorNombre : ""}
+                                      </td>
 
-                                  {/* Columna Producto (Código, descripción, talla, color) */}
-                                  <td className="py-1.5 px-3 border-r border-border/80 font-mono text-foreground">
-                                    <div className="flex flex-col gap-0.5">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="font-semibold text-primary">{p.producto}</span>
-                                        {p.descripcion && (
-                                          <span className="text-[10px] text-muted-foreground truncate max-w-[180px]" title={p.descripcion}>
-                                            ({p.descripcion})
-                                          </span>
+                                      {/* Columna Tercero con Botón de Colapso */}
+                                      <td className="py-1.5 px-3 border-r border-border/40 font-medium text-foreground whitespace-nowrap">
+                                        {idx === 0 ? (
+                                          <div className="flex items-center gap-1.5">
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleExpandir(clave)}
+                                              className="p-0.5 rounded hover:bg-muted text-muted-foreground"
+                                              title={estaExpandido ? "Contraer productos" : "Expandir productos"}
+                                            >
+                                              {estaExpandido ? (
+                                                <ChevronDown className="h-3.5 w-3.5 text-primary" />
+                                              ) : (
+                                                <ChevronRight className="h-3.5 w-3.5" />
+                                              )}
+                                            </button>
+                                            <span className="font-semibold">{t.terceroNombre}</span>
+                                          </div>
+                                        ) : (
+                                          ""
                                         )}
-                                      </div>
-                                      {(p.talla || p.color) && (
-                                        <div className="flex items-center gap-1 text-[9px] flex-wrap">
-                                          {p.talla && (
-                                            <span className="px-1 py-0.2 rounded bg-muted/70 text-muted-foreground border border-border/40 font-sans">
-                                              T: {p.talla}
-                                            </span>
+                                      </td>
+
+                                      {/* Columna Producto (Código interactivo para ver SKUs, descripción, talla, color) */}
+                                      <td className="py-1.5 px-3 border-r border-border/80 font-mono text-foreground">
+                                        <div className="flex flex-col gap-0.5">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <button
+                                              type="button"
+                                              onClick={() => tieneSkus && toggleExpandirSku(prodKey)}
+                                              disabled={!tieneSkus}
+                                              className={cn(
+                                                "inline-flex items-center gap-1 font-semibold text-primary transition-colors text-left",
+                                                tieneSkus
+                                                  ? "hover:text-primary/80 hover:underline cursor-pointer group"
+                                                  : "cursor-default"
+                                              )}
+                                              title={
+                                                tieneSkus
+                                                  ? estaSkuExpandido
+                                                    ? "Ocultar desglose de SKUs"
+                                                    : "Clic para ver SKUs individuales (tallas y colores)"
+                                                  : undefined
+                                              }
+                                            >
+                                              {tieneSkus && (
+                                                estaSkuExpandido ? (
+                                                  <ChevronDown className="h-3 w-3 text-primary shrink-0" />
+                                                ) : (
+                                                  <ChevronRight className="h-3 w-3 text-muted-foreground group-hover:text-primary shrink-0" />
+                                                )
+                                              )}
+                                              <span>{p.producto}</span>
+                                            </button>
+
+                                            {p.descripcion && (
+                                              <span className="text-[10px] text-muted-foreground truncate max-w-[180px]" title={p.descripcion}>
+                                                ({p.descripcion})
+                                              </span>
+                                            )}
+
+                                            {tieneSkus && (
+                                              <button
+                                                type="button"
+                                                onClick={() => toggleExpandirSku(prodKey)}
+                                                className={cn(
+                                                  "inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9.5px] font-sans font-medium transition-all cursor-pointer border",
+                                                  estaSkuExpandido
+                                                    ? "bg-primary text-primary-foreground border-primary shadow-2xs"
+                                                    : "bg-primary/10 hover:bg-primary/20 text-primary border-primary/25"
+                                                )}
+                                                title="Clic para ver desglose de SKUs pendientes de esta referencia"
+                                              >
+                                                <Tag className="h-2.5 w-2.5" />
+                                                <span>{p.skus!.length} {p.skus!.length === 1 ? "SKU" : "SKUs"}</span>
+                                                {p.skus!.some((s) => s.esPendiente) && (
+                                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                                )}
+                                              </button>
+                                            )}
+                                          </div>
+
+                                          {(p.talla || p.color) && (
+                                            <div className="flex items-center gap-1 text-[9px] flex-wrap">
+                                              {p.talla && (
+                                                <span className="px-1 py-0.2 rounded bg-muted/70 text-muted-foreground border border-border/40 font-sans">
+                                                  T: {p.talla}
+                                                </span>
+                                              )}
+                                              {p.color && (
+                                                <span className="px-1 py-0.2 rounded bg-muted/70 text-muted-foreground border border-border/40 font-sans">
+                                                  C: {p.color}
+                                                </span>
+                                              )}
+                                            </div>
                                           )}
-                                          {p.color && (
-                                            <span className="px-1 py-0.2 rounded bg-muted/70 text-muted-foreground border border-border/40 font-sans">
-                                              C: {p.color}
+                                        </div>
+                                      </td>
+
+                                      {/* Pedidos */}
+                                      <td className="py-1.5 px-3 text-right font-mono border-r border-border/40">
+                                        {p.pedidosCantidad > 0 ? p.pedidosCantidad.toLocaleString("es-CO") : "0"}
+                                      </td>
+                                      <td className="py-1.5 px-3 text-right font-mono border-r border-border/80">
+                                        {p.pedidosValor > 0 ? formatoHGI(p.pedidosValor) : "0.00"}
+                                      </td>
+
+                                      {/* Salidas por Despacho */}
+                                      <td className="py-1.5 px-3 text-right font-mono border-r border-border/40 text-blue-600 dark:text-blue-400">
+                                        {p.despachosCantidad !== 0 ? p.despachosCantidad.toLocaleString("es-CO") : ""}
+                                      </td>
+                                      <td className="py-1.5 px-3 text-right font-mono border-r border-border/80 text-blue-600 dark:text-blue-400">
+                                        {p.despachosValor !== 0 ? formatoHGI(p.despachosValor) : ""}
+                                      </td>
+
+                                      {/* Total General (Pendiente) */}
+                                      <td
+                                        className={`py-1.5 px-3 text-right font-mono font-bold border-r border-border/40 ${
+                                          p.esPendiente
+                                            ? "text-amber-700 dark:text-amber-400 bg-amber-500/10"
+                                            : "text-muted-foreground"
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-end gap-1">
+                                          <span>{p.totalGeneralCantidad.toLocaleString("es-CO")}</span>
+                                          {p.esPendiente ? (
+                                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30">
+                                              Pend
+                                            </span>
+                                          ) : (
+                                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-500/30">
+                                              Listo
                                             </span>
                                           )}
                                         </div>
-                                      )}
-                                    </div>
-                                  </td>
+                                      </td>
+                                      <td
+                                        className={`py-1.5 px-3 text-right font-mono font-bold ${
+                                          p.esPendiente
+                                            ? "text-amber-700 dark:text-amber-400 bg-amber-500/10"
+                                            : "text-muted-foreground"
+                                        }`}
+                                      >
+                                        {formatoHGI(p.totalGeneralValor)}
+                                      </td>
+                                    </tr>
 
-                                  {/* Pedidos */}
-                                  <td className="py-1.5 px-3 text-right font-mono border-r border-border/40">
-                                    {p.pedidosCantidad > 0 ? p.pedidosCantidad.toLocaleString("es-CO") : "0"}
-                                  </td>
-                                  <td className="py-1.5 px-3 text-right font-mono border-r border-border/80">
-                                    {p.pedidosValor > 0 ? formatoHGI(p.pedidosValor) : "0.00"}
-                                  </td>
-
-                                  {/* Salidas por Despacho (en negativo como en la imagen) */}
-                                  <td className="py-1.5 px-3 text-right font-mono border-r border-border/40 text-blue-600 dark:text-blue-400">
-                                    {p.despachosCantidad !== 0 ? p.despachosCantidad.toLocaleString("es-CO") : ""}
-                                  </td>
-                                  <td className="py-1.5 px-3 text-right font-mono border-r border-border/80 text-blue-600 dark:text-blue-400">
-                                    {p.despachosValor !== 0 ? formatoHGI(p.despachosValor) : ""}
-                                  </td>
-
-                                  {/* Total General (Pendiente) */}
-                                  <td
-                                    className={`py-1.5 px-3 text-right font-mono font-bold border-r border-border/40 ${
-                                      p.esPendiente
-                                        ? "text-amber-700 dark:text-amber-400 bg-amber-500/10"
-                                        : "text-muted-foreground"
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-end gap-1">
-                                      <span>{p.totalGeneralCantidad.toLocaleString("es-CO")}</span>
-                                      {p.esPendiente ? (
-                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30">
-                                          Pend
-                                        </span>
+                                    {/* Subfilas de Desglose de SKUs al dar Clic */}
+                                    {estaSkuExpandido && (
+                                      skusAMostrar.length === 0 ? (
+                                        <tr className="bg-amber-500/5 text-[10.5px] italic text-muted-foreground border-b border-border/40">
+                                          <td className="py-1 px-3 border-r border-border/40"></td>
+                                          <td className="py-1 px-3 border-r border-border/40"></td>
+                                          <td colSpan={7} className="py-1 px-4 text-amber-700/80 dark:text-amber-400/80">
+                                            ↳ No hay SKUs pendientes registrados para esta referencia.
+                                          </td>
+                                        </tr>
                                       ) : (
-                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-500/30">
-                                          Listo
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td
-                                    className={`py-1.5 px-3 text-right font-mono font-bold ${
-                                      p.esPendiente
-                                        ? "text-amber-700 dark:text-amber-400 bg-amber-500/10"
-                                        : "text-muted-foreground"
-                                    }`}
-                                  >
-                                    {formatoHGI(p.totalGeneralValor)}
-                                  </td>
-                                </tr>
-                              ))}
+                                        skusAMostrar.map((skuItem, sIdx) => (
+                                          <tr
+                                            key={`${prodKey}|sku|${skuItem.sku}|${sIdx}`}
+                                            className={`text-[11px] border-b border-border/30 transition-colors ${
+                                              skuItem.esPendiente
+                                                ? "bg-amber-500/10 dark:bg-amber-500/15 hover:bg-amber-500/20"
+                                                : "bg-muted/15 dark:bg-muted/20 hover:bg-muted/30"
+                                            }`}
+                                          >
+                                            {/* Columna Vendedor */}
+                                            <td className="py-1 px-3 border-r border-border/40"></td>
+
+                                            {/* Columna Tercero */}
+                                            <td className="py-1 px-3 border-r border-border/40"></td>
+
+                                            {/* Columna Producto (SKU con sangría) */}
+                                            <td className="py-1 px-3 border-r border-border/80 font-mono">
+                                              <div className="flex items-center gap-2 pl-4">
+                                                <span className="text-muted-foreground select-none font-bold text-xs">↳</span>
+                                                <span className="font-semibold text-foreground tracking-tight">
+                                                  {skuItem.sku}
+                                                </span>
+                                                {(skuItem.talla || skuItem.color) && (
+                                                  <div className="flex items-center gap-1 text-[9.5px]">
+                                                    {skuItem.talla && (
+                                                      <span className="px-1 py-0.2 rounded bg-background/90 text-foreground border border-border/60 font-sans font-medium">
+                                                        T: {skuItem.talla}
+                                                      </span>
+                                                    )}
+                                                    {skuItem.color && (
+                                                      <span className="px-1 py-0.2 rounded bg-background/90 text-foreground border border-border/60 font-sans font-medium">
+                                                        C: {skuItem.color}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </td>
+
+                                            {/* Pedidos Cantidad */}
+                                            <td className="py-1 px-3 text-right font-mono border-r border-border/40 text-purple-700 dark:text-purple-300">
+                                              {skuItem.pedidosCantidad > 0 ? skuItem.pedidosCantidad.toLocaleString("es-CO") : "0"}
+                                            </td>
+
+                                            {/* Pedidos Valor */}
+                                            <td className="py-1 px-3 text-right font-mono border-r border-border/80 text-muted-foreground">
+                                              {skuItem.pedidosValor > 0 ? formatoHGI(skuItem.pedidosValor) : "0.00"}
+                                            </td>
+
+                                            {/* Salida por Despacho Cantidad */}
+                                            <td className="py-1 px-3 text-right font-mono border-r border-border/40 text-blue-600 dark:text-blue-400">
+                                              {skuItem.despachosCantidad !== 0 ? skuItem.despachosCantidad.toLocaleString("es-CO") : ""}
+                                            </td>
+
+                                            {/* Salida por Despacho Valor */}
+                                            <td className="py-1 px-3 text-right font-mono border-r border-border/80 text-blue-600 dark:text-blue-400">
+                                              {skuItem.despachosValor !== 0 ? formatoHGI(skuItem.despachosValor) : ""}
+                                            </td>
+
+                                            {/* Total General (Pendiente) Cantidad */}
+                                            <td
+                                              className={`py-1 px-3 text-right font-mono font-bold border-r border-border/40 ${
+                                                skuItem.esPendiente
+                                                  ? "text-amber-700 dark:text-amber-400 bg-amber-500/15"
+                                                  : "text-muted-foreground"
+                                              }`}
+                                            >
+                                              <div className="flex items-center justify-end gap-1">
+                                                <span>{skuItem.totalGeneralCantidad.toLocaleString("es-CO")}</span>
+                                                {skuItem.esPendiente ? (
+                                                  <span className="text-[8.5px] px-1 py-0.2 rounded bg-amber-500/25 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/40">
+                                                    Pend
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-[8.5px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-medium border border-emerald-500/30">
+                                                    Listo
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </td>
+
+                                            {/* Total General (Pendiente) Valor */}
+                                            <td
+                                              className={`py-1 px-3 text-right font-mono font-semibold ${
+                                                skuItem.esPendiente
+                                                  ? "text-amber-700 dark:text-amber-400 bg-amber-500/15"
+                                                  : "text-muted-foreground"
+                                              }`}
+                                            >
+                                              {skuItem.totalGeneralValor > 0 ? formatoHGI(skuItem.totalGeneralValor) : "0.00"}
+                                            </td>
+                                          </tr>
+                                        ))
+                                      )
+                                    )}
+                                  </React.Fragment>
+                                );
+                              })}
 
                             {/* Fila de Subtotal por Tercero (como 'AME DISEÑOS S.A.S. Total' en la imagen) */}
                             {mostrarSubtotalesColumna && (

@@ -5240,6 +5240,19 @@ export type FiltrosPedidosDespachos = {
   solo_pendientes?: boolean;
 };
 
+export type ItemSkuPedidoDespacho = {
+  sku: string;
+  talla?: string | null;
+  color?: string | null;
+  pedidosCantidad: number;
+  pedidosValor: number;
+  despachosCantidad: number;
+  despachosValor: number;
+  totalGeneralCantidad: number;
+  totalGeneralValor: number;
+  esPendiente: boolean;
+};
+
 export type ItemProductoPedidoDespacho = {
   producto: string;
   descripcion?: string | null;
@@ -5253,6 +5266,7 @@ export type ItemProductoPedidoDespacho = {
   totalGeneralCantidad: number;
   totalGeneralValor: number;
   esPendiente: boolean;
+  skus: ItemSkuPedidoDespacho[];
 };
 
 export type GrupoTerceroPedidoDespacho = {
@@ -5422,7 +5436,19 @@ export async function obtenerPedidosVsDespachos(
   }
 
   // Agrupación y conciliación jerárquica:
-  // Paso 1: Conciliación por Cliente + Producto para resolver pedidos vs despachos/facturas
+  // Paso 1: Conciliación por Cliente + Producto + SKU para resolver pedidos vs despachos/facturas
+  type SkuAcumulador = {
+    sku: string;
+    talla: string | null;
+    color: string | null;
+    pedidosCantidad: number;
+    pedidosValor: number;
+    salidasCantidad: number;
+    salidasValor: number;
+    facturasCantidad: number;
+    facturasValor: number;
+  };
+
   type ProductoAcumulador = {
     producto: string;
     descripcion: string | null;
@@ -5439,6 +5465,7 @@ export async function obtenerPedidosVsDespachos(
     salidasValor: number;
     facturasCantidad: number;
     facturasValor: number;
+    skusMap: Map<string, SkuAcumulador>;
   };
 
   type TerceroAcumulador = {
@@ -5516,6 +5543,7 @@ export async function obtenerPedidosVsDespachos(
         salidasValor: 0,
         facturasCantidad: 0,
         facturasValor: 0,
+        skusMap: new Map(),
       });
     }
 
@@ -5537,15 +5565,44 @@ export async function obtenerPedidosVsDespachos(
       }
     }
 
+    // Acumulación a nivel de SKU
+    const rowTalla = r.talla ? String(r.talla).trim() : null;
+    const rowColor = r.color ? String(r.color).trim() : null;
+    const rowSku = String(r.sku || `${prodCodigo}-${rowTalla || "U"}-${rowColor || "U"}`).trim();
+
+    if (!prod.skusMap.has(rowSku)) {
+      prod.skusMap.set(rowSku, {
+        sku: rowSku,
+        talla: rowTalla,
+        color: rowColor,
+        pedidosCantidad: 0,
+        pedidosValor: 0,
+        salidasCantidad: 0,
+        salidasValor: 0,
+        facturasCantidad: 0,
+        facturasValor: 0,
+      });
+    }
+
+    const skuItem = prod.skusMap.get(rowSku)!;
+    if (rowTalla && !skuItem.talla) skuItem.talla = rowTalla;
+    if (rowColor && !skuItem.color) skuItem.color = rowColor;
+
     if (esPedido) {
       prod.pedidosCantidad += Math.abs(cant);
       prod.pedidosValor += Math.abs(val);
+      skuItem.pedidosCantidad += Math.abs(cant);
+      skuItem.pedidosValor += Math.abs(val);
     } else if (esSalida) {
       prod.salidasCantidad += Math.abs(cant);
       prod.salidasValor += Math.abs(val);
+      skuItem.salidasCantidad += Math.abs(cant);
+      skuItem.salidasValor += Math.abs(val);
     } else if (esFactura) {
       prod.facturasCantidad += Math.abs(cant);
       prod.facturasValor += Math.abs(val);
+      skuItem.facturasCantidad += Math.abs(cant);
+      skuItem.facturasValor += Math.abs(val);
     }
   }
 
@@ -5588,6 +5645,37 @@ export async function obtenerPedidosVsDespachos(
         continue;
       }
 
+      // Consolidar SKUs de la referencia
+      const skusList: ItemSkuPedidoDespacho[] = [];
+      for (const s of p.skusMap.values()) {
+        if (s.pedidosCantidad === 0 && s.salidasCantidad === 0 && s.facturasCantidad === 0) {
+          continue;
+        }
+        const sDespCant = Math.max(s.salidasCantidad, s.facturasCantidad);
+        const sDespVal = Math.max(s.salidasValor, s.facturasValor);
+        const sPendCant = Math.max(0, s.pedidosCantidad - sDespCant);
+        const sPendVal = sPendCant > 0 ? Math.max(0, s.pedidosValor - sDespVal) : 0;
+        const sEsPendiente = sPendCant > 0;
+
+        skusList.push({
+          sku: s.sku,
+          talla: s.talla,
+          color: s.color,
+          pedidosCantidad: s.pedidosCantidad,
+          pedidosValor: s.pedidosValor,
+          despachosCantidad: sDespCant,
+          despachosValor: sDespVal,
+          totalGeneralCantidad: sPendCant,
+          totalGeneralValor: sPendVal,
+          esPendiente: sEsPendiente,
+        });
+      }
+
+      // Ordenar SKUs: primero los que tienen saldo pendiente, luego por SKU alfabéticamente
+      skusList.sort(
+        (a, b) => b.totalGeneralCantidad - a.totalGeneralCantidad || a.sku.localeCompare(b.sku)
+      );
+
       // Conciliación de despachos: evitar duplicar si existen Salida por Despacho y Factura Electrónica
       const despCant = Math.max(p.salidasCantidad, p.facturasCantidad);
       const despVal = Math.max(p.salidasValor, p.facturasValor);
@@ -5619,6 +5707,7 @@ export async function obtenerPedidosVsDespachos(
         totalGeneralCantidad: pendCant,
         totalGeneralValor: pendVal,
         esPendiente,
+        skus: skusList,
       };
 
       prodsList.push(itemProd);
