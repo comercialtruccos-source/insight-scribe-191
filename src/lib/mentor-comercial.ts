@@ -6,7 +6,6 @@ import {
   normalizarValorTransaccion,
   normalizarUnidadesTransaccion,
 } from "./ventas-api";
-import { obtenerKpisCalibradosCMI } from "./cuadro-mando-matrix";
 import { ResumenInventarioReal, ReferenciaStockAgrupada, buscarStockEnResumen } from "./inventario-api";
 
 export interface ComboEstrategico {
@@ -237,15 +236,6 @@ export function calcularDiagnosticoMentor(
       prevZ.unidades += cant;
       zonaMapYoY.set(zNom, prevZ);
     }
-  }
-
-  // Calibración oficial CMI para métricas reales del asesor
-  const cmiKpis = obtenerKpisCalibradosCMI(filtros);
-  if (cmiKpis && typeof cmiKpis.ventaYTD === "number" && cmiKpis.ventaYTD > 0) {
-    ventaActual = cmiKpis.ventaYTD;
-    if (cmiKpis.volumenUnidades > 0) unidadesActual = cmiKpis.volumenUnidades;
-    if (cmiKpis.ventaAnteriorTotal > 0) ventaAnioAnterior = cmiKpis.ventaAnteriorTotal;
-    if (cmiKpis.unidadesAnteriorTotal > 0) unidadesAnioAnterior = cmiKpis.unidadesAnteriorTotal;
   }
 
   // 3. Análisis de Mes Anterior / Histórico Reciente (MoM)
