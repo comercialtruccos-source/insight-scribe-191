@@ -12,6 +12,8 @@ import {
   FileSpreadsheet,
   Users,
   Layers,
+  Factory,
+  Truck,
   UploadCloud,
   ChevronLeft,
   ChevronRight,
@@ -230,6 +232,36 @@ export function BarraNavegacionDashboards({
           >
             <Layers className="h-3.5 w-3.5 text-rose-500 shrink-0" />
             <span>9. Correrías</span>
+          </TabsTrigger>
+        )}
+
+        {/* TAB 10: PROGRAMACIÓN DE PRODUCCIÓN (SOLO ADMINS) */}
+        {esAdmin && (
+          <TabsTrigger
+            value="programacion-produccion"
+            title="Dashboard 10: Programación de Producción - Referencias con Pedido sin Inventario (Solo Administrador)"
+            className="flex items-center gap-1.5 py-2 px-2.5 lg:px-3 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap transition-all duration-200 border border-transparent data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-700 dark:data-[state=active]:text-indigo-300 data-[state=active]:border-indigo-500/30 data-[state=active]:shadow-xs text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          >
+            <Factory className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+            <span>
+              10. Producción
+              <span className="hidden 2xl:inline"> (Déficit)</span>
+            </span>
+          </TabsTrigger>
+        )}
+
+        {/* TAB 11: DESPACHOS DE BODEGA (CON INVENTARIO) */}
+        {esAdmin && (
+          <TabsTrigger
+            value="despachos-bodega"
+            title="Dashboard 11: Despachos y Alistamiento en Bodega - Pedidos con Inventario Disponible (Área de Bodega)"
+            className="flex items-center gap-1.5 py-2 px-2.5 lg:px-3 text-xs font-bold rounded-xl shrink-0 snap-start whitespace-nowrap transition-all duration-200 border border-transparent data-[state=active]:bg-teal-500/15 data-[state=active]:text-teal-700 dark:data-[state=active]:text-teal-300 data-[state=active]:border-teal-500/30 data-[state=active]:shadow-xs text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          >
+            <Truck className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+            <span>
+              11. Bodega
+              <span className="hidden 2xl:inline"> (Alistamiento)</span>
+            </span>
           </TabsTrigger>
         )}
 

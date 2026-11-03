@@ -5352,23 +5352,25 @@ export async function obtenerPedidosVsDespachos(
         q = q.eq("correria_id", Number(filtros.correria_id));
       }
 
-      if (filtros.vendedor_id) {
-        q = q.or(`vendedor_id.eq.${filtros.vendedor_id},vendedor2_id.eq.${filtros.vendedor_id}`);
-      } else if (filtros.vendedor_ids && filtros.vendedor_ids.length > 0) {
-        const listStr = filtros.vendedor_ids.join(",");
-        q = q.or(`vendedor_id.in.(${listStr}),vendedor2_id.in.(${listStr})`);
-      }
-
       if (filtros.tercero_id) {
         q = q.eq("tercero_id", filtros.tercero_id);
       } else if (filtros.tercero_ids && filtros.tercero_ids.length > 0) {
-        const listStr = filtros.tercero_ids.join(",");
         q = q.in("tercero_id", filtros.tercero_ids);
       }
 
       const { data, error } = await q.range(offset, offset + CHUNK_SIZE - 1);
       if (error || !data || data.length === 0) break;
       for (const r of data) {
+        // Filtrado en memoria de vendedores para evitar timeout por doble .or() en PostgREST
+        if (filtros.vendedor_id) {
+          const v1 = Number(r.vendedor_id) || 0;
+          const v2 = Number(r.vendedor2_id) || 0;
+          if (v1 !== filtros.vendedor_id && v2 !== filtros.vendedor_id) continue;
+        } else if (filtros.vendedor_ids && filtros.vendedor_ids.length > 0) {
+          const v1 = Number(r.vendedor_id) || 0;
+          const v2 = Number(r.vendedor2_id) || 0;
+          if (!filtros.vendedor_ids.includes(v1) && !filtros.vendedor_ids.includes(v2)) continue;
+        }
         rows.push(r as Record<string, unknown>);
       }
       if (data.length < CHUNK_SIZE) break;
@@ -5389,23 +5391,11 @@ export async function obtenerPedidosVsDespachos(
       }
     }
   } else {
-    // Fallback general
-    let offset = 0;
-    while (true) {
-      let q = supabase
-        .from("fact_ventas")
-        .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
-        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%PED %,transaccion.ilike.PED%,transaccion.ilike.%ORDEN%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%,transaccion.ilike.%FACTURA%,transaccion.ilike.%ENTREGA%")
-        .gte("fecha", fechaDesde)
-        .lte("fecha", fechaHasta);
-
-      const { data, error } = await q.range(offset, offset + CHUNK_SIZE - 1);
-      if (error || !data || data.length === 0) break;
-      for (const r of data) {
-        rawRows.push(r as Record<string, unknown>);
-      }
-      if (data.length < CHUNK_SIZE) break;
-      offset += CHUNK_SIZE;
+    // Fallback acotado a meses del año actual para evitar timeout en consulta general
+    const aActual = new Date().getFullYear();
+    for (let m = 1; m <= 12; m++) {
+      const list = await fetchMes(aActual, m);
+      for (const r of list) rawRows.push(r);
     }
   }
 

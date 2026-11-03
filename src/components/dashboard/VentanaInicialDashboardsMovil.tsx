@@ -18,6 +18,8 @@ import {
   ShieldCheck,
   Target,
   Layers,
+  Factory,
+  Truck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -185,6 +187,32 @@ export function VentanaInicialDashboardsMovil({
             colorBorde: "border-rose-500/30 active:border-rose-500/60",
             colorFondo: "bg-rose-500/5 active:bg-rose-500/10",
             colorBadge: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30",
+          },
+          {
+            id: "programacion-produccion",
+            numero: "10",
+            titulo: "Programación de Producción",
+            subtitulo: "Referencias con pedido sin inventario para evaluar reprogramación",
+            badge: "Solo Admin",
+            icono: Factory,
+            colorGradiente: "from-indigo-600 to-cyan-600",
+            colorTexto: "text-indigo-700 dark:text-indigo-300",
+            colorBorde: "border-indigo-500/30 active:border-indigo-500/60",
+            colorFondo: "bg-indigo-500/5 active:bg-indigo-500/10",
+            colorBadge: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30",
+          },
+          {
+            id: "despachos-bodega",
+            numero: "11",
+            titulo: "Despachos y Bodega",
+            subtitulo: "Pedidos con inventario disponible para picking, empaque y despacho",
+            badge: "Solo Admin",
+            icono: Truck,
+            colorGradiente: "from-teal-600 to-emerald-600",
+            colorTexto: "text-teal-700 dark:text-teal-300",
+            colorBorde: "border-teal-500/30 active:border-teal-500/60",
+            colorFondo: "bg-teal-500/5 active:bg-teal-500/10",
+            colorBadge: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30",
           },
           {
             id: "carga",
