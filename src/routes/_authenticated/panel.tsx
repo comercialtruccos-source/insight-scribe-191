@@ -48,8 +48,6 @@ import { MultiSelectVendedores } from "@/components/vendedores/MultiSelectVended
 import { BotonVolverInicio } from "@/components/dashboard/BotonVolverInicio";
 import { VentanaInicialDashboardsMovil } from "@/components/dashboard/VentanaInicialDashboardsMovil";
 import { DashboardCorrerias } from "@/components/correrias/DashboardCorrerias";
-import { InformeProgramacionProduccion } from "@/components/produccion/InformeProgramacionProduccion";
-import { InformeDespachosBodega } from "@/components/bodega/InformeDespachosBodega";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -151,7 +149,6 @@ import { MentorComercialDrawer } from "@/components/mentor/MentorComercialDrawer
 import { SankeyFlujoComercial } from "@/components/sankey/SankeyFlujoComercial";
 import { ModuloCargaReferencias } from "@/components/carga/ModuloCargaReferencias";
 import { ModuloCargaCMI } from "@/components/carga/ModuloCargaCMI";
-import { ModuloCargaPedidosDespachos } from "@/components/carga/ModuloCargaPedidosDespachos";
 import { BarraNavegacionDashboards } from "@/components/dashboard/BarraNavegacionDashboards";
 import { calcularDiagnosticoMentor } from "@/lib/mentor-comercial";
 import { useInventarioReal } from "@/lib/inventario-api";
@@ -611,7 +608,7 @@ function Panel() {
   const [metaArchivo, setMetaArchivo] = useState<MetadataArchivo | null>(null);
   const [hojaSeleccionada, setHojaSeleccionada] = useState<string | null>(null);
   const [esPivotOInvalido, setEsPivotOInvalido] = useState(false);
-  const [subTabCarga, setSubTabCarga] = useState<"ventas" | "referencias" | "cmi" | "pedidos_despachos">("pedidos_despachos");
+  const [subTabCarga, setSubTabCarga] = useState<"ventas" | "referencias" | "cmi">("ventas");
 
   useEffect(() => {
     const handleCmiUpdated = () => {
@@ -8935,8 +8932,6 @@ function Panel() {
           {/* ========================================================================= */}
           <TabsContent value="explorador" className="space-y-4">
             <VisorPedidosDespachos
-              onNavegarAProgramacion={esAdmin ? () => setTabActivo("programacion-produccion") : undefined}
-              onNavegarABodega={esAdmin ? () => setTabActivo("despachos-bodega") : undefined}
               vendedorIdFiltro={vendedorId !== "todos" ? Number(vendedorId) : "todos"}
               vendedorIds={vendedorIds.length > 0 ? vendedorIds.map(Number) : undefined}
               vendedorIdsPermitidos={vendedorIdsPermitidos || undefined}
@@ -9011,32 +9006,6 @@ function Panel() {
           )}
 
           {/* ========================================================================= */}
-          {/* DASHBOARD 10: PROGRAMACIÓN DE PRODUCCIÓN (DÉFICIT INVENTARIO - SOLO ADMINS) */}
-          {/* ========================================================================= */}
-          {esAdmin && (
-            <TabsContent value="programacion-produccion" className="space-y-6">
-              <InformeProgramacionProduccion
-                esAdmin={esAdmin}
-                onVolverInicio={() => setTabActivo("d1")}
-              />
-            </TabsContent>
-          )}
-
-          {/* ========================================================================= */}
-          {/* DASHBOARD 11: DESPACHOS Y ALISTAMIENTO EN BODEGA (STOCK DISPONIBLE) */}
-          {/* ========================================================================= */}
-          {esAdmin && (
-            <TabsContent value="despachos-bodega" className="space-y-6">
-              <InformeDespachosBodega
-                esAdmin={esAdmin}
-                asesorNombre={permisoActual?.nombre || undefined}
-                vendedorIdsPermitidos={vendedorIdsPermitidos || undefined}
-                onVolverInicio={() => setTabActivo("d1")}
-              />
-            </TabsContent>
-          )}
-
-          {/* ========================================================================= */}
           {/* TAB: CARGA DE ARCHIVOS E HISTORIAL */}
           {/* ========================================================================= */}
           {esAdmin && (
@@ -9044,16 +9013,13 @@ function Panel() {
               {/* SELECTOR DE TIPO DE CARGA: VENTAS HISTÓRICAS VS CATÁLOGO DE REFERENCIAS VS CMI */}
               <div className="flex items-center gap-2 border-b border-border/60 pb-3 flex-wrap">
                 <Button
-                  variant={subTabCarga === "pedidos_despachos" ? "default" : "outline"}
+                  variant={subTabCarga === "ventas" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setSubTabCarga("pedidos_despachos")}
+                  onClick={() => setSubTabCarga("ventas")}
                   className="text-xs font-semibold gap-2 shadow-2xs"
                 >
-                  <Package className="h-4 w-4 text-teal-500" />
-                  <span>Pedidos vs Despachos (HGI - 18 Columnas)</span>
-                  <Badge variant="secondary" className="text-[10px] bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20 font-semibold">
-                    Reporte Oficial
-                  </Badge>
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Base de Ventas Histórica (32 Columnas)</span>
                 </Button>
                 <Button
                   variant={subTabCarga === "cmi" ? "default" : "outline"}
@@ -9066,15 +9032,6 @@ function Panel() {
                   <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-semibold">
                     Sincronización Automática
                   </Badge>
-                </Button>
-                <Button
-                  variant={subTabCarga === "ventas" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSubTabCarga("ventas")}
-                  className="text-xs font-semibold gap-2 shadow-2xs"
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  <span>Base de Ventas Histórica (32 Columnas)</span>
                 </Button>
                 <Button
                   variant={subTabCarga === "referencias" ? "default" : "outline"}
@@ -9090,9 +9047,7 @@ function Panel() {
                 </Button>
               </div>
 
-              {subTabCarga === "pedidos_despachos" ? (
-                <ModuloCargaPedidosDespachos onCargaExitosa={() => setTabActivo("explorador")} />
-              ) : subTabCarga === "cmi" ? (
+              {subTabCarga === "cmi" ? (
                 <ModuloCargaCMI />
               ) : subTabCarga === "referencias" ? (
                 <ModuloCargaReferencias />

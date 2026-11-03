@@ -5344,7 +5344,7 @@ export async function obtenerPedidosVsDespachos(
         .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
         .eq("anio", anio)
         .eq("mes", mes)
-        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%,transaccion.ilike.%FACTURA%")
+        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%PED %,transaccion.ilike.PED%,transaccion.ilike.%ORDEN%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%,transaccion.ilike.%FACTURA%,transaccion.ilike.%ENTREGA%")
         .gte("fecha", fechaDesde)
         .lte("fecha", fechaHasta);
 
@@ -5395,7 +5395,7 @@ export async function obtenerPedidosVsDespachos(
       let q = supabase
         .from("fact_ventas")
         .select("id, transaccion, fecha, vendedor_id, vendedor2_id, tercero_id, correria_id, producto, prenda_hgi, producto_c, sku, talla, color, cantidad, valor")
-        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%,transaccion.ilike.%FACTURA%")
+        .or("transaccion.ilike.%PEDIDO%,transaccion.ilike.%PED %,transaccion.ilike.PED%,transaccion.ilike.%ORDEN%,transaccion.ilike.%DESPACHO%,transaccion.ilike.%SALIDA%,transaccion.ilike.%REMISION%,transaccion.ilike.%FACTURA%,transaccion.ilike.%ENTREGA%")
         .gte("fecha", fechaDesde)
         .lte("fecha", fechaHasta);
 
@@ -5480,9 +5480,9 @@ export async function obtenerPedidosVsDespachos(
     const val = Number(r.valor || 0);
     const trans = String(r.transaccion || "").toUpperCase();
 
-    const esPedido = trans.includes("PEDIDO");
-    const esSalida = trans.includes("DESPACHO") || trans.includes("SALIDA") || trans.includes("REMISION");
-    const esFactura = trans.includes("FACTURA");
+    const esPedido = trans.includes("PEDIDO") || trans.startsWith("PED") || /\bPED\b/.test(trans) || trans.includes("ORDEN");
+    const esSalida = trans.includes("DESPACHO") || trans.includes("SALIDA") || trans.includes("REMISION") || trans.includes("ENTREGA") || trans.startsWith("DESP");
+    const esFactura = trans.includes("FACTURA") || trans.startsWith("FAC");
 
     // Si la fila es un pedido y tiene vendedor, atribuir el cliente y el pedido a este vendedor
     if (esPedido && vId > 0) {

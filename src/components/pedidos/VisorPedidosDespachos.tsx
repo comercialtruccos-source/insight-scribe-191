@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -15,21 +15,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { VisorPedidosDespachosHGI } from "./VisorPedidosDespachosHGI";
-import { ModuloCargaPedidosDespachos } from "@/components/carga/ModuloCargaPedidosDespachos";
-import {
-  hayDatosPedidosDespachos,
-  obtenerMetadataPedidosDespachos,
-  verificarHayDatosEnSupabase,
-  EVENT_PEDIDOS_DESPACHOS_UPDATED,
-} from "@/lib/pedidos-despachos-storage";
 import {
   Search,
   Download,
@@ -55,8 +40,6 @@ import {
   Plus,
   RefreshCw,
   X,
-  UploadCloud,
-  Database,
 } from "lucide-react";
 import {
   BarChart,
@@ -70,8 +53,6 @@ import {
 } from "recharts";
 
 interface VisorPedidosDespachosProps {
-  onNavegarAProgramacion?: () => void;
-  onNavegarABodega?: () => void;
   vendedorIdFiltro?: number | "todos";
   vendedorIdsPermitidos?: number[];
   vendedorIds?: number[];
@@ -96,8 +77,6 @@ function normalizarTexto(texto: string | null | undefined): string {
 }
 
 export function VisorPedidosDespachos({
-  onNavegarAProgramacion,
-  onNavegarABodega,
   vendedorIdFiltro = "todos",
   vendedorIdsPermitidos,
   vendedorIds,
@@ -159,42 +138,6 @@ export function VisorPedidosDespachos({
     terceroIdFiltro || "todos"
   );
   const [vistaMovil, setVistaMovil] = useState<"tarjetas" | "tabla">("tarjetas");
-
-  // Estados para reporte oficial cargado de HGI (18 columnas)
-  const [hayArchivoHGI, setHayArchivoHGI] = useState(() => hayDatosPedidosDespachos());
-  const [metaArchivoHGI, setMetaArchivoHGI] = useState(() => obtenerMetadataPedidosDespachos());
-  const [fuenteActiva, setFuenteActiva] = useState<"hgi_archivo" | "base_datos">(() =>
-    hayDatosPedidosDespachos() ? "hgi_archivo" : "base_datos"
-  );
-  const [modalCargaAbierto, setModalCargaAbierto] = useState(false);
-
-  // Consulta reactiva si hay datos oficiales de HGI en Supabase
-  const { data: hayDatosSupabase = false } = useQuery<boolean>({
-    queryKey: ["pedidos-despachos-hay-datos"],
-    queryFn: () => verificarHayDatosEnSupabase(),
-    staleTime: 1000 * 60 * 2,
-  });
-
-  const tieneDatosHGI = hayArchivoHGI || hayDatosSupabase;
-
-  useEffect(() => {
-    if (tieneDatosHGI) {
-      setFuenteActiva("hgi_archivo");
-    }
-  }, [tieneDatosHGI]);
-
-  useEffect(() => {
-    const handleActualizacion = () => {
-      const hay = hayDatosPedidosDespachos();
-      setHayArchivoHGI(hay);
-      setMetaArchivoHGI(obtenerMetadataPedidosDespachos());
-      if (hay) {
-        setFuenteActiva("hgi_archivo");
-      }
-    };
-    window.addEventListener(EVENT_PEDIDOS_DESPACHOS_UPDATED, handleActualizacion);
-    return () => window.removeEventListener(EVENT_PEDIDOS_DESPACHOS_UPDATED, handleActualizacion);
-  }, []);
 
   React.useEffect(() => {
     setVendedorSeleccionado(vendedorIdFiltro);
@@ -509,138 +452,8 @@ export function VisorPedidosDespachos({
 
   return (
     <div className="space-y-4 font-sans text-xs">
-      {/* Selector de Fuente: Solo visible para administradores */}
-      {esAdmin && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl border border-border bg-card shadow-2xs">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="inline-flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => setFuenteActiva("hgi_archivo")}
-                disabled={!tieneDatosHGI}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer",
-                  fuenteActiva === "hgi_archivo"
-                    ? "bg-teal-600 text-white shadow-2xs"
-                    : tieneDatosHGI
-                    ? "text-muted-foreground hover:text-foreground"
-                    : "text-muted-foreground/40 cursor-not-allowed"
-                )}
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                <span>Reporte Oficial HGI (18 Columnas)</span>
-                {tieneDatosHGI && (
-                  <Badge variant="secondary" className="ml-1 text-[9px] bg-white/20 text-white py-0 px-1.5 font-mono">
-                    Supabase
-                  </Badge>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFuenteActiva("base_datos")}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer",
-                  fuenteActiva === "base_datos"
-                    ? "bg-primary text-primary-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Database className="h-3.5 w-3.5" />
-                <span>Base de Datos (Transaccional)</span>
-              </button>
-            </div>
-
-            {tieneDatosHGI && metaArchivoHGI && fuenteActiva === "hgi_archivo" && (
-              <Badge variant="outline" className="text-[11px] font-mono py-1 px-2.5 border-teal-500/30 bg-teal-500/5 text-teal-700 dark:text-teal-300">
-                {metaArchivoHGI.nombreArchivo} • {metaArchivoHGI.totalRegistros.toLocaleString("es-CO")} registros
-              </Badge>
-            )}
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setModalCargaAbierto(true)}
-            className="text-xs font-semibold gap-1.5 shrink-0 border-teal-500/40 hover:bg-teal-500/10 text-teal-700 dark:text-teal-300"
-          >
-            <UploadCloud className="h-3.5 w-3.5" />
-            <span>{tieneDatosHGI ? "Actualizar Archivo HGI" : "Cargar Archivo HGI"}</span>
-          </Button>
-        </div>
-      )}
-
-      {/* Modal Dialog para Carga de Archivo (SOLO PARA ADMINISTRADORES) */}
-      {esAdmin && (
-        <Dialog open={modalCargaAbierto} onOpenChange={setModalCargaAbierto}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold font-display flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-                <span>Cargar Reporte Oficial de Pedidos vs. Despachos (HGI)</span>
-              </DialogTitle>
-              <DialogDescription className="text-xs">
-                Sube el archivo plano exportado de HGI con las 18 columnas oficiales para sincronizar en Supabase.
-              </DialogDescription>
-            </DialogHeader>
-
-            <ModuloCargaPedidosDespachos
-              onCargaExitosa={() => {
-                setModalCargaAbierto(false);
-                setFuenteActiva("hgi_archivo");
-              }}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* RENDERIZADO CONDICIONAL DE LA VISTA OFICIAL DE ARCHIVO HGI (SUPABASE / INDEXEDDB) */}
-      {(tieneDatosHGI && fuenteActiva !== "base_datos") || (!esAdmin && tieneDatosHGI) ? (
-        <VisorPedidosDespachosHGI
-          onAbrirCarga={esAdmin ? () => setModalCargaAbierto(true) : undefined}
-          onNavegarAProgramacion={onNavegarAProgramacion}
-          onNavegarABodega={onNavegarABodega}
-          vendedorIdFiltro={vendedorIdFiltro}
-          terceroIdFiltro={terceroIdFiltro}
-          vendedorIdsPermitidos={vendedorIdsPermitidos}
-          asesorNombre={asesorNombre}
-          esAdmin={esAdmin}
-          anioGlobal={anioGlobal}
-          mesGlobal={mesGlobal}
-          fechaDesdeGlobal={fechaDesdeGlobal}
-          fechaHastaGlobal={fechaHastaGlobal}
-        />
-      ) : (
-        <>
-          {/* Banner de invitación para cargar archivo SOLO VISIBLE PARA ADMINISTRADORES */}
-          {esAdmin && !tieneDatosHGI && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-teal-500/30 bg-teal-500/5">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 mt-0.5">
-                  <UploadCloud className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-foreground">
-                    ¿Tienes el reporte exportado de Pedidos vs. Despachos desde HGI?
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Puedes subir el archivo oficial con las 18 columnas (Transacción, Tercero, Nombre, Vendedor, Ciudad, Fechas, Vence, Documento, Producto, Descripción, Talla, Color, Anterior, Pedido Mes, Despachado, Cancelado, Saldo Pedido, Saldo Inv) en el Módulo de Carga del Panel de Administrador para guardarlo en Supabase y sincronizar con todos los asesores.
-                  </p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => setModalCargaAbierto(true)}
-                className="text-xs font-bold gap-1.5 shrink-0 bg-teal-600 hover:bg-teal-700 text-white shadow-2xs"
-              >
-                <UploadCloud className="h-3.5 w-3.5" />
-                <span>Cargar Archivo HGI Ahora</span>
-              </Button>
-            </div>
-          )}
-
-          {/* 1. Barra de Ventana / Encabezado de Empresa (Estilo HGI Visor de Datos) */}
-          <div className="bg-muted/40 border border-border/80 rounded-xl p-3 shadow-xs">
+      {/* 1. Barra de Ventana / Encabezado de Empresa (Estilo HGI Visor de Datos) */}
+      <div className="bg-muted/40 border border-border/80 rounded-xl p-3 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 pb-2.5 border-b border-border/60">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background rounded-lg border border-border text-[11px] font-semibold text-foreground">
@@ -1754,8 +1567,6 @@ export function VisorPedidosDespachos({
             )}
           </div>
         </Card>
-      )}
-        </>
       )}
     </div>
   );
