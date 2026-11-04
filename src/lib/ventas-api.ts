@@ -3834,15 +3834,11 @@ export function calcularDashboard4FuerzaVentas(
   }));
 
   const MESES_NOMBRES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-  const cmiTotGen = cmiEntities["TOTAL GENERAL"];
   const evolucionMensualEquipo = MESES_NOMBRES.map((mesNombre, idx) => {
-    const cmiM = cmiTotGen?.meses[idx];
-    const v = (cmiM && typeof cmiM.v2026 === "number" && cmiM.v2026 > 0) ? cmiM.v2026 : (mesVentasArray[idx] || 0);
-    const vAnt = (cmiM && typeof cmiM.v2025 === "number" && cmiM.v2025 > 0) ? cmiM.v2025 : (mesVentasAntArray[idx] || 0);
-    const u = (cmiM && typeof cmiM.u2026 === "number" && cmiM.u2026 > 0) ? cmiM.u2026 : (mesUnidadesArray[idx] || 0);
-    const uAnt = (cmiM && cmiM.u2026 > 0 && cmiM.v2025 > 0 && cmiM.v2026 > 0)
-      ? Math.round(cmiM.v2025 / (cmiM.v2026 / cmiM.u2026))
-      : (mesUnidadesAntArray[idx] || 0);
+    const v = mesVentasArray[idx] || 0;
+    const vAnt = mesVentasAntArray[idx] || 0;
+    const u = mesUnidadesArray[idx] || 0;
+    const uAnt = mesUnidadesAntArray[idx] || 0;
     const yoy = vAnt > 0 ? Math.round(((v - vAnt) / vAnt) * 1000) / 10 : 0;
     return {
       mesNum: idx + 1,
