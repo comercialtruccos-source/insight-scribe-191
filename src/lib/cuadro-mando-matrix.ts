@@ -10658,6 +10658,10 @@ export function combinarEntidadesCMI(
   };
 }
 
+// Filas originales del CMI (una por código HGI) antes de unificar asesores: se usan para el
+// resumen por vendedor asociado (venta, presupuesto y cumplimiento de cada código).
+export const CMI_FILAS_ORIGINALES: Record<string, CMIEntity> = { ...CMI_ENTITIES };
+
 // Unificar entidades oficiales de los 13 asesores comerciales
 if (CMI_ENTITIES["TIENDA VIRTUAL"] && CMI_ENTITIES["REDES SOCIALES"]) {
   CMI_ENTITIES["ERICA USUAGA"] = combinarEntidadesCMI(

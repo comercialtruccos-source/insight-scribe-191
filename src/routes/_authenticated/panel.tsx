@@ -29,8 +29,11 @@ import {
   normalizarValorTransaccion,
   normalizarUnidadesTransaccion,
   esVendedorValido,
+  VENDEDORES_SIN_MOVIMIENTO_2026,
   type FiltrosBI,
 } from "@/lib/ventas-api";
+import { CMI_FILAS_ORIGINALES } from "@/lib/cuadro-mando-matrix";
+import { NOMBRES_CODIGOS_HGI } from "@/lib/permisos-vendedores";
 import {
   procesarArchivoPorStreaming,
   inspeccionarEncabezados,
@@ -1133,17 +1136,39 @@ function Panel() {
   );
 
   // Métricas y comparativas individuales por cada comercial asignado a la cuenta del vendedor
+  // Códigos HGI individuales del asesor (p. ej. DIEGO GIRALDO-MEDELLIN, Diego Giraldo Correria, DIEGO GIRALDO RAPPAZ).
+  // El catálogo agrupa todos los códigos de un asesor en una sola entrada, así que se expanden aquí
+  // para dar el resumen de ventas de cada vendedor asociado. Se omiten los códigos agregadores
+  // (TOTAL DIEGO 34, TOTAL FREDY 25) y los que no tienen movimientos en el periodo.
+  const subCuentasAsesor = useMemo(() => {
+    if (esAdmin || !rawVentas) return [] as { id: number; nombre: string }[];
+    const ids = new Set<number>();
+    for (const v of vendedoresDisponibles || []) {
+      const all = (v as any).allIds && (v as any).allIds.length > 0 ? (v as any).allIds : [v.id];
+      for (const id of all) ids.add(Number(id));
+    }
+    for (const id of vendedorIdsPermitidos || []) ids.add(Number(id));
+    const conMovimiento = new Set<number>();
+    for (const r of rawVentas) if (r.vendedor_id) conMovimiento.add(Number(r.vendedor_id));
+    for (const r of rawVentasYoY || []) if (r.vendedor_id) conMovimiento.add(Number(r.vendedor_id));
+    const AGREGADORES = new Set([34, 25]);
+    return Array.from(ids)
+      .filter((id) => !AGREGADORES.has(id) && !VENDEDORES_SIN_MOVIMIENTO_2026.has(id) && conMovimiento.has(id))
+      .map((id) => ({ id, nombre: NOMBRES_CODIGOS_HGI[id] || `Código ${id}` }));
+  }, [esAdmin, vendedoresDisponibles, vendedorIdsPermitidos, rawVentas, rawVentasYoY]);
+
   const comparativaComercialesAsociados = useMemo(() => {
-    if (esAdmin || !vendedoresDisponibles || vendedoresDisponibles.length <= 1 || !rawVentas) {
+    if (esAdmin || subCuentasAsesor.length <= 1 || !rawVentas) {
       return [];
     }
 
     const totalVentaGlobal = d1?.kpis.ventaYTD || 0;
 
-    return vendedoresDisponibles.map((v) => {
+    return subCuentasAsesor.map((v) => {
       const vId = v.id;
-      const idsToCheck = (v as any).allIds && (v as any).allIds.length > 0 ? (v as any).allIds : [vId];
-      const matchV = (r: FilaFactVentas) => idsToCheck.includes(Number(r.vendedor_id)) || idsToCheck.includes(Number(r.vendedor2_id));
+      const idsToCheck = [vId];
+      // Solo por vendedor_id: vendedor2 suele ser el código agregador (TOTAL DIEGO, MAYORCA) y duplicaría ventas
+      const matchV = (r: FilaFactVentas) => Number(r.vendedor_id) === vId;
       
       const vData = rawVentas.filter(matchV);
       const vDataYoY = (rawVentasYoY || []).filter(matchV);
@@ -1166,6 +1191,17 @@ function Panel() {
 
       const aportePct = totalVentaGlobal !== 0 ? Math.round((d1Sub.kpis.ventaYTD / totalVentaGlobal) * 10000) / 100 : 0;
 
+      // Presupuesto propio del código según su fila en el CMI (no el del grupo del asesor)
+      const filaCmi = CMI_FILAS_ORIGINALES[v.nombre.toUpperCase()];
+      let pptoSub = 0; // sin fila propia en el CMI no se le asigna el presupuesto del grupo
+      if (filaCmi) {
+        const mesNum = mes !== "todos" ? Number(mes) : null;
+        pptoSub = mesNum
+          ? filaCmi.meses[mesNum - 1]?.ppto2026 || 0
+          : d1Sub.meses.filter((m) => m.ventaReal !== 0).reduce((acc, m) => acc + (filaCmi.meses[m.mes - 1]?.ppto2026 || 0), 0);
+      }
+      const cumplimientoSub = pptoSub > 0 ? Math.round((d1Sub.kpis.ventaYTD / pptoSub) * 10000) / 100 : 0;
+
       return {
         id: vId,
         nombre: v.nombre,
@@ -1181,8 +1217,8 @@ function Panel() {
         ticketPromedio: d1Sub.kpis.ticketPromedio,
         ticketPromedioAnterior: d1Sub.kpis.ticketPromedioAnterior,
         tasaDevolucionPct: d1Sub.kpis.tasaDevolucionGlobalPct,
-        ppto: d1Sub.kpis.pptoYTD ?? 0,
-        cumplimientoPct: d1Sub.kpis.cumplimientoGlobalPct ?? 0,
+        ppto: pptoSub,
+        cumplimientoPct: cumplimientoSub,
         carteraTotal: d1Sub.kpis.carteraTotal ?? 0,
         carteraMayor90Dias: d1Sub.kpis.carteraMayor90Dias ?? 0,
         carteraPct90Dias: d1Sub.kpis.carteraPct90Dias ?? 0,
@@ -1190,7 +1226,7 @@ function Panel() {
         devolucionesMonto: d1Sub.kpis.devolucionesTotal ?? 0,
       };
     }).sort((a, b) => b.ventaActual - a.ventaActual);
-  }, [esAdmin, vendedoresDisponibles, rawVentas, rawVentasYoY, d1?.kpis.ventaYTD, filtros, catalogos]);
+  }, [esAdmin, subCuentasAsesor, rawVentas, rawVentasYoY, d1?.kpis.ventaYTD, filtros, catalogos, mes]);
 
   const nombreMesPuntual = useMemo(() => {
     if (mes !== "todos") {
@@ -1337,6 +1373,35 @@ function Panel() {
       }
     }
   }, [irMesAnteriorD1, irMesSiguienteD1]);
+
+  // Cuando se selecciona un mes puntual en la vista de comercial con varios vendedores asignados,
+  // la métrica principal de barras se discrimina por cada asesor asociado (con sus datos del mes puntual).
+  const datosGraficaPorVendedorMes = useMemo(() => {
+    if (esAdmin || !comparativaComercialesAsociados || comparativaComercialesAsociados.length <= 1 || !esMesPuntual) {
+      return null;
+    }
+
+    return comparativaComercialesAsociados.map((sub) => {
+      let nombreEje = sub.nombre;
+      if (nombreEje.length > 20) {
+        nombreEje = nombreEje.slice(0, 18) + "…";
+      }
+
+      return {
+        id: sub.id,
+        nombre: sub.nombre,
+        nombreEje,
+        ventaReal: sub.ventaActual,
+        ventaAnterior: sub.ventaAnterior,
+        crecimientoYoY: sub.crecimientoYoYPct,
+        aportePct: sub.aportePct,
+        unidades: sub.unidades,
+        unidadesAnterior: sub.unidadesAnterior,
+        tasaDevolucionPct: sub.tasaDevolucionPct,
+        ticketPromedio: sub.ticketPromedio,
+      };
+    });
+  }, [esAdmin, comparativaComercialesAsociados, esMesPuntual]);
 
   const diagnosticoMentor = useMemo(() => {
     return calcularDiagnosticoMentor(
@@ -3210,6 +3275,8 @@ function Panel() {
                       <span className="hidden sm:inline">
                         {esAdmin
                           ? (anio === "todos" ? "Evolución Cronológica Completa de Ventas (Todos los Periodos)" : `Venta Real vs. Presupuesto Mensual (${anio})`)
+                          : datosGraficaPorVendedorMes
+                          ? `Facturación Real por Vendedor vs. Año Anterior — ${nombreMesPuntual} ${anio !== "todos" ? anio : ""}`
                           : `Facturación Real vs. Año Anterior ${vendedorSeleccionadoNombre ? `(${vendedorSeleccionadoNombre})` : (comparativaComercialesAsociados.length > 1 ? "(Consolidado Global)" : "")}`}
                       </span>
                     </CardTitle>
@@ -3222,6 +3289,8 @@ function Panel() {
                       <span className="hidden sm:inline">
                         {esAdmin
                           ? `${d1?.meses.length ?? 0} periodos registrados en el análisis ${compararAnioAnterior ? "• Superposición de Venta Año Anterior activada" : ""}`
+                          : datosGraficaPorVendedorMes
+                          ? `Comparativa de facturación real actual frente al año anterior discriminada por cada vendedor asignado • ${nombreMesPuntual} ${anio !== "todos" ? `de ${anio}` : ""}`
                           : `Comparativa mensual de facturación real actual frente al año anterior con tasa de variación interanual (% YoY) • ${anio === "todos" ? "Histórico completo" : `Año ${anio}`}`}
                       </span>
                     </CardDescription>
@@ -3239,15 +3308,31 @@ function Panel() {
                         Ver Todo el Año
                       </Button>
                     )}
+                    {datosGraficaPorVendedorMes && vendedorId !== "todos" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setVendedorId("todos")}
+                        className="h-7 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 shrink-0"
+                        title="Restablecer a vista consolidada de todos los vendedores"
+                      >
+                        <FilterX className="h-3.5 w-3.5" />
+                        Ver Todos los Vendedores
+                      </Button>
+                    )}
                     <InfoGrafica
                       titulo={
                         esAdmin
                           ? "Venta Real vs. Presupuesto (PPTO)"
+                          : datosGraficaPorVendedorMes
+                          ? `Facturación por Vendedor vs. Año Anterior (${nombreMesPuntual})`
                           : "Facturación Real vs. Facturación Año Anterior"
                       }
                       descripcion={
                         esAdmin
                           ? "Compara la ejecución real de ventas monetarias frente a la cuota presupuestada para cada mes, mostrando el % de cumplimiento relativo."
+                          : datosGraficaPorVendedorMes
+                          ? `Compara la facturación neta de cada comercial asociado en ${nombreMesPuntual} contra sus ventas del mismo mes en el año anterior.`
                           : "Compara la facturación neta mensual actual contra la del mismo periodo en el año anterior para medir el crecimiento interanual real."
                       }
                       metrica={
@@ -3258,11 +3343,15 @@ function Panel() {
                       interpretacion={
                         esAdmin
                           ? "Permite evaluar qué meses superaron la meta comercial (verde) y en cuáles existió brecha presupuestal para ajustar tácticas de venta."
+                          : datosGraficaPorVendedorMes
+                          ? "Permite comparar de un vistazo el aporte individual de cada asesor en el mes y quiénes presentan crecimiento o decrecimiento frente al año previo."
                           : "Permite identificar rápidamente qué meses tuvieron crecimiento positivo frente al año anterior y la magnitud de la variación."
                       }
                     />
                     <Badge variant="outline">
-                      {mes !== "todos" && nombreMesPuntual
+                      {datosGraficaPorVendedorMes
+                        ? `${nombreMesPuntual} ${anio !== "todos" ? anio : ""}`
+                        : mes !== "todos" && nombreMesPuntual
                         ? `${nombreMesPuntual} ${anio !== "todos" ? anio : ""}`
                         : anio === "todos"
                         ? "Todo el Histórico"
@@ -3272,7 +3361,137 @@ function Panel() {
                 </div>
               </CardHeader>
               <CardContent className="pt-2">
-                {!d1?.meses || d1.meses.length === 0 ? (
+                {datosGraficaPorVendedorMes ? (
+                  datosGraficaPorVendedorMes.length === 0 ? (
+                    <div className="h-[320px] grid place-items-center text-sm text-muted-foreground">
+                      Sin datos de vendedores para {nombreMesPuntual}
+                    </div>
+                  ) : (
+                    <div className="w-full overflow-x-auto touch-pan scrollbar-none">
+                      <p className="text-[10px] text-muted-foreground/70 mb-1 sm:hidden">
+                        ← Desliza horizontalmente para ver todos los asesores →
+                      </p>
+                      <div className="h-[340px] min-w-[550px] sm:min-w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <ComposedChart
+                            data={datosGraficaPorVendedorMes}
+                          margin={{ top: 15, right: 20, left: 10, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                          <XAxis
+                            dataKey="nombreEje"
+                            tick={{ fontSize: 11 }}
+                            interval={0}
+                            angle={-12}
+                            textAnchor="end"
+                            height={45}
+                          />
+                          <YAxis
+                            yAxisId="left"
+                            tickFormatter={(v) => formatoCOP(v)}
+                            tick={{ fontSize: 12 }}
+                            width={80}
+                          />
+                          <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            tickFormatter={(v) => `${v}%`}
+                            tick={{ fontSize: 12 }}
+                            width={50}
+                          />
+                          <Tooltip
+                            formatter={(value: any, name: string) => {
+                              if (name === "crecimientoYoY" || name === "% Crecimiento YoY") {
+                                const num = Number(value);
+                                return [`${num > 0 ? "+" : ""}${num.toFixed(2)}%`, "% Crecimiento YoY"];
+                              }
+                              if (name === "ventaAnterior" || name === "Facturación Año Anterior ($)") {
+                                return [formatoCOPFull(Number(value)), "Facturación Año Anterior"];
+                              }
+                              if (name === "ventaReal" || name === "Facturación Real Actual ($)") {
+                                return [formatoCOPFull(Number(value)), "Facturación Real Actual"];
+                              }
+                              return [formatoCOPFull(Number(value)), name];
+                            }}
+                            labelFormatter={(label: any, payload: any[]) => {
+                              const item = payload?.[0]?.payload;
+                              return item
+                                ? `${item.nombre} (${Number(item.aportePct).toFixed(2)}% de aporte en ${nombreMesPuntual})`
+                                : label;
+                            }}
+                          />
+                          <Legend
+                            formatter={(v) =>
+                              v === "ventaReal"
+                                ? "Facturación Real Actual ($)"
+                                : v === "ventaAnterior"
+                                ? "Facturación Año Anterior ($)"
+                                : "% Crecimiento YoY"
+                            }
+                          />
+                          <Bar
+                            yAxisId="left"
+                            dataKey="ventaReal"
+                            name="Facturación Real Actual ($)"
+                            fill="#2563eb"
+                            radius={[4, 4, 0, 0]}
+                          >
+                            {datosGraficaPorVendedorMes.map((entry) => {
+                              const isSelected = String(vendedorId) === String(entry.id);
+                              const isAnySelected = vendedorId !== "todos";
+                              return (
+                                <Cell
+                                  key={`bar-real-${entry.id}`}
+                                  fill="#2563eb"
+                                  opacity={!isAnySelected || isSelected ? 1 : 0.4}
+                                />
+                              );
+                            })}
+                          </Bar>
+                          <Bar
+                            yAxisId="left"
+                            dataKey="ventaAnterior"
+                            name="Facturación Año Anterior ($)"
+                            fill="#f59e0b"
+                            radius={[4, 4, 0, 0]}
+                          >
+                            {datosGraficaPorVendedorMes.map((entry) => {
+                              const isSelected = String(vendedorId) === String(entry.id);
+                              const isAnySelected = vendedorId !== "todos";
+                              return (
+                                <Cell
+                                  key={`bar-ant-${entry.id}`}
+                                  fill="#f59e0b"
+                                  opacity={!isAnySelected || isSelected ? 0.85 : 0.35}
+                                />
+                              );
+                            })}
+                          </Bar>
+                          <Line
+                            yAxisId="right"
+                            type="monotone"
+                            dataKey="crecimientoYoY"
+                            name="% Crecimiento YoY"
+                            stroke="#10b981"
+                            strokeWidth={3}
+                            dot={{ r: 5, fill: "#10b981" }}
+                            activeDot={{ r: 7 }}
+                          >
+                            <LabelList
+                              dataKey="crecimientoYoY"
+                              position="top"
+                              formatter={(val: any) =>
+                                typeof val === "number" ? `${val > 0 ? "+" : ""}${val.toFixed(2)}%` : ""
+                              }
+                              style={{ fontSize: 10, fontWeight: 700, fill: "#10b981" }}
+                            />
+                          </Line>
+                        </ComposedChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )
+                ) : !d1?.meses || d1.meses.length === 0 ? (
                   <div className="h-[320px] grid place-items-center text-sm text-muted-foreground">Sin datos para el periodo seleccionado</div>
                 ) : (
                   <>
@@ -3609,73 +3828,6 @@ function Panel() {
                 )}
               </CardContent>
             </Card>
-
-            {/* Venta Real vs. Presupuesto para vendedores: debajo de "Facturación Real vs. Año Anterior" */}
-            {!esAdmin && d1 && d1.meses.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <CardTitle className="text-base font-semibold">
-                        {`Venta Real vs. Presupuesto Mensual${anio !== "todos" ? ` (${anio})` : ""}`}
-                      </CardTitle>
-                      <CardDescription>
-                        Ejecución de ventas frente al presupuesto (PPTO) de cada mes y % de cumplimiento de la meta
-                      </CardDescription>
-                    </div>
-                    <InfoGrafica
-                      titulo="Venta Real vs. Presupuesto (PPTO)"
-                      descripcion="Compara la ejecución real de ventas monetarias frente a la cuota presupuestada para cada mes, mostrando el % de cumplimiento relativo."
-                      metrica="Barras azules: Venta real ($). Barras grises: Presupuesto ($). Línea verde: % de cumplimiento meta."
-                      interpretacion="Permite evaluar qué meses superaron la meta comercial y en cuáles existió brecha presupuestal para ajustar tácticas de venta."
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="w-full overflow-x-auto touch-pan scrollbar-none">
-                    <div className="h-[300px] sm:h-[340px] min-w-[560px] sm:min-w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart
-                          data={d1.meses}
-                          margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
-                          onClick={(state: any) => {
-                            if (state?.activePayload?.[0]?.payload?.mes) {
-                              setMes(String(state.activePayload[0].payload.mes));
-                            }
-                          }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                          <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
-                          <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
-                          <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
-                          <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
-                          <Legend
-                            formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
-                          />
-                          <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]}>
-                            {d1.meses.map((entry) => {
-                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
-                              return (
-                                <Cell key={`bar-vend-real-${entry.mes}`} fill="#2563eb" opacity={isSelected ? 1 : 0.25} />
-                              );
-                            })}
-                          </Bar>
-                          <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]}>
-                            {d1.meses.map((entry) => {
-                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
-                              return (
-                                <Cell key={`bar-vend-ppto-${entry.mes}`} fill="#94a3b8" opacity={isSelected ? 0.4 : 0.15} />
-                              );
-                            })}
-                          </Bar>
-                          <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Panel de Vista Global de Comerciales Asociados al Vendedor (Tarjetas de Asesores) */}
             {!esAdmin && comparativaComercialesAsociados.length > 1 && (

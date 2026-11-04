@@ -20,6 +20,42 @@ const STORAGE_KEY_PERMISOS = "TRUCCOS_BI_PERMISOS_USUARIOS_V1";
 const STORAGE_KEY_ADMIN_OVERRIDE = "TRUCCOS_BI_ADMIN_SIMULACION";
 
 // Lista oficial preconfigurada según la matriz comercial de Trucco's
+/**
+ * Nombre de cada código de vendedor en HGI (y de su fila en el CMI). Se usa para el resumen
+ * por vendedor asociado cuando un asesor tiene varios códigos asignados.
+ */
+export const NOMBRES_CODIGOS_HGI: Record<number, string> = {
+  15: "LUIS VILLA",
+  11: "LINA GARCIA",
+  10554: "LINA PLUSS",
+  10: "JOHN FREDY MEDELLIN",
+  7: "JOHN FREDY CORRERIA",
+  16: "DIEGO GIRALDO-MEDELLIN",
+  12: "DIEGO GIRALDO CORRERIA",
+  18: "DIEGO GIRALDO RAPPAZ",
+  157: "CLAUDIA GIRALDO",
+  131: "CLAUDIA GIRALDO",
+  60964: "CLAUDIA FIN DE AÑO",
+  58819: "DIANA AGUDELO",
+  113: "JONATHAN LOPEZ",
+  58592: "CAMILO ZULUAGA",
+  7968: "JONATHAN LOPEZ RAPPAZ",
+  13: "JUAN DAVID QUINTANA",
+  108: "TIENDA VIRTUAL",
+  226: "REDES SOCIALES",
+  3333: "TRJUSA WEB",
+  58326: "MAYORISTA DIGITAL",
+  51: "TRUCCO'S EXPORTACION",
+  57255: "OLGA ZULUAGA",
+  14: "ALEIDA GALLEGO",
+  3: "ALEJANDRA HERRERA",
+  4541: "MAYORCA",
+  9935: "LINA MARIA ZULUAGA",
+  4936: "GLORIA MONTOYA",
+  59048: "SALOME CASTELLANOS",
+  8974: "KAROL DUQUE MESA",
+};
+
 export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
   {
     nombre: "MELISA GOMEZ",
