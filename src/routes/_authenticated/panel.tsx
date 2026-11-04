@@ -3610,6 +3610,73 @@ function Panel() {
               </CardContent>
             </Card>
 
+            {/* Venta Real vs. Presupuesto para vendedores: debajo de "Facturación Real vs. Año Anterior" */}
+            {!esAdmin && d1 && d1.meses.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <CardTitle className="text-base font-semibold">
+                        {`Venta Real vs. Presupuesto Mensual${anio !== "todos" ? ` (${anio})` : ""}`}
+                      </CardTitle>
+                      <CardDescription>
+                        Ejecución de ventas frente al presupuesto (PPTO) de cada mes y % de cumplimiento de la meta
+                      </CardDescription>
+                    </div>
+                    <InfoGrafica
+                      titulo="Venta Real vs. Presupuesto (PPTO)"
+                      descripcion="Compara la ejecución real de ventas monetarias frente a la cuota presupuestada para cada mes, mostrando el % de cumplimiento relativo."
+                      metrica="Barras azules: Venta real ($). Barras grises: Presupuesto ($). Línea verde: % de cumplimiento meta."
+                      interpretacion="Permite evaluar qué meses superaron la meta comercial y en cuáles existió brecha presupuestal para ajustar tácticas de venta."
+                    />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="w-full overflow-x-auto touch-pan scrollbar-none">
+                    <div className="h-[300px] sm:h-[340px] min-w-[560px] sm:min-w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
+                          data={d1.meses}
+                          margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
+                          onClick={(state: any) => {
+                            if (state?.activePayload?.[0]?.payload?.mes) {
+                              setMes(String(state.activePayload[0].payload.mes));
+                            }
+                          }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                          <XAxis dataKey="nombreMes" tick={{ fontSize: 11 }} />
+                          <YAxis yAxisId="left" tickFormatter={(v) => formatoCOP(v)} tick={{ fontSize: 12 }} width={80} />
+                          <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} width={45} />
+                          <Tooltip content={<TooltipVentaPresupuesto anioActual={anio} />} />
+                          <Legend
+                            formatter={(v) => (v === "ventaReal" ? "Venta Real ($)" : v === "ppto" ? "Presupuesto ($ PPTO)" : "% Cumplimiento")}
+                          />
+                          <Bar yAxisId="left" dataKey="ventaReal" fill="#2563eb" radius={[4, 4, 0, 0]}>
+                            {d1.meses.map((entry) => {
+                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
+                              return (
+                                <Cell key={`bar-vend-real-${entry.mes}`} fill="#2563eb" opacity={isSelected ? 1 : 0.25} />
+                              );
+                            })}
+                          </Bar>
+                          <Bar yAxisId="left" dataKey="ppto" fill="#94a3b8" radius={[4, 4, 0, 0]}>
+                            {d1.meses.map((entry) => {
+                              const isSelected = mes === "todos" || String(entry.mes) === String(mes);
+                              return (
+                                <Cell key={`bar-vend-ppto-${entry.mes}`} fill="#94a3b8" opacity={isSelected ? 0.4 : 0.15} />
+                              );
+                            })}
+                          </Bar>
+                          <Line yAxisId="right" type="monotone" dataKey="cumplimientoPct" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Panel de Vista Global de Comerciales Asociados al Vendedor (Tarjetas de Asesores) */}
             {!esAdmin && comparativaComercialesAsociados.length > 1 && (
               <Card className="border-border/80 shadow-xs bg-linear-to-b from-card to-muted/20">
