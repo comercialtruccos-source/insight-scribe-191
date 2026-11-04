@@ -52,7 +52,7 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "FREDY SANCHEZ",
     email: "fredysanchez@truccos.com",
     rol: "vendedor",
-    vendedorIds: [10, 7], // JOHN FREDY MEDELLIN, JOHN FREDY CORRERIA
+    vendedorIds: [10, 7, 25], // JOHN FREDY MEDELLIN, JOHN FREDY CORRERIA, JOHN FREDY SANCHEZ
     zona: "MEDELLIN-SANTADERES-SUR-VALLE",
     canal: "MAYORISTA NACIONAL",
     marca: "RAPPAZ",
@@ -61,7 +61,7 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "JUAN DIEGO GIRALDO",
     email: "juandiegogiraldo@truccos.com",
     rol: "vendedor",
-    vendedorIds: [16, 12, 18], // DIEGO GIRALDO-MEDELLIN, Diego Giraldo Correria, DIEGO GIRALDO RAPPAZ
+    vendedorIds: [16, 12, 18, 34], // DIEGO GIRALDO-MEDELLIN, Diego Giraldo Correria, DIEGO GIRALDO RAPPAZ, DIEGO GIRALDO
     zona: "COSTA - PERIFERIA MEDELLIN",
     canal: "MAYORISTA NACIONAL",
     marca: "TRUCCOS-RAPPAZ",
@@ -142,9 +142,45 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "MAYORCA",
     email: "mayorca@truccos.com",
     rol: "vendedor",
-    vendedorIds: [9935, 4793, 59048, 4936, 4541], // LINA MARIA ZULUAGA, ANNY FERNANDA YARCE MEJIA, SALOME CASTELLANOS, GLORIA MONTOYA, MAYORCA
+    vendedorIds: [9935, 4936, 59048, 8974, 4541, 4793], // LINA MARIA ZULUAGA, GLORIA MONTOYA, SALOME CASTELLANOS, KAROL DUQUE MESA, MAYORCA, ANNY FERNANDA YARCE MEJIA
     zona: "TIENDA FISICA",
     canal: "DETAL",
+    marca: "TRUCCOS",
+  },
+  {
+    nombre: "SARA GOMEZ",
+    email: "saragomez@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [6], // SARA GOMEZ
+    zona: "MEDELLIN",
+    canal: "MAYORISTA NACIONAL",
+    marca: "TRUCCOS",
+  },
+  {
+    nombre: "BEATRIZ SANCHEZ",
+    email: "beatrizsanchez@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [4957, 60967], // BEATRIZ SANCHEZ, BEATRIZ
+    zona: "MEDELLIN",
+    canal: "MAYORISTA NACIONAL",
+    marca: "TRUCCOS",
+  },
+  {
+    nombre: "PAOLA CARVAJAL JIMENEZ",
+    email: "paolacarvajal@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [1], // PAOLA CARVAJAL JIMENEZ
+    zona: "MEDELLIN",
+    canal: "MAYORISTA NACIONAL",
+    marca: "TRUCCOS",
+  },
+  {
+    nombre: "CAROLINA GIL",
+    email: "carolinagil@truccos.com",
+    rol: "vendedor",
+    vendedorIds: [200], // CAROLINA GIL
+    zona: "MEDELLIN",
+    canal: "MAYORISTA NACIONAL",
     marca: "TRUCCOS",
   },
 ];
@@ -182,28 +218,26 @@ export function obtenerTodosLosPermisosLocales(): PermisoUsuario[] {
     }
     const guardados = JSON.parse(data) as PermisoUsuario[];
     
-    // Asegurar que Melisa Gomez y los usuarios base estén siempre presentes
-    const emailsGuardados = new Set(guardados.map((g) => g.email.toLowerCase()));
+    // Sincronizar y asegurar que los asesores de la matriz comercial oficial estén presentes con todos sus IDs oficiales
     let cambio = false;
     for (const initUser of USUARIOS_INICIALES_PRECONFIGURADOS) {
-      if (!emailsGuardados.has(initUser.email.toLowerCase())) {
+      const g = guardados.find((x) => x.email.toLowerCase() === initUser.email.toLowerCase());
+      if (!g) {
         guardados.push(initUser);
         cambio = true;
-      }
-    }
-
-    // Limpieza de vendedores obsoletos/duplicados para Juan Diego Giraldo (remover ID 34 genérico)
-    for (const g of guardados) {
-      if (g.email.toLowerCase().includes("juandiegogiraldo") && g.vendedorIds?.includes(34)) {
-        g.vendedorIds = g.vendedorIds.filter((id) => id !== 34);
-        cambio = true;
-      }
-      if (
-        (g.email.toLowerCase().includes("fredy") || (g.nombre && g.nombre.toLowerCase().includes("fredy"))) &&
-        g.vendedorIds?.includes(25)
-      ) {
-        g.vendedorIds = g.vendedorIds.filter((id) => id !== 25);
-        cambio = true;
+      } else {
+        const curIds = new Set(g.vendedorIds || []);
+        let idsAgregados = false;
+        for (const id of initUser.vendedorIds) {
+          if (!curIds.has(id)) {
+            curIds.add(id);
+            idsAgregados = true;
+          }
+        }
+        if (idsAgregados) {
+          g.vendedorIds = Array.from(curIds);
+          cambio = true;
+        }
       }
     }
     if (cambio) {
@@ -517,6 +551,16 @@ export function obtenerNombresVendedoresAutorizados(
     nombres.add("ANNY FERNANDA YARCE MEJIA");
     nombres.add("SALOME CASTELLANOS");
     nombres.add("GLORIA MONTOYA");
+    nombres.add("KAROL DUQUE MESA");
+  } else if (pNomUpper.includes("SARA GOMEZ") || pEmailLower.includes("saragomez")) {
+    nombres.add("SARA GOMEZ");
+  } else if (pNomUpper.includes("BEATRIZ") || pEmailLower.includes("beatriz")) {
+    nombres.add("BEATRIZ SANCHEZ");
+    nombres.add("BEATRIZ");
+  } else if (pNomUpper.includes("PAOLA CARVAJAL") || pEmailLower.includes("paolacarvajal")) {
+    nombres.add("PAOLA CARVAJAL JIMENEZ");
+  } else if (pNomUpper.includes("CAROLINA GIL") || pEmailLower.includes("carolinagil")) {
+    nombres.add("CAROLINA GIL");
   }
 
   return Array.from(nombres);

@@ -23,6 +23,7 @@ import {
   calcularDashboard6Referencias,
   obtenerTransaccionesDetalle,
   purgarDatosVentas,
+  expandirVendedorIds,
   eliminarCarga,
   esTransaccionFacturacionReal,
   normalizarValorTransaccion,
@@ -819,15 +820,17 @@ function Panel() {
     let fVendedorIds: number[] | null = null;
 
     if (vendedorIds.length > 0) {
-      fVendedorIds = vendedorIds.map(Number);
-      if (vendedorIds.length === 1) {
-        fVendedorId = Number(vendedorIds[0]);
+      fVendedorIds = expandirVendedorIds(vendedorIds);
+      if (fVendedorIds.length === 1) {
+        fVendedorId = fVendedorIds[0];
       }
     } else if (vendedorId !== "todos") {
-      fVendedorId = Number(vendedorId);
-      fVendedorIds = [Number(vendedorId)];
+      fVendedorIds = expandirVendedorIds([vendedorId]);
+      if (fVendedorIds.length === 1) {
+        fVendedorId = fVendedorIds[0];
+      }
     } else if (!esAdmin && vendedorIdsPermitidos) {
-      fVendedorIds = vendedorIdsPermitidos.length > 0 ? vendedorIdsPermitidos : [-99999];
+      fVendedorIds = expandirVendedorIds(vendedorIdsPermitidos.length > 0 ? vendedorIdsPermitidos : [-99999]);
     }
 
     let fCanalId: number | null = null;
@@ -1069,11 +1072,15 @@ function Panel() {
 
   // Filtros para la matriz histórica multianual (conservando canales, marcas, vendedores, etc. pero sin restringir el año para mostrar todos los años)
   const filtrosMultianual: FiltrosBI = useMemo(() => {
+    const vIdsExpanded = vendedorIds.length > 0
+      ? expandirVendedorIds(vendedorIds)
+      : (vendedorId !== "todos" ? expandirVendedorIds([vendedorId]) : undefined);
+
     return {
       canal_id: canalId !== "todos" ? Number(canalId) : undefined,
       marca_id: marcaId !== "todos" ? Number(marcaId) : undefined,
-      vendedor_id: vendedorId !== "todos" ? Number(vendedorId) : undefined,
-      vendedor_ids: vendedorIds.length > 0 ? vendedorIds.map(Number) : undefined,
+      vendedor_id: vIdsExpanded && vIdsExpanded.length === 1 ? vIdsExpanded[0] : undefined,
+      vendedor_ids: vIdsExpanded && vIdsExpanded.length > 1 ? vIdsExpanded : undefined,
       zona_id: zonaId !== "todos" ? Number(zonaId) : undefined,
       ciudad_id: ciudadId !== "todos" ? Number(ciudadId) : undefined,
     };
@@ -1129,14 +1136,19 @@ function Panel() {
 
     return vendedoresDisponibles.map((v) => {
       const vId = v.id;
-      const matchV = (r: FilaFactVentas) => Number(r.vendedor_id) === vId || Number(r.vendedor2_id) === vId;
+      const idsToCheck = (v as any).allIds && (v as any).allIds.length > 0 ? (v as any).allIds : [vId];
+      const matchV = (r: FilaFactVentas) => idsToCheck.includes(Number(r.vendedor_id)) || idsToCheck.includes(Number(r.vendedor2_id));
       
       const vData = rawVentas.filter(matchV);
       const vDataYoY = (rawVentasYoY || []).filter(matchV);
       
       const d1Sub = calcularDashboard1Cumplimiento(
         vData,
-        { ...filtros, vendedor_id: vId, vendedor_ids: undefined },
+        {
+          ...filtros,
+          vendedor_id: idsToCheck.length === 1 ? idsToCheck[0] : undefined,
+          vendedor_ids: idsToCheck.length > 1 ? idsToCheck : undefined,
+        },
         catalogos,
         undefined,
         undefined,
@@ -1509,10 +1521,10 @@ function Panel() {
 
     const activeVendIds =
       vendedorIds.length > 0
-        ? vendedorIds.map(Number)
+        ? expandirVendedorIds(vendedorIds)
         : vendedorId !== "todos"
-        ? [Number(vendedorId)]
-        : (!esAdmin && vendedorIdsPermitidos?.length ? vendedorIdsPermitidos : undefined);
+        ? expandirVendedorIds([vendedorId])
+        : (!esAdmin && vendedorIdsPermitidos?.length ? expandirVendedorIds(vendedorIdsPermitidos) : undefined);
 
     return calcularRankingAsesoresCanal(
       ventasFuente,

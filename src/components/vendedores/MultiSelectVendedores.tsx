@@ -14,15 +14,6 @@ interface MultiSelectVendedoresProps {
   esAdmin?: boolean;
 }
 
-// Grupos conocidos de alias comerciales en Trucco's Fashion con movimientos reales
-const GRUPOS_ALIAS_CONOCIDOS: Record<string, string[]> = {
-  "Diego Giraldo": ["12", "16", "18"],
-  "John Fredy": ["7", "10"],
-  "Claudia Giraldo": ["157"],
-  "Diana Agudelo": ["58819", "113", "58592"],
-  "Lina Garcia": ["11", "10554"],
-};
-
 export function MultiSelectVendedores({
   vendedores = [],
   selectedIds = [],
@@ -32,7 +23,7 @@ export function MultiSelectVendedores({
   const [open, setOpen] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
-  // Filtrar estrictamente asesores válidos
+  // Filtrar estrictamente asesores comerciales válidos
   const vendedoresValidos = useMemo(() => {
     return vendedores.filter((v) => esVendedorValido(v.id, v.nombre));
   }, [vendedores]);
@@ -67,22 +58,6 @@ export function MultiSelectVendedores({
     onChange([]);
   };
 
-  // Toggle de un grupo alias
-  const toggleGrupo = (grupoNombre: string, idsGrupo: string[]) => {
-    // Solo considerar los IDs del grupo que existen en la lista de vendedores disponibles
-    const idsValidos = idsGrupo.filter((id) => todosIds.includes(id));
-    const todosSeleccionados = idsValidos.every((id) => selectedIds.includes(id));
-
-    if (todosSeleccionados) {
-      // Deseleccionar el grupo
-      onChange(selectedIds.filter((id) => !idsValidos.includes(id)));
-    } else {
-      // Agregar los faltantes del grupo
-      const nuevos = Array.from(new Set([...selectedIds, ...idsValidos]));
-      onChange(nuevos);
-    }
-  };
-
   // Etiqueta del botón disparador
   const etiquetaBoton = useMemo(() => {
     if (selectedIds.length === 0) {
@@ -94,9 +69,9 @@ export function MultiSelectVendedores({
     }
     if (selectedIds.length === 1) {
       const v = vendedores.find((item) => String(item.id) === selectedIds[0]);
-      return v ? v.nombre : `Vendedor #${selectedIds[0]}`;
+      return v ? v.nombre : `Asesor #${selectedIds[0]}`;
     }
-    return `${selectedIds.length} Vendedores Seleccionados`;
+    return `${selectedIds.length} Asesores Seleccionados`;
   }, [selectedIds, vendedores, esAdmin]);
 
   return (
@@ -177,44 +152,8 @@ export function MultiSelectVendedores({
             </span>
           </div>
 
-          {/* Atajos de Grupos / Alias frecuentes */}
-          <div className="pt-1 border-t border-border/50">
-            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
-              <Sparkles className="h-2.5 w-2.5 text-amber-500" />
-              <span>Unificar Alias Conocidos</span>
-            </div>
-
-            <div className="flex items-center gap-1 flex-wrap">
-              {Object.entries(GRUPOS_ALIAS_CONOCIDOS).map(([nombreGrupo, idsGrupo]) => {
-                const idsValidos = idsGrupo.filter((id) => todosIds.includes(id));
-                if (idsValidos.length === 0) return null;
-
-                const todosMarcados = idsValidos.every((id) => selectedIds.includes(id));
-                const algunoMarcado = idsValidos.some((id) => selectedIds.includes(id));
-
-                return (
-                  <button
-                    key={nombreGrupo}
-                    type="button"
-                    onClick={() => toggleGrupo(nombreGrupo, idsGrupo)}
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all border ${
-                      todosMarcados
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : algunoMarcado
-                        ? "bg-primary/20 text-primary border-primary/40 font-bold"
-                        : "bg-muted/60 text-muted-foreground hover:bg-muted border-border/60"
-                    }`}
-                  >
-                    <span>{nombreGrupo}</span>
-                    <span className="text-[9px] opacity-75">({idsValidos.length})</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Lista scrolleable de vendedores */}
-          <div className="max-h-56 overflow-y-auto space-y-1 pr-1 pt-1 border-t border-border/50">
+          {/* Lista scrolleable de vendedores comerciales */}
+          <div className="max-h-64 overflow-y-auto space-y-1 pr-1 pt-1 border-t border-border/50">
             {vendedoresFiltrados.length === 0 ? (
               <div className="py-4 text-center text-xs text-muted-foreground">
                 No se encontraron asesores.
@@ -243,7 +182,7 @@ export function MultiSelectVendedores({
                     </div>
 
                     <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-                      ID {v.id}
+                      {v.allIds && v.allIds.length > 1 ? `${v.allIds.length} cuentas` : `ID ${v.id}`}
                     </span>
                   </label>
                 );

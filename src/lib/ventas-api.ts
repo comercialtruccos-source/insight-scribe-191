@@ -28,6 +28,7 @@ export type CatalogoItem = {
   id: number;
   nombre: string;
   codigo?: string | null;
+  allIds?: number[];
 };
 
 export type CatalogosDisponibles = {
@@ -159,13 +160,52 @@ export function deduplicarFilasVentas<T>(filas: T[]): T[] {
   return result;
 }
 
-const VEND_ID_TO_ASESOR_INFO = new Map<number, { nombre: string; allIds: number[] }>();
+/**
+ * IDs de cuentas no comerciales de logística, bodega, pruebas o contabilidad
+ * que NO deben contabilizarse como asesores comerciales ni figurar en la fuerza comercial.
+ */
+export const NON_COMMERCIAL_ACCOUNT_IDS = new Set<number>([
+  2,     // SHOWROOM
+  4,     // BODEGA
+  8,     // GENERAL
+  9,     // EMPLEADOS
+  17,    // PUBLICIDAD
+  740,   // FERIAS
+  10148, // OTROS INGRESOS
+  59392, // DAFITI (canal externo)
+  60964, // Artefacto
+  60966, // Artefacto
+  60968, // MARKETPLACE (canal externo)
+]);
+
+export const VEND_ID_TO_ASESOR_INFO = new Map<number, { nombre: string; allIds: number[] }>();
 for (const u of USUARIOS_INICIALES_PRECONFIGURADOS) {
-  if (u.vendedorIds && u.vendedorIds.length > 0) {
+  if (u.rol === "vendedor" && u.nombre && u.vendedorIds && u.vendedorIds.length > 0) {
     for (const id of u.vendedorIds) {
-      VEND_ID_TO_ASESOR_INFO.set(id, { nombre: u.nombre || `Asesor #${id}`, allIds: u.vendedorIds });
+      VEND_ID_TO_ASESOR_INFO.set(id, { nombre: u.nombre, allIds: u.vendedorIds });
     }
   }
+}
+
+/**
+ * Expande una lista de IDs de vendedores seleccionados para abarcar todos los alias preconfigurados de cada asesor comercial.
+ */
+export function expandirVendedorIds(ids: (number | string)[]): number[] {
+  if (!ids || ids.length === 0) return [];
+  const res = new Set<number>();
+  for (const raw of ids) {
+    const num = Number(raw);
+    if (!num || isNaN(num)) continue;
+    const info = VEND_ID_TO_ASESOR_INFO.get(num);
+    if (info && info.allIds.length > 0) {
+      for (const aliasId of info.allIds) {
+        res.add(aliasId);
+      }
+    } else {
+      res.add(num);
+    }
+  }
+  return Array.from(res);
 }
 
 /**
@@ -177,13 +217,18 @@ export function resolverNombreAsesor(
   vendedorMap?: Map<number, string> | CatalogoItem[]
 ): { nombre: string; esComercial: boolean; allIds: number[] } {
   if (!vendedorId) {
-    return { nombre: "Ventas Directas / Mostrador", esComercial: true, allIds: [] };
+    return { nombre: "Ventas Directas / Mostrador", esComercial: false, allIds: [] };
   }
   const vId = Number(vendedorId);
+  if (NON_COMMERCIAL_ACCOUNT_IDS.has(vId) || (vId >= 60928 && vId !== 60967)) {
+    return { nombre: "Cuenta No Comercial / Interna", esComercial: false, allIds: [vId] };
+  }
+
   const info = VEND_ID_TO_ASESOR_INFO.get(vId);
   if (info) {
     return { nombre: info.nombre, esComercial: true, allIds: info.allIds };
   }
+
   let catNom: string | null = null;
   if (vendedorMap) {
     if (vendedorMap instanceof Map) {
@@ -192,6 +237,25 @@ export function resolverNombreAsesor(
       catNom = vendedorMap.find((v) => v.id === vId)?.nombre || null;
     }
   }
+
+  if (catNom) {
+    const low = catNom.toLowerCase();
+    if (
+      low.includes("bodega") ||
+      low.includes("general") ||
+      low.includes("empleado") ||
+      low.includes("publicidad") ||
+      low.includes("showroom") ||
+      low.includes("feria") ||
+      low.includes("otros ingresos") ||
+      low.includes("marketplace") ||
+      low.includes("dafiti") ||
+      low.includes("excluido")
+    ) {
+      return { nombre: catNom, esComercial: false, allIds: [vId] };
+    }
+  }
+
   const nombre = catNom ? catNom.trim() : `Asesor #${vId}`;
   return { nombre, esComercial: true, allIds: [vId] };
 }
@@ -1231,44 +1295,37 @@ export async function eliminarCarga(cargaId: number): Promise<{ ok: boolean }> {
 }
 
 /**
- * IDs de dim_vendedor que no corresponden a asesores comerciales activos con movimientos en fact_ventas:
- * - Cuentas no comerciales de logística, bodega, pruebas o contabilidad (BODEGA, GENERAL, EMPLEADOS, SHOWROOM, PUBLICIDAD, FERIAS, OTROS INGRESOS, LEADS MAYORISTAS).
- * - Asesores inactivos o registros huérfanos que tienen 0 movimientos en el archivo transaccional (ANNY YARCE, BEATRIZ SANCHEZ, BEATRIZ, DIEGO GIRALDO ID 34, CLAUDIA GIRALDO ID 131, etc.).
+ * IDs de dim_vendedor que no corresponden a asesores comerciales independientes:
+ * - Cuentas no comerciales de logística, bodega, pruebas o contabilidad.
+ * - Registros inactivos con 0 movimientos en fact_ventas.
  */
 export const VENDEDOR_IDS_EXCLUIDOS = new Set<number>([
-  1,     // PAOLA CARVAJAL JIMENEZ (sin movimientos)
   2,     // SHOWROOM (cuenta no comercial)
   4,     // BODEGA (cuenta no comercial logística)
-  5,     // LEADS MAYORISTAS (cuenta digital / cola, no asesor)
   8,     // GENERAL (cuenta no comercial)
   9,     // EMPLEADOS (cuenta no comercial interna)
   17,    // PUBLICIDAD (cuenta no comercial)
-  25,    // JOHN FREDY SANCHEZ (inexistente / sin movimientos)
-  34,    // DIEGO GIRALDO (duplicado sin movimientos; activos son 12, 16, 18)
-  131,   // Claudia Giraldo (duplicado sin movimientos; activo es 157)
   694,   // NATALY GALVIS (sin movimientos)
   740,   // FERIAS (cuenta no comercial)
-  3333,  // TRJUSA WEB (cuenta web, no asesor)
-  4541,  // MAYORCA (cuenta punto físico, no asesor)
-  4793,  // ANNY FERNANDA YARCE MEJIA (sin movimientos)
+  2815,  // HAILLER MATEUS (sin movimientos)
+  4519,  // YENNY PAOLA LOPEZ (sin movimientos)
   4925,  // YISELL ANDREA MESA (sin movimientos)
-  4936,  // GLORIA MONTOYA (sin movimientos)
-  4957,  // BEATRIZ SANCHEZ (sin movimientos)
-  7968,  // JONATHAN LOPEZ RAPPAZ (duplicado sin movimientos; activos son 113, 58819, 58592)
   8439,  // JORGE MUÑOZ (sin movimientos)
-  8974,  // KAROL DUQUE MESA (sin movimientos)
+  10084, // GERONIMO PEREIRA INFANZON (sin movimientos)
   10148, // OTROS INGRESOS (cuenta contable)
-  59392, // DAFITI (canal externo)
+  59392, // DAFITI (canal externo marketplace)
+  60968, // MARKETPLACE (canal externo)
 ]);
 
 /**
  * Determina si un registro de dim_vendedor corresponde a un asesor comercial real y activo con movimientos en fact_ventas.
- * Excluye días numéricos (1..31), encabezados de tablas dinámicas, pruebas, roles no comerciales y asesores sin movimientos.
+ * Excluye días numéricos (1..31), encabezados de tablas dinámicas, pruebas, roles no comerciales y cuentas internas.
  */
 export function esVendedorValido(id: number, nombre?: string | null): boolean {
   if (!id || id <= 0) return false;
-  // Excluir IDs de artefactos y rangos no válidos (60928 en adelante, ej. [EXCLUIDO], BEATRIZ 60967, MARKETPLACE 60968)
-  if (id >= 60928) return false;
+  // Excluir IDs de artefactos y rangos no válidos (60928 en adelante, excepto BEATRIZ 60967)
+  if (id >= 60928 && id !== 60967) return false;
+  if (NON_COMMERCIAL_ACCOUNT_IDS.has(id)) return false;
   if (VENDEDOR_IDS_EXCLUIDOS.has(id)) return false;
 
   if (!nombre) return false;
@@ -1279,7 +1336,6 @@ export function esVendedorValido(id: number, nombre?: string | null): boolean {
   if (/^\d+$/.test(n)) return false;
 
   const low = n.toLowerCase();
-  if (low === "john fredy sanchez") return false;
 
   // Excluir cuentas no comerciales y de logística o administración interna
   if (
@@ -1289,13 +1345,10 @@ export function esVendedorValido(id: number, nombre?: string | null): boolean {
     low.includes("publicidad") ||
     low.includes("publicada") ||
     low.includes("showroom") ||
-    low.includes("leads mayorista") ||
     low.includes("feria") ||
     low.includes("otros ingresos") ||
     low.includes("marketplace") ||
     low.includes("dafiti") ||
-    low.includes("mayorca") ||
-    low.includes("trjusa web") ||
     low.includes("desface") ||
     low.includes("saldo") ||
     low.includes("[excluido]") ||
@@ -1317,7 +1370,61 @@ export function esVendedorValido(id: number, nombre?: string | null): boolean {
   return true;
 }
 
+/**
+ * Construye la lista oficial y limpia de asesores comerciales a partir de los permisos preconfigurados
+ * y registros de dim_vendedor, consolidando alias y descartando cuentas internas o no comerciales.
+ */
+export function construirCatalogoVendedores(data?: unknown[] | null): CatalogoItem[] {
+  const vendedoresMap = new Map<string, CatalogoItem>();
+
+  for (const u of USUARIOS_INICIALES_PRECONFIGURADOS) {
+    if (u.rol === "vendedor" && u.nombre && u.vendedorIds && u.vendedorIds.length > 0) {
+      const primaryId = u.vendedorIds[0];
+      vendedoresMap.set(u.nombre.toUpperCase(), {
+        id: primaryId,
+        nombre: u.nombre.toUpperCase(),
+        allIds: u.vendedorIds,
+      });
+    }
+  }
+
+  const allAssignedIds = new Set<number>();
+  for (const v of vendedoresMap.values()) {
+    if (v.allIds) {
+      for (const id of v.allIds) allAssignedIds.add(id);
+    } else {
+      allAssignedIds.add(v.id);
+    }
+  }
+
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      if (typeof item === "object" && item !== null && "id" in item && "nombre" in item) {
+        const record = item as Record<string, unknown>;
+        const id = Number(record["id"]);
+        const nombre = String(record["nombre"] || "").trim();
+        if (allAssignedIds.has(id)) continue;
+        if (!esVendedorValido(id, nombre)) continue;
+        if (!vendedoresMap.has(nombre.toUpperCase())) {
+          vendedoresMap.set(nombre.toUpperCase(), {
+            id,
+            nombre: nombre.toUpperCase(),
+            allIds: [id],
+          });
+        }
+      }
+    }
+  }
+
+  return Array.from(vendedoresMap.values()).sort((a, b) =>
+    a.nombre.localeCompare(b.nombre, "es")
+  );
+}
+
 const sanitizeCatalogo = (data: unknown[] | null | undefined, tipo?: "vendedor" | "otro"): CatalogoItem[] => {
+  if (tipo === "vendedor") {
+    return construirCatalogoVendedores(data);
+  }
   if (!Array.isArray(data)) return [];
   const map = new Map<number, string>();
   for (const item of data) {
@@ -1327,17 +1434,13 @@ const sanitizeCatalogo = (data: unknown[] | null | undefined, tipo?: "vendedor" 
       const nombre = String(record["nombre"] || "").trim();
       const lower = nombre.toLowerCase();
 
-      if (tipo === "vendedor") {
-        if (!esVendedorValido(id, nombre)) continue;
-      } else {
-        if (
-          id <= 0 ||
-          nombre.length === 0 ||
-          lower.includes("publicidad") ||
-          lower.includes("publicada")
-        ) {
-          continue;
-        }
+      if (
+        id <= 0 ||
+        nombre.length === 0 ||
+        lower.includes("publicidad") ||
+        lower.includes("publicada")
+      ) {
+        continue;
       }
 
       if (!map.has(id)) {
@@ -3668,14 +3771,14 @@ export function calcularDashboard4FuerzaVentas(
 
     const txId = r.transaccion ? String(r.transaccion) : `row_${r.id}`;
 
+    const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
+    const { nombre: vNombre, esComercial } = resolverNombreAsesor(vId, vendedorMap);
+    if (!esComercial) continue;
+
     if (m >= 1 && m <= 12) {
       mesVentasArray[m - 1] += v;
       mesUnidadesArray[m - 1] += cant;
     }
-
-    const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
-    const { nombre: vNombre, esComercial } = resolverNombreAsesor(vId, vendedorMap);
-    if (!esComercial) continue;
 
     if (!asesorDataMap.has(vNombre)) {
       asesorDataMap.set(vNombre, {
@@ -3739,14 +3842,14 @@ export function calcularDashboard4FuerzaVentas(
 
       const txAntId = r.transaccion ? String(r.transaccion) : `row_ant_${r.id}`;
 
+      const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
+      const { nombre: vNombre, esComercial } = resolverNombreAsesor(vId, vendedorMap);
+      if (!esComercial) continue;
+
       if (m >= 1 && m <= 12) {
         mesVentasAntArray[m - 1] += v;
         mesUnidadesAntArray[m - 1] += cant;
       }
-
-      const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
-      const { nombre: vNombre, esComercial } = resolverNombreAsesor(vId, vendedorMap);
-      if (!esComercial) continue;
 
       const aplicaMesAnt = !filtros.mes || m === filtros.mes;
       if (!aplicaMesAnt) continue;
@@ -4032,30 +4135,10 @@ export function calcularRankingAsesoresCanal(
     totalTransaccionesSet.add(txId);
 
     const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
-    let asesorNombre = "Asesor General";
-    let asesorIds = new Set<number>();
+    const { nombre: asesorNombre, esComercial, allIds } = resolverNombreAsesor(vId, catalogosVendedores);
+    if (!esComercial) continue;
 
-    if (vId) {
-      const info = vendIdToAsesorInfo.get(vId);
-      if (info) {
-        asesorNombre = info.nombre;
-        asesorIds = new Set(info.allIds);
-      } else {
-        const catNom = vCatMap.get(vId);
-        asesorNombre = catNom ? catNom.trim() : `Asesor #${vId}`;
-        asesorIds = new Set([vId]);
-      }
-    }
-
-    const normNom = asesorNombre.toUpperCase();
-    if (
-      normNom.includes("PUBLICIDAD") ||
-      normNom.includes("BODEGA") ||
-      normNom.includes("GENERAL") ||
-      normNom.includes("EMPLEADOS")
-    ) {
-      continue;
-    }
+    const asesorIds = new Set(allIds && allIds.length > 0 ? allIds : (vId ? [vId] : []));
 
     if (!asesoresMap.has(asesorNombre)) {
       asesoresMap.set(asesorNombre, {
@@ -4086,17 +4169,8 @@ export function calcularRankingAsesoresCanal(
 
       const cant = normalizarUnidadesTransaccion(r.transaccion, r.cantidad);
       const vId = r.vendedor_id ? Number(r.vendedor_id) : r.vendedor2_id ? Number(r.vendedor2_id) : null;
-      let asesorNombre = "Asesor General";
-
-      if (vId) {
-        const info = vendIdToAsesorInfo.get(vId);
-        if (info) {
-          asesorNombre = info.nombre;
-        } else {
-          const catNom = vCatMap.get(vId);
-          asesorNombre = catNom ? catNom.trim() : `Asesor #${vId}`;
-        }
-      }
+      const { nombre: asesorNombre, esComercial } = resolverNombreAsesor(vId, catalogosVendedores);
+      if (!esComercial) continue;
 
       unidadesAnteriorMap.set(asesorNombre, (unidadesAnteriorMap.get(asesorNombre) || 0) + cant);
     }
@@ -5763,7 +5837,7 @@ export async function obtenerClientesPorVendedor(
   const totalTxGlobal = clientes.reduce((acc, c) => acc + c.transacciones, 0);
   const ticketPromedioGlobal = totalTxGlobal > 0 ? Math.round(ventaTotal / totalTxGlobal) : 0;
 
-  const vendedoresLista: CatalogoItem[] = sanitizeCatalogo(vendRes.data);
+  const vendedoresLista: CatalogoItem[] = sanitizeCatalogo(vendRes.data, "vendedor");
 
   return {
     clientes,
