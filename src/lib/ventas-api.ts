@@ -176,7 +176,6 @@ export const NON_COMMERCIAL_ACCOUNT_IDS = new Set<number>([
   740,   // FERIAS
   10148, // OTROS INGRESOS
   59392, // DAFITI (canal externo)
-  60964, // Artefacto
   60966, // Artefacto
   60968, // MARKETPLACE (canal externo)
 ]);
@@ -232,13 +231,15 @@ export function resolverNombreAsesor(
     return { nombre: "Ventas Directas / Mostrador", esComercial: false, allIds: [] };
   }
   const vId = Number(vendedorId);
-  if (NON_COMMERCIAL_ACCOUNT_IDS.has(vId) || (vId >= 60928 && vId !== 60967)) {
-    return { nombre: "Cuenta No Comercial / Interna", esComercial: false, allIds: [vId] };
-  }
-
+  // Primero los IDs asignados a un asesor oficial (incluye alias como 60964 = CLAUDIA FIN DE AÑO,
+  // que el CMI suma a Claudia Giraldo aunque su ID esté en el rango de artefactos >= 60928)
   const info = VEND_ID_TO_ASESOR_INFO.get(vId);
   if (info) {
     return { nombre: info.nombre, esComercial: true, allIds: info.allIds };
+  }
+
+  if (NON_COMMERCIAL_ACCOUNT_IDS.has(vId) || (vId >= 60928 && vId !== 60967)) {
+    return { nombre: "Cuenta No Comercial / Interna", esComercial: false, allIds: [vId] };
   }
 
   let catNom: string | null = null;
@@ -1342,6 +1343,8 @@ export const NOMBRES_VENDEDORES_OFICIALES = new Set([
  */
 export function esVendedorValido(id: number, nombre?: string | null): boolean {
   if (!id || id <= 0) return false;
+  // Alias oficiales de un asesor (ver USUARIOS_INICIALES_PRECONFIGURADOS) siempre son válidos
+  if (VEND_ID_TO_ASESOR_INFO.has(id) && !VENDEDORES_SIN_MOVIMIENTO_2026.has(id)) return true;
   // Excluir IDs de artefactos y rangos no válidos (60928 en adelante)
   if (id >= 60928) return false;
   if (NON_COMMERCIAL_ACCOUNT_IDS.has(id)) return false;

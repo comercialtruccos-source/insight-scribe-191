@@ -70,7 +70,7 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "CLAUDIA GIRALDO",
     email: "claudiagiraldo@truccos.com",
     rol: "vendedor",
-    vendedorIds: [157, 131], // Claudia Giraldo, CLAUDIA GIRALDO
+    vendedorIds: [157, 131, 60964], // Claudia Giraldo, CLAUDIA GIRALDO, CLAUDIA FIN DE AÑO (HGI; en dim_vendedor quedó como "[EXCLUIDO] 60964")
     zona: "VALLE",
     canal: "MAYORISTA NACIONAL",
     marca: "TRUCCOS",
@@ -106,7 +106,7 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "MAYORISTA DIGITAL",
     email: "mayoristadigital@truccos.com",
     rol: "vendedor",
-    vendedorIds: [58326, 5], // MAYORISTA DIGITAL, LEADS MAYORISTAS
+    vendedorIds: [58326], // MAYORISTA DIGITAL (LEADS MAYORISTAS es una fila aparte en el CMI y no suma a este usuario)
     zona: "DIGITAL MAYORISTA",
     canal: "MAYORISTA DIGITAL/PRESENCIAL",
     marca: "TRUCCOS-RAPPAZ",
@@ -189,7 +189,7 @@ export function obtenerTodosLosPermisosLocales(): PermisoUsuario[] {
       if (gEmail.includes("angelaacevedo") || gNom.includes("ANGELA")) {
         g.nombre = "MAYORISTA DIGITAL";
         g.email = "mayoristadigital@truccos.com";
-        g.vendedorIds = [58326, 5];
+        g.vendedorIds = [58326];
         g.zona = "DIGITAL MAYORISTA";
         g.canal = "MAYORISTA DIGITAL/PRESENCIAL";
         g.marca = "TRUCCOS-RAPPAZ";
@@ -520,7 +520,6 @@ export function obtenerNombresVendedoresAutorizados(
     pEmailLower.includes("angelaacevedo")
   ) {
     nombres.add("MAYORISTA DIGITAL");
-    nombres.add("LEADS MAYORISTAS");
   } else if (pNomUpper.includes("CRISTINA RESTREPO") || pEmailLower.includes("cristinarestrepo")) {
     nombres.add("CRISTINA RESTREPO");
     nombres.add("TRUCCO'S EXPORTACION");
