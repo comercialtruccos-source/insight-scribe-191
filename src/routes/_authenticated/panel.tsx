@@ -28,6 +28,7 @@ import {
   esTransaccionFacturacionReal,
   normalizarValorTransaccion,
   normalizarUnidadesTransaccion,
+  esVendedorValido,
   type FiltrosBI,
 } from "@/lib/ventas-api";
 import {
@@ -728,7 +729,7 @@ function Panel() {
   }, [esAdmin, permisoActual]);
 
   const vendedoresDisponibles = useMemo(() => {
-    const todos = catalogos?.vendedores || [];
+    const todos = (catalogos?.vendedores || []).filter((v) => esVendedorValido(v.id, v.nombre));
     if (esAdmin || !vendedorIdsPermitidos) return todos;
     return todos.filter((v) => vendedorIdsPermitidos.includes(v.id));
   }, [catalogos?.vendedores, esAdmin, vendedorIdsPermitidos]);
