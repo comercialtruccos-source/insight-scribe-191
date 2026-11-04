@@ -1392,46 +1392,17 @@ export function esVendedorValido(id: number, nombre?: string | null): boolean {
  * Construye la lista oficial y limpia de asesores comerciales a partir de los permisos preconfigurados
  * y registros de dim_vendedor, consolidando alias y descartando cuentas internas o no comerciales.
  */
-export function construirCatalogoVendedores(data?: unknown[] | null): CatalogoItem[] {
+export function construirCatalogoVendedores(_data?: unknown[] | null): CatalogoItem[] {
   const vendedoresMap = new Map<string, CatalogoItem>();
 
   for (const u of USUARIOS_INICIALES_PRECONFIGURADOS) {
     if (u.rol === "vendedor" && u.nombre && u.vendedorIds && u.vendedorIds.length > 0) {
       const primaryId = u.vendedorIds[0];
-      if (!esVendedorValido(primaryId, u.nombre)) continue;
       vendedoresMap.set(u.nombre.toUpperCase(), {
         id: primaryId,
         nombre: u.nombre.toUpperCase(),
         allIds: u.vendedorIds,
       });
-    }
-  }
-
-  const allAssignedIds = new Set<number>();
-  for (const v of vendedoresMap.values()) {
-    if (v.allIds) {
-      for (const id of v.allIds) allAssignedIds.add(id);
-    } else {
-      allAssignedIds.add(v.id);
-    }
-  }
-
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      if (typeof item === "object" && item !== null && "id" in item && "nombre" in item) {
-        const record = item as Record<string, unknown>;
-        const id = Number(record["id"]);
-        const nombre = String(record["nombre"] || "").trim();
-        if (allAssignedIds.has(id)) continue;
-        if (!esVendedorValido(id, nombre)) continue;
-        if (!vendedoresMap.has(nombre.toUpperCase())) {
-          vendedoresMap.set(nombre.toUpperCase(), {
-            id,
-            nombre: nombre.toUpperCase(),
-            allIds: [id],
-          });
-        }
-      }
     }
   }
 
@@ -2547,22 +2518,20 @@ export function calcularDashboard1Cumplimiento(
   const cmiEntitiesMap = obtenerEntidadesCMIActivas();
 
   const ASESORES_RANKING_CMI = [
-    { id: 16, nombre: "JUAN DIEGO GIRALDO", cmiKey: "TOTAL DIEGO" },
+    { id: 16, nombre: "JUAN DIEGO GIRALDO", cmiKey: "JUAN DIEGO GIRALDO" },
     { id: 11, nombre: "LINA GARCIA", cmiKey: "LINA GARCIA" },
     { id: 15, nombre: "LUIS VILLA", cmiKey: "LUIS VILLA" },
     { id: 13, nombre: "JUAN DAVID QUINTANA", cmiKey: "JUAN DAVID QUINTANA" },
-    { id: 10, nombre: "FREDY SANCHEZ", cmiKey: "TOTAL FREDY" },
-    { id: 108, nombre: "TIENDA VIRTUAL", cmiKey: "TIENDA VIRTUAL" },
+    { id: 10, nombre: "FREDY SANCHEZ", cmiKey: "FREDY SANCHEZ" },
+    { id: 108, nombre: "ERICA USUAGA", cmiKey: "ERICA USUAGA" },
     { id: 14, nombre: "ALEIDA GALLEGO", cmiKey: "ALEIDA GALLEGO" },
     { id: 3,  nombre: "ALEJANDRA HERRERA", cmiKey: "ALEJANDRA HERRERA" },
     { id: 157, nombre: "CLAUDIA GIRALDO", cmiKey: "CLAUDIA GIRALDO" },
+    { id: 58819, nombre: "DIANA AGUDELO", cmiKey: "DIANA AGUDELO" },
     { id: 4541, nombre: "MAYORCA", cmiKey: "MAYORCA" },
-    { id: 58819, nombre: "DIANA AGUDELO (SANTANDERES)", cmiKey: "TOTAL SANTANDERES" },
-    { id: 51,  nombre: "TRUCCO'S EXPORTACION", cmiKey: "TRUCCO'S EXPORTACION" },
-    { id: 226, nombre: "REDES SOCIALES", cmiKey: "REDES SOCIALES" },
-    { id: 58326, nombre: "MAYORISTA DIGITAL", cmiKey: "MAYORISTA DIGITAL" },
-    { id: 6,   nombre: "SARA GOMEZ", cmiKey: "SARA GOMEZ" },
-    { id: 1,   nombre: "PAOLA CARVAJAL JIMENEZ", cmiKey: "PAOLA CARVAJAL JIMENEZ" },
+    { id: 51,  nombre: "CRISTINA RESTREPO", cmiKey: "CRISTINA RESTREPO" },
+    { id: 58326, nombre: "ANGELA ACEVEDO", cmiKey: "ANGELA ACEVEDO" },
+    { id: -1, nombre: "OTROS (CUENTAS NO COMERCIALES)", cmiKey: "OTROS" },
   ];
 
   if (!filtros.vendedor_id && (!filtros.vendedor_ids || filtros.vendedor_ids.length === 0)) {
@@ -3960,22 +3929,20 @@ export function calcularDashboard4FuerzaVentas(
 
   const cmiEntitiesD4 = obtenerEntidadesCMIActivas();
   const ASESORES_D4 = [
-    { id: 16, nombre: "JUAN DIEGO GIRALDO", cmiKey: "TOTAL DIEGO" },
+    { id: 16, nombre: "JUAN DIEGO GIRALDO", cmiKey: "JUAN DIEGO GIRALDO" },
     { id: 11, nombre: "LINA GARCIA", cmiKey: "LINA GARCIA" },
     { id: 15, nombre: "LUIS VILLA", cmiKey: "LUIS VILLA" },
     { id: 13, nombre: "JUAN DAVID QUINTANA", cmiKey: "JUAN DAVID QUINTANA" },
-    { id: 10, nombre: "FREDY SANCHEZ", cmiKey: "TOTAL FREDY" },
-    { id: 108, nombre: "TIENDA VIRTUAL", cmiKey: "TIENDA VIRTUAL" },
+    { id: 10, nombre: "FREDY SANCHEZ", cmiKey: "FREDY SANCHEZ" },
+    { id: 108, nombre: "ERICA USUAGA", cmiKey: "ERICA USUAGA" },
     { id: 14, nombre: "ALEIDA GALLEGO", cmiKey: "ALEIDA GALLEGO" },
     { id: 3,  nombre: "ALEJANDRA HERRERA", cmiKey: "ALEJANDRA HERRERA" },
     { id: 157, nombre: "CLAUDIA GIRALDO", cmiKey: "CLAUDIA GIRALDO" },
+    { id: 58819, nombre: "DIANA AGUDELO", cmiKey: "DIANA AGUDELO" },
     { id: 4541, nombre: "MAYORCA", cmiKey: "MAYORCA" },
-    { id: 58819, nombre: "DIANA AGUDELO (SANTANDERES)", cmiKey: "TOTAL SANTANDERES" },
-    { id: 51,  nombre: "TRUCCO'S EXPORTACION", cmiKey: "TRUCCO'S EXPORTACION" },
-    { id: 226, nombre: "REDES SOCIALES", cmiKey: "REDES SOCIALES" },
-    { id: 58326, nombre: "MAYORISTA DIGITAL", cmiKey: "MAYORISTA DIGITAL" },
-    { id: 6,   nombre: "SARA GOMEZ", cmiKey: "SARA GOMEZ" },
-    { id: 1,   nombre: "PAOLA CARVAJAL JIMENEZ", cmiKey: "PAOLA CARVAJAL JIMENEZ" },
+    { id: 51,  nombre: "CRISTINA RESTREPO", cmiKey: "CRISTINA RESTREPO" },
+    { id: 58326, nombre: "ANGELA ACEVEDO", cmiKey: "ANGELA ACEVEDO" },
+    { id: -1, nombre: "OTROS (CUENTAS NO COMERCIALES)", cmiKey: "OTROS" },
   ];
 
   const cmiGen = cmiEntitiesD4["TOTAL GENERAL"] || CMI_ENTITIES["TOTAL GENERAL"];

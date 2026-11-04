@@ -10488,59 +10488,63 @@ export function obtenerEntidadesCMIActivas(): Record<string, CMIEntity> {
   return personalizada && Object.keys(personalizada).length > 0 ? personalizada : CMI_ENTITIES;
 }
 export const VENDEDOR_ID_TO_CMI_KEY: Record<number, string> = {
+  // 13 Asesores Comerciales Oficiales
+  15: "LUIS VILLA",
+  11: "LINA GARCIA",
+  10554: "LINA GARCIA",
+  10: "FREDY SANCHEZ",
+  7: "FREDY SANCHEZ",
+  25: "FREDY SANCHEZ",
+  16: "JUAN DIEGO GIRALDO",
+  12: "JUAN DIEGO GIRALDO",
+  18: "JUAN DIEGO GIRALDO",
+  34: "JUAN DIEGO GIRALDO",
+  157: "CLAUDIA GIRALDO",
+  131: "CLAUDIA GIRALDO",
+  58819: "DIANA AGUDELO",
+  113: "DIANA AGUDELO",
+  58592: "DIANA AGUDELO",
+  7968: "DIANA AGUDELO",
+  13: "JUAN DAVID QUINTANA",
+  108: "ERICA USUAGA",
+  226: "ERICA USUAGA",
+  3333: "ERICA USUAGA",
+  58326: "ANGELA ACEVEDO",
+  5: "ANGELA ACEVEDO",
+  58621: "ANGELA ACEVEDO",
+  51: "CRISTINA RESTREPO",
+  57255: "CRISTINA RESTREPO",
   14: "ALEIDA GALLEGO",
   3: "ALEJANDRA HERRERA",
-  58326: "MAYORISTA DIGITAL",
-  4957: "BEATRIZ SANCHEZ",
-  6: "SARA GOMEZ",
-  1: "PAOLA CARVAJAL JIMENEZ",
-  131: "CLAUDIA GIRALDO",
-  157: "CLAUDIA GIRALDO",
-  58819: "DIANA AGUDELO",
-  12: "DIEGO GIRALDO CORRERIA",
-  16: "DIEGO GIRALDO-MEDELLIN",
-  18: "DIEGO GIRALDO RAPPAZ",
-  34: "TOTAL DIEGO",
-  58592: "CAMILO ZULUAGA",
-  113: "JONATHAN LOPEZ",
-  7968: "JONATHAN LOPEZ RAPPAZ",
-  200: "CAROLINA GIL",
-  13: "JUAN DAVID QUINTANA",
-  11: "LINA GARCIA",
-  10554: "LINA PLUSS",
-  15: "LUIS VILLA",
-  10: "JOHN FREDY MEDELLIN",
-  7: "JOHN FREDY CORRERIA",
-  51: "TRUCCO'S EXPORTACION",
-  57255: "OLGA ZULUAGA",
-  5: "LEADS MAYORISTAS",
-  108: "TIENDA VIRTUAL",
-  226: "REDES SOCIALES",
-  2: "SHOWROOM",
-  740: "FERIAS",
-  3333: "TRJUSA WEB",
-  59392: "DAFITI",
-  9: "EMPLEADOS",
-  8: "GENERAL",
-  10148: "GENERAL",
-  4: "BODEGA",
-  17: "PUBLICIDAD",
   4541: "MAYORCA",
-  4936: "MAYORCA",
   9935: "MAYORCA",
-  8974: "MAYORCA",
   4793: "MAYORCA",
   59048: "MAYORCA",
-  25: "TOTAL FREDY",
-  60968: "MARKETPLACE",
-  60967: "BEATRIZ SANCHEZ",
-  8439: "JORGE MUÑOZ",
-  694: "GENERAL",
-  58621: "GENERAL",
-  4519: "GENERAL",
-  4925: "GENERAL",
-  10084: "GENERAL",
-  2815: "GENERAL",
+  4936: "MAYORCA",
+  8974: "MAYORCA",
+  // Cuentas no comerciales e internas -> OTROS
+  "-1": "OTROS",
+  1: "OTROS",
+  6: "OTROS",
+  4957: "OTROS",
+  60967: "OTROS",
+  200: "OTROS",
+  22: "OTROS",
+  2: "OTROS",
+  740: "OTROS",
+  59392: "OTROS",
+  9: "OTROS",
+  8: "OTROS",
+  10148: "OTROS",
+  4: "OTROS",
+  17: "OTROS",
+  60968: "OTROS",
+  8439: "OTROS",
+  694: "OTROS",
+  4519: "OTROS",
+  4925: "OTROS",
+  10084: "OTROS",
+  2815: "OTROS",
 };
 
 export const CANAL_ID_TO_CMI_KEY: Record<number, string> = {
@@ -10654,22 +10658,166 @@ export function combinarEntidadesCMI(
   };
 }
 
+// Unificar entidades oficiales de los 13 asesores comerciales
+if (CMI_ENTITIES["TIENDA VIRTUAL"] && CMI_ENTITIES["REDES SOCIALES"]) {
+  CMI_ENTITIES["ERICA USUAGA"] = combinarEntidadesCMI(
+    [CMI_ENTITIES["TIENDA VIRTUAL"], CMI_ENTITIES["REDES SOCIALES"], CMI_ENTITIES["TRJUSA WEB"]].filter(Boolean),
+    "ERICA USUAGA"
+  );
+}
+if (CMI_ENTITIES["DIANA AGUDELO"] && CMI_ENTITIES["JONATHAN LOPEZ"]) {
+  CMI_ENTITIES["DIANA AGUDELO (SANTANDERES)"] = combinarEntidadesCMI(
+    [CMI_ENTITIES["DIANA AGUDELO"], CMI_ENTITIES["JONATHAN LOPEZ"], CMI_ENTITIES["CAMILO ZULUAGA"], CMI_ENTITIES["JONATHAN LOPEZ RAPPAZ"]].filter(Boolean),
+    "DIANA AGUDELO"
+  );
+  CMI_ENTITIES["DIANA AGUDELO"] = CMI_ENTITIES["DIANA AGUDELO (SANTANDERES)"];
+}
+if (CMI_ENTITIES["MAYORISTA DIGITAL"] && CMI_ENTITIES["LEADS MAYORISTAS"]) {
+  CMI_ENTITIES["ANGELA ACEVEDO"] = combinarEntidadesCMI(
+    [CMI_ENTITIES["MAYORISTA DIGITAL"], CMI_ENTITIES["LEADS MAYORISTAS"]].filter(Boolean),
+    "ANGELA ACEVEDO"
+  );
+}
+if (CMI_ENTITIES["TRUCCO'S EXPORTACION"] && CMI_ENTITIES["OLGA ZULUAGA"]) {
+  CMI_ENTITIES["CRISTINA RESTREPO"] = combinarEntidadesCMI(
+    [CMI_ENTITIES["TRUCCO'S EXPORTACION"], CMI_ENTITIES["OLGA ZULUAGA"]].filter(Boolean),
+    "CRISTINA RESTREPO"
+  );
+}
+if (CMI_ENTITIES["TOTAL FREDY"]) {
+  CMI_ENTITIES["FREDY SANCHEZ"] = CMI_ENTITIES["TOTAL FREDY"];
+}
+if (CMI_ENTITIES["TOTAL DIEGO"]) {
+  CMI_ENTITIES["JUAN DIEGO GIRALDO"] = CMI_ENTITIES["TOTAL DIEGO"];
+}
+
+// Inicializar OTROS deduciendo los 13 asesores de TOTAL GENERAL mes a mes
+const tgGen = CMI_ENTITIES["TOTAL GENERAL"];
+if (tgGen) {
+  const ASESORES_13_NAMES = [
+    "LUIS VILLA",
+    "LINA GARCIA",
+    "FREDY SANCHEZ",
+    "JUAN DIEGO GIRALDO",
+    "CLAUDIA GIRALDO",
+    "DIANA AGUDELO",
+    "JUAN DAVID QUINTANA",
+    "ERICA USUAGA",
+    "ANGELA ACEVEDO",
+    "CRISTINA RESTREPO",
+    "ALEIDA GALLEGO",
+    "ALEJANDRA HERRERA",
+    "MAYORCA",
+  ];
+  const MESES_NOMBRES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const otrosMeses: CMIEntity["meses"] = [];
+
+  for (let m = 0; m < 12; m++) {
+    let ppto2026 = tgGen.meses[m]?.ppto2026 || 0;
+    let v2025 = tgGen.meses[m]?.v2025 || 0;
+    let u2026 = tgGen.meses[m]?.u2026 || 0;
+    let v2026 = tgGen.meses[m]?.v2026 || 0;
+    let dev2026 = tgGen.meses[m]?.dev2026 || 0;
+    let cartera2026 = tgGen.meses[m]?.cartera2026 || 0;
+    let carteraMayor90Dias = tgGen.meses[m]?.carteraMayor90Dias || 0;
+
+    for (const sName of ASESORES_13_NAMES) {
+      const sEnt = CMI_ENTITIES[sName];
+      if (sEnt && sEnt.meses[m]) {
+        ppto2026 -= sEnt.meses[m].ppto2026 || 0;
+        v2025 -= sEnt.meses[m].v2025 || 0;
+        u2026 -= sEnt.meses[m].u2026 || 0;
+        v2026 -= sEnt.meses[m].v2026 || 0;
+        dev2026 -= sEnt.meses[m].dev2026 || 0;
+        cartera2026 -= sEnt.meses[m].cartera2026 || 0;
+        carteraMayor90Dias -= sEnt.meses[m].carteraMayor90Dias || 0;
+      }
+    }
+
+    const cumplimientoPct = ppto2026 > 0 ? Math.round((v2026 / ppto2026) * 10000) / 100 : 0;
+    const crecimientoYoYPct = v2025 > 0 ? Math.round(((v2026 - v2025) / v2025) * 10000) / 100 : 0;
+    const tasaDevolucionPct = v2026 > 0 ? Math.round((Math.abs(dev2026) / v2026) * 10000) / 100 : 0;
+    const pctCartera90Dias = cartera2026 > 0 ? Math.round((carteraMayor90Dias / cartera2026) * 10000) / 100 : 0;
+
+    otrosMeses.push({
+      mes: m + 1,
+      nombreMes: MESES_NOMBRES[m],
+      ppto2026: Math.max(0, ppto2026),
+      v2025: Math.max(0, v2025),
+      u2026: Math.max(0, u2026),
+      v2026: Math.max(0, v2026),
+      dev2026,
+      cumplimientoPct,
+      crecimientoYoYPct,
+      tasaDevolucionPct,
+      cartera2026: Math.max(0, cartera2026),
+      pctCartera90Dias,
+      carteraMayor90Dias: Math.max(0, carteraMayor90Dias),
+    });
+  }
+
+  const otrosMeses2025: number[] = [];
+  for (let m = 0; m < 12; m++) {
+    let v25 = tgGen.meses2025[m] || 0;
+    for (const sName of ASESORES_13_NAMES) {
+      const sEnt = CMI_ENTITIES[sName];
+      if (sEnt && sEnt.meses2025) {
+        v25 -= sEnt.meses2025[m] || 0;
+      }
+    }
+    otrosMeses2025.push(Math.max(0, v25));
+  }
+
+  const acumV2026 = Math.max(0, tgGen.acumulado.v2026 - ASESORES_13_NAMES.reduce((sum, s) => sum + (CMI_ENTITIES[s]?.acumulado.v2026 || 0), 0));
+  const acumPpto = Math.max(0, tgGen.acumulado.ppto - ASESORES_13_NAMES.reduce((sum, s) => sum + (CMI_ENTITIES[s]?.acumulado.ppto || 0), 0));
+  const acumV2025 = Math.max(0, tgGen.acumulado.v2025 - ASESORES_13_NAMES.reduce((sum, s) => sum + (CMI_ENTITIES[s]?.acumulado.v2025 || 0), 0));
+  const acumUnds = Math.max(0, tgGen.acumulado.unds - ASESORES_13_NAMES.reduce((sum, s) => sum + (CMI_ENTITIES[s]?.acumulado.unds || 0), 0));
+  const acumDev = tgGen.acumulado.dev - ASESORES_13_NAMES.reduce((sum, s) => sum + (CMI_ENTITIES[s]?.acumulado.dev || 0), 0);
+  const acumCartera = otrosMeses[otrosMeses.length - 1]?.cartera2026 || 0;
+  const acumCartera90 = otrosMeses[otrosMeses.length - 1]?.carteraMayor90Dias || 0;
+
+  CMI_ENTITIES["OTROS"] = {
+    nombre: "OTROS (CUENTAS NO COMERCIALES)",
+    acumulado: {
+      ppto: acumPpto,
+      v2025: acumV2025,
+      v2026: acumV2026,
+      unds: acumUnds,
+      dev: acumDev,
+      cumplimientoPct: acumPpto > 0 ? Math.round((acumV2026 / acumPpto) * 10000) / 100 : 0,
+      crecimientoYoYPct: acumV2025 > 0 ? Math.round(((acumV2026 - acumV2025) / acumV2025) * 10000) / 100 : 0,
+      tasaDevPct: acumV2026 > 0 ? Math.round((Math.abs(acumDev) / acumV2026) * 10000) / 100 : 0,
+      cartera: acumCartera,
+      pctCartera90Dias: acumCartera > 0 ? Math.round((acumCartera90 / acumCartera) * 10000) / 100 : 0,
+      carteraMayor90Dias: acumCartera90,
+    },
+    meses: otrosMeses,
+    meses2025: otrosMeses2025,
+  };
+}
+
 /**
  * Resuelve la entidad CMI oficial según los filtros activos.
  */
 export function obtenerRegistroCMI(filtros: FiltrosBI): CMIEntity | null {
   const entidadesActivas = obtenerEntidadesCMIActivas();
-  const getEnt = (k: string): CMIEntity | null => entidadesActivas[k] || entidadesActivas[k.toUpperCase()] || CMI_ENTITIES[k] || CMI_ENTITIES[k.toUpperCase()] || null;
+  const getEnt = (k: string): CMIEntity | null =>
+    entidadesActivas[k] ||
+    entidadesActivas[k.toUpperCase()] ||
+    CMI_ENTITIES[k] ||
+    CMI_ENTITIES[k.toUpperCase()] ||
+    null;
+
   // 1. Vendedor específico por ID individual
-  if (filtros.vendedor_id) {
+  if (filtros.vendedor_id && filtros.vendedor_id !== "todos" && filtros.vendedor_id !== "multiple") {
     const vId = Number(filtros.vendedor_id);
     const key = VENDEDOR_ID_TO_CMI_KEY[vId];
     if (key && getEnt(key)) return getEnt(key);
     const nomUpper = String(filtros.vendedor_id).trim().toUpperCase();
     if (getEnt(nomUpper)) return getEnt(nomUpper);
 
-    if (nomUpper.includes("DIEGO")) return getEnt("TOTAL DIEGO");
-    if (nomUpper.includes("FREDY")) return getEnt("TOTAL FREDY");
+    if (nomUpper.includes("DIEGO")) return getEnt("JUAN DIEGO GIRALDO");
+    if (nomUpper.includes("FREDY")) return getEnt("FREDY SANCHEZ");
     if (nomUpper.includes("LINA")) return getEnt("LINA GARCIA");
     if (nomUpper.includes("CLAUDIA")) return getEnt("CLAUDIA GIRALDO");
     if (nomUpper.includes("VILLA")) return getEnt("LUIS VILLA");
@@ -10677,92 +10825,18 @@ export function obtenerRegistroCMI(filtros: FiltrosBI): CMIEntity | null {
     if (nomUpper.includes("ALEIDA")) return getEnt("ALEIDA GALLEGO");
     if (nomUpper.includes("HERRERA")) return getEnt("ALEJANDRA HERRERA");
     if (nomUpper.includes("MAYORCA")) return getEnt("MAYORCA");
-    if (nomUpper.includes("DIANA") || nomUpper.includes("SANTANDER")) {
-      const ents = [
-        getEnt("DIANA AGUDELO"),
-        getEnt("JONATHAN LOPEZ"),
-        getEnt("CAMILO ZULUAGA"),
-        getEnt("JONATHAN LOPEZ RAPPAZ"),
-      ].filter(Boolean) as CMIEntity[];
-      return combinarEntidadesCMI(ents, "DIANA AGUDELO (SANTANDERES)");
-    }
+    if (nomUpper.includes("DIANA") || nomUpper.includes("SANTANDER")) return getEnt("DIANA AGUDELO");
+    if (nomUpper.includes("ERICA") || nomUpper.includes("VIRTUAL") || nomUpper.includes("REDES")) return getEnt("ERICA USUAGA");
+    if (nomUpper.includes("ANGELA") || nomUpper.includes("DIGITAL")) return getEnt("ANGELA ACEVEDO");
+    if (nomUpper.includes("CRISTINA") || nomUpper.includes("EXPORTACION")) return getEnt("CRISTINA RESTREPO");
+    if (nomUpper.includes("OTROS")) return getEnt("OTROS");
   }
 
   // 2. Grupo de vendedores asignados a la cuenta del comercial
   if (filtros.vendedor_ids && filtros.vendedor_ids.length > 0) {
     const ids = filtros.vendedor_ids.map(Number);
-    // Juan Diego Giraldo
-    if (ids.includes(16) && ids.includes(12)) {
-      const ents = [
-        getEnt("DIEGO GIRALDO-MEDELLIN"),
-        getEnt("DIEGO GIRALDO CORRERIA"),
-        getEnt("DIEGO GIRALDO RAPPAZ"),
-      ].filter(Boolean) as CMIEntity[];
-      return ents.length > 1 ? combinarEntidadesCMI(ents, "JUAN DIEGO GIRALDO") : (getEnt("TOTAL DIEGO") || null);
-    }
-    // Fredy Sanchez
-    if (ids.includes(10) && ids.includes(7)) {
-      const ents = [
-        getEnt("JOHN FREDY MEDELLIN"),
-        getEnt("JOHN FREDY CORRERIA"),
-      ].filter(Boolean) as CMIEntity[];
-      return ents.length > 1 ? combinarEntidadesCMI(ents, "FREDY SANCHEZ") : (getEnt("TOTAL FREDY") || null);
-    }
-    // Diana Agudelo (Santanderes)
-    if (ids.includes(58819) && (ids.includes(113) || ids.includes(58592))) {
-      const ents = [
-        getEnt("DIANA AGUDELO"),
-        getEnt("JONATHAN LOPEZ"),
-        getEnt("CAMILO ZULUAGA"),
-        getEnt("JONATHAN LOPEZ RAPPAZ"),
-      ].filter(Boolean) as CMIEntity[];
-      return combinarEntidadesCMI(ents, "DIANA AGUDELO (SANTANDERES)");
-    }
-    // Lina Garcia
-    if (ids.includes(11)) {
-      return getEnt("LINA GARCIA");
-    }
-    // Claudia Giraldo
-    if (ids.includes(131) || ids.includes(157)) {
-      return getEnt("CLAUDIA GIRALDO");
-    }
-    // Mayorca
-    if (ids.includes(4541) || ids.includes(4936) || ids.includes(9935) || ids.includes(59048)) {
-      return getEnt("MAYORCA");
-    }
-    // Tienda Virtual / Redes (Erica Usuaga)
-    if (ids.includes(108) && ids.includes(226)) {
-      const ents = [
-        getEnt("TIENDA VIRTUAL"),
-        getEnt("REDES SOCIALES"),
-        getEnt("TRJUSA WEB"),
-      ].filter(Boolean) as CMIEntity[];
-      return combinarEntidadesCMI(ents, "CANAL DETAL (TV - REDES - SHWR)");
-    }
-    // Cristina Restrepo (Exportaciones)
-    if (ids.includes(51) || ids.includes(57255)) {
-      const ents = [
-        getEnt("TRUCCO'S EXPORTACION"),
-        getEnt("OLGA ZULUAGA"),
-      ].filter(Boolean) as CMIEntity[];
-      return ents.length > 1 ? combinarEntidadesCMI(ents, "EXPORTACIONES") : (ents[0] || null);
-    }
-    // Angela Acevedo (Digital Mayorista)
-    if (ids.includes(58326) || ids.includes(5)) {
-      const entMayDig = getEnt("MAYORISTA DIGITAL");
-      const entLeads = getEnt("LEADS MAYORISTAS");
-      if (entMayDig && entLeads) {
-        return combinarEntidadesCMI([entMayDig, entLeads], "ANGELA ACEVEDO (DIGITAL MAYORISTA)");
-      }
-      return entMayDig || entLeads || null;
-    }
-    // Si solo tiene 1 ID en la lista
-    if (ids.length === 1 && VENDEDOR_ID_TO_CMI_KEY[ids[0]]) {
-      const key = VENDEDOR_ID_TO_CMI_KEY[ids[0]];
-      if (getEnt(key)) return getEnt(key);
-    }
-    // Para cualquier combinación arbitraria de IDs de vendedores
     const entidadesEncontradas = new Map<string, CMIEntity>();
+
     for (const id of ids) {
       const k = VENDEDOR_ID_TO_CMI_KEY[id];
       const found = k ? getEnt(k) : null;
@@ -10770,6 +10844,7 @@ export function obtenerRegistroCMI(filtros: FiltrosBI): CMIEntity | null {
         entidadesEncontradas.set(k, found);
       }
     }
+
     if (entidadesEncontradas.size === 1) {
       return Array.from(entidadesEncontradas.values())[0];
     }

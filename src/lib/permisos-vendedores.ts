@@ -52,7 +52,7 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "FREDY SANCHEZ",
     email: "fredysanchez@truccos.com",
     rol: "vendedor",
-    vendedorIds: [10, 7, 25], // JOHN FREDY MEDELLIN, JOHN FREDY CORRERIA, JOHN FREDY SANCHEZ
+    vendedorIds: [10, 7, 25], // JOHN FREDY MEDELLIN, JOHN FREDY CORRERIA, TOTAL FREDY
     zona: "MEDELLIN-SANTADERES-SUR-VALLE",
     canal: "MAYORISTA NACIONAL",
     marca: "RAPPAZ",
@@ -61,7 +61,7 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "JUAN DIEGO GIRALDO",
     email: "juandiegogiraldo@truccos.com",
     rol: "vendedor",
-    vendedorIds: [16, 12, 18, 34], // DIEGO GIRALDO-MEDELLIN, Diego Giraldo Correria, DIEGO GIRALDO RAPPAZ, DIEGO GIRALDO
+    vendedorIds: [16, 12, 18, 34], // DIEGO GIRALDO-MEDELLIN, Diego Giraldo Correria, DIEGO GIRALDO RAPPAZ, TOTAL DIEGO
     zona: "COSTA - PERIFERIA MEDELLIN",
     canal: "MAYORISTA NACIONAL",
     marca: "TRUCCOS-RAPPAZ",
@@ -70,7 +70,7 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "CLAUDIA GIRALDO",
     email: "claudiagiraldo@truccos.com",
     rol: "vendedor",
-    vendedorIds: [131, 157], // Claudia Giraldo, CLAUDIA GIRALDO
+    vendedorIds: [157, 131], // Claudia Giraldo, CLAUDIA GIRALDO
     zona: "VALLE",
     canal: "MAYORISTA NACIONAL",
     marca: "TRUCCOS",
@@ -97,7 +97,7 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "ERICA USUAGA",
     email: "ericausuaga@truccos.com",
     rol: "vendedor",
-    vendedorIds: [226, 108, 3333], // REDES SOCIALES, TIENDA VIRTUAL, TRJUSA WEB
+    vendedorIds: [108, 226, 3333], // TIENDA VIRTUAL, REDES SOCIALES, TRJUSA WEB
     zona: "DIGITAL DETAL",
     canal: "DETAL",
     marca: "TRUCCOS-RAPPAZ",
@@ -115,7 +115,7 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "CRISTINA RESTREPO",
     email: "cristinarestrepo@truccos.com",
     rol: "vendedor",
-    vendedorIds: [57255, 51], // Olga Zuluaga, TRUCCO'S EXPORTACION
+    vendedorIds: [51, 57255], // TRUCCO'S EXPORTACION, Olga Zuluaga
     zona: "EXPORTACION",
     canal: "EXPORTACION",
     marca: "TRUCCOS-RAPPAZ",
@@ -142,45 +142,9 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     nombre: "MAYORCA",
     email: "mayorca@truccos.com",
     rol: "vendedor",
-    vendedorIds: [9935, 4936, 59048, 8974, 4541, 4793], // LINA MARIA ZULUAGA, GLORIA MONTOYA, SALOME CASTELLANOS, KAROL DUQUE MESA, MAYORCA, ANNY FERNANDA YARCE MEJIA
+    vendedorIds: [4541, 9935, 4793, 59048, 4936, 8974], // MAYORCA, LINA MARIA ZULUAGA, ANNY FERNANDA YARCE MEJIA, SALOME CASTELLANOS, GLORIA MONTOYA, KAROL DUQUE MESA
     zona: "TIENDA FISICA",
     canal: "DETAL",
-    marca: "TRUCCOS",
-  },
-  {
-    nombre: "SARA GOMEZ",
-    email: "saragomez@truccos.com",
-    rol: "vendedor",
-    vendedorIds: [6], // SARA GOMEZ
-    zona: "MEDELLIN",
-    canal: "MAYORISTA NACIONAL",
-    marca: "TRUCCOS",
-  },
-  {
-    nombre: "BEATRIZ SANCHEZ",
-    email: "beatrizsanchez@truccos.com",
-    rol: "vendedor",
-    vendedorIds: [4957, 60967], // BEATRIZ SANCHEZ, BEATRIZ
-    zona: "MEDELLIN",
-    canal: "MAYORISTA NACIONAL",
-    marca: "TRUCCOS",
-  },
-  {
-    nombre: "PAOLA CARVAJAL JIMENEZ",
-    email: "paolacarvajal@truccos.com",
-    rol: "vendedor",
-    vendedorIds: [1], // PAOLA CARVAJAL JIMENEZ
-    zona: "MEDELLIN",
-    canal: "MAYORISTA NACIONAL",
-    marca: "TRUCCOS",
-  },
-  {
-    nombre: "CAROLINA GIL",
-    email: "carolinagil@truccos.com",
-    rol: "vendedor",
-    vendedorIds: [200], // CAROLINA GIL
-    zona: "MEDELLIN",
-    canal: "MAYORISTA NACIONAL",
     marca: "TRUCCOS",
   },
 ];
@@ -216,10 +180,15 @@ export function obtenerTodosLosPermisosLocales(): PermisoUsuario[] {
       localStorage.setItem(STORAGE_KEY_PERMISOS, JSON.stringify(USUARIOS_INICIALES_PRECONFIGURADOS));
       return USUARIOS_INICIALES_PRECONFIGURADOS;
     }
-    const guardados = JSON.parse(data) as PermisoUsuario[];
+    let guardados = JSON.parse(data) as PermisoUsuario[];
     
+    // Purgar cuentas antiguas no autorizadas del almacenamiento local
+    const correosPermitidos = new Set(USUARIOS_INICIALES_PRECONFIGURADOS.map((u) => u.email.toLowerCase()));
+    const filtrados = guardados.filter((x) => correosPermitidos.has((x.email || "").toLowerCase()));
+    let cambio = filtrados.length !== guardados.length;
+    guardados = filtrados;
+
     // Sincronizar y asegurar que los asesores de la matriz comercial oficial estén presentes con todos sus IDs oficiales
-    let cambio = false;
     for (const initUser of USUARIOS_INICIALES_PRECONFIGURADOS) {
       const g = guardados.find((x) => x.email.toLowerCase() === initUser.email.toLowerCase());
       if (!g) {
@@ -552,15 +521,6 @@ export function obtenerNombresVendedoresAutorizados(
     nombres.add("SALOME CASTELLANOS");
     nombres.add("GLORIA MONTOYA");
     nombres.add("KAROL DUQUE MESA");
-  } else if (pNomUpper.includes("SARA GOMEZ") || pEmailLower.includes("saragomez")) {
-    nombres.add("SARA GOMEZ");
-  } else if (pNomUpper.includes("BEATRIZ") || pEmailLower.includes("beatriz")) {
-    nombres.add("BEATRIZ SANCHEZ");
-    nombres.add("BEATRIZ");
-  } else if (pNomUpper.includes("PAOLA CARVAJAL") || pEmailLower.includes("paolacarvajal")) {
-    nombres.add("PAOLA CARVAJAL JIMENEZ");
-  } else if (pNomUpper.includes("CAROLINA GIL") || pEmailLower.includes("carolinagil")) {
-    nombres.add("CAROLINA GIL");
   }
 
   return Array.from(nombres);

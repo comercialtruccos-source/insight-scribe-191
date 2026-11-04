@@ -731,7 +731,11 @@ function Panel() {
   const vendedoresDisponibles = useMemo(() => {
     const todos = (catalogos?.vendedores || []).filter((v) => esVendedorValido(v.id, v.nombre));
     if (esAdmin || !vendedorIdsPermitidos) return todos;
-    return todos.filter((v) => vendedorIdsPermitidos.includes(v.id));
+    return todos.filter(
+      (v) =>
+        vendedorIdsPermitidos.includes(v.id) ||
+        (v.allIds && v.allIds.some((id) => vendedorIdsPermitidos.includes(id)))
+    );
   }, [catalogos?.vendedores, esAdmin, vendedorIdsPermitidos]);
 
   // Catálogos dinámicos adaptados al vendedor y contexto seleccionado (excluyendo canales no comerciales como publicidad)
