@@ -1231,14 +1231,45 @@ export async function eliminarCarga(cargaId: number): Promise<{ ok: boolean }> {
 }
 
 /**
- * Determina si un registro de dim_vendedor corresponde a un asesor comercial real.
- * Excluye días numéricos (1..31), encabezados de tablas dinámicas, pruebas y roles no comerciales.
+ * IDs de dim_vendedor que no corresponden a asesores comerciales activos con movimientos en fact_ventas:
+ * - Cuentas no comerciales de logística, bodega, pruebas o contabilidad (BODEGA, GENERAL, EMPLEADOS, SHOWROOM, PUBLICIDAD, FERIAS, OTROS INGRESOS, LEADS MAYORISTAS).
+ * - Asesores inactivos o registros huérfanos que tienen 0 movimientos en el archivo transaccional (ANNY YARCE, BEATRIZ SANCHEZ, BEATRIZ, DIEGO GIRALDO ID 34, CLAUDIA GIRALDO ID 131, etc.).
+ */
+export const VENDEDOR_IDS_EXCLUIDOS = new Set<number>([
+  1,     // PAOLA CARVAJAL JIMENEZ (sin movimientos)
+  2,     // SHOWROOM (cuenta no comercial)
+  4,     // BODEGA (cuenta no comercial logística)
+  5,     // LEADS MAYORISTAS (cuenta digital / cola, no asesor)
+  8,     // GENERAL (cuenta no comercial)
+  9,     // EMPLEADOS (cuenta no comercial interna)
+  17,    // PUBLICIDAD (cuenta no comercial)
+  25,    // JOHN FREDY SANCHEZ (inexistente / sin movimientos)
+  34,    // DIEGO GIRALDO (duplicado sin movimientos; activos son 12, 16, 18)
+  131,   // Claudia Giraldo (duplicado sin movimientos; activo es 157)
+  694,   // NATALY GALVIS (sin movimientos)
+  740,   // FERIAS (cuenta no comercial)
+  3333,  // TRJUSA WEB (cuenta web, no asesor)
+  4541,  // MAYORCA (cuenta punto físico, no asesor)
+  4793,  // ANNY FERNANDA YARCE MEJIA (sin movimientos)
+  4925,  // YISELL ANDREA MESA (sin movimientos)
+  4936,  // GLORIA MONTOYA (sin movimientos)
+  4957,  // BEATRIZ SANCHEZ (sin movimientos)
+  7968,  // JONATHAN LOPEZ RAPPAZ (duplicado sin movimientos; activos son 113, 58819, 58592)
+  8439,  // JORGE MUÑOZ (sin movimientos)
+  8974,  // KAROL DUQUE MESA (sin movimientos)
+  10148, // OTROS INGRESOS (cuenta contable)
+  59392, // DAFITI (canal externo)
+]);
+
+/**
+ * Determina si un registro de dim_vendedor corresponde a un asesor comercial real y activo con movimientos en fact_ventas.
+ * Excluye días numéricos (1..31), encabezados de tablas dinámicas, pruebas, roles no comerciales y asesores sin movimientos.
  */
 export function esVendedorValido(id: number, nombre?: string | null): boolean {
   if (!id || id <= 0) return false;
-  // Excluir IDs de artefactos no válidos conocidos (60928 a 60966)
-  if (id >= 60928 && id <= 60966) return false;
-  if (id === 25) return false; // JOHN FREDY SANCHEZ inexistente
+  // Excluir IDs de artefactos y rangos no válidos (60928 en adelante, ej. [EXCLUIDO], BEATRIZ 60967, MARKETPLACE 60968)
+  if (id >= 60928) return false;
+  if (VENDEDOR_IDS_EXCLUIDOS.has(id)) return false;
 
   if (!nombre) return false;
   const n = String(nombre).trim();
@@ -1249,18 +1280,36 @@ export function esVendedorValido(id: number, nombre?: string | null): boolean {
 
   const low = n.toLowerCase();
   if (low === "john fredy sanchez") return false;
-  if (low.includes("publicidad") || low.includes("publicada")) return false;
-  if (low.startsWith("probe_") || low.includes("test_probe")) return false;
+
+  // Excluir cuentas no comerciales y de logística o administración interna
   if (
+    low.includes("bodega") ||
+    low.includes("general") ||
+    low.includes("empleado") ||
+    low.includes("publicidad") ||
+    low.includes("publicada") ||
+    low.includes("showroom") ||
+    low.includes("leads mayorista") ||
+    low.includes("feria") ||
+    low.includes("otros ingresos") ||
+    low.includes("marketplace") ||
+    low.includes("dafiti") ||
+    low.includes("mayorca") ||
+    low.includes("trjusa web") ||
+    low.includes("desface") ||
+    low.includes("saldo") ||
+    low.includes("[excluido]") ||
     low.includes("etiquetas de") ||
     low.includes("cuenta de") ||
     low.includes("suma de") ||
     low.includes("total general") ||
     low.includes("total oficial") ||
-    low === "#n/d" ||
-    low === "n/d" ||
     low.includes("varios elementos") ||
-    low.includes("multiple items")
+    low.includes("multiple items") ||
+    low.startsWith("probe_") ||
+    low.includes("test_probe") ||
+    low === "#n/d" ||
+    low === "n/d"
   ) {
     return false;
   }

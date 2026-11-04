@@ -14,11 +14,13 @@ interface MultiSelectVendedoresProps {
   esAdmin?: boolean;
 }
 
-// Grupos conocidos de alias comerciales en Trucco's Fashion
+// Grupos conocidos de alias comerciales en Trucco's Fashion con movimientos reales
 const GRUPOS_ALIAS_CONOCIDOS: Record<string, string[]> = {
-  "Diego Giraldo": ["12", "16", "18", "34"],
+  "Diego Giraldo": ["12", "16", "18"],
   "John Fredy": ["7", "10"],
-  "Claudia Giraldo": ["5", "23"],
+  "Claudia Giraldo": ["157"],
+  "Diana Agudelo": ["58819", "113", "58592"],
+  "Lina Garcia": ["11", "10554"],
 };
 
 export function MultiSelectVendedores({
