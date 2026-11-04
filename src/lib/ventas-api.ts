@@ -69,7 +69,7 @@ const invokeRpc = async (fn: string, args?: Record<string, unknown>) => {
  *    Cualquier fila sin transacción (null, undefined o vacía) se DESCARTA de la facturación comercial,
  *    evitando que registros residuales o huérfanos inflen las ventas en ningún mes.
  * 2. Se EXCLUYEN estrictamente todas las transacciones que no son facturación comercial:
- *    - Preventa / compromisos: PEDIDO, COTIZACION, PROFORMA.
+ *    - Preventa / compromisos: PEDIDO, PROFORMA. (COTIZACION cuenta como VENTA según la tabla TR de HGI.)
  *    - Movimientos logísticos de almacén: SALIDA POR DESPACHO, SALIDA, DESPACHO, TRASLADO, REMISION, AJUSTE, ORDEN.
  *    - Transacciones anuladas o borradores: ANULADA, ANULADO, BORRADOR.
  * 3. Se INCLUYEN exclusivamente las transacciones de facturación y notas contables:
@@ -97,7 +97,8 @@ export function esTransaccionFacturacionReal(
     t.includes("PEDIDO") ||
     t.includes("SALIDA") ||
     t.includes("DESPACHO") ||
-    t.includes("COTIZACION") ||
+    // COTIZACION NO se excluye: en HGI (hoja TABLAS del MACRO VENTAS, columna TR) la
+    // COTIZACION se clasifica como VENTA y el CMI oficial la incluye en la venta.
     t.includes("TRASLADO") ||
     t.includes("REMISION") ||
     t.includes("AJUSTE") ||
@@ -416,13 +417,15 @@ async function fetchChunksDirect<T>(
       q = aplicarFiltrosQuery(q, filtros);
       promises.push(
         q.range(currentOffset, currentOffset + CHUNK_SIZE - 1).then(async (res) => {
-          if (res.error) {
-            // Reintento resiliente una vez en caso de latencia o timeout transitorio
+          // Reintentos con espera creciente ante timeouts transitorios de PostgreSQL
+          let intento = 0;
+          while (res.error && intento < 3) {
+            intento++;
+            await new Promise((r) => setTimeout(r, 400 * intento));
             try {
               let retryQ = supabase.from("fact_ventas").select(columns);
               retryQ = aplicarFiltrosQuery(retryQ, filtros);
-              const retryRes = await retryQ.range(currentOffset, currentOffset + CHUNK_SIZE - 1);
-              if (!retryRes.error) return retryRes;
+              res = await retryQ.range(currentOffset, currentOffset + CHUNK_SIZE - 1);
             } catch (_) {}
           }
           return res;
@@ -435,8 +438,12 @@ async function fetchChunksDirect<T>(
 
     for (const res of results) {
       if (res.error) {
-        console.error("[ventas-api] Error transitorio en chunk de fact_ventas:", res.error);
-        continue;
+        // Nunca omitir un bloque en silencio: un bloque perdido son hasta 1.000 filas de venta
+        // que desaparecen de los totales sin que el usuario lo note.
+        console.error("[ventas-api] Error persistente en chunk de fact_ventas:", res.error);
+        throw new Error(
+          `No se pudieron cargar todas las ventas (bloque desde la fila ${offset}). Recarga la página para reintentar; las cifras parciales no se muestran para evitar totales incorrectos.`
+        );
       }
       const chunk = (res.data || []) as unknown as T[];
       if (chunk.length === 0) {
@@ -2434,12 +2441,16 @@ export function calcularDashboard1Cumplimiento(
   if (cmiMeses && cmiMeses.length > 0) {
     meses = cmiMeses.map((cm) => {
       const d = periodoMap.get(String(cm.mes)) || { anio: filtros.anio || 2026, mes: cm.mes, venta: 0, unidades: 0, dev: 0 };
-      const vReal = cm.ventaReal > 0 ? cm.ventaReal : d.venta;
-      const vAnt = cm.ventaAnterior > 0 ? cm.ventaAnterior : (periodoAntMap.get(String(cm.mes))?.venta || 0);
+      // La venta real sale SIEMPRE de fact_ventas (facturas + notas). Del CMI solo se toma el
+      // presupuesto; la venta del CMI queda únicamente como respaldo si el mes no tiene datos cargados.
+      const vReal = d.venta !== 0 ? d.venta : cm.ventaReal;
+      const vAntDb = periodoAntMap.get(String(cm.mes))?.venta || 0;
+      const vAnt = vAntDb !== 0 ? vAntDb : cm.ventaAnterior;
       const ppto = cm.ppto > 0 ? cm.ppto : (vReal > 0 ? Math.round(vReal * 1.05) : 0);
-      const unds = cm.unidades > 0 ? cm.unidades : d.unidades;
-      const uAnt = cm.unidadesAnterior > 0 ? cm.unidadesAnterior : (periodoAntMap.get(String(cm.mes))?.unidades || 0);
-      const dev = cm.devolucionesMonto > 0 ? cm.devolucionesMonto : d.dev;
+      const unds = d.venta !== 0 ? d.unidades : cm.unidades;
+      const uAntDb = periodoAntMap.get(String(cm.mes))?.unidades || 0;
+      const uAnt = uAntDb !== 0 ? uAntDb : cm.unidadesAnterior;
+      const dev = d.venta !== 0 ? d.dev : cm.devolucionesMonto;
 
       return {
         anio: cm.anio,
@@ -2882,29 +2893,29 @@ export function calcularDashboard1Cumplimiento(
 
   const mesesFinal = meses;
 
-  // KPIs ejecutivos calibrados con la matriz oficial CMI 2026
+  // KPIs ejecutivos: venta, unidades y devoluciones salen de fact_ventas; presupuesto y cartera del CMI
   const kpisFinal = {
-    ventaYTD: cmiKpis?.ventaYTD ?? totalVentas,
-    ventaBrutaTotal: cmiKpis?.ventaBrutaTotal ?? totalVentaBruta,
-    ventaAnteriorTotal: cmiKpis?.ventaAnteriorTotal ?? ventaAnteriorObjetivo,
-    ventaBrutaAnteriorTotal: cmiKpis?.ventaBrutaTotal ?? (totalVentaBrutaAnterior > 0 ? totalVentaBrutaAnterior : ventaAnteriorObjetivo),
-    pptoYTD: cmiKpis?.pptoYTD ?? pptoObjetivo,
+    ventaYTD: totalVentas,
+    ventaBrutaTotal: totalVentaBruta,
+    ventaAnteriorTotal: ventaAnteriorObjetivo,
+    ventaBrutaAnteriorTotal: (totalVentaBrutaAnterior > 0 ? totalVentaBrutaAnterior : ventaAnteriorObjetivo),
+    pptoYTD: pptoObjetivo,
     pptoAnteriorTotal: cmiKpis?.pptoAnteriorTotal || pptoAnteriorObjetivo || (ventaAnteriorObjetivo > 0 ? Math.round(ventaAnteriorObjetivo * 1.05) : 0),
-    cumplimientoGlobalPct: cmiKpis?.cumplimientoGlobalPct ?? cumplimientoGlobalPct,
-    cumplimientoAnteriorPct: cmiKpis?.cumplimientoAnteriorPct ?? cumplimientoAnteriorPct,
-    crecimientoYoYPct: cmiKpis?.crecimientoYoYPct ?? crecimientoYoYGlobal,
-    devolucionesTotal: cmiKpis?.devolucionesTotal ?? totalDevoluciones,
-    devolucionesAnteriorTotal: cmiKpis?.devolucionesAnteriorTotal ?? totalDevolucionesAnterior,
-    tasaDevolucionGlobalPct: cmiKpis?.tasaDevolucionGlobalPct ?? (totalVentas > 0 ? Math.round((totalDevoluciones / totalVentas) * 10000) / 100 : 0),
+    cumplimientoGlobalPct: cumplimientoGlobalPct,
+    cumplimientoAnteriorPct: cumplimientoAnteriorPct,
+    crecimientoYoYPct: crecimientoYoYGlobal,
+    devolucionesTotal: totalDevoluciones,
+    devolucionesAnteriorTotal: totalDevolucionesAnterior,
+    tasaDevolucionGlobalPct: (totalVentas > 0 ? Math.round((totalDevoluciones / totalVentas) * 10000) / 100 : 0),
     tasaDevolucionAnteriorPct,
-    volumenUnidades: cmiKpis?.volumenUnidades ?? totalUnidades,
-    unidadesAnteriorTotal: cmiKpis?.unidadesAnteriorTotal ?? unidadesAnteriorObjetivo,
-    ticketPromedio: cmiKpis?.ticketPromedio ?? ticketPromedio,
-    ticketPromedioAnterior: cmiKpis?.ticketPromedioAnterior ?? ticketPromedioAnterior,
-    precioPromedioPrenda: cmiKpis?.precioPromedioPrenda ?? precioPromedioPrenda,
-    precioPromedioPrendaAnterior: cmiKpis?.precioPromedioPrendaAnterior ?? precioPromedioPrendaAnterior,
-    totalTransacciones: cmiKpis?.totalTransacciones ?? numTransacciones,
-    totalTransaccionesAnterior: cmiKpis?.unidadesAnteriorTotal ?? numTransaccionesAnterior,
+    volumenUnidades: totalUnidades,
+    unidadesAnteriorTotal: unidadesAnteriorObjetivo,
+    ticketPromedio: ticketPromedio,
+    ticketPromedioAnterior: ticketPromedioAnterior,
+    precioPromedioPrenda: precioPromedioPrenda,
+    precioPromedioPrendaAnterior: precioPromedioPrendaAnterior,
+    totalTransacciones: numTransacciones,
+    totalTransaccionesAnterior: numTransaccionesAnterior,
     carteraTotal: (cmiKpis?.carteraTotal && cmiKpis.carteraTotal > 0) ? cmiKpis.carteraTotal : 3246468781,
     carteraMayor90Dias: (cmiKpis?.carteraMayor90Dias && cmiKpis.carteraMayor90Dias > 0) ? cmiKpis.carteraMayor90Dias : 305492712,
     carteraPct90Dias: (cmiKpis?.carteraPct90Dias && cmiKpis.carteraPct90Dias > 0) ? cmiKpis.carteraPct90Dias : 9.41,
@@ -3063,16 +3074,11 @@ export function calcularDashboard2RunRate(
   const cmiVentaMes = cmiMes?.ventaReal || cmiMes?.v2026 || 0;
   const cmiVentaAntMes = cmiMes?.ventaAnterior || cmiMes?.v2025 || 0;
 
+  // Venta real del mes desde fact_ventas; el CMI solo se usa si el mes aún no tiene datos cargados.
+  // (Antes se reescalaban las ventas diarias con un factor para forzar el total del CMI.)
   const rawVentaTotalMes = ventasPorDia.reduce((a, b) => a + b, 0);
-  const ventaTotalMes = cmiVentaMes > 0 ? cmiVentaMes : rawVentaTotalMes;
-  const ventaTotalMesAnteriorFinal = cmiVentaAntMes > 0 ? cmiVentaAntMes : ventaTotalMesAnterior;
-
-  if (cmiVentaMes > 0 && rawVentaTotalMes > 0 && Math.abs(cmiVentaMes - rawVentaTotalMes) > 1000) {
-    const factor = cmiVentaMes / rawVentaTotalMes;
-    for (let d = 1; d <= diasEnMes; d++) {
-      ventasPorDia[d] = Math.round(ventasPorDia[d] * factor);
-    }
-  }
+  const ventaTotalMes = rawVentaTotalMes !== 0 ? rawVentaTotalMes : cmiVentaMes;
+  const ventaTotalMesAnteriorFinal = ventaTotalMesAnterior !== 0 ? ventaTotalMesAnterior : cmiVentaAntMes;
 
   const pptoMes = cmiPptoMes > 0
     ? cmiPptoMes

@@ -36,6 +36,7 @@ import {
   inspeccionarEncabezados,
   inspeccionarHojaEspecifica,
   esEncabezadoTecnicoOIgnorable,
+  avisoSinColumnaTransaccion,
   COLUMNAS_ESPERADAS,
   COLUMNAS_DIMENSION,
   type MetadataArchivo,
@@ -1796,6 +1797,10 @@ function Panel() {
       if (meta.mensajeAviso) {
         avisos.push(meta.mensajeAviso);
       }
+      const avisoTransaccion = avisoSinColumnaTransaccion(meta);
+      if (avisoTransaccion) {
+        avisos.push(avisoTransaccion);
+      }
 
       if (meta.columnasIgnoradas.length > 0) {
         const ignoradasLimpias = meta.columnasIgnoradas.filter(
@@ -1827,6 +1832,10 @@ function Panel() {
       }
       if (meta.mensajeAviso) {
         avisos.push(meta.mensajeAviso);
+      }
+      const avisoTransaccion = avisoSinColumnaTransaccion(meta);
+      if (avisoTransaccion) {
+        avisos.push(avisoTransaccion);
       }
       if (meta.columnasIgnoradas.length > 0) {
         const ignoradasLimpias = meta.columnasIgnoradas.filter(

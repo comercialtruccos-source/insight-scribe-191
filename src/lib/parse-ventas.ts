@@ -785,7 +785,7 @@ export function normalizarFila(
         textVal.toUpperCase().includes("VENTA")
       )) {
         // Columna AD en HGI contiene el tipo de transacción comercial / logística
-        if (!out["transaccion"] || typeof out["transaccion"] === "number" || !isNaN(Number(out["transaccion"]))) {
+        if (!out["__transaccionOficial"] && (!out["transaccion"] || typeof out["transaccion"] === "number" || !isNaN(Number(out["transaccion"])))) {
           out["transaccion"] = textVal;
         }
       } else {
@@ -796,7 +796,16 @@ export function normalizarFila(
     } else {
       const textVal = toText(val);
       if (campo === "transaccion") {
-        if (textVal) {
+        // La columna llamada exactamente "Transaccion" (columna A del MACRO VENTAS de HGI) es la
+        // fuente oficial del tipo de documento. Columnas alias como "documento" (columna AI, casi
+        // siempre vacía o con nombres de prenda) NUNCA deben sobrescribirla: eso dejó 541.503
+        // filas sin tipo en la carga del 19-oct y los pedidos se contaron como venta.
+        if (norm(h) === "TRANSACCION") {
+          if (textVal) {
+            out["transaccion"] = textVal;
+            out["__transaccionOficial"] = true;
+          }
+        } else if (textVal && !out["__transaccionOficial"]) {
           const upper = textVal.toUpperCase();
           const esTipoTransaccion =
             upper.includes("PEDIDO") ||
@@ -821,6 +830,7 @@ export function normalizarFila(
     }
   }
 
+  delete out["__transaccionOficial"];
   const fila = out as unknown as VentaRow;
   fila.row_index = indiceFila;
 
@@ -987,6 +997,18 @@ export type MetadataArchivo = {
   hojasDisponibles?: InfoHojaExcel[];
   mensajeAviso?: string;
 };
+
+/**
+ * El export "MACRO VENTAS" de HGI mezcla FACTURAS y NOTAS CRÉDITO con PEDIDOS (+) y
+ * SALIDAS POR DESPACHO (−). Sin la columna de transacción la plataforma no puede separarlos
+ * y los pedidos se suman como venta (infla a los vendedores mayoristas y desplaza la venta
+ * a los meses de correría). Devuelve un aviso cuando el archivo no trae esa columna.
+ */
+export function avisoSinColumnaTransaccion(meta: Pick<MetadataArchivo, "columnasDetectadas">): string | null {
+  if (meta.columnasDetectadas.length === 0) return null;
+  if (meta.columnasDetectadas.includes("transaccion")) return null;
+  return "⚠️ El archivo NO trae la columna TRANSACCIÓN. Si es el export MACRO VENTAS de HGI, los PEDIDOS y SALIDAS POR DESPACHO se contarán como ventas y las cifras no coincidirán con el CMI. Exporta de nuevo incluyendo la columna de transacción.";
+}
 
 export type ResultadoFilaEncabezados = {
   filaEncabezados: number;
