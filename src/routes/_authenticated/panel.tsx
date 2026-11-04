@@ -3942,33 +3942,6 @@ function Panel() {
                                 </div>
                               </div>
 
-                              {/* 2. Cartera y % Mora > 90 Días */}
-                              <div className="flex items-center justify-between text-[11px] gap-1">
-                                <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
-                                  <CreditCard className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                                  Cartera Total:
-                                </span>
-                                <div className="flex items-center gap-1.5 font-mono">
-                                  <span className="font-semibold text-foreground">
-                                    {formatoCOPFull(sub.carteraTotal)}
-                                  </span>
-                                  <span
-                                    className={cn(
-                                      "px-1.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-0.5",
-                                      (sub.carteraPct90Dias || 0) <= 5
-                                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                        : (sub.carteraPct90Dias || 0) <= 15
-                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                                        : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
-                                    )}
-                                    title={sub.carteraMayor90Dias > 0 ? `Mora >90d: ${formatoCOPFull(sub.carteraMayor90Dias)}` : undefined}
-                                  >
-                                    <Clock className="h-2.5 w-2.5 shrink-0" />
-                                    {Number(sub.carteraPct90Dias || 0).toFixed(2)}% &gt;90d
-                                  </span>
-                                </div>
-                              </div>
-
                               {/* 3. Año Anterior y Crecimiento YoY */}
                               <div className="flex items-center justify-between text-[11px] gap-1">
                                 <span className="text-muted-foreground flex items-center gap-1.5 font-medium">
