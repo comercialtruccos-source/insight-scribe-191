@@ -10509,9 +10509,9 @@ export const VENDEDOR_ID_TO_CMI_KEY: Record<number, string> = {
   108: "ERICA USUAGA",
   226: "ERICA USUAGA",
   3333: "ERICA USUAGA",
-  58326: "ANGELA ACEVEDO",
-  5: "ANGELA ACEVEDO",
-  58621: "ANGELA ACEVEDO",
+  58326: "MAYORISTA DIGITAL",
+  5: "MAYORISTA DIGITAL",
+  58621: "OTROS",
   51: "CRISTINA RESTREPO",
   57255: "CRISTINA RESTREPO",
   14: "ALEIDA GALLEGO",
@@ -10673,10 +10673,12 @@ if (CMI_ENTITIES["DIANA AGUDELO"] && CMI_ENTITIES["JONATHAN LOPEZ"]) {
   CMI_ENTITIES["DIANA AGUDELO"] = CMI_ENTITIES["DIANA AGUDELO (SANTANDERES)"];
 }
 if (CMI_ENTITIES["MAYORISTA DIGITAL"] && CMI_ENTITIES["LEADS MAYORISTAS"]) {
-  CMI_ENTITIES["ANGELA ACEVEDO"] = combinarEntidadesCMI(
+  const combMayorista = combinarEntidadesCMI(
     [CMI_ENTITIES["MAYORISTA DIGITAL"], CMI_ENTITIES["LEADS MAYORISTAS"]].filter(Boolean),
-    "ANGELA ACEVEDO"
+    "MAYORISTA DIGITAL"
   );
+  CMI_ENTITIES["MAYORISTA DIGITAL"] = combMayorista;
+  CMI_ENTITIES["ANGELA ACEVEDO"] = combMayorista;
 }
 if (CMI_ENTITIES["TRUCCO'S EXPORTACION"] && CMI_ENTITIES["OLGA ZULUAGA"]) {
   CMI_ENTITIES["CRISTINA RESTREPO"] = combinarEntidadesCMI(
@@ -10703,7 +10705,7 @@ if (tgGen) {
     "DIANA AGUDELO",
     "JUAN DAVID QUINTANA",
     "ERICA USUAGA",
-    "ANGELA ACEVEDO",
+    "MAYORISTA DIGITAL",
     "CRISTINA RESTREPO",
     "ALEIDA GALLEGO",
     "ALEJANDRA HERRERA",
@@ -10827,7 +10829,7 @@ export function obtenerRegistroCMI(filtros: FiltrosBI): CMIEntity | null {
     if (nomUpper.includes("MAYORCA")) return getEnt("MAYORCA");
     if (nomUpper.includes("DIANA") || nomUpper.includes("SANTANDER")) return getEnt("DIANA AGUDELO");
     if (nomUpper.includes("ERICA") || nomUpper.includes("VIRTUAL") || nomUpper.includes("REDES")) return getEnt("ERICA USUAGA");
-    if (nomUpper.includes("ANGELA") || nomUpper.includes("DIGITAL")) return getEnt("ANGELA ACEVEDO");
+    if (nomUpper.includes("MAYORISTA DIGITAL") || nomUpper.includes("LEADS") || nomUpper.includes("ANGELA") || nomUpper.includes("DIGITAL MAYORISTA")) return getEnt("MAYORISTA DIGITAL");
     if (nomUpper.includes("CRISTINA") || nomUpper.includes("EXPORTACION")) return getEnt("CRISTINA RESTREPO");
     if (nomUpper.includes("OTROS")) return getEnt("OTROS");
   }

@@ -103,10 +103,10 @@ export const USUARIOS_INICIALES_PRECONFIGURADOS: PermisoUsuario[] = [
     marca: "TRUCCOS-RAPPAZ",
   },
   {
-    nombre: "ANGELA ACEVEDO",
-    email: "angelaacevedo@truccos.com",
+    nombre: "MAYORISTA DIGITAL",
+    email: "mayoristadigital@truccos.com",
     rol: "vendedor",
-    vendedorIds: [58326, 5, 58621], // MAYORISTA DIGITAL, LEADS MAYORISTAS, ANGELA MACARENA
+    vendedorIds: [58326, 5], // MAYORISTA DIGITAL, LEADS MAYORISTAS
     zona: "DIGITAL MAYORISTA",
     canal: "MAYORISTA DIGITAL/PRESENCIAL",
     marca: "TRUCCOS-RAPPAZ",
@@ -181,6 +181,20 @@ export function obtenerTodosLosPermisosLocales(): PermisoUsuario[] {
       return USUARIOS_INICIALES_PRECONFIGURADOS;
     }
     let guardados = JSON.parse(data) as PermisoUsuario[];
+
+    // Migrar cuentas previas (ej. Angela Acevedo -> Mayorista Digital)
+    for (const g of guardados) {
+      const gEmail = (g.email || "").toLowerCase();
+      const gNom = (g.nombre || "").toUpperCase();
+      if (gEmail.includes("angelaacevedo") || gNom.includes("ANGELA")) {
+        g.nombre = "MAYORISTA DIGITAL";
+        g.email = "mayoristadigital@truccos.com";
+        g.vendedorIds = [58326, 5];
+        g.zona = "DIGITAL MAYORISTA";
+        g.canal = "MAYORISTA DIGITAL/PRESENCIAL";
+        g.marca = "TRUCCOS-RAPPAZ";
+      }
+    }
     
     // Purgar cuentas antiguas no autorizadas del almacenamiento local
     const correosPermitidos = new Set(USUARIOS_INICIALES_PRECONFIGURADOS.map((u) => u.email.toLowerCase()));
@@ -195,18 +209,13 @@ export function obtenerTodosLosPermisosLocales(): PermisoUsuario[] {
         guardados.push(initUser);
         cambio = true;
       } else {
-        const curIds = new Set(g.vendedorIds || []);
-        let idsAgregados = false;
-        for (const id of initUser.vendedorIds) {
-          if (!curIds.has(id)) {
-            curIds.add(id);
-            idsAgregados = true;
-          }
-        }
-        if (idsAgregados) {
-          g.vendedorIds = Array.from(curIds);
-          cambio = true;
-        }
+        // Garantizar campos oficiales y IDs oficiales exactos
+        g.nombre = initUser.nombre;
+        g.zona = initUser.zona;
+        g.canal = initUser.canal;
+        g.marca = initUser.marca;
+        g.vendedorIds = [...initUser.vendedorIds];
+        cambio = true;
       }
     }
     if (cambio) {
@@ -240,6 +249,9 @@ export function obtenerPermisoUsuario(email?: string | null, userId?: string | n
   let normalEmail = (email || "").trim().toLowerCase();
   if (normalEmail && !normalEmail.includes("@")) {
     normalEmail = `${normalEmail}@truccos.com`;
+  }
+  if (normalEmail.includes("angelaacevedo") || normalEmail.includes("angela@")) {
+    normalEmail = "mayoristadigital@truccos.com";
   }
   const emailNormClave = normalizarTexto(normalEmail.split("@")[0] || "");
 
@@ -501,11 +513,14 @@ export function obtenerNombresVendedoresAutorizados(
     nombres.add("TIENDA VIRTUAL");
     nombres.add("REDES SOCIALES");
     nombres.add("TRJUSA WEB");
-  } else if (pNomUpper.includes("ANGELA ACEVEDO") || pEmailLower.includes("angelaacevedo")) {
-    nombres.add("ANGELA ACEVEDO");
+  } else if (
+    pNomUpper.includes("MAYORISTA DIGITAL") ||
+    pNomUpper.includes("ANGELA") ||
+    pEmailLower.includes("mayoristadigital") ||
+    pEmailLower.includes("angelaacevedo")
+  ) {
     nombres.add("MAYORISTA DIGITAL");
     nombres.add("LEADS MAYORISTAS");
-    nombres.add("ANGELA MACARENA");
   } else if (pNomUpper.includes("CRISTINA RESTREPO") || pEmailLower.includes("cristinarestrepo")) {
     nombres.add("CRISTINA RESTREPO");
     nombres.add("TRUCCO'S EXPORTACION");

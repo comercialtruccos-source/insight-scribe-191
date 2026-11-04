@@ -45,7 +45,7 @@ import {
   establecerSimulacionAdmin,
   obtenerSimulacionAdmin,
 } from "@/lib/permisos-vendedores";
-import type { CatalogoItem } from "@/lib/ventas-api";
+import { esVendedorValido, type CatalogoItem } from "@/lib/ventas-api";
 
 interface AdminPermisosVendedoresDialogProps {
   open: boolean;
@@ -165,6 +165,7 @@ export function AdminPermisosVendedoresDialog({
   };
 
   const vendedoresFiltrados = vendedoresCatalogo.filter((v) =>
+    esVendedorValido(v.id, v.nombre) &&
     v.nombre.toLowerCase().includes(busquedaVendedor.toLowerCase())
   );
 

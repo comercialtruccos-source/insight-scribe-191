@@ -249,26 +249,8 @@ export function resolverNombreAsesor(
     }
   }
 
-  if (catNom) {
-    const low = catNom.toLowerCase();
-    if (
-      low.includes("bodega") ||
-      low.includes("general") ||
-      low.includes("empleado") ||
-      low.includes("publicidad") ||
-      low.includes("showroom") ||
-      low.includes("feria") ||
-      low.includes("otros ingresos") ||
-      low.includes("marketplace") ||
-      low.includes("dafiti") ||
-      low.includes("excluido")
-    ) {
-      return { nombre: catNom, esComercial: false, allIds: [vId] };
-    }
-  }
-
-  const nombre = catNom ? catNom.trim() : `Asesor #${vId}`;
-  return { nombre, esComercial: true, allIds: [vId] };
+  // Cualquier cuenta no registrada en la matriz comercial oficial es no comercial
+  return { nombre: catNom ? catNom.trim() : `Cuenta No Comercial #${vId}`, esComercial: false, allIds: [vId] };
 }
 
 /**
@@ -1329,7 +1311,26 @@ export const VENDEDOR_IDS_EXCLUIDOS = new Set<number>([
 ]);
 
 /**
- * Determina si un registro de dim_vendedor corresponde a un asesor comercial real y activo con movimientos en fact_ventas.
+ * Los 13 nombres de entidades comerciales oficiales autorizadas
+ */
+export const NOMBRES_VENDEDORES_OFICIALES = new Set([
+  "LUIS VILLA",
+  "LINA GARCIA",
+  "FREDY SANCHEZ",
+  "JUAN DIEGO GIRALDO",
+  "CLAUDIA GIRALDO",
+  "DIANA AGUDELO",
+  "JUAN DAVID QUINTANA",
+  "ERICA USUAGA",
+  "MAYORISTA DIGITAL",
+  "CRISTINA RESTREPO",
+  "ALEIDA GALLEGO",
+  "ALEJANDRA HERRERA",
+  "MAYORCA",
+]);
+
+/**
+ * Determina si un registro corresponde a uno de los 13 asesores comerciales oficiales reales y activos.
  * Excluye días numéricos (1..31), encabezados de tablas dinámicas, pruebas, roles no comerciales y cuentas internas.
  */
 export function esVendedorValido(id: number, nombre?: string | null): boolean {
@@ -1346,6 +1347,15 @@ export function esVendedorValido(id: number, nombre?: string | null): boolean {
 
   // Excluir nombres puramente numéricos (ej. días de mes como "1", "4", "7", "31")
   if (/^\d+$/.test(n)) return false;
+
+  const upper = n.toUpperCase();
+
+  // Si coincide con alguna de las 13 entidades comerciales oficiales, es válido
+  if (NOMBRES_VENDEDORES_OFICIALES.has(upper)) return true;
+
+  // Si no coincide exactamente con las 13 entidades, verificar si es un alias válido de VEND_ID_TO_ASESOR_INFO
+  const info = VEND_ID_TO_ASESOR_INFO.get(id);
+  if (!info) return false;
 
   const low = n.toLowerCase();
 
@@ -1365,6 +1375,7 @@ export function esVendedorValido(id: number, nombre?: string | null): boolean {
     low === "beatriz" ||
     low.includes("anny fernanda") ||
     low.includes("angela macarena") ||
+    low.includes("angela acevedo") ||
     low.includes("carolina gil") ||
     low.includes("alba ligeya") ||
     low.includes("desface") ||
@@ -2530,7 +2541,7 @@ export function calcularDashboard1Cumplimiento(
     { id: 58819, nombre: "DIANA AGUDELO", cmiKey: "DIANA AGUDELO" },
     { id: 4541, nombre: "MAYORCA", cmiKey: "MAYORCA" },
     { id: 51,  nombre: "CRISTINA RESTREPO", cmiKey: "CRISTINA RESTREPO" },
-    { id: 58326, nombre: "ANGELA ACEVEDO", cmiKey: "ANGELA ACEVEDO" },
+    { id: 58326, nombre: "MAYORISTA DIGITAL", cmiKey: "MAYORISTA DIGITAL" },
     { id: -1, nombre: "OTROS (CUENTAS NO COMERCIALES)", cmiKey: "OTROS" },
   ];
 
@@ -3941,7 +3952,7 @@ export function calcularDashboard4FuerzaVentas(
     { id: 58819, nombre: "DIANA AGUDELO", cmiKey: "DIANA AGUDELO" },
     { id: 4541, nombre: "MAYORCA", cmiKey: "MAYORCA" },
     { id: 51,  nombre: "CRISTINA RESTREPO", cmiKey: "CRISTINA RESTREPO" },
-    { id: 58326, nombre: "ANGELA ACEVEDO", cmiKey: "ANGELA ACEVEDO" },
+    { id: 58326, nombre: "MAYORISTA DIGITAL", cmiKey: "MAYORISTA DIGITAL" },
     { id: -1, nombre: "OTROS (CUENTAS NO COMERCIALES)", cmiKey: "OTROS" },
   ];
 

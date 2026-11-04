@@ -858,7 +858,12 @@ export function estructurarPedidosDespachosHGI(
       }
     }
 
-    if (r.vendedor) vendedoresSet.add(r.vendedor);
+    if (r.vendedor) {
+      const vLow = r.vendedor.toLowerCase();
+      if (!vLow.includes("bodega") && !vLow.includes("publicidad") && !vLow.includes("desface") && !vLow.includes("saldo") && !vLow.includes("empleado")) {
+        vendedoresSet.add(r.vendedor);
+      }
+    }
     if (r.ciudad) ciudadesSet.add(r.ciudad);
     if (r.tercero) clientesMap.set(r.tercero, r.nombre);
 

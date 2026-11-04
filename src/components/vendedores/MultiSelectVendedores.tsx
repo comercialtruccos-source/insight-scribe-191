@@ -63,16 +63,16 @@ export function MultiSelectVendedores({
     if (selectedIds.length === 0) {
       return esAdmin
         ? "Todos los Vendedores"
-        : vendedores.length === 1
-        ? (vendedores[0]?.nombre || "Mi Vendedor")
-        : `Mis Vendedores (${vendedores.length})`;
+        : vendedoresValidos.length === 1
+        ? (vendedoresValidos[0]?.nombre || "Mi Vendedor")
+        : `Mis Vendedores (${vendedoresValidos.length})`;
     }
     if (selectedIds.length === 1) {
-      const v = vendedores.find((item) => String(item.id) === selectedIds[0]);
+      const v = vendedoresValidos.find((item) => String(item.id) === selectedIds[0]);
       return v ? v.nombre : `Asesor #${selectedIds[0]}`;
     }
     return `${selectedIds.length} Asesores Seleccionados`;
-  }, [selectedIds, vendedores, esAdmin]);
+  }, [selectedIds, vendedoresValidos, esAdmin]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
