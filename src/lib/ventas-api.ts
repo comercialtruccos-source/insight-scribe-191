@@ -914,10 +914,9 @@ async function obtenerDimCache(): Promise<DimCache> {
 
   const tercMap = new Map<string, number>();
   for (const t of tercRows) {
-    if (t.id && t.nombre) tercMap.set(t.nombre.trim().toLowerCase(), t.id);
-    if (t.id && t.codigo && t.codigo.trim() && !tercMap.has(t.codigo.trim().toLowerCase())) {
-      tercMap.set(t.codigo.trim().toLowerCase(), t.id);
-    }
+    // Solo por nombre: el codigo guardado suele ser TerceroAux (nombre del vendedor / NO APLICA)
+    // y enlazar por él asignaba ventas al cliente equivocado.
+    if (t.id && t.nombre && !tercMap.has(t.nombre.trim().toLowerCase())) tercMap.set(t.nombre.trim().toLowerCase(), t.id);
   }
 
   _dimCacheGlobal = {
@@ -961,13 +960,10 @@ async function asegurarValoresDimension(
 
   const toInsert: Array<Record<string, unknown>> = unicos.map((nom) => {
     if (esTercero) {
-      let cod = terceroCodigoMap?.get(nom.toLowerCase()) || null;
-      const codUpper = (cod || "").toUpperCase().trim();
-      const esGen = !cod || codUpper === "NO APLICA" || codUpper === "GENERAL" || codUpper === "0" || codUpper === "CONSUMIDOR FINAL";
-      if (esGen) {
-        cod = nom;
-      }
-      return { nombre: nom, codigo: cod };
+      // codigo es UNIQUE en dim_tercero: se usa el nombre del cliente. TerceroAux (terceroCodigoMap)
+      // se repite entre muchos clientes y, usado como llave de upsert, sobrescribía el nombre de otro cliente.
+      void terceroCodigoMap;
+      return { nombre: nom, codigo: nom };
     }
     return { nombre: nom };
   });
@@ -988,7 +984,8 @@ async function asegurarValoresDimension(
     const chunk = toInsert.slice(i, i + 100);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const onConflict = tabla === "dim_tercero" ? "codigo" : undefined;
+      // Nunca upsert en dim_tercero: actualizaría el nombre de un cliente existente con el de otro
+      const onConflict = undefined as string | undefined;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = onConflict
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1001,9 +998,7 @@ async function asegurarValoresDimension(
           if (d.id && d.nombre) {
             cache.set(d.nombre.trim().toLowerCase(), d.id);
           }
-          if (d.id && d.codigo && typeof d.codigo === "string") {
-            cache.set(d.codigo.trim().toLowerCase(), d.id);
-          }
+
         }
       }
       if (error) {
