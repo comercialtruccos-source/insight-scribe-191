@@ -1817,7 +1817,11 @@ export function resolverInfoTercero(
     nomUpper.includes("CLIENTE MOSTRADOR") ||
     (nomUpper === "" && (codUpper === "NO APLICA" || codUpper === "0" || codUpper === "222222222222" || codUpper === ""));
 
-  if (esGenerico) {
+  if (esGenerico && nombre) {
+    // El cliente viene con nombre desde HGI (p. ej. "CONSUMIDOR FINAL", "GENERAL"): se muestra tal cual.
+    // Sigue marcado como genérico para no contarlo como cliente identificado en las métricas.
+    codigo = codigo || "NO APLICA";
+  } else if (esGenerico) {
     if (nomUpper.includes("GENERAL") || codUpper === "GENERAL") {
       nombre = "Ventas Generales / Consumidor Final";
       codigo = codigo || "GENERAL";
