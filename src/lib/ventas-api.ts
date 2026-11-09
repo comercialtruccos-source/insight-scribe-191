@@ -2580,40 +2580,38 @@ export function calcularDashboard1Cumplimiento(
     const esMesRank = Boolean(filtros.mes && filtros.mes >= 1 && filtros.mes <= 12);
     const mIdxRank = esMesRank ? (filtros.mes! - 1) : null;
 
+    // Ranking por asesor con las ventas reales cargadas (antes salía de las cifras fijas del CMI:
+    // en meses sin venta en el CMI, como noviembre 2026, todos los asesores aparecían en $0).
+    void esMesRank; void mIdxRank; void cmiEntitiesMap;
+    const totalComercial = Array.from(vendedorVentaMap.values()).reduce((s2, x) => s2 + x.venta, 0);
+    const totalComercialAnt = Array.from(vendedorAntMap.values()).reduce((s2, x) => s2 + x.venta, 0);
+    const undsComercial = Array.from(vendedorVentaMap.values()).reduce((s2, x) => s2 + x.unidades, 0);
+    const undsComercialAnt = Array.from(vendedorAntMap.values()).reduce((s2, x) => s2 + x.unidades, 0);
     rankingVendedores = ASESORES_RANKING_CMI.map((a) => {
-      const ent = cmiEntitiesMap[a.cmiKey] || CMI_ENTITIES[a.cmiKey];
-      let v = 0;
-      let vAnt = 0;
-      let unds = 0;
-      let uAnt = 0;
-
-      if (ent) {
-        if (mIdxRank !== null && ent.meses[mIdxRank]) {
-          v = ent.meses[mIdxRank].v2026;
-          vAnt = ent.meses[mIdxRank].v2025;
-          unds = ent.meses[mIdxRank].u2026;
-          uAnt = vAnt > 0 && unds > 0 && v > 0 ? Math.round(vAnt / (v / unds)) : 0;
-        } else {
-          v = ent.acumulado.v2026;
-          vAnt = ent.acumulado.v2025;
-          unds = ent.acumulado.unds;
-          uAnt = vAnt > 0 && unds > 0 && v > 0 ? Math.round(vAnt / (v / unds)) : 0;
-        }
+      let v = 0, vAnt = 0, unds = 0, uAnt = 0;
+      if (a.id === -1) {
+        v = totalVentas - totalComercial;
+        vAnt = totalVentasAnterior - totalComercialAnt;
+        unds = totalUnidades - undsComercial;
+        uAnt = totalUnidadesAnterior - undsComercialAnt;
+      } else {
+        const act = vendedorVentaMap.get(a.nombre);
+        const ant = vendedorAntMap.get(a.nombre);
+        v = act?.venta || 0; unds = act?.unidades || 0;
+        vAnt = ant?.venta || 0; uAnt = ant?.unidades || 0;
       }
-
       const yoy = vAnt > 0 ? Math.round(((v - vAnt) / vAnt) * 10000) / 100 : 0;
-
       return {
         id: a.id,
         vendedor: a.nombre,
-        venta: v,
-        ventaAnterior: vAnt,
+        venta: Math.round(v),
+        ventaAnterior: Math.round(vAnt),
         unidades: unds,
         unidadesAnterior: uAnt,
         porcentaje: 0,
         crecimientoYoY: yoy,
       };
-    }).filter((a) => a.venta > 0 || a.ventaAnterior > 0)
+    }).filter((a) => a.venta !== 0 || a.ventaAnterior !== 0)
       .sort((a, b) => b.venta - a.venta);
   } else {
     rankingVendedores = Array.from(vendedorVentaMap.entries())
