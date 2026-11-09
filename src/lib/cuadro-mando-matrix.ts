@@ -9795,7 +9795,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 3400042734,
+        "ppto2026": 3182631500,
         "v2025": 3076144673,
         "u2026": 0,
         "v2026": 0,
