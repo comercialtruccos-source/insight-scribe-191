@@ -210,7 +210,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 2705236775,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -423,7 +423,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 72437471,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -636,7 +636,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 204967751,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -849,7 +849,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 80041799,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -1062,7 +1062,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 337358938,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -1275,7 +1275,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 127305260,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -1488,7 +1488,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 105026839,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -1701,7 +1701,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 105026839,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -2553,7 +2553,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 206871047,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -2979,7 +2979,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 350089465,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -3192,7 +3192,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 127305260,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -3405,7 +3405,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 57287367,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -3618,7 +3618,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 120939996,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -3831,7 +3831,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 105026839,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -4044,7 +4044,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 15913157,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -4257,7 +4257,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 15913157,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -4683,7 +4683,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 238697362,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -4896,7 +4896,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 480577356,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -5322,7 +5322,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 289619466,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -5535,7 +5535,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 92296313,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -5748,7 +5748,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 141627102,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -5961,7 +5961,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 72437471,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -6387,7 +6387,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 12730526,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -6600,7 +6600,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 68669569,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -6813,7 +6813,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 16349897,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -7026,7 +7026,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 31826315,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -7452,7 +7452,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 7024641,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -8091,7 +8091,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 8080171,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -8517,7 +8517,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 5092210,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -8730,7 +8730,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 136853154,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -8943,7 +8943,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 79565787,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -9795,7 +9795,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 3400042734,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -10008,7 +10008,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 534682092,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -10221,7 +10221,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 233923415,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -10434,7 +10434,7 @@ export const CMI_ENTITIES: Record<string, CMIEntity> = {
       {
         "mes": 11,
         "nombreMes": "Nov",
-        "ppto2026": 0,
+        "ppto2026": 241879992,
         "v2025": 0,
         "u2026": 0,
         "v2026": 0,
@@ -10781,6 +10781,7 @@ if (tgGen) {
 
   CMI_ENTITIES["OTROS"] = {
     nombre: "OTROS (CUENTAS NO COMERCIALES)",
+    row: 99,
     acumulado: {
       ppto: acumPpto,
       v2025: acumV2025,
@@ -10812,7 +10813,7 @@ export function obtenerRegistroCMI(filtros: FiltrosBI): CMIEntity | null {
     null;
 
   // 1. Vendedor específico por ID individual
-  if (filtros.vendedor_id && filtros.vendedor_id !== "todos" && filtros.vendedor_id !== "multiple") {
+  if (filtros.vendedor_id && String(filtros.vendedor_id) !== "todos" && String(filtros.vendedor_id) !== "multiple") {
     const vId = Number(filtros.vendedor_id);
     const key = VENDEDOR_ID_TO_CMI_KEY[vId];
     if (key && getEnt(key)) return getEnt(key);
