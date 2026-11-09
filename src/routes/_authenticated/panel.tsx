@@ -31,6 +31,7 @@ import {
   normalizarUnidadesTransaccion,
   esVendedorValido,
   VENDEDORES_SIN_MOVIMIENTO_2026,
+  VEND_ID_TO_ASESOR_INFO,
   type FiltrosBI,
 } from "@/lib/ventas-api";
 import { CMI_FILAS_ORIGINALES } from "@/lib/cuadro-mando-matrix";
@@ -555,6 +556,7 @@ function Panel() {
   const [marcaId, setMarcaId] = useState<string>("todos");
   const [vendedorId, setVendedorId] = useState<string>("todos");
   const [vendedorIds, setVendedorIds] = useState<string[]>([]);
+  const [subAsesorSeleccionadoId, setSubAsesorSeleccionadoId] = useState<number | null>(null);
   const [zonaId, setZonaId] = useState<string>("todos");
   const [ciudadId, setCiudadId] = useState<string>("todos");
   const [terceroId, setTerceroId] = useState<string>("todos");
@@ -916,6 +918,7 @@ function Panel() {
     setMarcaId("todos");
     setVendedorId("todos");
     setVendedorIds([]);
+    setSubAsesorSeleccionadoId(null);
     setZonaId("todos");
     setCiudadId("todos");
     setTerceroId("todos");
@@ -1123,28 +1126,93 @@ function Panel() {
       ),
     [ventasMatrizHistorica, filtrosMultianual, habilitarYoY, rawVentasYoY]
   );
+
+  // Resolver si hay un único asesor comercial activo seleccionado (para admin)
+  const vendedorActivoSeleccionado = useMemo(() => {
+    if (!esAdmin) return null;
+    if (vendedorIds.length === 0 && (vendedorId === "todos" || vendedorId === "multiple")) {
+      return null;
+    }
+
+    const ids = vendedorIds.length > 0 ? vendedorIds.map(Number) : [Number(vendedorId)];
+    if (ids.some((id) => isNaN(id) || id <= 0)) return null;
+
+    const primerId = ids[0];
+    const infoAsesor = VEND_ID_TO_ASESOR_INFO.get(primerId);
+    const itemCatalogo = (catalogos?.vendedores || []).find(
+      (v) => v.id === primerId || (v.allIds && v.allIds.includes(primerId))
+    );
+
+    const allIds: number[] = itemCatalogo?.allIds || infoAsesor?.allIds || [primerId];
+    const nombre: string = itemCatalogo?.nombre || infoAsesor?.nombre || NOMBRES_CODIGOS_HGI[primerId] || `Vendedor ${primerId}`;
+
+    // Si se seleccionaron varios IDs pero no todos pertenecen a los alias de este mismo asesor, es multi-vendedor
+    if (ids.length > 1 && !ids.every((id) => allIds.includes(id))) {
+      return null;
+    }
+
+    return { id: primerId, nombre, allIds };
+  }, [esAdmin, vendedorId, vendedorIds, catalogos?.vendedores]);
+
+  // Si se ha seleccionado un sub-asesor específico del grupo, enfocamos los datos hacia él sin perder las tarjetas comparativas
+  const rawVentasEfectivas = useMemo(() => {
+    if (subAsesorSeleccionadoId !== null && rawVentas) {
+      return rawVentas.filter((r) => Number(r.vendedor_id) === subAsesorSeleccionadoId);
+    }
+    return rawVentas || [];
+  }, [rawVentas, subAsesorSeleccionadoId]);
+
+  const rawVentasYoYEfectivas = useMemo(() => {
+    if (subAsesorSeleccionadoId !== null && rawVentasYoY) {
+      return rawVentasYoY.filter((r) => Number(r.vendedor_id) === subAsesorSeleccionadoId);
+    }
+    return rawVentasYoY || [];
+  }, [rawVentasYoY, subAsesorSeleccionadoId]);
+
+  const filtrosEfectivos: FiltrosBI = useMemo(() => {
+    if (subAsesorSeleccionadoId !== null) {
+      return {
+        ...filtros,
+        vendedor_id: subAsesorSeleccionadoId,
+        vendedor_ids: [subAsesorSeleccionadoId],
+      };
+    }
+    return filtros;
+  }, [filtros, subAsesorSeleccionadoId]);
+
+  const filtrosMultianualEfectivos: FiltrosBI = useMemo(() => {
+    if (subAsesorSeleccionadoId !== null) {
+      return {
+        ...filtrosMultianual,
+        vendedor_id: subAsesorSeleccionadoId,
+        vendedor_ids: [subAsesorSeleccionadoId],
+      };
+    }
+    return filtrosMultianual;
+  }, [filtrosMultianual, subAsesorSeleccionadoId]);
+
   const d1Base = useMemo(
     () =>
       calcularDashboard1Cumplimiento(
-        rawVentas || [],
-        filtros,
+        rawVentasEfectivas,
+        filtrosEfectivos,
         catalogos,
         undefined,
         undefined,
         undefined,
         undefined,
         undefined,
-        habilitarYoY ? rawVentasYoY : undefined
+        habilitarYoY ? rawVentasYoYEfectivas : undefined
       ),
-    [rawVentas, filtros, catalogos, habilitarYoY, rawVentasYoY]
+    [rawVentasEfectivas, filtrosEfectivos, catalogos, habilitarYoY, rawVentasYoYEfectivas]
   );
 
   // Totales mensuales reales (HGI) del año elegido con los mismos filtros. Con un mes puntual solo se
   // cargan sus ventas y los demás meses de la tabla mensual salían de las cifras fijas del CMI (que ya
   // no se actualiza). Esta consulta liviana los reemplaza por las ventas reales.
   const { data: totalesMensualesAnio, isFetching: cargandoTotalesMes } = useQuery({
-    queryKey: ["bi-totales-mensuales", filtrosMultianual, anio],
-    queryFn: () => obtenerTotalesMensuales({ ...filtrosMultianual, anio: Number(anio) }),
+    queryKey: ["bi-totales-mensuales", filtrosMultianualEfectivos, anio],
+    queryFn: () => obtenerTotalesMensuales({ ...filtrosMultianualEfectivos, anio: Number(anio) }),
     staleTime: 120 * 1000,
     enabled: anio !== "todos" && mes !== "todos",
   });
@@ -1187,37 +1255,60 @@ function Panel() {
 
   // Métricas y comparativas individuales por cada comercial asignado a la cuenta del vendedor
   // Códigos HGI individuales del asesor (p. ej. DIEGO GIRALDO-MEDELLIN, Diego Giraldo Correria, DIEGO GIRALDO RAPPAZ).
-  // El catálogo agrupa todos los códigos de un asesor en una sola entrada, así que se expanden aquí
-  // para dar el resumen de ventas de cada vendedor asociado. Se omiten los códigos agregadores
-  // (TOTAL DIEGO 34, TOTAL FREDY 25) y los que no tienen movimientos en el periodo.
+  // Para administradores: se activa únicamente si se ha seleccionado un vendedor con múltiples asesores asociados.
+  // Para comerciales: se muestran los códigos asignados a su perfil.
   const subCuentasAsesor = useMemo(() => {
-    if (esAdmin || !rawVentas) return [] as { id: number; nombre: string }[];
+    if (!rawVentas) return [] as { id: number; nombre: string }[];
+    const AGREGADORES = new Set([34, 25]);
     const ids = new Set<number>();
-    for (const v of vendedoresDisponibles || []) {
-      const all = (v as any).allIds && (v as any).allIds.length > 0 ? (v as any).allIds : [v.id];
-      for (const id of all) ids.add(Number(id));
+
+    if (esAdmin) {
+      if (!vendedorActivoSeleccionado || vendedorActivoSeleccionado.allIds.length <= 1) {
+        return [];
+      }
+      for (const id of vendedorActivoSeleccionado.allIds) {
+        ids.add(Number(id));
+      }
+    } else {
+      for (const v of vendedoresDisponibles || []) {
+        const all = (v as any).allIds && (v as any).allIds.length > 0 ? (v as any).allIds : [v.id];
+        for (const id of all) ids.add(Number(id));
+      }
+      for (const id of vendedorIdsPermitidos || []) ids.add(Number(id));
     }
-    for (const id of vendedorIdsPermitidos || []) ids.add(Number(id));
+
     const conMovimiento = new Set<number>();
     for (const r of rawVentas) if (r.vendedor_id) conMovimiento.add(Number(r.vendedor_id));
     for (const r of rawVentasYoY || []) if (r.vendedor_id) conMovimiento.add(Number(r.vendedor_id));
-    const AGREGADORES = new Set([34, 25]);
+
     return Array.from(ids)
-      .filter((id) => !AGREGADORES.has(id) && !VENDEDORES_SIN_MOVIMIENTO_2026.has(id) && conMovimiento.has(id))
+      .filter((id) => {
+        if (AGREGADORES.has(id) || VENDEDORES_SIN_MOVIMIENTO_2026.has(id)) return false;
+        const nombreHGI = NOMBRES_CODIGOS_HGI[id] || "";
+        const tienePpto = Boolean(CMI_FILAS_ORIGINALES[nombreHGI.toUpperCase()]);
+        return conMovimiento.has(id) || tienePpto;
+      })
       .map((id) => ({ id, nombre: NOMBRES_CODIGOS_HGI[id] || `Código ${id}` }));
-  }, [esAdmin, vendedoresDisponibles, vendedorIdsPermitidos, rawVentas, rawVentasYoY]);
+  }, [esAdmin, vendedorActivoSeleccionado, vendedoresDisponibles, vendedorIdsPermitidos, rawVentas, rawVentasYoY]);
+
+  // Si cambia el vendedor seleccionado, sanitizar subAsesorSeleccionadoId si ya no pertenece
+  useEffect(() => {
+    if (subAsesorSeleccionadoId !== null) {
+      if (!subCuentasAsesor.some((s) => s.id === subAsesorSeleccionadoId)) {
+        setSubAsesorSeleccionadoId(null);
+      }
+    }
+  }, [subCuentasAsesor, subAsesorSeleccionadoId]);
 
   const comparativaComercialesAsociados = useMemo(() => {
-    if (esAdmin || subCuentasAsesor.length <= 1 || !rawVentas) {
+    if (subCuentasAsesor.length <= 1 || !rawVentas) {
       return [];
     }
 
-    const totalVentaGlobal = d1?.kpis.ventaYTD || 0;
-
-    return subCuentasAsesor.map((v) => {
+    // Calculamos primero los datos de cada sub-asesor para conocer la venta global exacta del grupo
+    const subResultados = subCuentasAsesor.map((v) => {
       const vId = v.id;
       const idsToCheck = [vId];
-      // Solo por vendedor_id: vendedor2 suele ser el código agregador (TOTAL DIEGO, MAYORCA) y duplicaría ventas
       const matchV = (r: FilaFactVentas) => Number(r.vendedor_id) === vId;
       
       const vData = rawVentas.filter(matchV);
@@ -1239,11 +1330,9 @@ function Panel() {
         vDataYoY
       );
 
-      const aportePct = totalVentaGlobal !== 0 ? Math.round((d1Sub.kpis.ventaYTD / totalVentaGlobal) * 10000) / 100 : 0;
-
       // Presupuesto propio del código según su fila en el CMI (no el del grupo del asesor)
       const filaCmi = CMI_FILAS_ORIGINALES[v.nombre.toUpperCase()];
-      let pptoSub = 0; // sin fila propia en el CMI no se le asigna el presupuesto del grupo
+      let pptoSub = 0;
       if (filaCmi) {
         const mesNum = mes !== "todos" ? Number(mes) : null;
         pptoSub = mesNum
@@ -1258,25 +1347,40 @@ function Panel() {
         d1: d1Sub,
         kpis: d1Sub.kpis,
         meses: d1Sub.meses,
-        aportePct,
-        ventaActual: d1Sub.kpis.ventaYTD,
-        ventaAnterior: d1Sub.kpis.ventaAnteriorTotal,
-        crecimientoYoYPct: d1Sub.kpis.crecimientoYoYPct,
-        unidades: d1Sub.kpis.volumenUnidades,
-        unidadesAnterior: d1Sub.kpis.unidadesAnteriorTotal,
-        ticketPromedio: d1Sub.kpis.ticketPromedio,
-        ticketPromedioAnterior: d1Sub.kpis.ticketPromedioAnterior,
-        tasaDevolucionPct: d1Sub.kpis.tasaDevolucionGlobalPct,
         ppto: pptoSub,
         cumplimientoPct: cumplimientoSub,
-        carteraTotal: d1Sub.kpis.carteraTotal ?? 0,
-        carteraMayor90Dias: d1Sub.kpis.carteraMayor90Dias ?? 0,
-        carteraPct90Dias: d1Sub.kpis.carteraPct90Dias ?? 0,
-        ventaBruta: d1Sub.kpis.ventaBrutaTotal ?? d1Sub.kpis.ventaYTD,
-        devolucionesMonto: d1Sub.kpis.devolucionesTotal ?? 0,
+      };
+    });
+
+    const totalVentaGlobal = subResultados.reduce((acc, s) => acc + s.d1.kpis.ventaYTD, 0);
+
+    return subResultados.map((s) => {
+      const aportePct = totalVentaGlobal > 0 ? Math.round((s.d1.kpis.ventaYTD / totalVentaGlobal) * 10000) / 100 : 0;
+      return {
+        id: s.id,
+        nombre: s.nombre,
+        d1: s.d1,
+        kpis: s.kpis,
+        meses: s.meses,
+        aportePct,
+        ventaActual: s.d1.kpis.ventaYTD,
+        ventaAnterior: s.d1.kpis.ventaAnteriorTotal,
+        crecimientoYoYPct: s.d1.kpis.crecimientoYoYPct,
+        unidades: s.d1.kpis.volumenUnidades,
+        unidadesAnterior: s.d1.kpis.unidadesAnteriorTotal,
+        ticketPromedio: s.d1.kpis.ticketPromedio,
+        ticketPromedioAnterior: s.d1.kpis.ticketPromedioAnterior,
+        tasaDevolucionPct: s.d1.kpis.tasaDevolucionGlobalPct,
+        ppto: s.ppto,
+        cumplimientoPct: s.cumplimientoPct,
+        carteraTotal: s.d1.kpis.carteraTotal ?? 0,
+        carteraMayor90Dias: s.d1.kpis.carteraMayor90Dias ?? 0,
+        carteraPct90Dias: s.d1.kpis.carteraPct90Dias ?? 0,
+        ventaBruta: s.d1.kpis.ventaBrutaTotal ?? s.d1.kpis.ventaYTD,
+        devolucionesMonto: s.d1.kpis.devolucionesTotal ?? 0,
       };
     }).sort((a, b) => b.ventaActual - a.ventaActual);
-  }, [esAdmin, subCuentasAsesor, rawVentas, rawVentasYoY, d1?.kpis.ventaYTD, filtros, catalogos, mes]);
+  }, [subCuentasAsesor, rawVentas, rawVentasYoY, filtros, catalogos, mes]);
 
   const nombreMesPuntual = useMemo(() => {
     if (mes !== "todos") {
@@ -1424,10 +1528,10 @@ function Panel() {
     }
   }, [irMesAnteriorD1, irMesSiguienteD1]);
 
-  // Cuando se selecciona un mes puntual en la vista de comercial con varios vendedores asignados,
+  // Cuando se selecciona un mes puntual en la vista con varios vendedores asignados,
   // la métrica principal de barras se discrimina por cada asesor asociado (con sus datos del mes puntual).
   const datosGraficaPorVendedorMes = useMemo(() => {
-    if (esAdmin || !comparativaComercialesAsociados || comparativaComercialesAsociados.length <= 1 || !esMesPuntual) {
+    if (subAsesorSeleccionadoId !== null || !comparativaComercialesAsociados || comparativaComercialesAsociados.length <= 1 || !esMesPuntual) {
       return null;
     }
 
@@ -1451,27 +1555,34 @@ function Panel() {
         ticketPromedio: sub.ticketPromedio,
       };
     });
-  }, [esAdmin, comparativaComercialesAsociados, esMesPuntual]);
+  }, [subAsesorSeleccionadoId, comparativaComercialesAsociados, esMesPuntual]);
 
   const diagnosticoMentor = useMemo(() => {
     return calcularDiagnosticoMentor(
-      rawVentas || [],
-      filtros,
+      rawVentasEfectivas,
+      filtrosEfectivos,
       catalogos,
-      habilitarYoY ? rawVentasYoY : undefined,
+      habilitarYoY ? rawVentasYoYEfectivas : undefined,
       ventasMatrizHistorica,
       resumenInventario
     );
-  }, [rawVentas, filtros, catalogos, habilitarYoY, rawVentasYoY, ventasMatrizHistorica, resumenInventario]);
+  }, [rawVentasEfectivas, filtrosEfectivos, catalogos, habilitarYoY, rawVentasYoYEfectivas, ventasMatrizHistorica, resumenInventario]);
 
   const vendedorSeleccionadoNombre = useMemo(() => {
+    if (subAsesorSeleccionadoId !== null) {
+      return NOMBRES_CODIGOS_HGI[subAsesorSeleccionadoId] || `Asesor #${subAsesorSeleccionadoId}`;
+    }
     if (vendedorIds.length > 1) {
+      const firstInfo = VEND_ID_TO_ASESOR_INFO.get(Number(vendedorIds[0]));
+      if (firstInfo && vendedorIds.every((id) => firstInfo.allIds.includes(Number(id)))) {
+        return firstInfo.nombre;
+      }
       return `Varios Asesores (${vendedorIds.length})`;
     }
     const idABuscar = vendedorIds.length === 1 ? vendedorIds[0] : vendedorId;
     if (idABuscar === "todos" || !idABuscar) return null;
-    return catalogos?.vendedores?.find((v) => String(v.id) === String(idABuscar))?.nombre || null;
-  }, [vendedorIds, vendedorId, catalogos]);
+    return catalogos?.vendedores?.find((v) => String(v.id) === String(idABuscar))?.nombre || NOMBRES_CODIGOS_HGI[Number(idABuscar)] || null;
+  }, [subAsesorSeleccionadoId, vendedorIds, vendedorId, catalogos]);
 
   const zonaSeleccionadaNombre = useMemo(() => {
     if (zonaId === "todos") return null;
@@ -2504,6 +2615,7 @@ function Panel() {
                         vendedores={vendedoresDisponibles}
                         selectedIds={vendedorIds}
                         onChange={(ids) => {
+                          setSubAsesorSeleccionadoId(null);
                           setVendedorIds(ids);
                           if (ids.length === 1) setVendedorId(ids[0]);
                           else if (ids.length > 1) setVendedorId("multiple");
@@ -2805,6 +2917,7 @@ function Panel() {
                   vendedores={vendedoresDisponibles}
                   selectedIds={vendedorIds}
                   onChange={(ids) => {
+                    setSubAsesorSeleccionadoId(null);
                     setVendedorIds(ids);
                     if (ids.length === 1) setVendedorId(ids[0]);
                     else if (ids.length > 1) setVendedorId("multiple");
@@ -3208,7 +3321,7 @@ function Panel() {
             </div>
 
             {/* Sub-vendedor Switcher para Comerciales con Múltiples Asesores Asignados */}
-            {!esAdmin && comparativaComercialesAsociados.length > 1 && (
+            {comparativaComercialesAsociados.length > 1 && (
               <div className="bg-muted/40 border border-border/80 rounded-xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
@@ -3216,7 +3329,7 @@ function Panel() {
                   </div>
                   <div>
                     <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                      Comerciales Asignados a tu Cuenta
+                      {esAdmin ? "Comerciales Asociados al Vendedor" : "Comerciales Asignados a tu Cuenta"}
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
                         {comparativaComercialesAsociados.length} Asesores
                       </Badge>
@@ -3230,23 +3343,23 @@ function Panel() {
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
                   <Button
                     size="sm"
-                    variant={vendedorId === "todos" ? "default" : "outline"}
-                    onClick={() => setVendedorId("todos")}
+                    variant={subAsesorSeleccionadoId === null ? "default" : "outline"}
+                    onClick={() => setSubAsesorSeleccionadoId(null)}
                     className={cn(
                       "text-xs h-7.5 px-3 rounded-lg font-medium transition-all shrink-0",
-                      vendedorId === "todos" ? "shadow-xs font-semibold" : "hover:bg-background"
+                      subAsesorSeleccionadoId === null ? "shadow-xs font-semibold" : "hover:bg-background"
                     )}
                   >
                     🌟 Vista Global (Consolidado)
                   </Button>
                   {comparativaComercialesAsociados.map((sub) => {
-                    const isSelected = String(vendedorId) === String(sub.id);
+                    const isSelected = subAsesorSeleccionadoId === sub.id;
                     return (
                       <Button
                         key={sub.id}
                         size="sm"
                         variant={isSelected ? "default" : "outline"}
-                        onClick={() => setVendedorId(String(sub.id))}
+                        onClick={() => setSubAsesorSeleccionadoId(isSelected ? null : sub.id)}
                         className={cn(
                           "text-xs h-7.5 px-3 rounded-lg font-medium transition-all shrink-0 flex items-center gap-1.5",
                           isSelected ? "shadow-xs font-semibold" : "hover:bg-background"
@@ -3880,7 +3993,7 @@ function Panel() {
             </Card>
 
             {/* Panel de Vista Global de Comerciales Asociados al Vendedor (Tarjetas de Asesores) */}
-            {!esAdmin && comparativaComercialesAsociados.length > 1 && (
+            {comparativaComercialesAsociados.length > 1 && (
               <Card className="border-border/80 shadow-xs bg-linear-to-b from-card to-muted/20">
                 <CardHeader className="pb-3 border-b border-border/40">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -3897,11 +4010,11 @@ function Panel() {
                         Métricas comparativas individuales y tasa de crecimiento frente al año anterior para cada código comercial asignado.
                       </CardDescription>
                     </div>
-                    {vendedorId !== "todos" && (
+                    {subAsesorSeleccionadoId !== null && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setVendedorId("todos")}
+                        onClick={() => setSubAsesorSeleccionadoId(null)}
                         className="text-xs h-8 text-primary font-medium"
                       >
                         ← Volver a Vista Global Consolidada
@@ -3913,12 +4026,12 @@ function Panel() {
                   {/* Grid de Tarjetas Comparativas por Asesor */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3.5">
                     {comparativaComercialesAsociados.map((sub) => {
-                      const isSelected = String(vendedorId) === String(sub.id);
+                      const isSelected = subAsesorSeleccionadoId === sub.id;
                       const isPositive = sub.crecimientoYoYPct >= 0;
                       return (
                         <div
                           key={sub.id}
-                          onClick={() => setVendedorId(isSelected ? "todos" : String(sub.id))}
+                          onClick={() => setSubAsesorSeleccionadoId(isSelected ? null : sub.id)}
                           className={cn(
                             "p-4 rounded-2xl border transition-all cursor-pointer relative group flex flex-col justify-between shadow-2xs hover:shadow-md",
                             isSelected
@@ -4076,7 +4189,7 @@ function Panel() {
 
             {/* Diagrama de Flujo / Sankey: Arquitectura de Ingresos */}
             <SankeyFlujoComercial
-              rawVentas={rawVentas || []}
+              rawVentas={rawVentasEfectivas}
               catalogos={catalogos}
               d3={d3}
               d6={d6}
@@ -6920,6 +7033,7 @@ function Panel() {
                 vendedoresDisponibles={vendedoresDisponibles}
                 vendedorSeleccionadoId={vendedorIds.length === 1 ? Number(vendedorIds[0]) : (vendedorId !== "todos" ? Number(vendedorId) : null)}
                 onSelectVendedor={(id) => {
+                  setSubAsesorSeleccionadoId(null);
                   if (id) {
                     setVendedorIds([String(id)]);
                     setVendedorId(String(id));
@@ -9252,6 +9366,7 @@ function Panel() {
               vendedoresDisponibles={vendedoresDisponibles}
               vendedorSeleccionadoId={vendedorIds.length === 1 ? Number(vendedorIds[0]) : (vendedorId !== "todos" ? Number(vendedorId) : null)}
               onSelectVendedor={(id) => {
+                setSubAsesorSeleccionadoId(null);
                 if (id) {
                   setVendedorIds([String(id)]);
                   setVendedorId(String(id));
