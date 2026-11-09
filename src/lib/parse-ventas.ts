@@ -938,8 +938,9 @@ export function normalizarFila(
       low.includes("total oficial") ||
       low === "#n/d" ||
       low === "n/d" ||
-      low.startsWith("probe_") ||
-      low.includes("publicidad")
+      low.startsWith("probe_")
+      // PUBLICIDAD sí es un vendedor válido en HGI y tiene su fila en el CMI: no se descarta
+      // (antes quedaba sin vendedor). Las listas de asesores ya lo excluyen como cuenta no comercial.
     ) {
       return false;
     }
