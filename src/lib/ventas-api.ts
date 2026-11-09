@@ -1570,15 +1570,53 @@ export type FilaFactVentas = {
 export async function obtenerTotalesMensuales(
   filtros: FiltrosBI
 ): Promise<Array<{ anio: number; mes: number; venta: number; unidades: number; dev: number }>> {
-  const rows = await fetchAllFactVentas<FilaFactVentas>(
-    "anio, mes, fecha, transaccion, valor, cantidad, vendedor_id, vendedor2_id, canal_id, marca_id, zona_id, zona_colombia_id, ciudad_id, tercero_id, correria_id",
-    { ...filtros, mes: null, fecha_desde: null, fecha_hasta: null }
-  );
+  // Se consulta día por día y ordenado por id: por mes completo los offsets altos daban 500 por
+  // timeout, y por rangos sin orden fijo la paginación repetía/saltaba filas.
+  const COLS = "id, anio, mes, fecha, transaccion, valor, cantidad, vendedor_id, vendedor2_id, canal_id, marca_id, zona_id, zona_colombia_id, ciudad_id, tercero_id, correria_id";
+  const anio = Number(filtros.anio) || new Date().getFullYear();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const hoy = new Date();
+  const dias: string[] = [];
+  for (let mm = 1; mm <= 12; mm++) {
+    const fin = new Date(anio, mm, 0).getDate();
+    for (let d = 1; d <= fin; d++) {
+      const f = new Date(anio, mm - 1, d);
+      if (f > hoy) break;
+      dias.push(`${anio}-${pad(mm)}-${pad(d)}`);
+    }
+  }
+  const filtrosDia = { ...filtros, anio: null, mes: null, fecha_desde: null, fecha_hasta: null };
+  const leerDia = async (f: string): Promise<FilaFactVentas[]> => {
+    const out: FilaFactVentas[] = [];
+    let from = 0;
+    for (;;) {
+      let res: { data: unknown; error: unknown } = { data: null, error: true };
+      for (let intento = 0; intento < 4 && res.error; intento++) {
+        if (intento > 0) await new Promise((r) => setTimeout(r, 400 * intento));
+        let q = supabase.from("fact_ventas").select(COLS);
+        q = aplicarFiltrosQuery(q, filtrosDia);
+        res = await q.eq("fecha", f).order("id").range(from, from + 999);
+      }
+      if (res.error) throw new Error(`No se pudieron cargar las ventas del ${f}`);
+      const data = (res.data || []) as FilaFactVentas[];
+      for (const r of data) out.push(r);
+      if (data.length < 1000) break;
+      from += 1000;
+    }
+    return out;
+  };
+  const rows: FilaFactVentas[] = [];
+  const CONC = 10;
+  for (let i = 0; i < dias.length; i += CONC) {
+    const lote = await Promise.all(dias.slice(i, i + CONC).map(leerDia));
+    for (const l of lote) for (const r of l) rows.push(r);
+  }
   const m = new Map<string, { anio: number; mes: number; venta: number; unidades: number; dev: number }>();
   for (const r of rows) {
     const a = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : 0);
     const me = Number(r.mes) || (r.fecha ? parseInt(String(r.fecha).slice(5, 7), 10) : 0);
     if (!a || !me) continue;
+    if (!cumpleFiltros(r, { ...filtros, anio: null, mes: null })) continue; // excluye pedidos/salidas y aplica filtros
     const v = normalizarValorTransaccion(r.transaccion, r.valor);
     const u = normalizarUnidadesTransaccion(r.transaccion, r.cantidad);
     const k = `${a}-${me}`;
