@@ -1150,7 +1150,11 @@ function Panel() {
   });
   const ventasMensualesReales = useMemo(() => {
     const m = new Map<string, { venta: number; unidades: number; dev: number }>();
-    for (const t of totalesMensualesAnio || []) m.set(`${t.anio}-${t.mes}`, t);
+    for (const t of totalesMensualesAnio || []) {
+      const k = `${t.anio}-${t.mes}`;
+      const prev = m.get(k) || { venta: 0, unidades: 0, dev: 0 };
+      m.set(k, { venta: prev.venta + t.venta, unidades: prev.unidades + t.unidades, dev: prev.dev + t.dev });
+    }
     return m;
   }, [totalesMensualesAnio]);
 
@@ -1620,8 +1624,8 @@ function Panel() {
     [rawVentas, filtros, catalogos, filtroCanalDigital, habilitarYoY, rawVentasYoY, busquedaSkuD3]
   );
   const d4 = useMemo(
-    () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, vendedoresDisponibles, catalogos?.canales, undefined, habilitarYoY ? rawVentasYoY : undefined),
-    [rawVentas, filtros, vendedoresDisponibles, catalogos, habilitarYoY, rawVentasYoY]
+    () => calcularDashboard4FuerzaVentas(rawVentas || [], filtros, vendedoresDisponibles, catalogos?.canales, undefined, habilitarYoY ? rawVentasYoY : undefined, totalesMensualesAnio),
+    [rawVentas, filtros, vendedoresDisponibles, catalogos, habilitarYoY, rawVentasYoY, totalesMensualesAnio]
   );
 
   // Ranking integral de asesores exclusivo por canal y unidades (prendas vendidas)
