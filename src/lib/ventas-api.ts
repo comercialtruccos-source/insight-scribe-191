@@ -2480,7 +2480,7 @@ export function calcularDashboard1Cumplimiento(
         ventaReal: vReal,
         ventaAnterior: vAnt,
         ppto,
-        cumplimientoPct: ppto > 0 && vReal > 0 ? Math.round((vReal / ppto) * 10000) / 100 : (cm.cumplimientoPct || (vReal > 0 ? 100 : 0)),
+        cumplimientoPct: ppto > 0 && vReal > 0 ? Math.round((vReal / ppto) * 10000) / 100 : 0, // sin presupuesto no hay cumplimiento
         crecimientoYoY: vAnt > 0 ? Math.round(((vReal - vAnt) / vAnt) * 10000) / 100 : (cm.crecimientoYoY || 0),
         devolucionesMonto: dev,
         tasaDevolucionPct: vReal > 0 ? Math.round((dev / vReal) * 10000) / 100 : (cm.tasaDevolucionPct || 0),
