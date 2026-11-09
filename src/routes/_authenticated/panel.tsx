@@ -1142,7 +1142,7 @@ function Panel() {
   // Totales mensuales reales (HGI) del año elegido con los mismos filtros. Con un mes puntual solo se
   // cargan sus ventas y los demás meses de la tabla mensual salían de las cifras fijas del CMI (que ya
   // no se actualiza). Esta consulta liviana los reemplaza por las ventas reales.
-  const { data: totalesMensualesAnio } = useQuery({
+  const { data: totalesMensualesAnio, isFetching: cargandoTotalesMes } = useQuery({
     queryKey: ["bi-totales-mensuales", filtrosMultianual, anio],
     queryFn: () => obtenerTotalesMensuales({ ...filtrosMultianual, anio: Number(anio) }),
     staleTime: 120 * 1000,
@@ -1155,12 +1155,16 @@ function Panel() {
   }, [totalesMensualesAnio]);
 
   const d1 = useMemo(() => {
-    if (!d1Base || anio === "todos" || mes === "todos" || ventasMensualesReales.size === 0) return d1Base;
+    if (!d1Base || anio === "todos" || mes === "todos") return d1Base;
     const anioNum = Number(anio);
+    const sinTotales = !totalesMensualesAnio; // aún cargando: no mostrar cifras fijas del CMI
     const meses = d1Base.meses.map((cm) => {
       if (String(cm.mes) === String(mes)) return cm; // el mes elegido ya viene calculado con sus filtros
+      if (sinTotales) {
+        return { ...cm, ventaReal: 0, unidades: 0, devolucionesMonto: 0, cumplimientoPct: 0, crecimientoYoY: 0, tasaDevolucionPct: 0 };
+      }
       const act = ventasMensualesReales.get(`${anioNum}-${cm.mes}`);
-      if (!act) return cm;
+      if (!act) return { ...cm, ventaReal: 0, unidades: 0, devolucionesMonto: 0, cumplimientoPct: 0, crecimientoYoY: 0, tasaDevolucionPct: 0 };
       const ventaReal = Math.round(act.venta);
       const ventaAnterior = cm.ventaAnterior; // año anterior cerrado: se conserva
       return {
@@ -1175,7 +1179,7 @@ function Panel() {
       };
     });
     return { ...d1Base, meses };
-  }, [d1Base, anio, mes, ventasMensualesReales]);
+  }, [d1Base, anio, mes, ventasMensualesReales, totalesMensualesAnio]);
 
   // Métricas y comparativas individuales por cada comercial asignado a la cuenta del vendedor
   // Códigos HGI individuales del asesor (p. ej. DIEGO GIRALDO-MEDELLIN, Diego Giraldo Correria, DIEGO GIRALDO RAPPAZ).
@@ -5805,6 +5809,11 @@ function Panel() {
                 <CardDescription>Facturación, presupuesto y cumplimiento por periodo registrado</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
+                {cargandoTotalesMes && anio !== "todos" && mes !== "todos" && (
+                  <div className="px-3 py-1.5 bg-blue-500/10 border-b border-blue-500/20 text-[11px] text-blue-700 dark:text-blue-300 font-medium">
+                    Cargando las ventas reales de los demás meses del año…
+                  </div>
+                )}
                 {/* Cabecera Móvil: Selector de Vista (Tarjetas vs Tabla) */}
                 <div className="sm:hidden px-3 py-2 bg-muted/40 border-b border-border/60 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1 bg-background/90 p-0.5 rounded-lg border border-border/70 text-xs shadow-2xs">
