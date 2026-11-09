@@ -10,6 +10,7 @@ import {
   obtenerRangoFechasTotal,
   obtenerCatalogosFiltros,
   obtenerVentasRaw,
+  obtenerTotalesMensuales,
   obtenerFiltrosAnioAnterior,
   calcularHistoricoMultianual,
   calcularDashboard1Cumplimiento,
@@ -1083,7 +1084,10 @@ function Panel() {
   const filtrosMultianual: FiltrosBI = useMemo(() => {
     const vIdsExpanded = vendedorIds.length > 0
       ? expandirVendedorIds(vendedorIds)
-      : (vendedorId !== "todos" ? expandirVendedorIds([vendedorId]) : undefined);
+      : (vendedorId !== "todos"
+        ? expandirVendedorIds([vendedorId])
+        // Usuarios asesores: el histórico también se limita a sus códigos permitidos
+        : (!esAdmin && vendedorIdsPermitidos ? expandirVendedorIds(vendedorIdsPermitidos.length > 0 ? vendedorIdsPermitidos : [-99999]) : undefined));
 
     return {
       canal_id: canalId !== "todos" ? Number(canalId) : undefined,
@@ -1093,7 +1097,7 @@ function Panel() {
       zona_id: zonaId !== "todos" ? Number(zonaId) : undefined,
       ciudad_id: ciudadId !== "todos" ? Number(ciudadId) : undefined,
     };
-  }, [canalId, marcaId, vendedorId, vendedorIds, zonaId, ciudadId]);
+  }, [canalId, marcaId, vendedorId, vendedorIds, zonaId, ciudadId, esAdmin, vendedorIdsPermitidos]);
 
   // Si el usuario consulta la matriz histórica multianual, consultamos el histórico completo bajo demanda exclusivamente para ese tab
   const { data: rawVentasMultianual } = useQuery({
@@ -1119,7 +1123,7 @@ function Panel() {
       ),
     [ventasMatrizHistorica, filtrosMultianual, habilitarYoY, rawVentasYoY]
   );
-  const d1 = useMemo(
+  const d1Base = useMemo(
     () =>
       calcularDashboard1Cumplimiento(
         rawVentas || [],
@@ -1134,6 +1138,44 @@ function Panel() {
       ),
     [rawVentas, filtros, catalogos, habilitarYoY, rawVentasYoY]
   );
+
+  // Totales mensuales reales (HGI) del año elegido con los mismos filtros. Con un mes puntual solo se
+  // cargan sus ventas y los demás meses de la tabla mensual salían de las cifras fijas del CMI (que ya
+  // no se actualiza). Esta consulta liviana los reemplaza por las ventas reales.
+  const { data: totalesMensualesAnio } = useQuery({
+    queryKey: ["bi-totales-mensuales", filtrosMultianual, anio],
+    queryFn: () => obtenerTotalesMensuales({ ...filtrosMultianual, anio: Number(anio) }),
+    staleTime: 120 * 1000,
+    enabled: anio !== "todos" && mes !== "todos",
+  });
+  const ventasMensualesReales = useMemo(() => {
+    const m = new Map<string, { venta: number; unidades: number; dev: number }>();
+    for (const t of totalesMensualesAnio || []) m.set(`${t.anio}-${t.mes}`, t);
+    return m;
+  }, [totalesMensualesAnio]);
+
+  const d1 = useMemo(() => {
+    if (!d1Base || anio === "todos" || mes === "todos" || ventasMensualesReales.size === 0) return d1Base;
+    const anioNum = Number(anio);
+    const meses = d1Base.meses.map((cm) => {
+      if (String(cm.mes) === String(mes)) return cm; // el mes elegido ya viene calculado con sus filtros
+      const act = ventasMensualesReales.get(`${anioNum}-${cm.mes}`);
+      if (!act) return cm;
+      const ventaReal = Math.round(act.venta);
+      const ventaAnterior = cm.ventaAnterior; // año anterior cerrado: se conserva
+      return {
+        ...cm,
+        ventaReal,
+        ventaAnterior,
+        unidades: act.unidades,
+        devolucionesMonto: Math.round(act.dev),
+        cumplimientoPct: cm.ppto > 0 && ventaReal > 0 ? Math.round((ventaReal / cm.ppto) * 10000) / 100 : 0,
+        crecimientoYoY: ventaAnterior > 0 ? Math.round(((ventaReal - ventaAnterior) / ventaAnterior) * 10000) / 100 : 0,
+        tasaDevolucionPct: ventaReal > 0 ? Math.round((act.dev / ventaReal) * 10000) / 100 : 0,
+      };
+    });
+    return { ...d1Base, meses };
+  }, [d1Base, anio, mes, ventasMensualesReales]);
 
   // Métricas y comparativas individuales por cada comercial asignado a la cuenta del vendedor
   // Códigos HGI individuales del asesor (p. ej. DIEGO GIRALDO-MEDELLIN, Diego Giraldo Correria, DIEGO GIRALDO RAPPAZ).

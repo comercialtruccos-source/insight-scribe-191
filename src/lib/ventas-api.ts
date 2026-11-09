@@ -1562,6 +1562,35 @@ export type FilaFactVentas = {
   cod_color: string | null;
 };
 
+/**
+ * Totales mensuales reales (venta neta, unidades, devoluciones) de un año con los filtros dados.
+ * Consulta liviana (pocas columnas) para llenar la tabla mensual cuando se elige un mes puntual,
+ * en lugar de mostrar los demás meses con cifras fijas del CMI.
+ */
+export async function obtenerTotalesMensuales(
+  filtros: FiltrosBI
+): Promise<Array<{ anio: number; mes: number; venta: number; unidades: number; dev: number }>> {
+  const rows = await fetchAllFactVentas<FilaFactVentas>(
+    "anio, mes, fecha, transaccion, valor, cantidad, vendedor_id, vendedor2_id, canal_id, marca_id, zona_id, zona_colombia_id, ciudad_id, tercero_id, correria_id",
+    { ...filtros, mes: null, fecha_desde: null, fecha_hasta: null }
+  );
+  const m = new Map<string, { anio: number; mes: number; venta: number; unidades: number; dev: number }>();
+  for (const r of rows) {
+    const a = Number(r.anio) || (r.fecha ? parseInt(String(r.fecha).slice(0, 4), 10) : 0);
+    const me = Number(r.mes) || (r.fecha ? parseInt(String(r.fecha).slice(5, 7), 10) : 0);
+    if (!a || !me) continue;
+    const v = normalizarValorTransaccion(r.transaccion, r.valor);
+    const u = normalizarUnidadesTransaccion(r.transaccion, r.cantidad);
+    const k = `${a}-${me}`;
+    const prev = m.get(k) || { anio: a, mes: me, venta: 0, unidades: 0, dev: 0 };
+    prev.venta += v;
+    prev.unidades += u;
+    if (v < 0) prev.dev += Math.abs(v);
+    m.set(k, prev);
+  }
+  return Array.from(m.values());
+}
+
 export async function obtenerVentasRaw(filtros: FiltrosBI): Promise<FilaFactVentas[]> {
   const rows = await fetchAllFactVentas<FilaFactVentas>(COLUMNAS_ALL_FACT_VENTAS, filtros);
   return rows.filter((r) => esTransaccionFacturacionReal(r.transaccion, r.mes, r.anio));
