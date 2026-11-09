@@ -1952,6 +1952,7 @@ export type CumplimientoMes = {
   ventaReal: number;
   ventaAnterior: number;
   ppto: number;
+  pptoAnterior?: number;
   cumplimientoPct: number;
   crecimientoYoY: number;
   devolucionesMonto: number;
@@ -2535,6 +2536,7 @@ export function calcularDashboard1Cumplimiento(
       const vAnt = vAntDb !== 0 ? vAntDb : cm.ventaAnterior;
       // Sin presupuesto en el CMI no se inventa uno (antes: venta × 1,05, que fabricaba cumplimientos ~95%)
       const ppto = cm.ppto > 0 ? cm.ppto : 0;
+      const pptoAnt = cm.pptoAnterior && cm.pptoAnterior > 0 ? cm.pptoAnterior : (cm.ventaAnterior > 0 ? cm.ventaAnterior : 0);
       const unds = d.venta !== 0 ? d.unidades : cm.unidades;
       const uAntDb = periodoAntMap.get(String(cm.mes))?.unidades || 0;
       const uAnt = uAntDb !== 0 ? uAntDb : cm.unidadesAnterior;
@@ -2548,6 +2550,7 @@ export function calcularDashboard1Cumplimiento(
         ventaReal: vReal,
         ventaAnterior: vAnt,
         ppto,
+        pptoAnterior: pptoAnt,
         cumplimientoPct: ppto > 0 && vReal > 0 ? Math.round((vReal / ppto) * 10000) / 100 : 0, // sin presupuesto no hay cumplimiento
         crecimientoYoY: vAnt > 0 ? Math.round(((vReal - vAnt) / vAnt) * 10000) / 100 : (cm.crecimientoYoY || 0),
         devolucionesMonto: dev,
@@ -2937,7 +2940,7 @@ export function calcularDashboard1Cumplimiento(
 
   if (esMesPuntual && mesPuntualObj) {
     pptoObjetivo = mesPuntualObj.ppto || 0;
-    pptoAnteriorObjetivo = mesPuntualObj.ventaAnterior > 0 ? Math.round(mesPuntualObj.ventaAnterior * 1.05) : (cmiKpis?.pptoAnteriorTotal || 0);
+    pptoAnteriorObjetivo = mesPuntualObj.pptoAnterior || cmiKpis?.pptoAnteriorTotal || 0;
     ventaAnteriorObjetivo = totalVentasAnterior > 0 ? totalVentasAnterior : (mesPuntualObj.ventaAnterior || cmiKpis?.ventaAnteriorTotal || 0);
     unidadesAnteriorObjetivo = totalUnidadesAnterior > 0 ? totalUnidadesAnterior : (mesPuntualObj.unidadesAnterior || cmiKpis?.unidadesAnteriorTotal || 0);
   } else {
@@ -2945,7 +2948,7 @@ export function calcularDashboard1Cumplimiento(
     const mesesConVenta = meses.filter((m) => m.ventaReal > 0);
     const mesesParaPpto = mesesConVenta.length > 0 ? mesesConVenta : meses;
     pptoObjetivo = mesesParaPpto.reduce((sum, m) => sum + (m.ppto || 0), 0);
-    pptoAnteriorObjetivo = mesesParaPpto.reduce((sum, m) => sum + (m.ventaAnterior > 0 ? Math.round(m.ventaAnterior * 1.05) : 0), 0);
+    pptoAnteriorObjetivo = cmiKpis?.pptoAnteriorTotal || mesesParaPpto.reduce((sum, m) => sum + (m.pptoAnterior || 0), 0);
     ventaAnteriorObjetivo = totalVentasAnterior > 0 ? totalVentasAnterior : (cmiKpis?.ventaAnteriorTotal || mesesParaPpto.reduce((sum, m) => sum + (m.ventaAnterior || 0), 0));
     unidadesAnteriorObjetivo = totalUnidadesAnterior > 0 ? totalUnidadesAnterior : (cmiKpis?.unidadesAnteriorTotal || mesesParaPpto.reduce((sum, m) => sum + (m.unidadesAnterior || 0), 0));
   }
@@ -2983,7 +2986,7 @@ export function calcularDashboard1Cumplimiento(
     ventaAnteriorTotal: ventaAnteriorObjetivo,
     ventaBrutaAnteriorTotal: (totalVentaBrutaAnterior > 0 ? totalVentaBrutaAnterior : ventaAnteriorObjetivo),
     pptoYTD: pptoObjetivo,
-    pptoAnteriorTotal: cmiKpis?.pptoAnteriorTotal || pptoAnteriorObjetivo || (ventaAnteriorObjetivo > 0 ? Math.round(ventaAnteriorObjetivo * 1.05) : 0),
+    pptoAnteriorTotal: pptoAnteriorObjetivo || cmiKpis?.pptoAnteriorTotal || 0,
     cumplimientoGlobalPct: cumplimientoGlobalPct,
     cumplimientoAnteriorPct: cumplimientoAnteriorPct,
     crecimientoYoYPct: crecimientoYoYGlobal,

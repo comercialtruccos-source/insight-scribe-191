@@ -10904,6 +10904,7 @@ export function obtenerMesesCalibradosCMI(
     }
 
     // 2026
+    const pptoAnt = entidad.meses2025?.[m.mes - 1] ?? m.v2025 ?? 0;
     return {
       anio: 2026,
       mes: m.mes,
@@ -10912,6 +10913,7 @@ export function obtenerMesesCalibradosCMI(
       ventaReal: m.v2026,
       ventaAnterior: m.v2025,
       ppto: m.ppto2026,
+      pptoAnterior: pptoAnt,
       cumplimientoPct: m.ppto2026 > 0 && m.v2026 > 0 ? Math.round((m.v2026 / m.ppto2026) * 10000) / 100 : m.cumplimientoPct,
       crecimientoYoY: m.v2025 > 0 ? Math.round(((m.v2026 - m.v2025) / m.v2025) * 10000) / 100 : m.crecimientoYoYPct,
       devolucionesMonto: Math.abs(m.dev2026),
@@ -10961,10 +10963,32 @@ export function obtenerKpisCalibradosCMI(
     }
 
     // Mes específico de 2026
-    if (!m || m.v2026 === 0) return null;
+    if (!m) return null;
+    const ppto = m.ppto2026;
+    const pptoAnt = entidad.meses2025?.[filtros.mes - 1] ?? m.v2025 ?? 0;
+    if (m.v2026 === 0) {
+      if (ppto > 0 || pptoAnt > 0) {
+        return {
+          ventaYTD: 0,
+          ventaBrutaTotal: 0,
+          ventaAnteriorTotal: pptoAnt,
+          pptoYTD: ppto,
+          pptoAnteriorTotal: pptoAnt,
+          cumplimientoGlobalPct: 0,
+          crecimientoYoYPct: 0,
+          devolucionesTotal: 0,
+          tasaDevolucionGlobalPct: 0,
+          volumenUnidades: 0,
+          unidadesAnteriorTotal: 0,
+          ticketPromedio: 0,
+          precioPromedioPrenda: 0,
+          totalTransacciones: 0,
+        };
+      }
+      return null;
+    }
     const ventaReal = m.v2026;
     const ventaAnt = m.v2025;
-    const ppto = m.ppto2026;
     const unds = m.u2026;
     const dev = Math.abs(m.dev2026);
     const ventaBruta = ventaReal + dev;
@@ -10980,6 +11004,7 @@ export function obtenerKpisCalibradosCMI(
       ventaBrutaTotal: ventaBruta,
       ventaAnteriorTotal: ventaAnt,
       pptoYTD: ppto,
+      pptoAnteriorTotal: pptoAnt,
       cumplimientoGlobalPct: ppto > 0 && ventaReal > 0 ? Math.round((ventaReal / ppto) * 10000) / 100 : (m.cumplimientoPct || 0),
       crecimientoYoYPct: ventaAnt > 0 ? Math.round(((ventaReal - ventaAnt) / ventaAnt) * 10000) / 100 : (m.crecimientoYoYPct || 0),
       devolucionesTotal: dev,
@@ -11050,6 +11075,7 @@ export function obtenerKpisCalibradosCMI(
     ventaBrutaTotal: totalVentaBruta,
     ventaAnteriorTotal: totalVentaAntComparable,
     pptoYTD: totalPptoComparable,
+    pptoAnteriorTotal: totalVentaAntComparable,
     cumplimientoGlobalPct: cumplimientoPct,
     crecimientoYoYPct,
     devolucionesTotal: totalDev2026,

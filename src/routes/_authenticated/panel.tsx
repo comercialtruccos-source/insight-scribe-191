@@ -3203,7 +3203,7 @@ function Panel() {
                 </p>
               </div>
               <Badge variant="outline" className={`font-semibold ${colorSemaforo(d1?.kpis.cumplimientoGlobalPct ?? 0)}`}>
-                {anio === "todos" ? "Histórico Completo" : `Año ${anio}`} • {esAdmin ? `Cumplimiento: ${Number(d1?.kpis.cumplimientoGlobalPct ?? 0).toFixed(2)}%` : `Crecimiento YoY: ${(d1?.kpis.crecimientoYoYPct ?? 0) > 0 ? "+" : ""}${Number(d1?.kpis.crecimientoYoYPct ?? 0).toFixed(2)}%`}
+                {anio === "todos" ? "Histórico Completo" : (esMesPuntual && nombreMesPuntual ? `${nombreMesPuntual} ${anio}` : `Año ${anio}`)} • {esAdmin ? `Cumplimiento: ${Number(d1?.kpis.cumplimientoGlobalPct ?? 0).toFixed(2)}%` : `Crecimiento YoY: ${(d1?.kpis.crecimientoYoYPct ?? 0) > 0 ? "+" : ""}${Number(d1?.kpis.crecimientoYoYPct ?? 0).toFixed(2)}%`}
               </Badge>
             </div>
 
@@ -3272,11 +3272,11 @@ function Panel() {
               {/* 1. Presupuesto Mes Año Pasado */}
               <CardKpi
                 titulo={nombreMesPuntual ? `Presupuesto ${nombreMesPuntual} Año Pasado` : (mes !== "todos" ? "Presupuesto Mes Año Pasado" : "Presupuesto Periodo Año Pasado")}
-                valor={formatoCOPFull(d1?.kpis.ventaAnteriorTotal ?? 0)}
-                subtexto={`Crecimiento YoY: ${(d1?.kpis.crecimientoYoYPct ?? 0) > 0 ? "+" : ""}${Number(d1?.kpis.crecimientoYoYPct ?? 0).toFixed(2)}%`}
+                valor={formatoCOPFull(d1?.kpis.pptoAnteriorTotal ?? 0)}
+                subtexto={(d1?.kpis.ventaAnteriorTotal ?? 0) > 0 ? `Venta ejecutada: ${formatoCOPFull(d1.kpis.ventaAnteriorTotal)}` : undefined}
                 icono={<History className="h-5 w-5 text-blue-500" />}
                 cargando={cD1}
-                badgeYoY={habilitarYoY ? <BadgeYoY actual={d1?.kpis.ventaYTD} anterior={d1?.kpis.ventaAnteriorTotal} porcentaje={d1?.kpis.crecimientoYoYPct} /> : undefined}
+                badgeCumplimientoPct={(d1?.kpis.pptoAnteriorTotal ?? 0) > 0 && (d1?.kpis.ventaAnteriorTotal ?? 0) > 0 ? d1?.kpis.cumplimientoAnteriorPct : undefined}
               />
               {/* 2. Venta Facturada Neta */}
               <CardKpi
