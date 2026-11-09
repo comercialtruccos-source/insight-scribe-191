@@ -44,6 +44,8 @@ export type CatalogosDisponibles = {
   correrias: CatalogoItem[];
   paises: CatalogoItem[];
   terceros?: CatalogoItem[];
+  /** Última fecha con ventas cargadas (YYYY-MM-DD) */
+  fechaMax?: string | null;
 };
 
 export type RangoFechasInfo = {
@@ -1522,6 +1524,7 @@ export async function obtenerCatalogosFiltros(): Promise<CatalogosDisponibles> {
     correrias: sanitizeCatalogo(correriaRes.data),
     paises: sanitizeCatalogo(paisRes.data),
     terceros: tercRes,
+    fechaMax: fechaMaxRes.data?.[0]?.fecha ?? null,
   };
 }
 
@@ -1943,7 +1946,7 @@ export type DataDashboard1 = {
 /**
  * Calcula los filtros correspondientes exactamente al mismo periodo del año anterior
  */
-export function obtenerFiltrosAnioAnterior(filtros: FiltrosBI, aniosCatalogo?: number[]): FiltrosBI {
+export function obtenerFiltrosAnioAnterior(filtros: FiltrosBI, aniosCatalogo?: number[], fechaUltimaCarga?: string | null): FiltrosBI {
   let anioYoY: number | null = null;
   let mesYoY: number | null = filtros.mes ?? null;
   let fDesdeYoY: string | null = null;
@@ -1962,6 +1965,20 @@ export function obtenerFiltrosAnioAnterior(filtros: FiltrosBI, aniosCatalogo?: n
     fHastaYoY = shiftDate(filtros.fecha_hasta);
   } else if (filtros.anio) {
     anioYoY = filtros.anio - 1;
+    // Mes en curso (o aún sin cerrar en los datos): comparar contra los mismos días del año anterior,
+    // hasta el último día con ventas cargadas, no contra el mes completo.
+    const hoy = new Date();
+    const corte = fechaUltimaCarga && /^\d{4}-\d{2}-\d{2}/.test(fechaUltimaCarga) ? fechaUltimaCarga.slice(0, 10) : null;
+    const corteAnio = corte ? parseInt(corte.slice(0, 4), 10) : hoy.getFullYear();
+    const corteMes = corte ? parseInt(corte.slice(5, 7), 10) : hoy.getMonth() + 1;
+    const corteDia = corte ? parseInt(corte.slice(8, 10), 10) : hoy.getDate();
+    const ultimoDiaMes = new Date(filtros.anio, (filtros.mes || 1), 0).getDate();
+    if (filtros.mes && filtros.anio === corteAnio && filtros.mes === corteMes && corteDia < ultimoDiaMes) {
+      const mm = String(filtros.mes).padStart(2, "0");
+      const dd = String(corteDia).padStart(2, "0");
+      fDesdeYoY = `${anioYoY}-${mm}-01`;
+      fHastaYoY = `${anioYoY}-${mm}-${dd}`;
+    }
   } else if (filtros.mes) {
     const baseAnio = (aniosCatalogo && aniosCatalogo[0]) || new Date().getFullYear();
     anioYoY = baseAnio - 1;
@@ -2448,7 +2465,8 @@ export function calcularDashboard1Cumplimiento(
       const vReal = d.venta !== 0 ? d.venta : cm.ventaReal;
       const vAntDb = periodoAntMap.get(String(cm.mes))?.venta || 0;
       const vAnt = vAntDb !== 0 ? vAntDb : cm.ventaAnterior;
-      const ppto = cm.ppto > 0 ? cm.ppto : (vReal > 0 ? Math.round(vReal * 1.05) : 0);
+      // Sin presupuesto en el CMI no se inventa uno (antes: venta × 1,05, que fabricaba cumplimientos ~95%)
+      const ppto = cm.ppto > 0 ? cm.ppto : 0;
       const unds = d.venta !== 0 ? d.unidades : cm.unidades;
       const uAntDb = periodoAntMap.get(String(cm.mes))?.unidades || 0;
       const uAnt = uAntDb !== 0 ? uAntDb : cm.unidadesAnterior;
@@ -2852,7 +2870,7 @@ export function calcularDashboard1Cumplimiento(
   let unidadesAnteriorObjetivo = 0;
 
   if (esMesPuntual && mesPuntualObj) {
-    pptoObjetivo = mesPuntualObj.ppto || cmiKpis?.pptoYTD || (totalVentas > 0 ? Math.round(totalVentas * 1.05) : 0);
+    pptoObjetivo = mesPuntualObj.ppto || 0;
     pptoAnteriorObjetivo = mesPuntualObj.ventaAnterior > 0 ? Math.round(mesPuntualObj.ventaAnterior * 1.05) : (cmiKpis?.pptoAnteriorTotal || 0);
     ventaAnteriorObjetivo = totalVentasAnterior > 0 ? totalVentasAnterior : (mesPuntualObj.ventaAnterior || cmiKpis?.ventaAnteriorTotal || 0);
     unidadesAnteriorObjetivo = totalUnidadesAnterior > 0 ? totalUnidadesAnterior : (mesPuntualObj.unidadesAnterior || cmiKpis?.unidadesAnteriorTotal || 0);
@@ -2866,9 +2884,6 @@ export function calcularDashboard1Cumplimiento(
     unidadesAnteriorObjetivo = totalUnidadesAnterior > 0 ? totalUnidadesAnterior : (cmiKpis?.unidadesAnteriorTotal || mesesParaPpto.reduce((sum, m) => sum + (m.unidadesAnterior || 0), 0));
   }
 
-  if (pptoObjetivo === 0 && totalVentas > 0) {
-    pptoObjetivo = cmiKpis?.pptoYTD || Math.round(totalVentas * 1.05);
-  }
 
   const numTransacciones = transaccionesSet.size > 0 ? transaccionesSet.size : (cmiKpis?.totalTransacciones || totalUnidades);
   const numTransaccionesAnterior = transaccionesAntSet.size > 0 ? transaccionesAntSet.size : (cmiKpis?.unidadesAnteriorTotal || unidadesAnteriorObjetivo);
@@ -2879,7 +2894,7 @@ export function calcularDashboard1Cumplimiento(
 
   const cumplimientoGlobalPct = pptoObjetivo > 0 && totalVentas > 0
     ? Math.round((totalVentas / pptoObjetivo) * 10000) / 100
-    : (cmiKpis?.cumplimientoGlobalPct || (totalVentas > 0 ? 100 : 0));
+    : 0; // sin presupuesto no hay % de cumplimiento
 
   const cumplimientoAnteriorPct = pptoAnteriorObjetivo > 0 && ventaAnteriorObjetivo > 0
     ? Math.round((ventaAnteriorObjetivo / pptoAnteriorObjetivo) * 10000) / 100
@@ -3082,11 +3097,8 @@ export function calcularDashboard2RunRate(
   const ventaTotalMes = rawVentaTotalMes !== 0 ? rawVentaTotalMes : cmiVentaMes;
   const ventaTotalMesAnteriorFinal = ventaTotalMesAnterior !== 0 ? ventaTotalMesAnterior : cmiVentaAntMes;
 
-  const pptoMes = cmiPptoMes > 0
-    ? cmiPptoMes
-    : (ventaTotalMesAnteriorFinal > 0
-      ? Math.round(ventaTotalMesAnteriorFinal * 1.05)
-      : (ventaTotalMes > 0 ? Math.round(ventaTotalMes * 1.05) : 0));
+  // Presupuesto solo del CMI; si el mes no lo tiene se deja en 0 (antes se inventaba con × 1,05)
+  const pptoMes = cmiPptoMes > 0 ? cmiPptoMes : 0;
   const pptoMesAnterior = ventaTotalMesAnteriorFinal > 0 ? Math.round(ventaTotalMesAnteriorFinal * 1.05) : 0;
   const crecimientoYoYPct = ventaTotalMesAnteriorFinal > 0 ? Math.round(((ventaTotalMes - ventaTotalMesAnteriorFinal) / ventaTotalMesAnteriorFinal) * 1000) / 10 : 0;
 

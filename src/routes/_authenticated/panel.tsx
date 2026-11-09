@@ -929,8 +929,8 @@ function Panel() {
 
   const filtrosYoY = useMemo(() => {
     if (!habilitarYoY) return null;
-    return obtenerFiltrosAnioAnterior(filtros, catalogos?.anios);
-  }, [habilitarYoY, filtros, catalogos?.anios]);
+    return obtenerFiltrosAnioAnterior(filtros, catalogos?.anios, catalogos?.fechaMax);
+  }, [habilitarYoY, filtros, catalogos?.anios, catalogos?.fechaMax]);
 
   // Carga unificada de ventas para todos los dashboards:
   // Si el usuario tiene un mes puntual seleccionado (ej: Octubre), consultamos ese mes puntualmente
@@ -1024,8 +1024,8 @@ function Panel() {
 
   const filtrosCanalD4YoY = useMemo(() => {
     if (!habilitarYoY || !filtrosCanalD4) return null;
-    return obtenerFiltrosAnioAnterior(filtrosCanalD4, catalogos?.anios);
-  }, [habilitarYoY, filtrosCanalD4, catalogos?.anios]);
+    return obtenerFiltrosAnioAnterior(filtrosCanalD4, catalogos?.anios, catalogos?.fechaMax);
+  }, [habilitarYoY, filtrosCanalD4, catalogos?.anios, catalogos?.fechaMax]);
 
   const { data: rawVentasCanalD4YoY } = useQuery({
     queryKey: ["bi-fact-ventas-canal-d4-yoy", filtrosCanalD4YoY],
