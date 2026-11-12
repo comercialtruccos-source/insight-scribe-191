@@ -44,6 +44,99 @@ export type Database = {
         }
         Relationships: []
       }
+      cargas_clientes_mora: {
+        Row: {
+          archivo: string
+          created_at: string
+          filas_insertadas: number
+          filas_recibidas: number
+          id: number
+          total_clientes: number
+          total_saldo: number
+          usuario_id: string | null
+        }
+        Insert: {
+          archivo: string
+          created_at?: string
+          filas_insertadas?: number
+          filas_recibidas?: number
+          id?: number
+          total_clientes?: number
+          total_saldo?: number
+          usuario_id?: string | null
+        }
+        Update: {
+          archivo?: string
+          created_at?: string
+          filas_insertadas?: number
+          filas_recibidas?: number
+          id?: number
+          total_clientes?: number
+          total_saldo?: number
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
+      clientes_mora: {
+        Row: {
+          carga_id: number | null
+          created_at: string
+          cuota: string
+          dias_mora: number
+          documento: string
+          fecha: string
+          id: number
+          nombre: string
+          referencia: string | null
+          saldo: number
+          t: string
+          tercero: string
+          tr: string
+          updated_at: string
+          valor: number
+          vence: string
+          vendedor: string
+        }
+        Insert: {
+          carga_id?: number | null
+          created_at?: string
+          cuota?: string
+          dias_mora?: number
+          documento?: string
+          fecha?: string
+          id?: number
+          nombre?: string
+          referencia?: string | null
+          saldo?: number
+          t?: string
+          tercero?: string
+          tr?: string
+          updated_at?: string
+          valor?: number
+          vence?: string
+          vendedor?: string
+        }
+        Update: {
+          carga_id?: number | null
+          created_at?: string
+          cuota?: string
+          dias_mora?: number
+          documento?: string
+          fecha?: string
+          id?: number
+          nombre?: string
+          referencia?: string | null
+          saldo?: number
+          t?: string
+          tercero?: string
+          tr?: string
+          updated_at?: string
+          valor?: number
+          vence?: string
+          vendedor?: string
+        }
+        Relationships: []
+      }
       cargas_referencias: {
         Row: {
           archivo: string
@@ -555,8 +648,72 @@ export type Database = {
         }
         Relationships: []
       }
+      cargas_cartera_mora: {
+        Row: {
+          archivo: string | null
+          created_at: string | null
+          filas_insertadas: number | null
+          filas_recibidas: number | null
+          id: number | null
+          total_clientes: number | null
+          total_saldo: number | null
+          usuario_id: string | null
+        }
+        Relationships: []
+      }
+      cartera_clientes_mora: {
+        Row: {
+          carga_id: number | null
+          created_at: string | null
+          cuota: string | null
+          dias_mora: number | null
+          documento: string | null
+          fecha: string | null
+          id: number | null
+          nombre: string | null
+          referencia: string | null
+          saldo: number | null
+          t: string | null
+          tercero: string | null
+          tr: string | null
+          updated_at: string | null
+          valor: number | null
+          vence: string | null
+          vendedor: string | null
+        }
+        Relationships: []
+      }
+      cartera_mora: {
+        Row: {
+          carga_id: number | null
+          created_at: string | null
+          cuota: string | null
+          dias_mora: number | null
+          documento: string | null
+          fecha: string | null
+          id: number | null
+          nombre: string | null
+          referencia: string | null
+          saldo: number | null
+          t: string | null
+          tercero: string | null
+          tr: string | null
+          updated_at: string | null
+          valor: number | null
+          vence: string | null
+          vendedor: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      ingest_clientes_mora: {
+        Args: { payload: Json }
+        Returns: {
+          insertadas: number
+          recibidas: number
+        }[]
+      }
       ingest_referencias: {
         Args: { payload: Json }
         Returns: {
